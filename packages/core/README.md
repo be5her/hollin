@@ -29,7 +29,16 @@ The engine. Everything here is pure TypeScript with no Electron, Node I/O or UI 
 - `WriteQueue` runs writes one after another per key; a failed write rejects its caller but never blocks later writes.
 - `ConfigStore`: `config.json` in the app's data folder. A file that is not JSON is kept aside as `config.corrupt-<time>.json` and the app starts from defaults. Every update is written atomically and announced (`config.changed`).
 - `SecretStore`: named secrets encrypted with the OS keychain (Electron `safeStorage`) in `secrets.json`. Without OS encryption (or with Linux's fixed-key `basic_text` backend) nothing is written and secrets last for the session only; `persistent` says which.
+- `project-store.ts`: reads and writes a project folder with the commit protocol (content-hashed level files, `project.json` last, then old files removed), so a crash never mixes old and new files. Only changed levels are stringified.
+- `project-session.ts`: one open project's document and its autosave (750 ms debounce, 5 s maximum wait, clean only after a successful write, retries on failure, flush on close).
+- `library.ts`: the library folder: index (a rebuildable cache), listing and search, create, duplicate, trash, snapshots, thumbnails, packages, the lock heartbeat.
+- `package.ts`: export and import of `.psp` packages with the import guards.
+- `project-service.ts`: the library plus the open projects; what `host.projects` is. See `packages/modules/library/README.md`.
+
+## Document (`src/doc`)
+
+`schema.ts` defines the project document (zod): meta, building (datum, ground level, level stack), levels, layers, entities per level (`levelData`), connectors. `defaults.ts` makes a new project (one ground floor with Structure, Interior and Decor layers). `files.ts` splits a document into `project.json` and level files and back, with stable key order, and migrates older formats.
 
 ## Tests
 
-`npm test` runs `*.test.ts` here: the registry and its gates, config merging and normalising, units, ids, atomic writes and the retry, the write queue, the config and secret stores.
+`npm test` runs `*.test.ts` here: the registry and its gates, config merging and normalising, units, ids, atomic writes and the retry, the write queue, the config and secret stores, project folders and crash simulation, autosave timing, the library, packages and the project service.

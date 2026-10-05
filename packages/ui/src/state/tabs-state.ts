@@ -78,4 +78,15 @@ export class TabsState {
   update(id: string, patch: Partial<Omit<Tab, 'id'>>): void {
     this.list.update((tabs) => tabs.map((t) => (t.id === id ? { ...t, ...patch } : t)));
   }
+
+  private readonly closeHandlers = new Map<string, (tab: Tab) => Promise<void>>();
+
+  /** Runs before a tab of this type is closed by the user, e.g. to close its project in the host. */
+  onClose(type: string, handler: (tab: Tab) => Promise<void>): void {
+    this.closeHandlers.set(type, handler);
+  }
+
+  async beforeClose(tab: Tab): Promise<void> {
+    await this.closeHandlers.get(tab.type)?.(tab);
+  }
 }

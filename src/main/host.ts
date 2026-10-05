@@ -15,7 +15,7 @@ import {
   type ModuleMain,
   type ProjectApi,
 } from '@studio/core';
-import { ConfigStore, SecretStore, type Cipher } from '@studio/core/node';
+import { ConfigStore, ProjectService, SecretStore, type Cipher } from '@studio/core/node';
 import { startMcpServer, type RunningMcpServer } from '@studio/mcp';
 import { mainModules } from '@studio/modules/main';
 import { hostCommands } from './host-commands';
@@ -32,6 +32,10 @@ export interface HostOptions {
   setTitleBarColors?(colors: { color: string; symbolColor: string }): void;
   /** Extra modules, e.g. the smoke test's. */
   extraModules?: ModuleMain[];
+  /** Native file and folder pickers; absent in tests. */
+  dialogs?: HostApi['dialogs'];
+  /** Autosave timing, shortened by the smoke test. */
+  autosave?: { debounceMs?: number; maxWaitMs?: number };
 }
 
 export interface InvokeOptions {
@@ -56,8 +60,21 @@ export class Host {
   private mcp: RunningMcpServer | null = null;
   private mcpError: string | undefined;
   private readonly calls: McpCallEntry[] = [];
+  private service: ProjectService | null = null;
+
+  /** The project library and the open projects; available once `start` has run. */
+  get projects(): ProjectService {
+    if (!this.service) throw new StudioError('INTERNAL', 'The project library is not open yet');
+    return this.service;
+  }
+
+  /** Where the library lives unless the user moved it. */
+  get defaultLibraryRoot(): string {
+    return path.join(this.opts.userDataDir, 'Library');
+  }
 
   constructor(readonly opts: HostOptions) {
+    const host = this;
     this.config = new ConfigStore(path.join(opts.userDataDir, 'config.json'), (config) => this.emit('config.changed', { config }));
     this.secrets = new SecretStore(path.join(opts.userDataDir, 'secrets.json'), opts.cipher);
     this.api = {
@@ -69,6 +86,10 @@ export class Host {
         update: (patch) => this.config.update(patch),
       },
       secrets: this.secrets,
+      get projects() {
+        return host.projects;
+      },
+      dialogs: opts.dialogs,
       emit: (event, payload) => this.emit(event, payload),
     };
     this.registry.registerModule({ id: 'host', commands: hostCommands(this) });
@@ -99,11 +120,28 @@ export class Host {
         console.warn(`[host] module ${mod.id} failed to start: ${(err as Error).message}`);
       }
     }
+    this.service = new ProjectService({
+      libraryRoot: config.library.path || this.defaultLibraryRoot,
+      defaultLibraryRoot: this.defaultLibraryRoot,
+      appVersion: this.opts.version,
+      emit: (event, payload) => this.emit(event, payload),
+      rememberSession: async (session) => void (await this.config.update({ session })),
+      rememberLibrary: async (root) => void (await this.config.update({ library: { path: path.resolve(root) === path.resolve(this.defaultLibraryRoot) ? '' : root } })),
+      session: this.opts.autosave,
+      onProjectOpen: async (project) => {
+        for (const mod of this.registry.listModules()) await mod.onProjectOpen?.(project, this.api);
+      },
+      onProjectClose: async (project) => {
+        for (const mod of this.registry.listModules()) await mod.onProjectClose?.(project, this.api);
+      },
+    });
+    await this.service.start(config.session);
     if (config.mcp.enabled) await this.startMcp();
   }
 
   async stop(): Promise<void> {
     await this.stopMcp();
+    await this.service?.stop();
     for (const mod of this.registry.listModules()) {
       try {
         await mod.onStop?.(this.api);
@@ -127,10 +165,9 @@ export class Host {
     }
   }
 
-  /** The project a call acts on. No project library yet, so a named project is never found. */
-  async resolveProject(hint: string | null): Promise<ProjectApi | undefined> {
-    if (hint) throw new StudioError('NOT_FOUND', `No open project "${hint}"`);
-    return undefined;
+  /** The project a call acts on: the named one (opened if needed), else the one on screen. */
+  resolveProject(hint: string | null): Promise<ProjectApi | undefined> {
+    return this.projects.resolve(hint);
   }
 
   // ---------- MCP ----------

@@ -4,7 +4,7 @@ import { defineConfig } from 'electron-vite';
  * Runtime dependencies that stay outside the main bundle and are loaded from node_modules.
  * Keep in sync with the root package.json "dependencies", which electron-builder packages.
  */
-const external = ['zod', /^zod\//, /^@modelcontextprotocol\/(server|node)/, /^node:/];
+const external = ['zod', /^zod\//, /^@modelcontextprotocol\/(server|node)/, 'fflate', /^node:/];
 
 /**
  * Builds the main process and the preload script only. The renderer is an Angular application with its

@@ -17,6 +17,13 @@
     <x-units-editor [formField]="settings.units" />
   </section>
 
+  @for (section of sections(); track section.id) {
+    <section [attr.data-section]="section.id">
+      <h2 class="text-sm font-semibold mb-1 pb-1 border-b border-edge">{{ section.title }}</h2>
+      <ng-container *ngComponentOutlet="section.component" />
+    </section>
+  }
+
   <section data-section="mcp">
     <h2 class="text-sm font-semibold mb-1 pb-1 border-b border-edge">MCP server</h2>
     <p class="text-xs text-muted mb-3">

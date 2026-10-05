@@ -1,0 +1,71 @@
+@if (project(); as p) {
+  <div class="max-w-4xl mx-auto w-full px-8 py-8 flex flex-col gap-8">
+    <div class="flex items-start gap-4">
+      <div class="flex-1 min-w-0">
+        <input
+          class="w-full bg-transparent text-xl font-semibold tracking-tight outline-none rounded px-1 -mx-1 focus:ring-2 focus:ring-accent/30"
+          [formField]="detailsForm.name"
+          (blur)="saveDetails()"
+          (keydown.enter)="$any($event.target).blur()"
+          aria-label="Project name"
+          data-testid="project-name"
+        />
+        <div class="text-xs text-muted mt-1" data-testid="project-save-state" [attr.data-state]="p.save.state">
+          @switch (p.save.state) {
+            @case ('saved') {
+              All changes saved {{ ago(p.save.savedAt) }}
+            }
+            @case ('failed') {
+              <span class="text-danger">Not saved: {{ p.save.error }}</span>
+            }
+            @default {
+              Saving…
+            }
+          }
+          · {{ p.levelCount }} level{{ p.levelCount === 1 ? '' : 's' }} · created {{ ago(p.createdAt) }}
+        </div>
+      </div>
+      <div class="flex items-center gap-1.5 shrink-0">
+        <button xButton size="sm" [icon]="icons.Save" (click)="saveNow()" data-testid="project-save">Save now</button>
+        <button xButton size="sm" [icon]="icons.Download" (click)="actions.exportProject(p)" data-testid="project-export">Export…</button>
+        <button xButton size="sm" [icon]="icons.Copy" (click)="actions.duplicate(p)">Duplicate</button>
+        <button xButton size="sm" variant="danger" [icon]="icons.Trash2" (click)="actions.trash(p)" data-testid="project-trash">Move to trash</button>
+      </div>
+    </div>
+
+    <section class="grid grid-cols-2 gap-4">
+      <div>
+        <label xLabel for="project-description">Description</label>
+        <textarea xTextarea id="project-description" rows="3" class="font-sans" [formField]="detailsForm.description" (blur)="saveDetails()" data-testid="project-description"></textarea>
+      </div>
+      <div>
+        <label xLabel for="project-tags">Tags</label>
+        <input xInput id="project-tags" placeholder="residential, concept" [formField]="detailsForm.tags" (blur)="saveDetails()" data-testid="project-tags" />
+        <p class="text-[11px] text-muted mt-1">Separate tags with commas. They help find projects on the Home screen.</p>
+      </div>
+    </section>
+
+    <section>
+      <div class="flex items-center justify-between mb-2 pb-1 border-b border-edge">
+        <h2 class="text-sm font-semibold flex items-center gap-1.5"><svg [xIcon]="icons.History" class="size-4"></svg>Snapshots</h2>
+        <button xButton size="sm" variant="primary" [icon]="icons.Camera" (click)="snapshot()" data-testid="snapshot-create">Save snapshot</button>
+      </div>
+      @if (snapshots.value()?.length) {
+        <div class="divide-y divide-edge" data-testid="snapshot-list">
+          @for (s of snapshots.value(); track s.id) {
+            <div class="flex items-center gap-3 py-2 text-sm" data-testid="snapshot-item" [attr.data-name]="s.name" [attr.data-kind]="s.kind">
+              <span class="flex-1 min-w-0 truncate" [class.text-muted]="s.kind === 'auto'">{{ s.name }}</span>
+              <span class="text-xs text-muted shrink-0">{{ s.kind === 'auto' ? 'automatic' : s.createdBy }} · {{ ago(s.createdAt) }}</span>
+              <button xButton size="sm" variant="ghost" [icon]="icons.RotateCcw" (click)="restore(s)" data-testid="snapshot-restore">Restore</button>
+              <button xButton size="sm" variant="ghost" [icon]="icons.X" (click)="remove(s)" [attr.aria-label]="'Delete snapshot ' + s.name" data-testid="snapshot-delete"></button>
+            </div>
+          }
+        </div>
+      } @else {
+        <p class="text-xs text-muted py-2">No snapshots yet. Save one before trying something risky; restoring it brings the design back.</p>
+      }
+    </section>
+  </div>
+} @else {
+  <x-empty-state title="Opening project…" />
+}

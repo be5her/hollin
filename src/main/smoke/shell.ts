@@ -7,7 +7,9 @@ export async function smokeShell(smoke: Smoke): Promise<void> {
   smoke.section('shell');
   smoke.check('the shell renders', await smoke.waitFor('[data-testid=app-ready]', 15000));
   smoke.check('the title bar names the product', (await smoke.text('[data-testid=product-name]')) === BRANDING.productName);
-  smoke.check('Home is the first, pinned tab and is active', await smoke.js<boolean>(`(() => { const t = document.querySelector('[data-testid=tab]'); return t?.dataset.type === 'shell.home' && t.getAttribute('aria-selected') === 'true'; })()`));
+  smoke.check('projects open before the window are restored as tabs', await smoke.waitFor('[data-testid=tab][data-type="project.editor"][aria-selected=true]'));
+  await smoke.click('[data-testid=tab][data-type="shell.home"]');
+  smoke.check('Home is the first, pinned tab', await smoke.js<boolean>(`(() => { const t = document.querySelector('[data-testid=tab]'); return t?.dataset.type === 'shell.home' && t.getAttribute('aria-selected') === 'true'; })()`));
   smoke.check('the status bar shows the running MCP server', ((await smoke.text('[data-testid=status-mcp]')) ?? '').includes(`:${host.config.get().mcp.port}`));
   await smoke.shots('01-home');
 
@@ -75,11 +77,13 @@ export async function smokeShell(smoke: Smoke): Promise<void> {
   await smoke.shot('05-tab-menu');
   await smoke.click('[data-testid=tab-menu-close]');
   smoke.check('Close in the tab menu closes the tab', await smoke.gone('[data-testid=tab][data-type="settings.main"]'));
-  smoke.check('Home is active again', await smoke.waitFor('[data-testid=home]'));
+  smoke.check('the tab to its left becomes active', await smoke.waitFor('[data-testid=tab][aria-selected=true]'));
   await smoke.click('[data-testid=activity-settings]');
   smoke.check('the activity bar opens Settings', await smoke.waitFor('[data-testid=tab][data-type="settings.main"][aria-selected=true]'));
   await smoke.key('W', ['control']);
   smoke.check('Ctrl+W closes the active tab', await smoke.gone('[data-testid=tab][data-type="settings.main"]'));
+  await smoke.click('[data-testid=tab][data-type="shell.home"]');
+  smoke.check('Home shows the project library', await smoke.waitFor('[data-tab-type="shell.home"]:not(.hidden) [data-testid=library-home]'));
   await smoke.key('W', ['control']);
   await wait(100);
   smoke.check('Home cannot be closed', (await smoke.count('[data-testid=tab][data-type="shell.home"]')) === 1);

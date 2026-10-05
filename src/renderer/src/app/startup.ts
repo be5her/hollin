@@ -17,6 +17,8 @@ export class ShellStartup {
   private readonly destroyRef = inject(DestroyRef);
 
   constructor() {
+    // Home first, so the project tabs restored by the library land after it and can take focus.
+    this.tabs.open({ type: 'shell.home', title: 'Home', pinned: true, data: { key: 'home' } }, { singletonKey: 'shell.home:home' });
     const offs = [
       this.host.on('config.changed', ({ config }) => {
         this.app.config.set(config);
@@ -40,7 +42,6 @@ export class ShellStartup {
     this.theme.apply(config.appearance.theme);
     this.app.commands.set(commands);
     this.app.mcpStatus.set(mcp);
-    this.tabs.open({ type: 'shell.home', title: 'Home', pinned: true, data: { key: 'home' } }, { singletonKey: 'shell.home:home' });
     this.app.ready.set(true);
   }
 }

@@ -90,6 +90,43 @@ export function hostCommands(host: Host) {
       input: z.object({}),
       handler: async () => host.mcpCalls(),
     }),
+    // Native dialogs, for the UI only: agents pass paths directly.
+    defineCommand({
+      id: 'app.pickFile',
+      title: 'Pick a file',
+      description: 'Opens a native file picker and returns the chosen path, or null.',
+      scope: 'global',
+      hidden: true,
+      input: z.object({ title: z.string().optional(), filters: z.array(z.object({ name: z.string(), extensions: z.array(z.string()) })).optional(), defaultPath: z.string().optional() }),
+      handler: async (options, ctx) => {
+        if (ctx.caller !== 'ui' || !host.api.dialogs) throw new StudioError('INVALID_INPUT', 'File pickers are only available in the app window');
+        return { path: (await host.api.dialogs.pickFile(options)) ?? null };
+      },
+    }),
+    defineCommand({
+      id: 'app.pickSavePath',
+      title: 'Pick where to save',
+      description: 'Opens a native save dialog and returns the chosen path, or null.',
+      scope: 'global',
+      hidden: true,
+      input: z.object({ title: z.string().optional(), filters: z.array(z.object({ name: z.string(), extensions: z.array(z.string()) })).optional(), defaultPath: z.string().optional() }),
+      handler: async (options, ctx) => {
+        if (ctx.caller !== 'ui' || !host.api.dialogs) throw new StudioError('INVALID_INPUT', 'File pickers are only available in the app window');
+        return { path: (await host.api.dialogs.pickSavePath(options)) ?? null };
+      },
+    }),
+    defineCommand({
+      id: 'app.pickFolder',
+      title: 'Pick a folder',
+      description: 'Opens a native folder picker and returns the chosen path, or null.',
+      scope: 'global',
+      hidden: true,
+      input: z.object({ title: z.string().optional(), defaultPath: z.string().optional() }),
+      handler: async (options, ctx) => {
+        if (ctx.caller !== 'ui' || !host.api.dialogs) throw new StudioError('INVALID_INPUT', 'Folder pickers are only available in the app window');
+        return { path: (await host.api.dialogs.pickFolder(options)) ?? null };
+      },
+    }),
     defineCommand({
       id: 'window.titleBarColors',
       title: 'Recolour the window controls',

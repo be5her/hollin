@@ -1,0 +1,111 @@
+<div class="max-w-6xl mx-auto w-full px-8 py-8 flex flex-col gap-5">
+  <div class="flex items-center gap-3 flex-wrap">
+    <h1 class="text-xl font-semibold tracking-tight mr-2">{{ showTrash() ? 'Trash' : 'Projects' }}</h1>
+    @if (!showTrash()) {
+      <button xButton variant="primary" [icon]="icons.Plus" (click)="actions.create()" data-testid="library-new">New project</button>
+      <button xButton [icon]="icons.Upload" (click)="actions.importProject()" data-testid="library-import">Import…</button>
+    }
+    <div class="flex-1"></div>
+    @if (showTrash()) {
+      <button xButton variant="danger" [icon]="icons.Trash2" [disabled]="!info.value()?.trashed" (click)="emptyTrash()" data-testid="library-empty-trash">Empty trash</button>
+      <button xButton (click)="showTrash.set(false)" data-testid="library-back">Back to projects</button>
+    } @else {
+      <button xButton variant="ghost" [icon]="icons.Trash2" (click)="showTrash.set(true)" data-testid="library-trash">Trash ({{ info.value()?.trashed ?? 0 }})</button>
+    }
+  </div>
+
+  @if (info.value()?.lockedBy; as lock) {
+    <div class="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs" data-testid="library-locked">
+      <svg [xIcon]="icons.TriangleAlert" class="size-4 text-warning shrink-0"></svg>
+      <span>This library was also open in another copy of {{ productName }} (on {{ lock.host }}). Close the other copy before changing the same projects.</span>
+    </div>
+  }
+
+  @if (!showTrash()) {
+    <div class="flex items-center gap-2 flex-wrap">
+      <div class="relative w-80">
+        <svg [xIcon]="icons.Search" class="size-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none"></svg>
+        <input xInput class="pl-8" placeholder="Search projects" [formField]="filterForm.query" data-testid="library-search" aria-label="Search projects" />
+      </div>
+      <select xSelect [formField]="filterForm.sort" aria-label="Sort" data-testid="library-sort">
+        <option value="recent">Last changed</option>
+        <option value="opened">Last opened</option>
+        <option value="name">Name</option>
+        <option value="created">Created</option>
+      </select>
+      @for (t of tags.value() ?? []; track t.tag) {
+        <button
+          type="button"
+          class="h-6 px-2 rounded-full border text-[11px] transition-colors"
+          [class]="selectedTags().includes(t.tag) ? 'border-accent bg-accent/10 text-fg' : 'border-edge text-muted hover:text-fg'"
+          [attr.aria-pressed]="selectedTags().includes(t.tag)"
+          data-testid="library-tag"
+          (click)="toggleTag(t.tag)"
+        >
+          {{ t.tag }} <span class="text-muted">{{ t.count }}</span>
+        </button>
+      }
+    </div>
+  }
+
+  @if (projects.value(); as list) {
+    @if (list.length) {
+      @if (showTrash()) {
+        <div class="border border-edge rounded-md divide-y divide-edge" data-testid="trash-list">
+          @for (p of list; track p.id) {
+            <div class="flex items-center gap-3 px-3 py-2 text-sm" data-testid="trash-item" [attr.data-name]="p.name" (contextmenu)="showMenu($event, p)">
+              <span class="flex-1 truncate">{{ p.name }}</span>
+              <span class="text-xs text-muted">Trashed {{ ago(p.trashedAt) }}</span>
+              <button xButton size="sm" [icon]="icons.ArchiveRestore" (click)="actions.restore(p)" data-testid="trash-restore">Restore</button>
+              <button xButton size="sm" variant="danger" (click)="actions.deleteForever(p)" data-testid="trash-delete">Delete</button>
+            </div>
+          }
+        </div>
+      } @else {
+        <div class="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4" data-testid="project-grid">
+          @for (p of list; track p.id) {
+            <button
+              type="button"
+              class="group flex flex-col justify-start text-left rounded-lg border border-edge bg-surface hover:border-accent/60 hover:shadow-md transition overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+              data-testid="project-card"
+              [attr.data-id]="p.id"
+              [attr.data-name]="p.name"
+              (click)="open(p)"
+              (contextmenu)="showMenu($event, p)"
+            >
+              <div class="aspect-[4/3] bg-elevated relative">
+                @if (thumb(p); as src) {
+                  <img [src]="src" alt="" class="absolute inset-0 size-full object-cover" data-testid="project-thumbnail" />
+                } @else {
+                  @let ph = placeholder(p);
+                  <div class="absolute inset-0 grid place-items-center text-white/90 text-2xl font-semibold tracking-wide" [style.background]="ph.background">{{ ph.label }}</div>
+                }
+              </div>
+              <div class="px-3 py-2.5">
+                <div class="text-sm font-medium truncate" data-testid="project-card-name">{{ p.name }}</div>
+                <div class="text-[11px] text-muted mt-0.5">Edited {{ ago(p.updatedAt) }} · {{ p.levelCount }} level{{ p.levelCount === 1 ? '' : 's' }}</div>
+                @if (p.tags.length) {
+                  <div class="flex flex-wrap gap-1 mt-1.5">
+                    @for (tag of p.tags; track tag) {
+                      <span class="px-1.5 rounded bg-elevated text-[10px] text-muted">{{ tag }}</span>
+                    }
+                  </div>
+                }
+              </div>
+            </button>
+          }
+        </div>
+      }
+    } @else if (showTrash()) {
+      <x-empty-state title="The trash is empty" hint="Projects moved to the trash can be restored from here." />
+    } @else if (filtering()) {
+      <x-empty-state title="No matching projects" hint="Try other words or tags.">
+        <button xButton size="sm" (click)="clearFilters()">Clear filters</button>
+      </x-empty-state>
+    } @else {
+      <x-empty-state title="No projects yet" hint="Start a new project, or import one someone shared with you.">
+        <button xButton variant="primary" [icon]="icons.Plus" (click)="actions.create()">New project</button>
+      </x-empty-state>
+    }
+  }
+</div>

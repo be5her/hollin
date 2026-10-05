@@ -26,6 +26,10 @@ export interface ModuleUI {
   tabs: Record<string, Type<TabComponent>>;
   /** Palette entries. Called once in an injection context, so actions can inject the module's services. */
   actions?: () => UIAction[];
+  /** Runs once at startup in an injection context: start services, register settings sections and tab hooks. */
+  setup?: () => void;
+  /** The view of the Home tab, when this module provides it. */
+  home?: Type<TabComponent>;
 }
 
 export function defineModuleUI(mod: ModuleUI): ModuleUI {

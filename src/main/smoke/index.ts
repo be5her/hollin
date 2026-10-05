@@ -4,6 +4,8 @@ import type { BrowserWindow } from 'electron';
 import type { Host } from '../host';
 import { Smoke, freePort } from './harness';
 import { smokeHost } from './host';
+import { smokeLibrary } from './library';
+import { smokeLibraryUi } from './library-ui';
 import { smokeMcp } from './mcp';
 import { smokeShell } from './shell';
 
@@ -24,10 +26,12 @@ export async function runSmoke(host: Host, openWindow: () => BrowserWindow): Pro
 
     await smokeHost(smoke);
     await smokeMcp(smoke);
+    const { houseId } = await smokeLibrary(smoke);
 
     smoke.section('renderer');
     await smoke.openWindow(openWindow);
     await smokeShell(smoke);
+    await smokeLibraryUi(smoke, houseId);
     smoke.check('renderer has no console errors', smoke.consoleErrors.length === 0, smoke.consoleErrors);
   } catch (err) {
     smoke.check(`unexpected error: ${(err as Error).stack ?? String(err)}`, false);

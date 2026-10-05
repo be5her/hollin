@@ -3,9 +3,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { BRANDING, type HostEventMessage } from '@studio/core';
 import type { Cipher } from '@studio/core/node';
-import { BrowserWindow, app, safeStorage } from 'electron';
+import { BrowserWindow, app, dialog, safeStorage } from 'electron';
 import { Host } from './host';
 import { CHANNELS, registerIpc } from './ipc';
+import { handleLibraryProtocol, registerLibraryScheme } from './library-protocol';
 import { installMenu } from './menu';
 import { createMainWindow, setTitleBarColors } from './window';
 
@@ -16,6 +17,8 @@ process.env.STUDIO_VERSION = app.getVersion();
 app.setName(BRANDING.productName);
 // Windows groups taskbar entries and notifications by this id; the installer gives the shortcut the same one.
 app.setAppUserModelId(BRANDING.appId);
+
+registerLibraryScheme();
 
 if (smoke) {
   // The smoke test's UI checks need a window that keeps painting: Chromium stops drawing one that other
@@ -43,6 +46,32 @@ function broadcast(message: HostEventMessage): void {
 
 let host: Host | null = null;
 
+const parentWindow = () => BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+
+const dialogs = {
+  async pickFile(options: { title?: string; defaultPath?: string; filters?: { name: string; extensions: string[] }[] } = {}) {
+    const result = await dialog.showOpenDialog(parentWindow(), { properties: ['openFile'], ...options });
+    return result.canceled ? undefined : result.filePaths[0];
+  },
+  async pickSavePath(options: { title?: string; defaultPath?: string; filters?: { name: string; extensions: string[] }[] } = {}) {
+    const result = await dialog.showSaveDialog(parentWindow(), options);
+    return result.canceled ? undefined : result.filePath;
+  },
+  async pickFolder(options: { title?: string; defaultPath?: string } = {}) {
+    const result = await dialog.showOpenDialog(parentWindow(), { properties: ['openDirectory', 'createDirectory'], ...options });
+    return result.canceled ? undefined : result.filePaths[0];
+  },
+};
+
+/** A project package passed on the command line (a double-clicked file, or a second launch). */
+const packageArg = (argv: string[]) => argv.find((a) => a.toLowerCase().endsWith(`.${BRANDING.packageExtension}`) && !a.startsWith('-'));
+
+async function importFromShell(file: string): Promise<void> {
+  if (!host) return;
+  const outcome = await host.invoke('project.import', { path: file, open: true }, { caller: 'ui' });
+  if (!outcome.ok) dialog.showErrorBox('Could not import the project', outcome.error.message);
+}
+
 async function main(): Promise<void> {
   // The data folder is named from branding.json, not the package name, so a rename keeps the user's data.
   // Development and smoke runs never touch the real library or settings.
@@ -55,11 +84,21 @@ async function main(): Promise<void> {
     app.quit();
     return;
   }
-  app.on('second-instance', () => {
+  app.on('second-instance', (_event, argv) => {
     const win = BrowserWindow.getAllWindows()[0];
-    if (!win) return;
-    if (win.isMinimized()) win.restore();
-    win.focus();
+    if (win) {
+      if (win.isMinimized()) win.restore();
+      win.focus();
+    }
+    const file = packageArg(argv);
+    if (file) void importFromShell(file);
+  });
+  // macOS delivers double-clicked files as events, also before the app is ready.
+  const pendingFiles: string[] = [];
+  app.on('open-file', (event, file) => {
+    event.preventDefault();
+    if (host) void importFromShell(file);
+    else pendingFiles.push(file);
   });
 
   await app.whenReady();
@@ -75,9 +114,13 @@ async function main(): Promise<void> {
     broadcast,
     setTitleBarColors,
     extraModules: smokeModules,
+    dialogs: smoke ? undefined : dialogs,
+    // Smoke runs check autosave without waiting the full interval.
+    autosave: smoke ? { debounceMs: 150, maxWaitMs: 1000 } : undefined,
   });
   registerIpc(host);
   await host.start();
+  handleLibraryProtocol(host);
 
   if (smoke) {
     const { runSmoke } = await import('./smoke');
@@ -95,7 +138,10 @@ async function main(): Promise<void> {
     return;
   }
 
-  createMainWindow();
+  const win = createMainWindow();
+  // Windows logoff or shutdown: save what is pending while the OS still waits.
+  win.on('session-end', () => void host?.stop());
+  for (const file of [...pendingFiles, packageArg(process.argv)].filter((f): f is string => Boolean(f))) void importFromShell(file);
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
   });

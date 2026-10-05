@@ -49,7 +49,8 @@ export class ShellActions {
 
   /** Put the shell's and the modules' actions in the palette; returns the function that takes them out. */
   register(): () => void {
-    // Module actions are built in an injection context so they can reach their module's services.
+    // Module setup and actions run in an injection context so they can reach their module's services.
+    runInInjectionContext(this.injector, () => modules.forEach((m) => m.setup?.()));
     this.moduleActions = runInInjectionContext(this.injector, () => modules.flatMap((m) => m.actions?.() ?? []));
     const offs = [this.actions.register(this.shellActions), this.actions.register(this.moduleActions)];
     return () => offs.forEach((off) => off());
@@ -88,23 +89,16 @@ export class ShellActions {
       });
       if (!ok) return;
     }
-    for (const tab of closing) await this.beforeClose(tab);
-    this.tabs.closeWhere((t) => closing.some((c) => c.id === t.id));
-  }
-
-  /** Hook for tabs that need the host told, e.g. closing a project. */
-  private readonly closeHandlers = new Map<string, (tab: Tab) => Promise<void>>();
-
-  onClose(type: string, handler: (tab: Tab) => Promise<void>): void {
-    this.closeHandlers.set(type, handler);
-  }
-
-  private async beforeClose(tab: Tab): Promise<void> {
-    try {
-      await this.closeHandlers.get(tab.type)?.(tab);
-    } catch (err) {
-      this.toasts.error(err);
+    const closed: Tab[] = [];
+    for (const tab of closing) {
+      try {
+        await this.tabs.beforeClose(tab);
+        closed.push(tab);
+      } catch (err) {
+        this.toasts.error(err);
+      }
     }
+    this.tabs.closeWhere((t) => closed.some((c) => c.id === t.id));
   }
 
   private cycleTab(step: 1 | -1): void {

@@ -9,8 +9,8 @@ Windows, macOS and Linux, built with Electron and Angular.
 | Milestone | State |
 |---|---|
 | 1. Scaffold: monorepo, command registry, MCP server, host, shell, settings, smoke test, CI | done |
-| 2. Project library | next |
-| 3. Document model: building, levels, layers, entities, transactions, undo | planned |
+| 2. Project library: storage, index, Home screen, tabs, autosave, snapshots, trash, packages | done |
+| 3. Document model: building, levels, layers, entities, transactions, undo | next |
 | 4–9. 2D editor, vertical circulation, AI tools and assistant, 3D view, decor, export | planned |
 
 ## Development
@@ -34,7 +34,8 @@ How changes are made, and the conventions: [CLAUDE.md](CLAUDE.md).
 ```
 packages/core            The engine: no Electron, Node I/O or UI framework. Command registry, config schema,
                          units, ids, shared types. Safe to import from the renderer.
-packages/core/src/node   Node-only storage: atomic writes, config store, secret store.
+packages/core/src/node   Node-only storage: atomic writes, config and secret stores, the project library,
+                         project folders and sessions (autosave), packages.
 packages/mcp             Turns the command registry into a stateless Streamable HTTP MCP server.
 packages/ui              The renderer side of the host contract: HostBridge, invokeResource, state services,
                          shared controls and overlays.
@@ -50,7 +51,9 @@ Every feature is a set of **commands** with zod input schemas, registered in one
 
 **Mutating** commands (delete, write outside the library, otherwise destructive) are refused to MCP agents until the user allows it in Settings, and the assistant will ask the user first. Ordinary design edits are undoable transactions instead.
 
-The host broadcasts typed **events** (`config.changed`, `mcp.status`, `mcp.call`, …) to every window; views follow them, so changes made by an agent show up live.
+Projects live in one **library** folder the app owns (see `packages/modules/library/README.md`): crash-safe saves, autosave, snapshots, a restorable trash and single-file packages.
+
+The host broadcasts typed **events** (`config.changed`, `library.changed`, `project.changed`, `mcp.call`, …) to every window; views follow them, so changes made by an agent show up live.
 
 ### MCP
 
@@ -67,4 +70,5 @@ The host broadcasts typed **events** (`config.changed`, `mcp.status`, `mcp.call`
 | zod | Every command's input schema; also the MCP tool schemas and the config normaliser. |
 | @modelcontextprotocol/server, @modelcontextprotocol/node | The MCP server (SDK v2: the stable line; v1 only gets fixes until early 2027). |
 | @modelcontextprotocol/client (dev) | Unit tests and the smoke test talk to the server with the SDK's own client. |
+| fflate | Project packages (zip) without native modules. |
 | vitest, typescript | Tests and type checking (TypeScript 6.0 pinned for the Angular compiler, 7 elsewhere). |

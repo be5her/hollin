@@ -106,9 +106,10 @@ export class Smoke {
     return this.window.webContents.executeJavaScript(code) as Promise<T>;
   }
 
-  /** True once the selector matches (and, if given, its text contains `text`). */
+  /** True once the selector matches an element (whose text contains `text`, if given). */
   async waitFor(selector: string, timeoutMs = 5000, text?: string): Promise<boolean> {
-    return this.until(() => this.js<boolean>(`(() => { const el = document.querySelector(${JSON.stringify(selector)}); return !!el && (${JSON.stringify(text ?? '')} === '' || el.textContent.includes(${JSON.stringify(text ?? '')})); })()`), timeoutMs);
+    const wanted = JSON.stringify(text ?? '');
+    return this.until(() => this.js<boolean>(`[...document.querySelectorAll(${JSON.stringify(selector)})].some((el) => ${wanted} === '' || el.textContent.includes(${wanted}))`), timeoutMs);
   }
 
   async gone(selector: string, timeoutMs = 5000): Promise<boolean> {
