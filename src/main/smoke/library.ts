@@ -2,22 +2,15 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
-import { newId, type LibraryInfo, type OpenProject, type ProjectDoc, type ProjectSummary, type SnapshotInfo } from '@studio/core';
+import type { LibraryInfo, OpenProject, ProjectSummary, SnapshotInfo } from '@studio/core';
 import { wait, type Smoke } from './harness';
 
 const text = (result: unknown) => JSON.parse((result as { content: { text: string }[] }).content[0].text) as Record<string, unknown>;
 
-/** Adds a label to the ground floor of an open project, straight through its session (the editors come later). */
-export function addLabel(smoke: Smoke, projectId: string, label: string): ProjectDoc {
-  const session = smoke.host.projects.session(projectId);
-  if (!session) throw new Error(`project ${projectId} is not open`);
-  const doc = session.doc;
-  const levelId = doc.building.stack[0];
-  const layerId = Object.values(doc.layers).find((l) => l.levelId === levelId && l.kind === 'interior')!.id;
-  const id = newId('lbl');
-  const next: ProjectDoc = { ...doc, levelData: { ...doc.levelData, [levelId]: { entities: { ...doc.levelData[levelId].entities, [id]: { id, type: 'label', levelId, layerId, text: label } } } } };
-  session.setDoc(next);
-  return next;
+/** Adds a label to the ground floor of an open project, through the editing command. */
+export async function addLabel(smoke: Smoke, projectId: string, label: string): Promise<void> {
+  const doc = smoke.host.projects.session(projectId)!.doc;
+  await smoke.run('plan.entity.add', { levelId: doc.building.stack[0], entity: { type: 'label', text: label, at: [0, 0] } }, { projectId });
 }
 
 /** The labels stored on disk for a project's ground floor. */
@@ -56,13 +49,13 @@ export async function smokeLibrary(smoke: Smoke): Promise<{ houseId: string }> {
   smoke.check('project tools run against the project on screen', (await smoke.run<{ project: string }>('smoke.where', {}, { projectId: house.id })).project === house.id);
 
   smoke.section('autosave');
-  addLabel(smoke, house.id, 'kitchen');
+  await addLabel(smoke, house.id, 'kitchen');
   smoke.check('an edit marks the project unsaved', host.projects.session(house.id)?.isDirty === true);
   smoke.check('the edit is saved shortly after', await smoke.until(() => host.projects.session(house.id)?.saveState.state === 'saved', 4000));
   smoke.check('the saved level file holds the edit', (await labelsOnDisk(smoke, house.id)).includes('kitchen'));
   smoke.check('saving is announced', smoke.eventsSince(from, 'project.changed').some((e) => e.kind === 'save' && e.save?.state === 'saved'));
   smoke.check('only the current level file is kept', (await fs.readdir(path.join(dir, 'levels'))).length === 1);
-  addLabel(smoke, house.id, 'pantry');
+  await addLabel(smoke, house.id, 'pantry');
   await smoke.run('project.close', { id: house.id });
   smoke.check('closing a project saves pending edits at once', (await labelsOnDisk(smoke, house.id)).includes('pantry'));
   smoke.check('a closed project is no longer current', (await smoke.run('project.current')) === null && !host.config.get().session.openProjects.includes(house.id));
@@ -70,7 +63,7 @@ export async function smokeLibrary(smoke: Smoke): Promise<{ houseId: string }> {
 
   smoke.section('snapshots');
   const v1 = await smoke.run<SnapshotInfo>('project.snapshot.create', { name: 'Two rooms' }, { projectId: house.id });
-  addLabel(smoke, house.id, 'garage');
+  await addLabel(smoke, house.id, 'garage');
   const restored = await smoke.run<{ backup: SnapshotInfo }>('project.snapshot.restore', { snapshotId: v1.id }, { projectId: house.id });
   const labels = Object.values(host.projects.session(house.id)!.doc.levelData).flatMap((l) => Object.values(l.entities).map((e) => (e as { text?: string }).text));
   smoke.check('restoring a snapshot brings its design back', labels.includes('kitchen') && labels.includes('pantry') && !labels.includes('garage'), labels);

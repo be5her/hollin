@@ -57,6 +57,8 @@ export async function smokeLibraryUi(smoke: Smoke, houseId: string): Promise<voi
   await smoke.js(`document.querySelector('${visibleTab} [data-testid=project-name]').dispatchEvent(new FocusEvent('blur'))`);
   smoke.check('renaming in the project tab saves the name', await smoke.until(() => host.projects.get(villa!.id)?.name === 'UI Villa Renamed'));
   smoke.check('the tab follows the new name', await smoke.waitFor(tabSelector('UI Villa Renamed')));
+  await smoke.click(`${visibleTab} [data-testid=right-tab-details]`);
+  await smoke.waitFor(`${visibleTab} [data-testid=project-tags]`);
   await smoke.fill(`${visibleTab} [data-testid=project-tags]`, 'villa, concept');
   await smoke.js(`document.querySelector('${visibleTab} [data-testid=project-tags]').dispatchEvent(new FocusEvent('blur'))`);
   smoke.check('tags typed in the project tab are saved', await smoke.until(() => host.projects.get(villa!.id)?.tags.join() === 'villa,concept'));

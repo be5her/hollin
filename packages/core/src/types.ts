@@ -1,5 +1,7 @@
 import type { z } from 'zod';
 import type { ConfigPatch, GlobalConfig } from './config';
+import type { Author, DocPatch, EditContext, HistoryInfo, HistoryState } from './doc/engine';
+import type { ProjectDoc } from './doc/schema';
 import type { LibraryInfo, ListQuery, OpenProject, ProjectSummary, SaveStatus, SnapshotInfo } from './projects';
 
 /** Who is calling a command. Each caller gets the mutating gate its own way (see CommandRegistry). */
@@ -15,17 +17,49 @@ export interface SecretsApi {
   delete(name: string): Promise<void>;
 }
 
-/** What a command learns about the project it runs against. Grows with the document model. */
+export interface EditResult<T> {
+  result: T;
+  changed: boolean;
+  txId: string | null;
+}
+
+/** What a command learns about the project it runs against, and how it changes it. */
 export interface ProjectApi {
   readonly id: string;
   readonly name: string;
+  /** The current document (inside a batch: as changed so far). Read it; never mutate it. */
+  readonly doc: ProjectDoc;
+  /**
+   * Changes the document as one transaction (one undo step) labelled and attributed to `author`.
+   * Inside `plan.apply`, edits join the batch's transaction instead. With `dryRun` the change is
+   * checked but not applied.
+   */
+  edit<T>(author: Author, label: string, fn: (tx: EditContext) => T | Promise<T>, options?: { coalesce?: string; dryRun?: boolean }): Promise<EditResult<T>>;
+  undo(ifTop?: string): Promise<HistoryState>;
+  redo(): Promise<HistoryState>;
+  history(): { undo: HistoryInfo[]; redo: HistoryInfo[]; seq: number; epoch: number };
+  /** The change number at which a record last changed, for conflict checks. */
+  lastTouched(id: string): number;
+  /** True inside a `plan.apply` batch. */
+  readonly batching?: boolean;
 }
 
 /** Who made a change or a snapshot: the user, the in-app assistant, or an MCP agent by name. */
 export function authorOf(ctx: Pick<CommandContext, 'caller' | 'agent'>): string {
-  if (ctx.caller === 'ui') return 'You';
-  if (ctx.caller === 'assistant') return `Assistant${ctx.agent ? ` (${ctx.agent})` : ''}`;
-  return `via MCP: ${ctx.agent ?? 'unknown agent'}`;
+  return authorFrom(ctx).label;
+}
+
+export function authorFrom(ctx: Pick<CommandContext, 'caller' | 'agent'>): Author & { label: string } {
+  if (ctx.caller === 'ui') return { kind: 'user', name: 'You', label: 'You' };
+  if (ctx.caller === 'assistant') return { kind: 'assistant', name: ctx.agent ?? 'Assistant', label: `Assistant${ctx.agent ? ` (${ctx.agent})` : ''}` };
+  return { kind: 'mcp', name: ctx.agent ?? 'unknown agent', label: `via MCP: ${ctx.agent ?? 'unknown agent'}` };
+}
+
+/** Runs an edit of the command's project, attributed to whoever called the command. */
+export function editProject<T>(ctx: CommandContext, label: string, fn: (tx: EditContext) => T | Promise<T>, options?: { coalesce?: string }): Promise<EditResult<T>> {
+  if (!ctx.project) throw new Error('editProject needs a project');
+  const { label: _display, ...author } = authorFrom(ctx);
+  return ctx.project.edit(author, label, fn, options);
 }
 
 /** The project library and the open projects, as commands see them. */
@@ -61,6 +95,11 @@ export interface ProjectsApi {
   reindex(): Promise<{ projects: number }>;
   /** The project a command acts on: the named one (opened if needed), else the one on screen. */
   resolve(hint: string | null): Promise<ProjectApi | undefined>;
+  /** Per-machine view state of a project (active level, panels): never part of the design, snapshots or exports. */
+  uiState(id: string): Promise<Record<string, unknown>>;
+  setUiState(id: string, state: Record<string, unknown>): Promise<void>;
+  /** Keeps an open project as it is in an automatic snapshot, e.g. before a large batch by an agent. */
+  autoSnapshot?(id: string, name: string, createdBy: string): Promise<void>;
 }
 
 export interface MutationRequest {
@@ -88,6 +127,9 @@ export interface HostApi {
   };
   secrets: SecretsApi;
   projects: ProjectsApi;
+  /** Runs another command with the given context (e.g. the steps of `plan.apply`). */
+  execute(id: string, input: unknown, ctx: CommandContext): Promise<unknown>;
+  meta(id: string): CommandMeta | undefined;
   /** Native dialogs, present when the host has a window. */
   dialogs?: {
     pickFile(options?: FileDialogOptions): Promise<string | undefined>;
@@ -131,6 +173,8 @@ export interface CommandDefinition<S extends AnyZodObject = AnyZodObject, O = un
   mutating?: boolean | ((input: z.infer<S>, ctx: CommandContext) => boolean | Promise<boolean>);
   /** Plumbing for the UI: kept out of the palette and MCP. */
   hidden?: boolean;
+  /** An editing command that can run as a step of `plan.apply` (one transaction for many edits). */
+  batchable?: boolean;
   handler(input: z.infer<S>, ctx: CommandContext): Promise<O>;
 }
 
@@ -146,6 +190,7 @@ export interface CommandMeta {
   hidden: boolean;
   /** True when an empty input is valid, so the palette can run it directly. */
   noInput: boolean;
+  batchable: boolean;
 }
 
 export interface ModuleMain {
@@ -192,6 +237,8 @@ export interface HostEvents {
    * whole document replaced (snapshot restore). `focus` asks the UI to bring the project's tab forward.
    */
   'project.changed': { projectId: string; kind: 'opened' | 'closed' | 'save' | 'updated' | 'snapshots' | 'replaced'; focus?: boolean; save?: SaveStatus };
+  /** An open project's document changed; the renderer's mirror applies `ops` (or refetches on a new epoch or a gap in `seq`). */
+  'doc.patched': DocPatch & { projectId: string };
 }
 
 export type HostEventName = keyof HostEvents;

@@ -1,73 +1,78 @@
+import { NgComponentOutlet } from '@angular/common';
 import { Component, computed, inject, input, linkedSignal, untracked } from '@angular/core';
 import { FormField, form, required } from '@angular/forms/signals';
-import type { SnapshotInfo } from '@studio/core';
-import { Button, Dialogs, EmptyState, HostBridge, Icon, Input, Label, OpenProjects, TextArea, Toasts, invokeResource, relativeTime, type Tab, type TabComponent } from '@studio/ui';
-import { Camera, Copy, Download, History, RotateCcw, Save, Trash2, X } from 'lucide';
+import { Button, EmptyState, HostBridge, Icon, IconButton, OpenProjects, ProjectDocs, ProjectPanels, ProjectView, Toasts, UiActions, relativeTime, type Tab, type TabComponent } from '@studio/ui';
+import { Copy, Download, Redo2, Save, Trash2, Undo2 } from 'lucide';
 import { LibraryActions } from './library-actions';
 
-interface Details {
-  name: string;
-  description: string;
-  tags: string;
-}
-
 /**
- * A project's tab. For now: its details, save state and snapshots. The editor views (plan, 3D)
- * join it as they are built.
+ * A project's tab: its name, save state and actions on top; below, the panels modules contribute:
+ * the left column (levels, layers), the main view in the centre, and the right column as tabs
+ * (history, project details and snapshots).
  */
 @Component({
   selector: 'x-project-tab',
-  imports: [Button, EmptyState, FormField, Icon, Input, Label, TextArea],
+  imports: [Button, EmptyState, FormField, Icon, IconButton, NgComponentOutlet],
   templateUrl: './project-tab.html',
-  host: { class: 'flex-1 overflow-auto', 'data-testid': 'project-tab' },
+  host: { class: 'flex flex-col h-full min-h-0', 'data-testid': 'project-tab' },
 })
 export class ProjectTab implements TabComponent {
   private readonly host = inject(HostBridge);
-  private readonly dialogs = inject(Dialogs);
   private readonly toasts = inject(Toasts);
   private readonly openProjects = inject(OpenProjects);
+  private readonly docs = inject(ProjectDocs);
+  private readonly panels = inject(ProjectPanels);
+  private readonly view = inject(ProjectView);
+  private readonly ui = inject(UiActions);
   protected readonly actions = inject(LibraryActions);
 
   readonly tab = input.required<Tab>();
 
-  protected readonly icons = { Camera, Copy, Download, History, RotateCcw, Save, Trash2, X };
+  protected readonly icons = { Copy, Download, Redo2, Save, Trash2, Undo2 };
   protected readonly projectId = computed(() => this.tab().projectId ?? null);
   protected readonly project = computed(() => {
     const id = this.projectId();
     return id ? (this.openProjects.projects().find((p) => p.id === id) ?? null) : null;
   });
-  protected readonly snapshots = invokeResource<SnapshotInfo[]>('project.snapshot.list', () => ({}), {
-    projectId: () => this.projectId(),
-    enabled: () => this.projectId() !== null,
-    refreshOnEvents: ['project.changed'],
+  protected readonly docState = computed(() => this.docs.read(this.projectId()));
+  protected readonly loadError = computed(() => this.docs.errors()[this.projectId() ?? '']);
+  protected readonly left = computed(() => this.panels.panels().filter((p) => p.side === 'left'));
+  protected readonly center = computed(() => this.panels.panels().filter((p) => p.side === 'center').at(-1) ?? null);
+  protected readonly right = computed(() => this.panels.panels().filter((p) => p.side === 'right'));
+  protected readonly rightPanel = computed(() => {
+    const id = this.projectId();
+    const chosen = id ? this.view.get<string | null>(id, 'rightPanel', null) : null;
+    return this.right().find((p) => p.id === chosen) ?? this.right()[0] ?? null;
   });
 
-  /** The details being edited; they follow the stored ones until the user types. */
-  protected readonly details = linkedSignal<Details>(() => {
-    const p = this.project();
-    return { name: p?.name ?? '', description: p?.description ?? '', tags: p?.tags.join(', ') ?? '' };
-  });
-  protected readonly detailsForm = form(this.details, (path) => {
-    required(path.name, { message: 'A project needs a name' });
+  protected readonly name = linkedSignal(() => ({ name: this.project()?.name ?? '' }));
+  protected readonly nameForm = form(this.name, (p) => {
+    required(p.name, { message: 'A project needs a name' });
   });
 
   protected ago(iso: string | null | undefined): string {
     return relativeTime(iso);
   }
 
-  /** Saves the details when a field loses focus, if they changed. */
-  protected async saveDetails(): Promise<void> {
+  protected chooseRight(id: string): void {
+    const projectId = this.projectId();
+    if (projectId) this.view.set(projectId, 'rightPanel', id);
+  }
+
+  protected undo(): void {
+    this.ui.run('edit.undo');
+  }
+
+  protected redo(): void {
+    this.ui.run('edit.redo');
+  }
+
+  protected async saveName(): Promise<void> {
     const p = untracked(this.project);
-    const d = untracked(this.details);
-    if (!p || this.detailsForm.name().invalid()) return;
-    const tags = d.tags.split(',').map((t) => t.trim()).filter(Boolean);
-    const patch: Record<string, unknown> = {};
-    if (d.name.trim() !== p.name) patch['name'] = d.name.trim();
-    if (d.description.trim() !== p.description) patch['description'] = d.description.trim();
-    if (tags.join('\u0000') !== p.tags.join('\u0000')) patch['tags'] = tags;
-    if (!Object.keys(patch).length) return;
+    const name = untracked(this.name).name.trim();
+    if (!p || !name || name === p.name) return;
     try {
-      await this.host.invoke('project.update', { id: p.id, ...patch }, null);
+      await this.host.invoke('project.update', { id: p.id, name }, null);
     } catch (err) {
       this.toasts.error(err);
     }
@@ -76,38 +81,6 @@ export class ProjectTab implements TabComponent {
   protected async saveNow(): Promise<void> {
     try {
       await this.host.invoke('project.save', {}, this.projectId());
-    } catch (err) {
-      this.toasts.error(err);
-    }
-  }
-
-  protected async snapshot(): Promise<void> {
-    const name = await this.dialogs.prompt({ title: 'Save a snapshot', label: 'Name', placeholder: 'e.g. Concept A, before client review', confirmLabel: 'Save snapshot' });
-    if (!name?.trim()) return;
-    try {
-      await this.host.invoke('project.snapshot.create', { name: name.trim() }, this.projectId());
-      this.toasts.notify(`Saved snapshot "${name.trim()}"`, 'success');
-    } catch (err) {
-      this.toasts.error(err);
-    }
-  }
-
-  protected async restore(s: SnapshotInfo): Promise<void> {
-    const ok = await this.dialogs.confirm({ title: `Restore "${s.name}"?`, message: 'The design goes back to this snapshot. What it looks like now is kept as an automatic snapshot, so you can come back to it.', confirmLabel: 'Restore' });
-    if (!ok) return;
-    try {
-      await this.host.invoke('project.snapshot.restore', { snapshotId: s.id }, this.projectId());
-      this.toasts.notify(`Restored "${s.name}"`, 'success');
-    } catch (err) {
-      this.toasts.error(err);
-    }
-  }
-
-  protected async remove(s: SnapshotInfo): Promise<void> {
-    const ok = await this.dialogs.confirm({ title: `Delete snapshot "${s.name}"?`, message: 'It cannot be restored afterwards.', danger: true, confirmLabel: 'Delete' });
-    if (!ok) return;
-    try {
-      await this.host.invoke('project.snapshot.delete', { snapshotId: s.id }, this.projectId());
     } catch (err) {
       this.toasts.error(err);
     }

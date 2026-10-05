@@ -17,7 +17,7 @@ function freePort(): Promise<number> {
   });
 }
 
-const projects: Record<string, ProjectApi> = { prj_a: { id: 'prj_a', name: 'House A' }, prj_b: { id: 'prj_b', name: 'House B' } };
+const projects = { prj_a: { id: 'prj_a', name: 'House A' }, prj_b: { id: 'prj_b', name: 'House B' } } as unknown as Record<string, ProjectApi>;
 
 function registry(): CommandRegistry {
   const r = new CommandRegistry();
@@ -177,7 +177,7 @@ describe('agent identity', () => {
 
   it('names tools and describes gating', () => {
     expect(toolNameFor('plan.wall.add')).toBe('plan_wall_add');
-    const base = { id: 'x', module: 'm', title: 'X', description: 'Does x.', scope: 'global', hidden: false, noInput: true } as const;
+    const base = { id: 'x', module: 'm', title: 'X', description: 'Does x.', scope: 'global', hidden: false, noInput: true, batchable: false } as const;
     expect(toolDescription({ ...base, mutating: false, conditional: false })).toBe('Does x.');
     expect(toolDescription({ ...base, mutating: true, conditional: true })).toMatch(/Read-only calls always work/);
   });

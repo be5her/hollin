@@ -90,6 +90,8 @@ export class Host {
         return host.projects;
       },
       dialogs: opts.dialogs,
+      execute: (id, input, ctx) => this.registry.execute(id, input, ctx),
+      meta: (id) => this.registry.meta(id),
       emit: (event, payload) => this.emit(event, payload),
     };
     this.registry.registerModule({ id: 'host', commands: hostCommands(this) });

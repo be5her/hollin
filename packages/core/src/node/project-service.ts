@@ -1,11 +1,12 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { newProjectDoc } from '../doc/defaults';
+import { DocumentEngine, type Author, type EditContext } from '../doc/engine';
 import type { ProjectDoc } from '../doc/schema';
 import { StudioError } from '../errors';
 import type { LibraryInfo, ListQuery, OpenProject, ProjectSummary, SaveStatus, SnapshotInfo } from '../projects';
-import type { HostApi, ProjectApi, ProjectsApi } from '../types';
-import { readJsonFile, renameWithRetry } from './atomic-write';
+import type { EditResult, HostApi, ProjectApi, ProjectsApi } from '../types';
+import { WriteQueue, readJsonFile, renameWithRetry, writeJsonAtomic } from './atomic-write';
 import { Library, syncedFolderWarning } from './library';
 import { ProjectSession, type SessionOptions } from './project-session';
 import { readProjectDir, writeProjectDir } from './project-store';
@@ -34,6 +35,11 @@ export interface ProjectServiceOptions {
 export class ProjectService implements ProjectsApi {
   library: Library;
   private readonly sessions = new Map<string, ProjectSession>();
+  private readonly engines = new Map<string, DocumentEngine>();
+  /** Edits run one at a time per project, so a batch is never interleaved with another caller's edit. */
+  private readonly edits = new WriteQueue();
+  /** Projects that already got their "before editing" snapshot in this session. */
+  private readonly snapshotted = new Set<string>();
   private order: string[] = [];
   private activeId: string | null = null;
   private readonly lastSave = new Map<string, SaveStatus['state']>();
@@ -155,7 +161,14 @@ export class ProjectService implements ProjectsApi {
       ...this.opts.session,
       onSaveState: (state) => this.saveStateChanged(id, state),
     });
+    const engine = new DocumentEngine(doc, {
+      onChange: (next, patch) => {
+        session.setDoc(next);
+        this.opts.emit('doc.patched', { projectId: id, ...patch });
+      },
+    });
     this.sessions.set(id, session);
+    this.engines.set(id, engine);
     this.order.push(id);
     if (focus || !this.activeId) this.activeId = id;
     await this.library.noteOpened(id);
@@ -176,8 +189,11 @@ export class ProjectService implements ProjectsApi {
   async close(id: string): Promise<void> {
     const session = this.sessions.get(id);
     if (!session) return;
+    await this.edits.idle(id);
     await session.close();
     this.sessions.delete(id);
+    this.engines.delete(id);
+    this.snapshotted.delete(id);
     this.lastSave.delete(id);
     this.order = this.order.filter((o) => o !== id);
     if (this.activeId === id) this.activeId = this.order[this.order.length - 1] ?? null;
@@ -202,7 +218,8 @@ export class ProjectService implements ProjectsApi {
     if (clean.name === '') throw new StudioError('INVALID_INPUT', 'name: A project needs a name');
     const session = this.sessions.get(id);
     if (!session) return this.library.updateMeta(id, clean);
-    session.setDoc({ ...session.doc, meta: { ...session.doc.meta, ...clean } });
+    // Project details belong to the library, not the design: no undo step.
+    this.engines.get(id)!.setMeta(clean);
     await session.flush();
     await this.library.noteSaved(session.doc);
     this.opts.emit('project.changed', { projectId: id, kind: 'updated' });
@@ -278,7 +295,7 @@ export class ProjectService implements ProjectsApi {
     const next: ProjectDoc = { ...snapshot, meta: { ...current.meta } };
     const session = this.sessions.get(id);
     if (session) {
-      session.setDoc(next);
+      await this.edits.run(id, async () => this.engines.get(id)!.replace(next, `Restored "${restored.name}"`, { kind: 'user', name: by }));
       await session.flush();
       this.opts.emit('project.changed', { projectId: id, kind: 'replaced' });
     } else {
@@ -371,17 +388,77 @@ export class ProjectService implements ProjectsApi {
     return this.info();
   }
 
+  // ---------- editing ----------
+
+  /** The document, its change number and history, as the renderer's mirror loads it. */
+  docState(id: string) {
+    const engine = this.engines.get(id);
+    if (!engine) throw new StudioError('NOT_FOUND', `Project ${id} is not open`);
+    return { projectId: id, doc: engine.doc, seq: engine.seq, epoch: engine.epoch, history: engine.history() };
+  }
+
+  /**
+   * One transaction on an open project. The first real edit of each session first keeps the project
+   * as it was in an automatic snapshot, because undo does not survive a restart.
+   */
+  async edit<T>(id: string, author: Author, label: string, fn: (tx: EditContext) => T | Promise<T>, options: { coalesce?: string; dryRun?: boolean } = {}): Promise<EditResult<T>> {
+    const engine = this.engines.get(id);
+    if (!engine) throw new StudioError('NOT_FOUND', `Project ${id} is not open`);
+    return this.edits.run(id, async () => {
+      if (!options.dryRun && !this.snapshotted.has(id)) {
+        this.snapshotted.add(id);
+        const when = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date());
+        await this.library.createSnapshot(id, engine.doc, { name: `Before editing (${when})`, kind: 'auto', createdBy: 'App' }).catch((err: Error) => console.warn(`[projects] could not take the session snapshot of ${id}: ${err.message}`));
+      }
+      return engine.transact(label, author, fn, options);
+    });
+  }
+
+  /** Keeps the project as it is in an automatic snapshot, e.g. before a large batch by an agent. */
+  async autoSnapshot(id: string, name: string, createdBy: string): Promise<void> {
+    const engine = this.engines.get(id);
+    if (engine) await this.library.createSnapshot(id, engine.doc, { name, kind: 'auto', createdBy });
+  }
+
   // ---------- commands ----------
 
   api(session: ProjectSession): ProjectApi {
+    const id = session.id;
+    const engine = () => {
+      const e = this.engines.get(id);
+      if (!e) throw new StudioError('NOT_FOUND', `Project ${id} is not open`);
+      return e;
+    };
     return {
-      get id() {
-        return session.id;
-      },
+      id,
       get name() {
         return session.doc.meta.name;
       },
+      get doc() {
+        return engine().doc;
+      },
+      edit: (author, label, fn, options) => this.edit(id, author, label, fn, options),
+      undo: (ifTop) => this.edits.run(id, async () => engine().undo(ifTop)),
+      redo: () => this.edits.run(id, async () => engine().redo()),
+      history: () => ({ ...engine().entries(), seq: engine().seq, epoch: engine().epoch }),
+      lastTouched: (entityId) => engine().lastTouched(entityId),
     };
+  }
+
+  // ---------- view state ----------
+
+  private uiFile(id: string): string {
+    return path.join(this.library.projectDir(id), '.local', 'ui.json');
+  }
+
+  async uiState(id: string): Promise<Record<string, unknown>> {
+    this.library.require(id, { trashed: false });
+    return (await readJsonFile<Record<string, unknown>>(this.uiFile(id)).catch(() => undefined)) ?? {};
+  }
+
+  async setUiState(id: string, state: Record<string, unknown>): Promise<void> {
+    this.library.require(id, { trashed: false });
+    await this.edits.run(`ui:${id}`, () => writeJsonAtomic(this.uiFile(id), state, { fsync: false }));
   }
 
   async resolve(hint: string | null): Promise<ProjectApi | undefined> {

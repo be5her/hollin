@@ -1,9 +1,10 @@
 import { inject } from '@angular/core';
-import { SettingsSections, defineModuleUI, type UIAction } from '@studio/ui';
+import { ProjectPanels, SettingsSections, defineModuleUI, type UIAction } from '@studio/ui';
 import { FolderOpen } from 'lucide';
 import { LibraryActions } from './library-actions';
 import { LibraryHome } from './library-home';
 import { LibrarySettings } from './library-settings';
+import { ProjectDetailsPanel } from './project-details-panel';
 import { ProjectTab } from './project-tab';
 import { PROJECT_TAB, ProjectsSync } from './projects-sync';
 
@@ -19,6 +20,7 @@ export const libraryUI = defineModuleUI({
   setup: () => {
     inject(ProjectsSync).start();
     inject(SettingsSections).register({ id: 'library', title: 'Library', order: 15, component: LibrarySettings });
+    inject(ProjectPanels).register({ id: 'details', title: 'Project', side: 'right', order: 20, component: ProjectDetailsPanel });
   },
   actions: (): UIAction[] => {
     const actions = inject(LibraryActions);

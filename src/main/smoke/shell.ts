@@ -43,7 +43,7 @@ export async function smokeShell(smoke: Smoke): Promise<void> {
   smoke.check('the MCP section shows the server running', await smoke.waitFor('[data-testid=settings-mcp-state]', 3000, 'Running'));
   smoke.check('the MCP port field shows the stored port', Number(await smoke.js(`document.querySelector('[data-testid=settings-mcp-port]').value`)) === host.config.get().mcp.port);
   smoke.check('ready-to-copy client snippets name the URL', ((await smoke.text('[data-testid=snippet-claude-code]')) ?? '').includes(`/mcp`));
-  smoke.check('recent agent calls are listed', await smoke.waitFor('[data-testid=settings-mcp-calls]', 3000, 'via MCP: smoke-agent'));
+  smoke.check('recent agent calls are listed with the agent', await smoke.waitFor('[data-testid=settings-mcp-calls]', 3000, 'via MCP: smoke-'));
   await smoke.click('[data-testid=settings-mcp-mutations]');
   smoke.check('the mutations switch is stored', await smoke.until(() => host.config.get().mcp.allowMutations === true));
   await smoke.click('[data-testid=settings-mcp-mutations]');

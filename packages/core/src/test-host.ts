@@ -38,6 +38,8 @@ export function testHost(options: { config?: ConfigPatch; confirm?: (request: Mu
     },
     secrets,
     projects: noProjects,
+    execute: () => Promise.reject(new StudioError('INTERNAL', 'The test host runs no other commands')),
+    meta: () => undefined,
     emit: (event, payload) => void events.push({ event, payload } as HostEventMessage),
     confirmMutation: options.confirm ? async (request) => options.confirm!(request) : undefined,
     events,

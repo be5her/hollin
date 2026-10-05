@@ -1,0 +1,59 @@
+<x-section-header title="Levels">
+  <button xIconButton size="sm" label="Add a level" (click)="showAddMenu($event)" data-testid="level-add"><svg [xIcon]="icons.Plus" class="size-3.5"></svg></button>
+</x-section-header>
+<div #list class="relative flex flex-col px-1.5 pb-2" role="listbox" aria-label="Levels" [class.cursor-grabbing]="reorder.drag()">
+  @if (reorder.drag(); as drag) {
+    <x-drop-marker axis="y" [at]="drag.marker" testId="level-drop-marker" />
+  }
+  @for (level of display(); track level.id) {
+    <div
+      role="option"
+      tabindex="0"
+      class="group flex items-center gap-2 h-9 pr-2 rounded-md text-xs cursor-default select-none"
+      [class]="(level.id === active() ? 'bg-accent/12 text-fg ring-1 ring-accent/40' : 'text-fg/85 hover:bg-elevated') + (level.placement === 'offset' ? ' pl-6' : ' pl-1') + (reorder.drag()?.id === level.id ? ' opacity-50' : '')"
+      [attr.aria-selected]="level.id === active()"
+      data-testid="level-row"
+      [attr.data-name]="level.name"
+      [attr.data-elevation]="level.elevation"
+      [attr.data-drag-id]="level.placement === 'stack' ? level.id : null"
+      (pointerdown)="level.placement === 'stack' ? reorder.pointerDown($event, level.id) : null"
+      (click)="select(level)"
+      (keydown.enter)="select(level)"
+      (contextmenu)="showMenu($event, level)"
+    >
+      @if (level.placement === 'stack') {
+        <svg [xIcon]="icons.GripVertical" class="size-3.5 text-muted/60 group-hover:text-muted shrink-0"></svg>
+      }
+      <span class="flex-1 truncate font-medium">{{ level.name }}</span>
+      @if (level.isGround) {
+        <span class="text-[10px] text-muted" title="Ground floor">G</span>
+      }
+      <span class="font-mono text-[11px] tabular-nums" [class]="level.elevation < 0 ? 'text-warning' : 'text-muted'" data-testid="level-elevation">{{ units.length(level.elevation) }}</span>
+    </div>
+  }
+</div>
+
+@if (activeLevel(); as level) {
+  <div class="mx-2 mb-3 p-2.5 rounded-md border border-edge bg-canvas/60 grid grid-cols-2 gap-x-2 gap-y-2" data-testid="level-details">
+    <div class="col-span-2">
+      <label xLabel for="level-name">Name</label>
+      <input xInput id="level-name" [formField]="draftForm.name" (blur)="save('name')" (keydown.enter)="$any($event.target).blur()" data-testid="level-name" />
+    </div>
+    <div>
+      <label xLabel for="level-elevation">Elevation</label>
+      <input xInput id="level-elevation" class="font-mono" [formField]="draftForm.elevation" (blur)="save('elevation')" (keydown.enter)="$any($event.target).blur()" data-testid="level-elevation-input" />
+    </div>
+    <div>
+      <label xLabel for="level-height">Floor to floor</label>
+      <input xInput id="level-height" class="font-mono" [formField]="draftForm.height" (blur)="save('height')" (keydown.enter)="$any($event.target).blur()" data-testid="level-height-input" />
+    </div>
+    <div>
+      <label xLabel for="level-slab">Slab</label>
+      <input xInput id="level-slab" class="font-mono" [formField]="draftForm.slab" (blur)="save('slab')" (keydown.enter)="$any($event.target).blur()" data-testid="level-slab-input" />
+    </div>
+    <div class="flex items-end gap-1 justify-end">
+      <button xIconButton size="sm" label="Duplicate level" [disabled]="level.placement !== 'stack'" (click)="actions.duplicate(projectId(), level.id)" data-testid="level-duplicate"><svg [xIcon]="icons.Copy" class="size-3.5"></svg></button>
+      <button xIconButton size="sm" label="Add a level above" [disabled]="level.placement !== 'stack'" (click)="actions.addLevel(projectId(), { above: level.id })" data-testid="level-add-above"><svg [xIcon]="icons.Layers2" class="size-3.5"></svg></button>
+    </div>
+  </div>
+}

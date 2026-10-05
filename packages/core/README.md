@@ -37,8 +37,20 @@ The engine. Everything here is pure TypeScript with no Electron, Node I/O or UI 
 
 ## Document (`src/doc`)
 
-`schema.ts` defines the project document (zod): meta, building (datum, ground level, level stack), levels, layers, entities per level (`levelData`), connectors. `defaults.ts` makes a new project (one ground floor with Structure, Interior and Decor layers). `files.ts` splits a document into `project.json` and level files and back, with stable key order, and migrates older formats.
+| File | What |
+|---|---|
+| `schema.ts` | The document (zod): meta; building (datum, ground level, level stack); levels (stacked or offset); layers; every entity type (wall, opening, column, slab, void, shaft, room, fixture, point, dimension, label, item, light) per level in `levelData`; connectors (stair, ladder, ramp, elevator, escalator). Lengths are rounded to 0.001 mm on parse. |
+| `derive.ts` | `deriveLevels` (elevations from the stack), `elevationChange` (which value to change for a wanted elevation), `entitiesOnLevel` (including spanning entities). |
+| `ops.ts` | Ops (`ins`, `upd`, `del` per record), `Transaction` (copy-on-write draft, schema validation, reference integrity at commit, net before/after values), `patchOps`, `applyPatch` (the mirror). |
+| `engine.ts` | `DocumentEngine`: transactions with labels and authors, the linear undo stack (merging, caps, guarded undo), dry runs, `setMeta` outside history, `replace` with a new epoch, `DocPatch` events. |
+| `builders.ts` | Intent to ops against the current draft: add/update/move/remove/duplicate levels, layers, entities (deleting a wall deletes its openings), connectors. |
+| `refs.ts` | The one list of references between records, for integrity checks and id remapping. |
+| `defaults.ts`, `files.ts` | A new project; the split into `project.json` and level files and back; format migrations. |
+
+## Geometry (`src/geometry`)
+
+`path.ts`: the `Path` primitive (vertices with line, arc-by-bulge or cubic segments and fillet/chamfer corners), `resolvePath` (corners applied exactly for line and arc neighbours, clamped with a diagnostic when they do not fit), length, signed area (exact for arcs and cubics), bounding box, flattening within a tolerance, point and tangent at a distance, nearest point, containment, reversal and transforms. `vec.ts`: 2D vector helpers.
 
 ## Tests
 
-`npm test` runs `*.test.ts` here: the registry and its gates, config merging and normalising, units, ids, atomic writes and the retry, the write queue, the config and secret stores, project folders and crash simulation, autosave timing, the library, packages and the project service.
+`npm test` runs `*.test.ts` here: the registry and its gates, config merging and normalising, units, ids, atomic writes and the retry, the write queue, the config and secret stores, project folders and crash simulation, autosave timing, the library, packages, the project service, path geometry against analytic values, elevations, transactions, history and references.

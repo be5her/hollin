@@ -10,8 +10,9 @@ Windows, macOS and Linux, built with Electron and Angular.
 |---|---|
 | 1. Scaffold: monorepo, command registry, MCP server, host, shell, settings, smoke test, CI | done |
 | 2. Project library: storage, index, Home screen, tabs, autosave, snapshots, trash, packages | done |
-| 3. Document model: building, levels, layers, entities, transactions, undo | next |
-| 4–9. 2D editor, vertical circulation, AI tools and assistant, 3D view, decor, export | planned |
+| 3. Document model: building, levels, layers, entities, connectors, transactions, undo, live mirror | done |
+| 4. 2D editor | next |
+| 5–9. Vertical circulation, AI tools and assistant, 3D view, decor, export | planned |
 
 ## Development
 
@@ -50,6 +51,8 @@ src/renderer             The Angular app and the shell (its own npm workspace).
 Every feature is a set of **commands** with zod input schemas, registered in one `CommandRegistry`. The UI reaches the host only through commands (`window.studio.invoke(id, input, projectId)`), and the same registry backs the command palette, the MCP server and, later, the in-app assistant, so every feature reaches all of them for free. `execute` checks, in order: unknown id (`UNKNOWN_COMMAND`), missing project (`NO_PROJECT`), input (`INVALID_INPUT`, one "path: message" per issue), then the mutating gate, then runs the handler. Errors cross IPC and MCP as `{ code, message, details? }`.
 
 **Mutating** commands (delete, write outside the library, otherwise destructive) are refused to MCP agents until the user allows it in Settings, and the assistant will ask the user first. Ordinary design edits are undoable transactions instead.
+
+The **document** of an open project lives in the main process: a building (datum, ground level, level stack) with levels, per-level layers and entities, and connectors between levels. Elevations are derived from the stack. Every edit is a validated transaction with a label and an author on one undo stack; the renderer mirrors the document from `doc.patched` events. See `packages/modules/building`, `plan` and `edit`.
 
 Projects live in one **library** folder the app owns (see `packages/modules/library/README.md`): crash-safe saves, autosave, snapshots, a restorable trash and single-file packages.
 

@@ -241,7 +241,7 @@ describe('ProjectService', () => {
     const session = svc.session(created.id)!;
     const layerId = Object.keys(session.doc.layers)[0];
     const levelId = session.doc.building.stack[0];
-    session.setDoc({ ...session.doc, levelData: { [levelId]: { entities: { ent_0000000000000000: { id: 'ent_0000000000000000', type: 'label', levelId, layerId } } } } });
+    session.setDoc({ ...session.doc, levelData: { [levelId]: { entities: { lbl_0000000000000000: { id: 'lbl_0000000000000000', type: 'label', levelId, layerId, text: 'x', at: [0, 0], size: 250, rotation: 0 } } } } });
     const { backup } = await svc.restoreSnapshot(created.id, snap.id, 'You');
     expect(Object.keys(session.doc.levelData[levelId].entities)).toEqual([]);
     expect(session.doc.meta.name).toBe('House 2');

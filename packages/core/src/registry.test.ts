@@ -50,7 +50,7 @@ function registry(): CommandRegistry {
   return r;
 }
 
-const project: ProjectApi = { id: 'prj_1', name: 'House' };
+const project = { id: 'prj_1', name: 'House' } as unknown as ProjectApi;
 
 describe('CommandRegistry', () => {
   it('validates input, applies defaults and runs the handler', async () => {

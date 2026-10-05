@@ -100,6 +100,7 @@ function toMeta({ module, command }: Registered): CommandMeta {
     conditional: typeof command.mutating === 'function',
     hidden: Boolean(command.hidden),
     noInput: command.input.safeParse({}).success,
+    batchable: Boolean(command.batchable),
   };
 }
 

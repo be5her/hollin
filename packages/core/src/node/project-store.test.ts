@@ -20,7 +20,7 @@ afterEach(async () => {
 function withEntity(doc: ProjectDoc, levelId = doc.building.stack[0]): ProjectDoc {
   const layerId = Object.values(doc.layers).find((l) => l.levelId === levelId)!.id;
   const id = newId('ent');
-  return { ...doc, levelData: { ...doc.levelData, [levelId]: { entities: { ...doc.levelData[levelId].entities, [id]: { id, type: 'label', levelId, layerId, text: 'hi' } } } } };
+  return { ...doc, levelData: { ...doc.levelData, [levelId]: { entities: { ...doc.levelData[levelId].entities, [id]: { id, type: 'label', levelId, layerId, text: 'hi', at: [0, 0], size: 250, rotation: 0 } } } } };
 }
 
 function addLevel(doc: ProjectDoc): ProjectDoc {

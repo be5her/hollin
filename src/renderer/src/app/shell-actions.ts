@@ -120,5 +120,11 @@ export class ShellActions {
     if (key === 'w') return run('tab.close');
     if (key === 'tab') return run(e.shiftKey ? 'tab.previous' : 'tab.next');
     if (key === 'n' && !e.shiftKey) return run('project.new');
+    // Undo and redo the design, unless a text field has focus (it keeps its own undo).
+    if (key === 'z' || key === 'y') {
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('input, textarea, select, [contenteditable=""], [contenteditable="true"]')) return;
+      return run(key === 'y' || e.shiftKey ? 'edit.redo' : 'edit.undo');
+    }
   }
 }
