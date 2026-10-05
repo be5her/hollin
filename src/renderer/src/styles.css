@@ -1,0 +1,111 @@
+@import 'tailwindcss';
+@source '../../../packages/ui/src';
+@source '../../../packages/modules';
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Semantic colours. A placeholder neutral look until the visual design is decided: change these
+ * values (both modes) and every component follows. Keep --titlebar and --titlebar-fg as #rrggbb,
+ * because they also colour the native window buttons.
+ */
+:root {
+  --canvas: #f7f7f5;
+  --surface: #efefec;
+  --elevated: #e5e5e1;
+  --fg: #1d1f22;
+  --muted: #676b72;
+  --edge: #dadad5;
+  --accent: #2f6fda;
+  --accent-hover: #2459b5;
+  --accent-fg: #ffffff;
+  --danger: #d23434;
+  --success: #1f8a4c;
+  --warning: #b7791f;
+  --titlebar: #efefec;
+  --titlebar-fg: #1d1f22;
+  --font-mono: ui-monospace, 'Cascadia Code', 'JetBrains Mono', Consolas, 'Liberation Mono', monospace;
+  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+}
+
+.dark {
+  --canvas: #17181a;
+  --surface: #1e1f22;
+  --elevated: #2a2b2f;
+  --fg: #e8e9eb;
+  --muted: #9a9ca3;
+  --edge: #313338;
+  --accent: #5b9bf8;
+  --accent-hover: #7cb0fa;
+  --accent-fg: #0f1115;
+  --danger: #f27474;
+  --success: #4fcf86;
+  --warning: #f0b94a;
+  --titlebar: #1e1f22;
+  --titlebar-fg: #e8e9eb;
+}
+
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-elevated: var(--elevated);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-edge: var(--edge);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-fg: var(--accent-fg);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --font-mono: var(--font-mono);
+  --font-sans: var(--font-sans);
+}
+
+html,
+body,
+x-root {
+  height: 100%;
+  margin: 0;
+}
+
+x-root {
+  display: block;
+}
+
+body {
+  background: var(--canvas);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--muted) 35%, transparent) transparent;
+}
+
+/* Strips that scroll by wheel, like the tab bar. Unlayered so it outranks the rule above. */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+/* The title bar moves the window; its controls stay clickable. */
+.app-drag {
+  -webkit-app-region: drag;
+}
+
+.app-no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* Native select popups draw options on the OS colours; pin them to the theme so they stay readable in dark mode. */
+option {
+  background: var(--surface);
+  color: var(--fg);
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+}

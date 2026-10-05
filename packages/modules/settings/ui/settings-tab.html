@@ -1,0 +1,119 @@
+<div class="max-w-3xl mx-auto w-full px-8 py-8 flex flex-col gap-10">
+  <h1 class="text-xl font-semibold tracking-tight">Settings</h1>
+
+  <section data-section="appearance">
+    <h2 class="text-sm font-semibold mb-3 pb-1 border-b border-edge">Appearance</h2>
+    <label xLabel for="settings-theme">Theme</label>
+    <select xSelect id="settings-theme" class="w-48" [formField]="settings.theme" data-testid="settings-theme">
+      <option value="system">Follow system</option>
+      <option value="light">Light</option>
+      <option value="dark">Dark</option>
+    </select>
+  </section>
+
+  <section data-section="units">
+    <h2 class="text-sm font-semibold mb-1 pb-1 border-b border-edge">Units</h2>
+    <p class="text-xs text-muted mb-3">How lengths are shown and typed. Designs are always stored in millimetres, so switching never changes them.</p>
+    <x-units-editor [formField]="settings.units" />
+  </section>
+
+  <section data-section="mcp">
+    <h2 class="text-sm font-semibold mb-1 pb-1 border-b border-edge">MCP server</h2>
+    <p class="text-xs text-muted mb-3">
+      AI agents such as Claude Desktop and Claude Code can work on your designs through this local server. Every command in the palette is available to them. Agents act on
+      the project on screen unless they name another.
+    </p>
+    <div class="flex items-center gap-5 flex-wrap">
+      <label class="flex items-center gap-2 text-sm"><input xCheckbox type="checkbox" [formField]="settings.mcpEnabled" data-testid="settings-mcp-enabled" />Enabled</label>
+      <label class="flex items-center gap-2 text-sm"
+        >Port<input xInput type="number" class="w-24" [formField]="settings.port" (blur)="savePort()" (keydown.enter)="savePort()" data-testid="settings-mcp-port"
+      /></label>
+      <span class="text-xs" [class]="mcp()?.running ? 'text-success' : 'text-danger'" data-testid="settings-mcp-state">{{
+        mcp()?.running ? 'Running' : (mcp()?.error ?? 'Stopped')
+      }}</span>
+      @if (mcp()?.error && config()?.mcp?.enabled) {
+        <button xButton size="sm" (click)="restartMcp()">Try again</button>
+      }
+    </div>
+    <label class="flex items-start gap-2 text-sm mt-3"
+      ><input xCheckbox type="checkbox" class="mt-0.5" [formField]="settings.allowMutations" data-testid="settings-mcp-mutations" /><span
+        >Allow agents to delete or overwrite data
+        <span class="block text-xs text-muted">Ordinary design edits are always allowed and can be undone. This covers things that cannot: emptying the trash, deleting snapshots, writing files outside the library.</span></span
+      ></label
+    >
+    <div class="mt-4 flex flex-col gap-3">
+      @for (s of snippets(); track s.id) {
+        <div>
+          <label xLabel>{{ s.client }} <span class="font-normal">· {{ s.where }}</span></label>
+          <ng-container *ngTemplateOutlet="copyRow; context: { $implicit: s.text, id: s.id }" />
+        </div>
+      }
+    </div>
+    <h3 class="text-xs font-semibold text-muted mt-5 mb-1.5">Recent agent calls</h3>
+    @if (recentCalls().length) {
+      <div class="border border-edge rounded-md divide-y divide-edge text-xs" data-testid="settings-mcp-calls">
+        @for (call of recentCalls(); track $index) {
+          <div class="flex items-center gap-3 px-2.5 py-1.5">
+            <span class="size-1.5 rounded-full shrink-0" [class]="call.ok ? 'bg-success' : 'bg-danger'"></span>
+            <span class="font-mono">{{ call.tool }}</span>
+            <span class="text-muted truncate">via MCP: {{ call.agent }}</span>
+            @if (call.error) {
+              <span xBadge>{{ call.error }}</span>
+            }
+            <span class="flex-1"></span>
+            <span class="text-muted">{{ time(call.at) }}</span>
+          </div>
+        }
+      </div>
+    } @else {
+      <p class="text-xs text-muted">No calls yet.</p>
+    }
+  </section>
+
+  <section data-section="ai">
+    <h2 class="text-sm font-semibold mb-1 pb-1 border-b border-edge">Assistant</h2>
+    <p class="text-xs text-muted mb-3">The in-app assistant uses the Claude API with your own API key. The key is stored encrypted on this computer and is never shared with agents or exported.</p>
+    <label xLabel for="settings-model">Model</label>
+    <select xSelect id="settings-model" class="w-72" [formField]="settings.model" data-testid="settings-model">
+      @for (m of models; track m.id) {
+        <option [value]="m.id">{{ m.label }} · {{ m.note }}</option>
+      }
+    </select>
+    <label xLabel class="mt-4" for="settings-key">Claude API key</label>
+    @if (keyStatus.value()?.set) {
+      <div class="flex items-center gap-2" data-testid="settings-key-set">
+        <span class="flex items-center gap-1.5 text-sm"><svg [xIcon]="icons.KeyRound" class="size-3.5 text-success"></svg>A key is set</span>
+        @if (!keyStatus.value()?.persistent) {
+          <span xBadge>this session only</span>
+        }
+        <button xButton size="sm" variant="danger" [icon]="icons.Trash2" (click)="clearKey()" data-testid="settings-key-clear">Remove</button>
+      </div>
+    } @else {
+      <form class="flex items-center gap-2" (submit)="saveKey($event)">
+        <input xInput id="settings-key" type="password" class="w-96 font-mono" placeholder="sk-ant-…" [formField]="keyForm.key" data-testid="settings-key-input" />
+        <button xButton type="submit" variant="primary" [loading]="savingKey()" [disabled]="keyForm().invalid()" data-testid="settings-key-save">Save key</button>
+      </form>
+    }
+  </section>
+
+  <section data-section="about">
+    <h2 class="text-sm font-semibold mb-3 pb-1 border-b border-edge">About</h2>
+    @if (info.value(); as about) {
+      <dl class="grid grid-cols-[9rem_1fr] gap-y-1.5 text-xs" data-testid="settings-about">
+        <dt class="text-muted">Version</dt>
+        <dd>{{ about.productName }} {{ about.version }}</dd>
+        <dt class="text-muted">Platform</dt>
+        <dd>{{ about.platform }} · Electron {{ about.runtime['electron'] }} · Chromium {{ about.runtime['chrome'] }}</dd>
+        <dt class="text-muted">Data folder</dt>
+        <dd class="font-mono break-all">{{ about.dataDir }}</dd>
+      </dl>
+    }
+  </section>
+</div>
+
+<ng-template #copyRow let-text let-id="id">
+  <div class="flex items-start gap-2">
+    <pre class="flex-1 text-xs font-mono bg-surface border border-edge rounded-md px-2 py-1.5 overflow-x-auto whitespace-pre" [attr.data-testid]="'snippet-' + id">{{ text }}</pre>
+    <button xButton size="sm" variant="ghost" [icon]="icons.Copy" (click)="copy(text)">Copy</button>
+  </div>
+</ng-template>

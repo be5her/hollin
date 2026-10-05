@@ -1,0 +1,14 @@
+{
+  "name": "@studio/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The engine: command registry, document model, geometry, transactions, units and shared types. No Electron, Node I/O or UI framework imports outside src/node.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./node": "./src/node/index.ts"
+  },
+  "dependencies": {
+    "zod": "^4.6.5"
+  }
+}

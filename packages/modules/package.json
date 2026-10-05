@@ -1,0 +1,14 @@
+{
+  "name": "@studio/modules",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Feature modules. One folder per feature: main.ts (commands, Node side), ui/ (Angular side) and README.md.",
+  "exports": {
+    "./main": "./main.ts",
+    "./ui": "./ui.ts"
+  },
+  "dependencies": {
+    "zod": "^4.6.5"
+  }
+}

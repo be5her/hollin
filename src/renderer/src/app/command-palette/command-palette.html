@@ -1,0 +1,90 @@
+@if (open()) {
+  <div class="fixed inset-0 z-40 bg-black/40 flex items-start justify-center pt-[12vh]" (mousedown)="close()">
+    <div class="w-[580px] max-w-[92vw] rounded-lg border border-edge bg-canvas shadow-2xl overflow-hidden" (mousedown)="$event.stopPropagation()" data-testid="palette">
+      @if (pending(); as p) {
+        <form class="p-4 flex flex-col gap-3" (submit)="submit($event)" data-testid="palette-form" [attr.data-command]="p.command.id">
+          <div>
+            <h2 class="text-sm font-semibold">{{ p.command.title }}</h2>
+            <p class="text-xs text-muted mt-0.5">{{ p.command.description }}</p>
+          </div>
+          @for (field of p.fields; track field.key; let first = $first) {
+            <div>
+              @if (field.kind === 'boolean') {
+                <label class="flex items-center gap-2 text-sm"><input xCheckbox type="checkbox" [formField]="flagsForm[field.key]" />{{ field.label }}</label>
+              } @else {
+                <label xLabel [attr.for]="'palette-' + field.key">{{ field.label }}@if (field.required) {<span class="text-danger"> *</span>}</label>
+                @if (field.kind === 'enum') {
+                  <select xSelect class="w-full" [id]="'palette-' + field.key" [formField]="valuesForm[field.key]">
+                    @if (!field.required) {
+                      <option value=""></option>
+                    }
+                    @for (option of field.options; track option) {
+                      <option [value]="option">{{ option }}</option>
+                    }
+                  </select>
+                } @else if (field.kind === 'json') {
+                  <textarea xTextarea rows="4" [id]="'palette-' + field.key" [formField]="valuesForm[field.key]" placeholder="JSON" [xAutofocus]="first"></textarea>
+                } @else {
+                  <input xInput [id]="'palette-' + field.key" [formField]="valuesForm[field.key]" [xAutofocus]="first" [attr.inputmode]="field.kind === 'number' ? 'decimal' : null" />
+                }
+              }
+              @if (field.description) {
+                <p class="text-[11px] text-muted mt-1">{{ field.description }}</p>
+              }
+            </div>
+          }
+          <div class="flex justify-end gap-2 pt-1">
+            <button xButton variant="ghost" (click)="back()">Back</button>
+            <button xButton variant="primary" type="submit" [loading]="running()" data-testid="palette-run">Run</button>
+          </div>
+        </form>
+      } @else {
+        <div class="palette" role="dialog" aria-label="Command palette" (keydown)="keydown($event)">
+          <input
+            xAutofocus
+            class="palette-input"
+            placeholder="Type a command…"
+            spellcheck="false"
+            autocomplete="off"
+            role="combobox"
+            aria-expanded="true"
+            aria-autocomplete="list"
+            data-testid="palette-input"
+            [value]="search()"
+            (input)="typed($event)"
+          />
+          <div #list class="palette-list" role="listbox" aria-label="Commands">
+            @for (group of shown(); track group.heading) {
+              <div role="presentation" data-group>
+                <div class="palette-heading" aria-hidden="true" data-heading>{{ group.heading }}</div>
+                <div role="group" [attr.aria-label]="group.heading">
+                  @for (item of group.items; track item.key) {
+                    <div
+                      class="palette-item"
+                      role="option"
+                      [attr.aria-selected]="item.key === selected()"
+                      [attr.data-selected]="item.key === selected()"
+                      [attr.data-key]="item.key"
+                      (pointermove)="selected.set(item.key)"
+                      (click)="choose(item)"
+                    >
+                      <span class="flex-1">{{ item.title }}</span>
+                      @if (item.shortcut) {
+                        <kbd xKbd>{{ item.shortcut }}</kbd>
+                      }
+                      @if (item.commandId) {
+                        <span class="text-[10px] font-mono text-muted">{{ item.commandId }}</span>
+                      }
+                    </div>
+                  }
+                </div>
+              </div>
+            } @empty {
+              <div class="palette-empty">No matching commands.</div>
+            }
+          </div>
+        </div>
+      }
+    </div>
+  </div>
+}

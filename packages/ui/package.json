@@ -1,0 +1,14 @@
+{
+  "name": "@studio/ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The renderer side of the host contract: the command bridge, state services, shared controls and overlays for the Angular shell and modules.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./bridge": "./src/bridge.ts"
+  },
+  "dependencies": {
+    "lucide": "^1.52.0"
+  }
+}

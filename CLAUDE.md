@@ -1,0 +1,33 @@
+# Working on Plan Studio
+
+Plan Studio (a working name; every product name lives in `branding.json`) is a desktop studio for designing buildings, floor plans, interiors and decor, with AI built in: Electron + an Angular renderer in an npm-workspaces monorepo. `README.md` is the overview; `packages/core/README.md` covers the engine and storage, `src/renderer/README.md` the shell, and each module has its own README under `packages/modules/<name>/`. This file is about how changes get made.
+
+## Workflow
+
+- The repository is local only until the owner asks for it to go on GitHub. Do not create a GitHub repository or push before that.
+- Until then, each milestone or change is committed on the local `main` once it is verified.
+- Once the repository is on GitHub: one branch and one pull request per change, against `main`. Never commit to `main`. Open the pull request with `gh pr create` following `.github/pull_request_template.md`, report the link and do not merge.
+- Before every commit, all three must pass: `npm run typecheck`, `npm test`, `npm run smoke`.
+- For UI changes, run the smoke with `SMOKE_SHOTS=<dir>` and look at the screenshots (light and dark) before committing.
+- Each module has a README covering what it does, what it stores, which tools agents may call and which are gated, and what the smoke test covers. Update it when behaviour changes.
+- No new dependency without a one-line reason, in the commit message and in the README of the package that uses it.
+- Keep the clone's author identity on commits.
+
+## Conventions
+
+- **Everything is a command.** A feature is a set of registry commands (`defineCommand` with a zod input schema, grouped by `defineModule`) plus UI. Commands are the only way the UI reaches the host, so the command palette, the MCP server and the in-app assistant get every feature for free. Write each command's `description` for an agent: what it does and what it returns.
+- **Mutating** means deletes, writes outside the library, or is otherwise destructive (`mutating: true`, or a function for per-call decisions). MCP agents are refused those until the user allows mutations; the assistant asks the user. Ordinary design edits are not mutating: they are undoable transactions.
+- **Hidden** commands are UI plumbing and never reach the palette or agents. Anything that could let an agent widen its own permissions (`config.update`, secrets) is hidden.
+- **Every change the UI shows must be announced.** Add the event to `HostEvents` in `packages/core/src/types.ts` and emit it after the write; the UI follows with `invokeResource(..., { refreshOnEvents })` or `injectHostEvent`. Otherwise a view only catches up when it is reopened.
+- **Storage:** atomic writes only (`writeFileAtomic`: temp file, fsync, rename with a retry for Windows locks), serialized per file with `WriteQueue`. Lengths are millimetres everywhere; display units are a setting. Secrets go through `host.secrets` and never into config, projects or exports.
+- **Modules:** `packages/modules/<name>/main.ts` (Node side, registered in `packages/modules/main.ts` and listed in `tsconfig.node.json`'s globs), `ui/` (Angular side, registered in `packages/modules/ui.ts`; `src/renderer/tsconfig.app.json` picks it up), `README.md`.
+- **Renderer:** current Angular defaults only: standalone components, zoneless, OnPush, signals, signal inputs/outputs/`model()`, `viewChild()`, built-in control flow, `host` metadata, `inject()`, `@Service()`, Signal Forms (`[formField]`; editors with several fields implement `FormValueControl`). No experimental APIs. Shared controls are attribute directives on native elements (`button[xButton]`, `input[xInput]`, `select[xSelect]`). Colours are the semantic variables in `src/renderer/src/styles.css`, never raw values.
+- **Smoke test:** new behaviour gets checks in `src/main/smoke/` (one file per area) that drive it through commands, through MCP and through the UI. Unit tests sit next to pure code in `packages/*`.
+- **Line endings** are LF everywhere (`.gitattributes`).
+
+## Gotchas
+
+- The Angular compiler needs TypeScript 6.0, pinned in `src/renderer`; the root uses TypeScript 7 for main, preload and the packages.
+- Signal Forms types a checkbox only when `type="checkbox"` is written in the template, even with `xCheckbox`.
+- `npm run dev` uses a separate data folder (`<name> Dev`); the smoke test uses a temporary one and a private MCP port. Neither touches the real library.
+- On Windows, write multi-line scripts with a file rather than a shell heredoc, and stop processes by PID (`taskkill /pid <pid> /t /f`), never by image name.

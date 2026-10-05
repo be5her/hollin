@@ -1,0 +1,76 @@
+<div class="flex items-center gap-2 pr-3 shrink-0 font-semibold text-[13px] tracking-tight" [class]="host.isMac ? 'pl-20' : 'pl-3'">
+  <span class="grid place-items-center size-5 rounded bg-accent text-accent-fg text-[10px] font-bold" aria-hidden="true">P</span>
+  <span data-testid="product-name">{{ productName }}</span>
+</div>
+
+<div
+  #strip
+  class="relative flex items-end gap-0.5 min-w-0 overflow-x-auto overflow-y-hidden no-scrollbar pt-1.5"
+  role="tablist"
+  aria-label="Open documents"
+  [attr.data-dragging]="reorder.drag()?.id"
+  (wheel)="wheel($event)"
+  (mousedown)="mouseDown($event)"
+>
+  @if (reorder.drag(); as drag) {
+    <x-drop-marker axis="x" [at]="drag.marker" testId="tab-drop-marker" />
+  }
+  @for (tab of tabs(); track tab.id) {
+    @let active = tab.id === activeId();
+    <div
+      role="tab"
+      tabindex="0"
+      class="app-no-drag group flex items-center gap-1.5 h-[30px] max-w-56 shrink-0 rounded-t-md border border-b-0 text-xs cursor-default"
+      [class]="
+        (active ? 'bg-canvas border-edge text-fg' : 'border-transparent text-muted hover:text-fg hover:bg-elevated/60') +
+        (tab.pinned ? ' px-2.5' : ' pl-3 pr-1') +
+        (reorder.drag()?.id === tab.id ? ' opacity-50' : '')
+      "
+      [attr.aria-selected]="active"
+      [title]="tab.title"
+      data-testid="tab"
+      [attr.data-type]="tab.type"
+      [attr.data-title]="tab.title"
+      [attr.data-drag-id]="tab.pinned ? null : tab.id"
+      (pointerdown)="tab.pinned ? null : reorder.pointerDown($event, tab.id)"
+      (click)="activate(tab)"
+      (keydown.enter)="activate(tab)"
+      (auxclick)="auxClick($event, tab)"
+      (contextmenu)="showMenu($event, tab)"
+    >
+      @if (tab.type === 'shell.home') {
+        <svg [xIcon]="icons.House" class="size-3.5"></svg>
+        <span class="sr-only">{{ tab.title }}</span>
+      } @else {
+        <span class="truncate">{{ tab.title }}</span>
+        @if (tab.dirty) {
+          <span class="size-1.5 rounded-full bg-warning shrink-0" title="Unsaved changes"></span>
+        }
+        <button
+          type="button"
+          [attr.aria-label]="'Close ' + tab.title"
+          class="rounded p-0.5 hover:bg-elevated text-muted hover:text-fg shrink-0"
+          [class]="active ? '' : 'opacity-0 group-hover:opacity-100'"
+          (click)="close($event, tab)"
+        >
+          <svg [xIcon]="icons.X" class="size-3"></svg>
+        </button>
+      }
+    </div>
+  }
+</div>
+
+<div class="flex-1 min-w-4"></div>
+
+<div class="flex items-center gap-1 shrink-0" [style.padding-right]="host.isMac ? '12px' : 'calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + 8px)'">
+  <button
+    type="button"
+    class="app-no-drag flex items-center gap-2 h-7 px-2.5 rounded-md border border-edge bg-canvas text-xs text-muted hover:text-fg w-60"
+    data-testid="palette-button"
+    (click)="openPalette()"
+  >
+    <svg [xIcon]="icons.Search" class="size-3.5"></svg>
+    <span class="flex-1 text-left">Search commands…</span>
+    <kbd xKbd>{{ host.modKey }} K</kbd>
+  </button>
+</div>

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- Placeholder mark until the visual design is decided: a floor plan with a door swing. -->
+  <rect x="64" y="64" width="896" height="896" rx="200" fill="#2f6fda"/>
+  <g fill="none" stroke="#ffffff" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M272 292 H752 V732 H272 Z" stroke-width="56"/>
+    <path d="M512 292 V500" stroke-width="40"/>
+    <path d="M272 556 H420" stroke-width="40"/>
+    <path d="M420 556 A148 148 0 0 1 568 704" stroke-width="24" stroke-dasharray="2 34" opacity="0.9"/>
+  </g>
+</svg>
