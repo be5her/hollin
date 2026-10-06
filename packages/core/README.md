@@ -15,7 +15,7 @@ The engine. Everything here is pure TypeScript with no Electron, Node I/O or UI 
 
 | File | What |
 |---|---|
-| `config.ts` | The config schema and `mergeConfig`: sections merged one level deep and normalised field by field, so an old or hand-edited file falls back per field instead of failing. `ConfigPatchSchema` validates patches strictly. `AI_MODELS` lists the assistant's models. |
+| `config.ts` | The config schema and `mergeConfig`: sections merged one level deep and normalised field by field, so an old or hand-edited file falls back per field instead of failing. `ConfigPatchSchema` validates patches strictly. `AI_MODELS` lists the assistant's models. The `editor` section holds the 2D editor's snapping, grid and tool defaults. |
 | `units.ts` | `formatLength`/`parseLength` (metric mm/cm/m, imperial feet-inches or inches with fractions) and `formatAngle`/`parseAngle`. Lengths are always stored in millimetres. |
 | `ids.ts` | `newId(prefix)`: prefix + 16 lowercase Crockford base32 characters (80 bits) from `crypto.getRandomValues`. |
 | `branding.ts` | The product names from `branding.json`. |
@@ -57,6 +57,10 @@ The engine. Everything here is pure TypeScript with no Electron, Node I/O or UI 
 | `clip.ts` | Clipper2 (`clipper2-ts`, a pure TypeScript port, pinned exactly to `2.0.1-18`) behind a millimetre interface: unions as a tree of outlines and holes, differences, intersections, offsets of polygons and polylines, morphological closing. Coordinates are scaled to integer micrometres. |
 | `offset.ts` | `offsetPath`: a path moved to its left or right exactly (lines shift, arcs stay concentric, neighbours are trimmed or extended to meet, sharp corners bevel at the miter limit); null when it cannot be exact (Bézier segments, a vanishing arc, a flipped segment). `extendPathEnd` carries an open path on along its tangent. |
 | `walls.ts` | A wall's body from its reference line, thickness and alignment (exact faces, or a flattened offset as the fallback), the ends of open walls clustered into junction nodes, the corner fills where two ends meet (the overlap of both walls carried on past the node: the quadrilateral bounded by the four face lines), and `joinWalls`, the union of bodies and fills. |
+| `intersect.ts` | Segment–segment intersections (lines and arcs, within the segments or extended), the perpendicular foot and tangent points from a point, for snapping and joins. |
+| `transform.ts` | `transformEntity`: every entity type moved, rotated about a pivot or mirrored across a line (openings stay on their wall; a mirror swaps a door's swing and flips arcs), and `changedFields` for the resulting update. |
+| `path-edit.ts` | Vertex, segment and corner edits on a path, and `pathOfEntity`/`withPath` to address a wall's path or a region's outline or hole. |
+| `openings.ts` | `openingFrame` (an opening's centre, jambs and cut through its wall's body) and `columnPolygon`. |
 | `level-geometry.ts` | `deriveWalls` / `deriveLevelGeometry`: everything a level's entities derive to, uncached. The renderer memoises by object identity (valid there, where the mirror builds a fresh draft per patch); main derives afresh, because a transaction mutates a level's record in place while a batch runs. |
 
 ## Tests

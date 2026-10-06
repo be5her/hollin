@@ -156,6 +156,83 @@ export function drawEntityPreview(ctx: CanvasRenderingContext2D, entity: Entity,
   worldSpace(ctx, frame);
 }
 
+/** The snap marker at the snapped point (a glyph per kind), its guide lines and a label. */
+export function drawSnap(ctx: CanvasRenderingContext2D, frame: RenderFrame, snap: { point: Vec2; kind: string; label: string; guides: { from: Vec2; to: Vec2 }[] }): void {
+  const { theme } = frame;
+  ctx.strokeStyle = theme.snap;
+  ctx.lineWidth = px(frame, 1);
+  if (snap.guides.length) {
+    ctx.setLineDash([px(frame, 6), px(frame, 4)]);
+    ctx.beginPath();
+    for (const g of snap.guides) {
+      ctx.moveTo(g.from[0], g.from[1]);
+      ctx.lineTo(g.to[0], g.to[1]);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  screenSpace(ctx, frame);
+  const [x, y] = worldToScreen(frame.camera, frame.size, snap.point);
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = theme.snap;
+  ctx.fillStyle = withAlpha(theme.snap, 0.15);
+  ctx.beginPath();
+  const r = 6;
+  switch (snap.kind) {
+    case 'endpoint':
+      ctx.rect(x - r, y - r, 2 * r, 2 * r);
+      break;
+    case 'midpoint':
+      ctx.moveTo(x, y - r);
+      ctx.lineTo(x + r, y + r);
+      ctx.lineTo(x - r, y + r);
+      ctx.closePath();
+      break;
+    case 'center':
+    case 'tangent':
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      break;
+    case 'intersection':
+    case 'extension':
+      ctx.moveTo(x - r, y - r);
+      ctx.lineTo(x + r, y + r);
+      ctx.moveTo(x - r, y + r);
+      ctx.lineTo(x + r, y - r);
+      break;
+    case 'perpendicular':
+      ctx.moveTo(x - r, y - r);
+      ctx.lineTo(x - r, y + r);
+      ctx.lineTo(x + r, y + r);
+      ctx.moveTo(x - r, y);
+      ctx.lineTo(x, y);
+      ctx.lineTo(x, y + r);
+      break;
+    case 'on':
+      ctx.moveTo(x - r, y - r);
+      ctx.lineTo(x + r, y - r);
+      ctx.lineTo(x - r, y + r);
+      ctx.lineTo(x + r, y + r);
+      ctx.closePath();
+      break;
+    default:
+      ctx.arc(x, y, 2.5, 0, Math.PI * 2);
+      break;
+  }
+  ctx.fill();
+  ctx.stroke();
+  if (snap.label) {
+    ctx.font = `11px ${theme.fontSans}`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    const w = ctx.measureText(snap.label).width + 8;
+    ctx.fillStyle = withAlpha(theme.background, 0.9);
+    ctx.fillRect(x + 12, y + 10, w, 16);
+    ctx.fillStyle = theme.snap;
+    ctx.fillText(snap.label, x + 16, y + 12);
+  }
+  worldSpace(ctx, frame);
+}
+
 /** The grips of the selected entity: squares at vertices (the selected one filled), circles at segment middles. Drawn in screen space. */
 export function drawGrips(ctx: CanvasRenderingContext2D, frame: RenderFrame, grips: readonly { kind: 'vertex' | 'mid'; index: number; which: unknown; at: Vec2 }[], selected: { index: number; which: unknown } | null): void {
   if (!grips.length) return;

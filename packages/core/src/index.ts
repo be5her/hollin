@@ -29,3 +29,4 @@ export * from './geometry/level-geometry';
 export * from './geometry/transform';
 export * from './geometry/openings';
 export * from './geometry/path-edit';
+export * from './geometry/intersect';

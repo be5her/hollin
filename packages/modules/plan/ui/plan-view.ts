@@ -1,9 +1,9 @@
 import { DOCUMENT, Component, DestroyRef, ElementRef, afterNextRender, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
 import { FormField, form } from '@angular/forms/signals';
-import { deriveLevels, type Vec2 } from '@studio/core';
-import { AppState, Checkbox, ContextMenu, HostBridge, Icon, IconButton, Input, ProjectDocs, ProjectView, Select, Toasts, Units, type ContextMenuItem } from '@studio/ui';
-import { DEFAULT_TOOL_OPTIONS, Plan2dEditor, drawingScale, readPlanTheme, type Camera, type ToolId, type UnderlayMode, type WallOptions } from '@studio/viewport';
-import { BrickWall, Maximize, MousePointer2, ZoomIn, ZoomOut } from 'lucide';
+import { deriveLevels, type GlobalConfig, type Vec2 } from '@studio/core';
+import { AppState, Checkbox, ContextMenu, HostBridge, Icon, IconButton, Input, LengthInput, ProjectDocs, ProjectView, Select, Toasts, Units, type ContextMenuItem } from '@studio/ui';
+import { DEFAULT_TOOL_OPTIONS, Plan2dEditor, drawingScale, readPlanTheme, type Camera, type SnapResult, type ToolId, type UnderlayMode, type WallOptions } from '@studio/viewport';
+import { BrickWall, ChevronDown, Magnet, Maximize, MousePointer2, ZoomIn, ZoomOut } from 'lucide';
 import { PlanSelection } from './plan-selection';
 
 interface WallDraft {
@@ -13,16 +13,30 @@ interface WallDraft {
   single: boolean;
 }
 
+type EditorConfig = GlobalConfig['editor'];
+
+/** The snap kinds the menu toggles, in order. */
+const SNAP_KINDS: { key: keyof EditorConfig; label: string }[] = [
+  { key: 'snapEndpoint', label: 'Endpoints' },
+  { key: 'snapMidpoint', label: 'Midpoints' },
+  { key: 'snapCenter', label: 'Centres' },
+  { key: 'snapIntersection', label: 'Intersections' },
+  { key: 'snapPerpendicular', label: 'Perpendicular and tangent' },
+  { key: 'snapExtension', label: 'Extensions' },
+  { key: 'snapAngle', label: 'Angle steps' },
+  { key: 'snapGrid', label: 'Grid' },
+];
+
 /**
- * The plan of the active level: the tools, the level switcher, reference underlay and zoom
- * controls on top, the canvas, and the cursor position and a hint below. The drawing and the
- * gestures live in the framework-free `Plan2dEditor`; this component feeds it the document, the
- * theme, the tool options and the canvas size, runs its commands, and mirrors its state into
+ * The plan of the active level: the tools, the level switcher, reference underlay, snapping and
+ * zoom controls on top, the canvas, and the cursor position, snap and a hint below. The drawing and
+ * the gestures live in the framework-free `Plan2dEditor`; this component feeds it the document, the
+ * theme, the settings and the canvas size, runs its commands, and mirrors its state into
  * attributes the smoke test reads.
  */
 @Component({
   selector: 'x-plan-view',
-  imports: [Checkbox, FormField, Icon, IconButton, Input, Select],
+  imports: [Checkbox, FormField, Icon, IconButton, Input, LengthInput, Select],
   templateUrl: './plan-view.html',
   host: { class: 'flex flex-col h-full min-h-0', 'data-testid': 'plan-view' },
 })
@@ -43,7 +57,8 @@ export class PlanView {
   private readonly canvas = viewChild.required<ElementRef<HTMLCanvasElement>>('canvas');
   private readonly container = viewChild.required<ElementRef<HTMLDivElement>>('container');
 
-  protected readonly icons = { BrickWall, Maximize, MousePointer2, ZoomIn, ZoomOut };
+  protected readonly icons = { BrickWall, ChevronDown, Magnet, Maximize, MousePointer2, ZoomIn, ZoomOut };
+  protected readonly snapKinds = SNAP_KINDS;
   protected readonly doc = computed(() => this.docs.read(this.projectId())?.doc);
   protected readonly levels = computed(() => {
     const doc = this.doc();
@@ -53,6 +68,7 @@ export class PlanView {
   protected readonly activeLevelId = this.view.activeLevel(computed(() => this.projectId()), this.doc);
   protected readonly levelName = computed(() => this.doc()?.levels[this.activeLevelId() ?? '']?.name ?? '');
   protected readonly underlay = computed(() => this.view.get<UnderlayMode>(this.projectId(), 'underlay', 'none'));
+  protected readonly editorConfig = computed(() => this.app.config()?.editor);
 
   private readonly camera = signal<Camera | null>(null);
   protected readonly cameraAttr = computed(() => {
@@ -74,16 +90,21 @@ export class PlanView {
   protected readonly hint = signal('');
   protected readonly selection = signal<string[]>([]);
   protected readonly vertexAttr = signal('');
+  protected readonly snapLabel = signal('');
+  protected readonly snapMenuOpen = signal(false);
   protected readonly selectionAttr = computed(() => this.selection().join(' '));
   protected readonly selectionLabel = computed(() => {
     const n = this.selection().length;
     return n === 0 ? '' : n === 1 ? '1 selected' : `${n} selected`;
   });
 
-  /** The wall tool's options, typed in display units. */
+  /** The wall tool's options, typed in display units; thickness and height are remembered in the settings. */
   protected readonly wallDraft = signal<WallDraft>({ thickness: '', height: '', alignment: 'center', single: false });
   protected readonly wallForm = form(this.wallDraft);
   private wallOptions: WallOptions = { ...DEFAULT_TOOL_OPTIONS.wall };
+  /** The grid spacing field in the snap menu. */
+  protected readonly gridDraft = signal({ spacing: '' });
+  protected readonly gridForm = form(this.gridDraft);
 
   private cameraRestored = false;
   private persistTimer: ReturnType<typeof setTimeout> | undefined;
@@ -119,32 +140,9 @@ export class PlanView {
       this.vertexAttr.set(vertex ? `${vertex.id}:${vertex.index}` : '');
       this.planSelection.setVertex(untracked(this.projectId), vertex);
     },
+    onSnap: (snap: SnapResult | null) => this.snapLabel.set(snap?.label ?? ''),
     onContextMenu: (event, ids) => this.menu.open(event, this.menuItems(ids)),
   });
-
-  private menuItems(ids: string[]): ContextMenuItem[] {
-    const projectId = untracked(this.projectId);
-    const run = (id: string, input: unknown) => this.host.invoke(id, input, projectId).catch((err) => this.toasts.error(err));
-    const n = ids.length;
-    const what = n === 1 ? 'item' : `${n} items`;
-    return [
-      {
-        label: `Duplicate ${what}`,
-        shortcut: 'Ctrl+D',
-        disabled: !n,
-        testId: 'menu-duplicate',
-        select: () =>
-          void run('plan.transform', { ids, translate: [100, -100], copy: true }).then((result) => {
-            const copies = (result as { ids?: string[] } | undefined)?.ids;
-            if (copies?.length) this.editor.select(copies);
-          }),
-      },
-      { label: `Delete ${what}`, shortcut: 'Del', danger: true, disabled: !n, testId: 'menu-delete', select: () => void run('plan.entity.delete', { ids }) },
-      'separator',
-      { label: 'Select all', shortcut: 'Ctrl+A', testId: 'menu-select-all', select: () => this.editor.select(Object.keys(this.editor.entities())) },
-      { label: 'Zoom to fit', shortcut: 'Home', select: () => this.editor.zoomToFit() },
-    ];
-  }
 
   constructor() {
     effect(() => {
@@ -155,8 +153,20 @@ export class PlanView {
     effect(() => this.editor.setUnderlay(this.underlay()));
     effect(() => {
       this.editor.setUnits(this.units.settings());
-      // Show the options in the current units.
-      this.wallDraft.set({ thickness: this.units.length(this.wallOptions.thickness), height: this.wallOptions.height === null ? '' : this.units.length(this.wallOptions.height), alignment: this.wallOptions.alignment, single: this.wallOptions.single });
+      this.showWallOptions();
+      this.gridDraft.set({ spacing: this.units.length(untracked(this.editorConfig)?.gridSpacing ?? 100) });
+    });
+    effect(() => {
+      // The settings drive snapping, the grid and the wall tool's defaults.
+      const c = this.editorConfig();
+      if (!c) return;
+      this.editor.setSnapSettings({ enabled: c.snap, endpoint: c.snapEndpoint, midpoint: c.snapMidpoint, center: c.snapCenter, intersection: c.snapIntersection, perpendicular: c.snapPerpendicular, extension: c.snapExtension, grid: c.snapGrid, gridSpacing: c.gridSpacing, angle: c.snapAngle, angleStep: c.angleStep });
+      this.editor.showGrid = c.gridShow;
+      this.editor.setToolOptions({ ...DEFAULT_TOOL_OPTIONS, nudge: c.gridSpacing, wall: { ...this.wallOptions, thickness: c.wallThickness, height: c.wallHeight } });
+      this.wallOptions = { ...this.wallOptions, thickness: c.wallThickness, height: c.wallHeight };
+      this.showWallOptions();
+      this.gridDraft.set({ spacing: this.units.length(c.gridSpacing) });
+      this.editor.invalidate();
     });
     effect(() => {
       // A camera stored with the project is restored once; afterwards the editor's own moves are what is stored.
@@ -199,12 +209,42 @@ export class PlanView {
     });
   }
 
+  private menuItems(ids: string[]): ContextMenuItem[] {
+    const projectId = untracked(this.projectId);
+    const run = (id: string, input: unknown) => this.host.invoke(id, input, projectId).catch((err) => this.toasts.error(err));
+    const n = ids.length;
+    const what = n === 1 ? 'item' : `${n} items`;
+    return [
+      {
+        label: `Duplicate ${what}`,
+        shortcut: 'Ctrl+D',
+        disabled: !n,
+        testId: 'menu-duplicate',
+        select: () =>
+          void run('plan.transform', { ids, translate: [100, -100], copy: true }).then((result) => {
+            const copies = (result as { ids?: string[] } | undefined)?.ids;
+            if (copies?.length) this.editor.select(copies);
+          }),
+      },
+      { label: `Delete ${what}`, shortcut: 'Del', danger: true, disabled: !n, testId: 'menu-delete', select: () => void run('plan.entity.delete', { ids }) },
+      'separator',
+      { label: 'Select all', shortcut: 'Ctrl+A', testId: 'menu-select-all', select: () => this.editor.select(Object.keys(this.editor.entities())) },
+      { label: 'Zoom to fit', shortcut: 'Home', select: () => this.editor.zoomToFit() },
+    ];
+  }
+
+  // ---------- tools ----------
+
   protected chooseTool(tool: ToolId): void {
     this.editor.setTool(tool);
     this.canvas().nativeElement.focus({ preventScroll: true });
   }
 
-  /** Reads the wall options from the form (lengths in any unit) and hands them to the editor. */
+  private showWallOptions(): void {
+    this.wallDraft.set({ thickness: this.units.length(this.wallOptions.thickness), height: this.wallOptions.height === null ? '' : this.units.length(this.wallOptions.height), alignment: this.wallOptions.alignment, single: this.wallOptions.single });
+  }
+
+  /** Reads the wall options from the form (lengths in any unit), hands them to the editor and remembers the sizes. */
   protected applyWallOptions(): void {
     const draft = untracked(this.wallDraft);
     const thickness = this.units.parseLength(draft.thickness);
@@ -214,9 +254,40 @@ export class PlanView {
     if (draft.height.trim() !== '' && (height === null || height <= 0)) this.toasts.notify(`"${draft.height}" is not a height`, 'error');
     else this.wallOptions = { ...this.wallOptions, height };
     this.wallOptions = { ...this.wallOptions, alignment: draft.alignment, single: draft.single };
-    this.wallDraft.set({ thickness: this.units.length(this.wallOptions.thickness), height: this.wallOptions.height === null ? '' : this.units.length(this.wallOptions.height), alignment: this.wallOptions.alignment, single: this.wallOptions.single });
-    this.editor.setToolOptions({ ...DEFAULT_TOOL_OPTIONS, wall: this.wallOptions });
+    this.showWallOptions();
+    this.editor.setToolOptions({ ...DEFAULT_TOOL_OPTIONS, nudge: untracked(this.editorConfig)?.gridSpacing ?? 100, wall: this.wallOptions });
+    const c = untracked(this.editorConfig);
+    if (c && (c.wallThickness !== this.wallOptions.thickness || c.wallHeight !== this.wallOptions.height)) void this.updateEditorConfig({ wallThickness: this.wallOptions.thickness, wallHeight: this.wallOptions.height });
   }
+
+  // ---------- snapping and the grid ----------
+
+  protected toggleSnap(): void {
+    void this.updateEditorConfig({ snap: !(untracked(this.editorConfig)?.snap ?? true) });
+  }
+
+  protected setEditorFlag(key: keyof EditorConfig, value: boolean): void {
+    void this.updateEditorConfig({ [key]: value });
+  }
+
+  protected setGridSpacing(mm: number | null): void {
+    if (mm && mm > 0) void this.updateEditorConfig({ gridSpacing: mm });
+  }
+
+  protected setAngleStep(value: string): void {
+    const step = Number(value);
+    if (Number.isFinite(step) && step >= 1 && step <= 90) void this.updateEditorConfig({ angleStep: step });
+  }
+
+  private async updateEditorConfig(patch: Partial<EditorConfig>): Promise<void> {
+    try {
+      await this.host.invoke('config.update', { patch: { editor: patch } }, null);
+    } catch (err) {
+      this.toasts.error(err);
+    }
+  }
+
+  // ---------- levels and the camera ----------
 
   protected chooseLevel(levelId: string): void {
     if (levelId) this.view.setActiveLevel(this.projectId(), levelId);

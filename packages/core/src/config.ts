@@ -45,6 +45,31 @@ const SECTIONS = {
     openProjects: z.array(z.string()),
     activeProjectId: z.string().nullable(),
   }),
+  /** The 2D editor's snapping, grid and tool defaults; set from the plan's toolbar, kept across projects. */
+  editor: z.object({
+    snap: z.boolean(),
+    snapEndpoint: z.boolean(),
+    snapMidpoint: z.boolean(),
+    snapCenter: z.boolean(),
+    snapIntersection: z.boolean(),
+    snapPerpendicular: z.boolean(),
+    snapExtension: z.boolean(),
+    snapGrid: z.boolean(),
+    /** Snap the drawing direction to multiples of `angleStep` degrees (Shift always does, in 45° steps). */
+    snapAngle: z.boolean(),
+    angleStep: z.number().min(1).max(90),
+    gridShow: z.boolean(),
+    /** Grid snap spacing in mm. */
+    gridSpacing: z.number().positive(),
+    wallThickness: z.number().positive(),
+    /** null: the level's height. */
+    wallHeight: z.number().positive().nullable(),
+    doorWidth: z.number().positive(),
+    doorHeight: z.number().positive(),
+    windowWidth: z.number().positive(),
+    windowHeight: z.number().positive(),
+    windowSill: z.number().min(0),
+  }),
 };
 
 type Sections = typeof SECTIONS;
@@ -61,6 +86,27 @@ const DEFAULTS: GlobalConfig = {
   ai: { model: DEFAULT_AI_MODEL },
   library: { path: '' },
   session: { openProjects: [], activeProjectId: null },
+  editor: {
+    snap: true,
+    snapEndpoint: true,
+    snapMidpoint: true,
+    snapCenter: true,
+    snapIntersection: true,
+    snapPerpendicular: true,
+    snapExtension: true,
+    snapGrid: false,
+    snapAngle: false,
+    angleStep: 15,
+    gridShow: true,
+    gridSpacing: 100,
+    wallThickness: 200,
+    wallHeight: null,
+    doorWidth: 900,
+    doorHeight: 2100,
+    windowWidth: 1200,
+    windowHeight: 1200,
+    windowSill: 900,
+  },
 };
 
 /** Validates patches strictly: unknown sections or fields and invalid values are errors, not silently fixed. */
@@ -72,6 +118,7 @@ export const ConfigPatchSchema = z
     ai: SECTIONS.ai.partial().strict().optional(),
     library: SECTIONS.library.partial().strict().optional(),
     session: SECTIONS.session.partial().strict().optional(),
+    editor: SECTIONS.editor.partial().strict().optional(),
   })
   .strict();
 

@@ -31,7 +31,7 @@ export class WallTool implements Tool {
 
   pointerDown(e: ToolPointer): void {
     if (e.button !== 0) return;
-    const p = e.world;
+    const p = this.snapped(e);
     if (!this.chain.length) {
       this.host.select([]);
       this.chain = [{ p }];
@@ -62,8 +62,16 @@ export class WallTool implements Tool {
   }
 
   pointerMove(e: ToolPointer): void {
-    this.cursor = e.world;
-    if (this.chain.length) this.host.invalidate();
+    this.cursor = this.snapped(e);
+    this.host.invalidate();
+  }
+
+  /** The cursor snapped: to anything near; while drawing, also perpendicular, tangent and angle steps from the last point. Alt suspends it. */
+  private snapped(e: ToolPointer): Vec2 {
+    if (e.alt) return e.world;
+    const last = this.chain.length ? this.chain[this.chain.length - 1].p : undefined;
+    const from = this.arcNext && this.arcEnd ? undefined : last;
+    return this.host.snap(e.world, { from, ortho: e.shift && Boolean(from) })?.point ?? e.world;
   }
 
   key(e: KeyboardEvent): boolean {

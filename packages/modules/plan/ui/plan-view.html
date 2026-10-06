@@ -19,6 +19,48 @@
     <option value="below" [selected]="underlay() === 'below'">Level below</option>
     <option value="above" [selected]="underlay() === 'above'">Level above</option>
   </select>
+  <div class="w-px h-5 bg-edge"></div>
+  @if (editorConfig(); as c) {
+    <div class="relative flex items-center">
+      <button xIconButton size="sm" [label]="c.snap ? 'Snapping on (Alt: suspend)' : 'Snapping off'" [class.bg-elevated]="c.snap" [class.text-fg]="c.snap" [attr.aria-pressed]="c.snap" (click)="toggleSnap()" data-testid="snap-toggle">
+        <svg [xIcon]="icons.Magnet" class="size-3.5"></svg>
+      </button>
+      <button xIconButton size="sm" label="Snapping and grid…" [attr.aria-expanded]="snapMenuOpen()" (click)="snapMenuOpen.set(!snapMenuOpen())" data-testid="snap-menu-button">
+        <svg [xIcon]="icons.ChevronDown" class="size-3"></svg>
+      </button>
+      @if (snapMenuOpen()) {
+        <div class="fixed inset-0 z-10" (click)="snapMenuOpen.set(false)"></div>
+        <div class="absolute left-0 top-8 z-20 w-64 rounded-md border border-edge bg-surface shadow-lg p-3 flex flex-col gap-2" role="menu" data-testid="snap-menu" (keydown.escape)="snapMenuOpen.set(false)">
+          <div class="text-[11px] font-medium text-muted uppercase tracking-wide">Snap to</div>
+          @for (kind of snapKinds; track kind.key) {
+            <label class="flex items-center gap-2">
+              <input xCheckbox type="checkbox" [checked]="c[kind.key]" (change)="setEditorFlag(kind.key, $any($event.target).checked)" [attr.data-testid]="'snap-' + kind.key" />
+              {{ kind.label }}
+              @if (kind.key === 'snapAngle') {
+                <select xSelect class="h-6 text-[11px] ml-auto" [value]="c.angleStep" (change)="setAngleStep($any($event.target).value)" aria-label="Angle step" data-testid="snap-angle-step">
+                  <option value="5">5°</option>
+                  <option value="10">10°</option>
+                  <option value="15">15°</option>
+                  <option value="30">30°</option>
+                  <option value="45">45°</option>
+                </select>
+              }
+            </label>
+          }
+          <div class="text-[11px] font-medium text-muted uppercase tracking-wide mt-1">Grid</div>
+          <label class="flex items-center gap-2">
+            <input xCheckbox type="checkbox" [checked]="c.gridShow" (change)="setEditorFlag('gridShow', $any($event.target).checked)" data-testid="grid-show" />
+            Show the grid
+          </label>
+          <label class="flex items-center gap-2">
+            Snap spacing
+            <input xInput xLength class="h-6 w-24 font-mono ml-auto" [formField]="gridForm.spacing" (commit)="setGridSpacing($event)" aria-label="Grid snap spacing" data-testid="grid-spacing" />
+          </label>
+          <div class="text-[11px] text-muted">Hold Alt to draw without snapping, Shift to keep to 45° steps.</div>
+        </div>
+      }
+    </div>
+  }
   <div class="flex-1"></div>
   <button xIconButton size="sm" label="Zoom out" (click)="zoom(1 / 1.25)" data-testid="plan-zoom-out"><svg [xIcon]="icons.ZoomOut" class="size-3.5"></svg></button>
   <span class="tabular-nums text-muted w-14 text-center font-mono" data-testid="plan-zoom">{{ zoomLabel() }}</span>
@@ -69,6 +111,7 @@
 </div>
 <div class="flex items-center gap-4 px-3 h-6 border-t border-edge bg-surface shrink-0 text-[11px] text-muted font-mono whitespace-nowrap overflow-hidden" data-testid="plan-footer">
   <span class="min-w-48 shrink-0" data-testid="plan-cursor">{{ cursorLabel() }}</span>
+  <span class="shrink-0 min-w-20 text-success" data-testid="plan-snap">{{ snapLabel() }}</span>
   <span class="shrink-0 max-w-40 truncate">{{ levelName() }}</span>
   <span class="shrink-0" data-testid="plan-selection">{{ selectionLabel() }}</span>
   <span class="flex-1 min-w-0 truncate text-right" data-testid="plan-hint">{{ hint() }}</span>

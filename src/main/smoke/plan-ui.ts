@@ -300,6 +300,68 @@ export async function smokePlanUi(smoke: Smoke, towerId: string): Promise<void> 
   const staleText = (stale.content as { text: string }[])[0]?.text ?? '';
   smoke.check('an agent editing from an old copy is refused and told who changed it', stale.isError === true && staleText.includes('CONFLICT') && staleText.includes('meanwhile') && wallById(bottom.id).thickness === 300, staleText);
   await agent.close();
+
+  smoke.section('snapping');
+  const exact = (p: readonly [number, number], q: readonly [number, number]) => Math.abs(p[0] - q[0]) < 1e-6 && Math.abs(p[1] - q[1]) < 1e-6;
+  await focusCanvas();
+  await smoke.key('W');
+  await wait(100);
+  rect = (await smoke.rect(canvas))!;
+  cam = (await readCamera(smoke))!;
+  const cornerOf = wallById(bottom.id).path.v[0].p;
+  // The record's order is not insertion order after updates, so find new walls by id.
+  let known = new Set<string>();
+  const remember = () => (known = new Set(wallsOnGallery().map((w) => w.id)));
+  const snappedWall = () => wallsOnGallery().find((w) => !known.has(w.id))!;
+  const c = toScreen(rect, cam, cornerOf);
+  remember();
+  await smoke.mouseMove(c.x + 4, c.y - 3);
+  smoke.check('hovering near a corner shows the snap', await smoke.waitFor(`${tab} [data-testid=plan-snap]`, 2000, 'Endpoint'));
+  await smoke.shots('19-plan-snap');
+  await smoke.clickAt(c.x + 4, c.y - 3);
+  const away = toScreen(rect, cam, [cornerOf[0] + 2000, cornerOf[1] + 60]);
+  await smoke.clickAt(away.x, away.y, { modifiers: ['shift'] });
+  await smoke.key('Escape');
+  smoke.check('a click near a corner starts exactly at it', (await smoke.until(() => wallsOnGallery().length === 6)) && exact(snappedWall().path.v[0].p, cornerOf), snappedWall()?.path.v[0].p);
+  smoke.check('Shift keeps the wall horizontal', Math.abs(snappedWall().path.v[1].p[1] - cornerOf[1]) < 1e-6 && Math.abs(snappedWall().path.v[1].p[0] - (cornerOf[0] + 2000)) < tolerance, snappedWall().path.v[1].p);
+  const rightNow = wallById(right.id);
+  const mid: [number, number] = [(rightNow.path.v[0].p[0] + rightNow.path.v[1].p[0]) / 2, (rightNow.path.v[0].p[1] + rightNow.path.v[1].p[1]) / 2];
+  const m = toScreen(rect, cam, mid);
+  remember();
+  await smoke.key('W');
+  smoke.check('the wall tool waits for a start', (await hint())?.includes('start') === true, await hint());
+  await smoke.clickAt(m.x + 2, m.y + 3);
+  smoke.check('the click starts a run', (await hint())?.includes('next point') === true, await hint());
+  // A second point far from anything, so nothing snaps there, and well inside the canvas (about 690 px wide here).
+  const free = toScreen(rect, cam, [mid[0] - 1500, mid[1] - 1250]);
+  await smoke.clickAt(free.x, free.y);
+  smoke.check('a click near the middle of a wall starts at its midpoint', (await smoke.until(() => wallsOnGallery().length === 7)) && exact(snappedWall().path.v[0].p, mid), { got: snappedWall()?.path.v[0].p, mid, hint: await hint() });
+  await focusCanvas();
+  await smoke.key('Escape');
+  await smoke.key('Escape');
+  smoke.check('two Escapes leave the wall tool', await smoke.until(async () => (await attr(smoke, 'tool')) === 'select'));
+  await smoke.click(`${tab} [data-testid=snap-menu-button]`);
+  smoke.check('the snap menu opens', await smoke.waitFor(`${tab} [data-testid=snap-menu]`));
+  await smoke.click(`${tab} [data-testid=snap-snapEndpoint]`);
+  smoke.check('a snap kind can be switched off, and the setting is kept', await smoke.until(async () => (await smoke.run<{ editor: { snapEndpoint: boolean } }>('config.get')).editor.snapEndpoint === false));
+  await smoke.js(`document.querySelector('[data-testid=snap-menu]')?.previousElementSibling?.dispatchEvent(new MouseEvent('click', { bubbles: true }))`);
+  await smoke.gone(`${tab} [data-testid=snap-menu]`);
+  await smoke.run('config.update', { patch: { editor: { snapEndpoint: true } } });
+  // The corner is also where two wall lines cross, so only the magnet (everything off) frees the click.
+  await smoke.click(`${tab} [data-testid=snap-toggle]`);
+  smoke.check('the magnet switches snapping off, and the setting is kept', await smoke.until(async () => (await smoke.run<{ editor: { snap: boolean } }>('config.get')).editor.snap === false));
+  await focusCanvas();
+  remember();
+  await smoke.key('W');
+  await smoke.clickAt(c.x + 4, c.y - 3);
+  await smoke.clickAt(c.x + 150, c.y - 60);
+  smoke.check('without snapping the click lands where it is', (await smoke.until(() => wallsOnGallery().length === 8)) && !exact(snappedWall().path.v[0].p, cornerOf) && near(snappedWall().path.v[0].p, [cornerOf[0] + 40, cornerOf[1] + 30]), { got: snappedWall()?.path.v[0].p, hint: await hint() });
+  await smoke.key('Escape');
+  await smoke.key('Escape');
+  await smoke.click(`${tab} [data-testid=snap-toggle]`);
+  smoke.check('and back on', await smoke.until(async () => (await smoke.run<{ editor: { snap: boolean } }>('config.get')).editor.snap === true));
+  await smoke.run('plan.entity.delete', { ids: wallsOnGallery().slice(5).map((w) => w.id) }, { projectId: towerId });
+  await smoke.until(() => wallsOnGallery().length === 5);
 }
 
 const xy = (p: { x: number; y: number }): [number, number] => [p.x, p.y];

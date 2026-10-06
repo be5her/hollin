@@ -53,15 +53,17 @@ export class SelectTool implements Tool {
     if (e.button !== 0) return;
     const mode = this.mode;
     if (mode.k === 'rotate') {
-      if (!mode.pivot) this.mode = { ...mode, pivot: e.world };
-      else if (!mode.reference) this.mode = { ...mode, reference: e.world };
-      else this.commitRotate(mode.pivot, mode.reference, e.world, mode.copy || e.ctrl);
+      const p = this.snapped(e, mode.pivot);
+      if (!mode.pivot) this.mode = { ...mode, pivot: p };
+      else if (!mode.reference) this.mode = { ...mode, reference: p };
+      else this.commitRotate(mode.pivot, mode.reference, p, mode.copy || e.ctrl);
       this.host.invalidate();
       return;
     }
     if (mode.k === 'mirror') {
-      if (!mode.a) this.mode = { ...mode, a: e.world };
-      else this.commitMirror(mode.a, e.world, mode.copy || e.ctrl);
+      const p = this.snapped(e, mode.a);
+      if (!mode.a) this.mode = { ...mode, a: p };
+      else this.commitMirror(mode.a, p, mode.copy || e.ctrl);
       this.host.invalidate();
       return;
     }
@@ -98,16 +100,16 @@ export class SelectTool implements Tool {
       return;
     }
     if (mode.k === 'drag') {
-      this.mode = { ...mode, delta: sub(e.world, mode.start) };
+      this.mode = { ...mode, delta: sub(this.snapped(e, mode.start, new Set(mode.ids)), mode.start) };
       this.host.invalidate();
     } else if (mode.k === 'marquee') {
       this.mode = { ...mode, end: e.world };
       this.host.invalidate();
     } else if (mode.k === 'grip-drag') {
-      this.mode = { ...mode, cursor: e.world };
+      this.mode = { ...mode, cursor: this.gripSnap(mode, e) };
       this.host.invalidate();
     } else if (mode.k === 'rotate' || mode.k === 'mirror') {
-      this.mode = { ...mode, cursor: e.world };
+      this.mode = { ...mode, cursor: this.snapped(e, mode.k === 'rotate' ? mode.pivot : mode.a) };
       this.host.invalidate();
     }
   }
@@ -132,12 +134,12 @@ export class SelectTool implements Tool {
     }
     if (mode.k === 'grip-drag') {
       this.mode = { k: 'idle' };
-      this.commitGrip(mode, e.world);
+      this.commitGrip(mode, this.gripSnap(mode, e));
       this.host.invalidate();
       return;
     }
     if (mode.k === 'drag') {
-      const delta = sub(e.world, mode.start);
+      const delta = sub(this.snapped(e, mode.start, new Set(mode.ids)), mode.start);
       this.mode = { k: 'idle' };
       if (distance(delta, [0, 0]) > 0) void this.transform(mode.ids, { translate: delta }, mode.copy || e.ctrl);
       this.host.invalidate();
@@ -388,6 +390,26 @@ export class SelectTool implements Tool {
     ctx.globalAlpha = 0.8;
     for (const e of moved) if (e.type !== 'wall') drawEntityPreview(ctx, e, frame);
     ctx.globalAlpha = 1;
+  }
+
+  /** The cursor snapped (Alt suspends it); `from` enables perpendicular and angle snaps, Shift forces 45° steps from it. */
+  private snapped(e: ToolPointer, from?: Vec2, exclude?: ReadonlySet<string>): Vec2 {
+    if (e.alt) return e.world;
+    return this.host.snap(e.world, { from, exclude, ortho: e.shift && Boolean(from) })?.point ?? e.world;
+  }
+
+  /** A dragged vertex snaps to everything but its own entity and the walls that follow it; the vertex before it gives the direction. */
+  private gripSnap(mode: Extract<Mode, { k: 'grip-drag' }>, e: ToolPointer): Vec2 {
+    if (e.alt) return e.world;
+    const exclude = new Set([mode.id, ...mode.joined.map((j) => j.id)]);
+    let from: Vec2 | undefined;
+    if (mode.grip.kind === 'vertex') {
+      const entity = this.host.entities()[mode.id];
+      const path = entity ? pathOfEntity(entity, mode.grip.which) : null;
+      const prev = path?.v[mode.grip.index - 1] ?? (path?.closed ? path.v[path.v.length - 1] : undefined);
+      from = prev?.p;
+    }
+    return this.host.snap(e.world, { from, exclude, ortho: e.shift && Boolean(from) })?.point ?? e.world;
   }
 
   private rotationAngle(pivot: Vec2, reference: Vec2, to: Vec2): number {

@@ -6,6 +6,7 @@ export * from './plan2d/draw';
 export * from './plan2d/render';
 export * from './plan2d/hit';
 export * from './plan2d/grips';
+export * from './plan2d/snap';
 export * from './plan2d/geometry-cache';
 export * from './plan2d/editor';
 export * from './plan2d/tools/tool';

@@ -202,7 +202,8 @@ function segmentArea(s: Seg): number {
   return total;
 }
 
-function segmentBox(s: Seg): Box {
+/** The exact extent of one segment. */
+export function segmentBox(s: Seg): Box {
   let box = extendBox(extendBox(emptyBox(), s.a), s.b);
   if (s.k === 'arc') {
     const g = arcGeometry(s.a, s.b, s.bulge);
@@ -331,7 +332,7 @@ function tangentPoint(c: Curve, f: Vec2): Vec2 {
 }
 
 /** The parameter (0..1) of a point known to lie on the segment's curve. */
-function paramOf(s: Seg, p: Vec2): number {
+export function paramOf(s: Seg, p: Vec2): number {
   if (s.k === 'line') {
     const d = sub(s.b, s.a);
     const l2 = dot(d, d);
@@ -348,7 +349,7 @@ function paramOf(s: Seg, p: Vec2): number {
 }
 
 /** The part of a line or arc segment from parameter t0 to t1. */
-function trim(s: Seg, t0: number, t1: number): Seg {
+export function trim(s: Seg, t0: number, t1: number): Seg {
   if (s.k === 'line') return { k: 'line', a: lerp(s.a, s.b, t0), b: lerp(s.a, s.b, t1) };
   if (s.k === 'arc') {
     const g = arcGeometry(s.a, s.b, s.bulge);

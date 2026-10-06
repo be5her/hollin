@@ -2,6 +2,7 @@ import type { Box, Entity, LevelWalls, Vec2 } from '@studio/core';
 import type { VertexRef } from '../grips';
 import type { Hit } from '../hit';
 import type { RenderFrame } from '../render';
+import type { SnapResult } from '../snap';
 
 export type ToolId = 'select' | 'wall';
 
@@ -36,6 +37,8 @@ export interface ToolHost {
   marquee(box: Box, mode: 'window' | 'crossing'): string[];
   /** The level's joined walls, leaving out the given ones (for a drag preview). */
   walls(exclude?: ReadonlySet<string>): LevelWalls | null;
+  /** Snaps a cursor position (null: nothing near). The result is drawn until the next call. */
+  snap(p: Vec2, options?: { from?: Vec2; exclude?: ReadonlySet<string>; ortho?: boolean }): SnapResult | null;
   clipboard: Clipboard | null;
 }
 

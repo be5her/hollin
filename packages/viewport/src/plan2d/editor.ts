@@ -3,7 +3,8 @@ import { defaultCamera, fitBox, panBy, sameCamera, screenToWorld, worldToScreen,
 import { LevelGeometryCache } from './geometry-cache';
 import { sameVertex, type VertexRef } from './grips';
 import { hitTest, marqueeSelect, type Hit } from './hit';
-import { renderPlan, worldSpace, type RenderFrame, type RenderStats } from './render';
+import { drawSnap, renderPlan, worldSpace, type RenderFrame, type RenderStats } from './render';
+import { DEFAULT_SNAP_SETTINGS, SnapIndex, snapPoint, type SnapOptions, type SnapResult, type SnapSettings } from './snap';
 import { createLevelScene, sceneBox, syncLevelScene, type LevelScene } from './scene';
 import { LIGHT_THEME, type PlanTheme } from './theme';
 import { SelectTool } from './tools/select';
@@ -26,6 +27,8 @@ export interface EditorCallbacks {
   onLevelStep?(direction: 1 | -1): void;
   onToolChange?(tool: ToolId, hint: string): void;
   onSelectionChange?(ids: string[]): void;
+  /** What the cursor snaps to, for the footer (null when nothing). */
+  onSnap?(snap: SnapResult | null): void;
   /** A vertex picked for editing (a grip clicked), or none. */
   onVertexSelect?(vertex: VertexRef | null): void;
   /** A right click: the host shows a menu for the selection (the hit entity is selected first). */
@@ -50,6 +53,10 @@ export class Plan2dEditor {
   private underlayMode: UnderlayMode = 'none';
   private readonly scenes = new Map<string, LevelScene>();
   private readonly geometry = new LevelGeometryCache();
+  private readonly snapIndex = new SnapIndex();
+  private snapBuiltFor: { entities: Record<string, Entity>; walls: LevelWalls | null } | null = null;
+  private snapSettings: SnapSettings = DEFAULT_SNAP_SETTINGS;
+  private lastSnap: SnapResult | null = null;
   private cameraValue: Camera = defaultCamera();
   private fitted = false;
   private frameId = 0;
@@ -87,6 +94,7 @@ export class Plan2dEditor {
       hit: (p) => this.hit(p),
       marquee: (box, mode) => (this.levelScene ? marqueeSelect(this.levelScene, box, mode, this.hitOptions()) : []),
       walls: (exclude) => this.levelWalls(exclude),
+      snap: (p, options) => this.snap(p, options),
       get clipboard() {
         return editor.clipboard;
       },
@@ -133,7 +141,12 @@ export class Plan2dEditor {
     on('pointermove', (e) => this.pointerMove(e));
     on('pointerup', (e) => this.pointerUp(e));
     on('pointercancel', (e) => this.pointerUp(e));
-    on('pointerleave', () => this.callbacks.onCursor?.(null));
+    on('pointerleave', () => {
+      this.lastSnap = null;
+      this.callbacks.onSnap?.(null);
+      this.callbacks.onCursor?.(null);
+      this.invalidate();
+    });
     on('wheel', (e) => this.wheel(e), { passive: false });
     on('keydown', (e) => this.keyDown(e));
     on('keyup', (e) => this.keyUp(e));
@@ -207,6 +220,27 @@ export class Plan2dEditor {
   setCamera(camera: Camera): void {
     this.fitted = true;
     this.moveCamera(camera);
+  }
+
+  setSnapSettings(settings: SnapSettings): void {
+    this.snapSettings = settings;
+    this.invalidate();
+  }
+
+  /** Snaps a point against the level, rebuilding the index when the level's entities or walls changed. */
+  snap(p: Vec2, options: SnapOptions = {}): SnapResult | null {
+    const entities = this.entities();
+    const walls = this.levelWalls();
+    if (!this.snapBuiltFor || this.snapBuiltFor.entities !== entities || this.snapBuiltFor.walls !== walls) {
+      this.snapIndex.build(entities, walls);
+      this.snapBuiltFor = { entities, walls };
+    }
+    const result = snapPoint(this.snapIndex, p, (HIT_PX * 1.6) / this.cameraValue.scale, this.snapSettings, options);
+    if (result !== this.lastSnap) {
+      this.lastSnap = result;
+      this.callbacks.onSnap?.(result);
+    }
+    return result;
   }
 
   setToolOptions(options: ToolOptions): void {
@@ -379,6 +413,10 @@ export class Plan2dEditor {
     if (this.activeTool.draw) {
       worldSpace(this.ctx, frame);
       this.activeTool.draw(this.ctx, frame);
+    }
+    if (this.lastSnap && (this.activeTool.busy || this.activeTool.id !== 'select')) {
+      worldSpace(this.ctx, frame);
+      drawSnap(this.ctx, frame, this.lastSnap);
     }
     this.callbacks.onFrame?.(this.lastStats);
   }
