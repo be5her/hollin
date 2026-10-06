@@ -49,7 +49,15 @@ The engine. Everything here is pure TypeScript with no Electron, Node I/O or UI 
 
 ## Geometry (`src/geometry`)
 
-`path.ts`: the `Path` primitive (vertices with line, arc-by-bulge or cubic segments and fillet/chamfer corners), `resolvePath` (corners applied exactly for line and arc neighbours, clamped with a diagnostic when they do not fit), length, signed area (exact for arcs and cubics), bounding box, flattening within a tolerance, point and tangent at a distance, nearest point, containment, reversal and transforms. `vec.ts`: 2D vector helpers.
+`path.ts`: the `Path` primitive (vertices with line, arc-by-bulge or cubic segments and fillet/chamfer corners), `resolvePath` (corners applied exactly for line and arc neighbours, clamped with a diagnostic when they do not fit), length, signed area (exact for arcs and cubics), bounding box, flattening within a tolerance, point and tangent at a distance, nearest point, containment, reversal and transforms, plus the line–circle and circle–circle intersections. `vec.ts`: 2D vector helpers; points are readonly tuples in mm, y up.
+
+| File | What |
+|---|---|
+| `polygon.ts` | Flattened polygons: signed area, perimeter, box, containment, orientation, centroid, edge distance. |
+| `clip.ts` | Clipper2 (`clipper2-ts`, a pure TypeScript port, pinned exactly to `2.0.1-18`) behind a millimetre interface: unions as a tree of outlines and holes, differences, intersections, offsets of polygons and polylines, morphological closing. Coordinates are scaled to integer micrometres. |
+| `offset.ts` | `offsetPath`: a path moved to its left or right exactly (lines shift, arcs stay concentric, neighbours are trimmed or extended to meet, sharp corners bevel at the miter limit); null when it cannot be exact (Bézier segments, a vanishing arc, a flipped segment). `extendPathEnd` carries an open path on along its tangent. |
+| `walls.ts` | A wall's body from its reference line, thickness and alignment (exact faces, or a flattened offset as the fallback), the ends of open walls clustered into junction nodes, the corner fills where two ends meet (the overlap of both walls carried on past the node: the quadrilateral bounded by the four face lines), and `joinWalls`, the union of bodies and fills. |
+| `level-geometry.ts` | `deriveWalls` / `deriveLevelGeometry`: everything a level's entities derive to, uncached. The renderer memoises by object identity (valid there, where the mirror builds a fresh draft per patch); main derives afresh, because a transaction mutates a level's record in place while a batch runs. |
 
 ## Tests
 

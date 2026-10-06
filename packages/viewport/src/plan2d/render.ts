@@ -1,6 +1,6 @@
-import { DEG, add, distance, formatLength, normalize, perp, pointAt, resolvePath, scale as vscale, sub, type Entity, type EntityType, type Layer, type Path, type Region, type UnitSettings, type Vec2 } from '@studio/core';
+import { DEG, add, distance, formatLength, normalize, perp, pointAt, resolvePath, scale as vscale, sub, type Entity, type EntityType, type Layer, type LevelWalls, type Path, type Region, type UnitSettings, type Vec2 } from '@studio/core';
 import { visibleBox, worldToScreen, type Camera, type Size } from './camera';
-import { tracePath, traceRegion, traceSegments } from './draw';
+import { tracePath, tracePolygon, traceRegion, traceSegments } from './draw';
 import { searchScene, type LevelScene, type SceneItem } from './scene';
 import { withAlpha, type PlanTheme } from './theme';
 
@@ -13,9 +13,54 @@ export interface RenderFrame {
   units: UnitSettings;
   layers: Record<string, Layer>;
   scene: LevelScene | null;
+  /** The level's walls joined (bodies, junction patches and their union), or null when there are none. */
+  walls: LevelWalls | null;
   /** The reference level, drawn faintly under the plan. */
   underlay: LevelScene | null;
   showGrid: boolean;
+}
+
+/** The joined walls' outlines as a `Path2D`, kept per derived geometry. */
+const joinedPaths = new WeakMap<LevelWalls, Path2D>();
+
+function joinedPath(walls: LevelWalls): Path2D | null {
+  if (typeof Path2D === 'undefined') return null;
+  let p = joinedPaths.get(walls);
+  if (!p) {
+    p = new Path2D();
+    for (const poly of walls.joined) tracePolygon(p, poly);
+    joinedPaths.set(walls, p);
+  }
+  return p;
+}
+
+/** Walls are filled as one shape, so junctions show no seams; the opacity is the lowest of the layers that hold walls. */
+function drawWalls(ctx: CanvasRenderingContext2D, frame: RenderFrame): void {
+  const walls = frame.walls;
+  if (!walls || !walls.joined.length) return;
+  let alpha = 1;
+  if (frame.scene) {
+    for (const id of walls.bodies.keys()) {
+      const layer = frame.layers[frame.scene.items.get(id)?.layerId ?? ''];
+      if (layer) alpha = Math.min(alpha, layer.opacity);
+    }
+  }
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = frame.theme.wall;
+  ctx.strokeStyle = frame.theme.wallLine;
+  ctx.lineWidth = px(frame, 1.5);
+  ctx.lineJoin = 'miter';
+  const p = joinedPath(walls);
+  if (p) {
+    ctx.fill(p, 'nonzero');
+    ctx.stroke(p);
+  } else {
+    ctx.beginPath();
+    for (const poly of walls.joined) tracePolygon(ctx, poly);
+    ctx.fill('nonzero');
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
 }
 
 export interface RenderStats {
@@ -27,7 +72,7 @@ export interface RenderStats {
 /** Back to front. */
 const DRAW_ORDER: Record<EntityType, number> = { slab: 0, room: 1, void: 2, shaft: 2, wall: 3, column: 4, opening: 5, fixture: 6, point: 6, item: 6, light: 6, dimension: 7, label: 8 };
 
-interface TextOp {
+export interface TextOp {
   text: string;
   at: Vec2;
   /** Height in world mm (scaled with the zoom) or, when `screenPx` is set, a fixed size on screen. */
@@ -72,17 +117,33 @@ export function renderPlan(ctx: CanvasRenderingContext2D, frame: RenderFrame): R
   let drawn = 0;
   if (frame.scene) {
     const items = searchScene(frame.scene, visible).sort((a, b) => DRAW_ORDER[a.type] - DRAW_ORDER[b.type] || (a.id < b.id ? -1 : 1));
+    let wallsDrawn = false;
     for (const item of items) {
       const layer = frame.layers[item.layerId];
       if (layer && !layer.visible) continue;
+      if (DRAW_ORDER[item.type] >= DRAW_ORDER.wall && !wallsDrawn) {
+        drawWalls(ctx, frame);
+        wallsDrawn = true;
+      }
+      if (item.type === 'wall') {
+        drawn++;
+        continue;
+      }
       ctx.globalAlpha = layer?.opacity ?? 1;
       drawEntity(ctx, item, frame, texts);
       drawn++;
     }
+    if (!wallsDrawn) drawWalls(ctx, frame);
     ctx.globalAlpha = 1;
   }
   drawTexts(ctx, frame, texts);
   return { drawn, ms: performance.now() - started };
+}
+
+/** Text at a world position, drawn in screen space; for tools and overlays. Restores the world transform afterwards. */
+export function drawScreenText(ctx: CanvasRenderingContext2D, frame: RenderFrame, op: TextOp): void {
+  drawTexts(ctx, frame, [op]);
+  worldSpace(ctx, frame);
 }
 
 /** The world transform: mm to device pixels, y up. */
@@ -215,22 +276,16 @@ function drawEntity(ctx: CanvasRenderingContext2D, item: SceneItem, frame: Rende
   const { theme } = frame;
   const e = item.entity;
   switch (e.type) {
-    case 'wall': {
-      // Milestone 4 step 1: the body as a thick stroke along the axis; exact bodies and joins come with step 2.
-      const p = pathOf(item, e.path);
-      ctx.lineWidth = e.thickness;
-      ctx.lineJoin = 'miter';
-      ctx.miterLimit = 4;
-      ctx.lineCap = 'butt';
-      ctx.strokeStyle = theme.wall;
-      if (p) ctx.stroke(p);
-      else {
-        ctx.beginPath();
-        tracePath(ctx, e.path);
-        ctx.stroke();
+    case 'wall':
+      // Walls are drawn joined, in drawWalls; a wall without derived geometry (no frame.walls) shows its axis.
+      if (!frame.walls) {
+        const p = pathOf(item, e.path);
+        ctx.lineWidth = e.thickness;
+        ctx.lineJoin = 'miter';
+        ctx.strokeStyle = theme.wall;
+        if (p) ctx.stroke(p);
       }
       return;
-    }
     case 'opening':
       drawOpening(ctx, item, frame);
       return;

@@ -9,6 +9,7 @@
     "./node": "./src/node/index.ts"
   },
   "dependencies": {
+    "clipper2-ts": "2.0.1-18",
     "fflate": "^0.8.3",
     "zod": "^4.6.5"
   }

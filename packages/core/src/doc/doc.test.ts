@@ -163,7 +163,7 @@ describe('transactions', () => {
     const ground = doc.building.groundLevelId;
     const { ops, id } = addEntityOps(doc, { levelId: ground, entity: { type: 'wall', path: { closed: false, v: [{ p: [0.00049, 0] }, { p: [1234.5678, 0] }] }, thickness: 200.0004 } });
     const next = commit(doc, ops);
-    const wall = next.levelData[ground].entities[id] as { path: { v: { p: number[] }[] }; thickness: number; alignment: string; height: null };
+    const wall = next.levelData[ground].entities[id] as { path: { v: { p: readonly number[] }[] }; thickness: number; alignment: string; height: null };
     expect(wall.path.v[0].p).toEqual([0, 0]);
     expect(wall.path.v[1].p).toEqual([1234.568, 0]);
     expect(wall.thickness).toBe(200);

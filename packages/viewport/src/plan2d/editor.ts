@@ -1,24 +1,32 @@
-import { defaultConfig, deriveLevels, emptyBox, type Box, type Layer, type ProjectDoc, type UnitSettings, type Vec2 } from '@studio/core';
+import { defaultConfig, deriveLevels, emptyBox, type Box, type Layer, type LevelWalls, type ProjectDoc, type UnitSettings, type Vec2 } from '@studio/core';
 import { defaultCamera, fitBox, panBy, sameCamera, screenToWorld, zoomAt, type Camera, type Size } from './camera';
-import { renderPlan, type RenderStats } from './render';
+import { LevelGeometryCache } from './geometry-cache';
+import { renderPlan, worldSpace, type RenderFrame, type RenderStats } from './render';
 import { createLevelScene, sceneBox, syncLevelScene, type LevelScene } from './scene';
 import { LIGHT_THEME, type PlanTheme } from './theme';
+import { SelectTool } from './tools/select';
+import { DEFAULT_TOOL_OPTIONS, type Tool, type ToolHost, type ToolId, type ToolOptions, type ToolPointer } from './tools/tool';
+import { WallTool } from './tools/wall';
 
 export type UnderlayMode = 'none' | 'below' | 'above';
 
 export interface EditorCallbacks {
+  /** Runs a command on the open project. The host reports failures to the user. */
+  invoke?(id: string, input: unknown): Promise<unknown>;
   onCameraChange?(camera: Camera): void;
   /** The cursor's world position, or null when it leaves the canvas. */
   onCursor?(world: Vec2 | null): void;
   onFrame?(stats: RenderStats): void;
   /** PageUp (+1) or PageDown (−1) on the canvas: the host switches level. */
   onLevelStep?(direction: 1 | -1): void;
+  onToolChange?(tool: ToolId, hint: string): void;
 }
 
 /**
- * The plan of one level on a canvas: a camera, the level's scene (and the reference level's), pan
- * and zoom from the mouse and keyboard, and one render per animation frame. Framework-free: the
- * Angular host attaches it to a canvas, feeds it the document and reads it through callbacks.
+ * The plan of one level on a canvas: a camera, the level's scene (and the reference level's), the
+ * derived geometry (joined walls), the drawing tools, pan and zoom from the mouse and keyboard, and
+ * one render per animation frame. Framework-free: the Angular host attaches it to a canvas, feeds
+ * it the document and reads it through callbacks.
  */
 export class Plan2dEditor {
   private canvas: HTMLCanvasElement | null = null;
@@ -31,16 +39,31 @@ export class Plan2dEditor {
   private levelId: string | null = null;
   private underlayMode: UnderlayMode = 'none';
   private readonly scenes = new Map<string, LevelScene>();
+  private readonly geometry = new LevelGeometryCache();
   private cameraValue: Camera = defaultCamera();
   private fitted = false;
   private frameId = 0;
   private pan: { pointerId: number; x: number; y: number } | null = null;
   private spaceDown = false;
   private readonly listeners: (() => void)[] = [];
+  private toolOptions: ToolOptions = DEFAULT_TOOL_OPTIONS;
+  private readonly tools: Record<ToolId, Tool>;
+  private activeTool: Tool;
   showGrid = true;
   lastStats: RenderStats = { drawn: 0, ms: 0 };
 
-  constructor(private readonly callbacks: EditorCallbacks = {}) {}
+  constructor(private readonly callbacks: EditorCallbacks = {}) {
+    const host: ToolHost = {
+      invoke: (id, input) => this.callbacks.invoke?.(id, input) ?? Promise.resolve(undefined),
+      levelId: () => this.levelId,
+      options: () => this.toolOptions,
+      scale: () => this.cameraValue.scale,
+      invalidate: () => this.invalidate(),
+      finish: () => this.setTool('select'),
+    };
+    this.tools = { select: new SelectTool(), wall: new WallTool(host) };
+    this.activeTool = this.tools.select;
+  }
 
   get camera(): Camera {
     return this.cameraValue;
@@ -49,6 +72,10 @@ export class Plan2dEditor {
   /** The active level's scene, once a document and level are set. */
   get levelScene(): LevelScene | null {
     return this.levelId ? (this.scenes.get(this.levelId) ?? null) : null;
+  }
+
+  get tool(): ToolId {
+    return this.activeTool.id;
   }
 
   // ---------- host feed ----------
@@ -114,6 +141,7 @@ export class Plan2dEditor {
   }
 
   setLevel(levelId: string | null): void {
+    if (levelId !== this.levelId) this.activeTool.cancel();
     this.levelId = levelId;
     this.sync();
   }
@@ -127,6 +155,20 @@ export class Plan2dEditor {
   setCamera(camera: Camera): void {
     this.fitted = true;
     this.moveCamera(camera);
+  }
+
+  setToolOptions(options: ToolOptions): void {
+    this.toolOptions = options;
+    this.invalidate();
+  }
+
+  setTool(id: ToolId): void {
+    if (this.activeTool.id !== id) {
+      this.activeTool.cancel();
+      this.activeTool = this.tools[id];
+    }
+    this.callbacks.onToolChange?.(id, this.activeTool.hint());
+    this.invalidate();
   }
 
   // ---------- navigation ----------
@@ -147,17 +189,6 @@ export class Plan2dEditor {
     this.moveCamera(fitBox(box, this.size));
   }
 
-  private contentBox(): Box | null {
-    let box = emptyBox();
-    const under = this.underlayLevelId();
-    for (const scene of [this.levelScene, under ? this.scenes.get(under) : null]) {
-      if (!scene) continue;
-      const b = sceneBox(scene);
-      box = { minX: Math.min(box.minX, b.minX), minY: Math.min(box.minY, b.minY), maxX: Math.max(box.maxX, b.maxX), maxY: Math.max(box.maxY, b.maxY) };
-    }
-    return Number.isFinite(box.minX) ? box : null;
-  }
-
   screenToWorld(screen: Vec2): Vec2 {
     return screenToWorld(this.cameraValue, this.size, screen);
   }
@@ -171,6 +202,18 @@ export class Plan2dEditor {
     return levels[i + (this.underlayMode === 'below' ? -1 : 1)]?.id ?? null;
   }
 
+  /** The joined walls of the active level, leaving out walls on hidden layers. */
+  levelWalls(): LevelWalls | null {
+    const entities = this.doc && this.levelId ? this.doc.levelData[this.levelId]?.entities : undefined;
+    if (!entities) return null;
+    const hidden = new Set<string>();
+    for (const id in entities) {
+      const e = entities[id];
+      if (e.type === 'wall' && this.doc!.layers[e.layerId]?.visible === false) hidden.add(id);
+    }
+    return this.geometry.walls(entities, hidden);
+  }
+
   invalidate(): void {
     if (this.frameId || !this.ctx || typeof requestAnimationFrame === 'undefined') return;
     this.frameId = requestAnimationFrame(() => {
@@ -180,6 +223,17 @@ export class Plan2dEditor {
   }
 
   // ---------- internals ----------
+
+  private contentBox(): Box | null {
+    let box = emptyBox();
+    const under = this.underlayLevelId();
+    for (const scene of [this.levelScene, under ? this.scenes.get(under) : null]) {
+      if (!scene) continue;
+      const b = sceneBox(scene);
+      box = { minX: Math.min(box.minX, b.minX), minY: Math.min(box.minY, b.minY), maxX: Math.max(box.maxX, b.maxX), maxY: Math.max(box.maxY, b.maxY) };
+    }
+    return Number.isFinite(box.minX) ? box : null;
+  }
 
   private moveCamera(camera: Camera): void {
     if (sameCamera(camera, this.cameraValue)) return;
@@ -221,7 +275,7 @@ export class Plan2dEditor {
       }
     }
     const under = this.underlayLevelId();
-    this.lastStats = renderPlan(this.ctx, {
+    const frame: RenderFrame = {
       size: this.size,
       dpr: this.dpr,
       camera: this.cameraValue,
@@ -229,9 +283,15 @@ export class Plan2dEditor {
       units: this.units,
       layers: this.layers(),
       scene,
+      walls: this.levelWalls(),
       underlay: under ? (this.scenes.get(under) ?? null) : null,
       showGrid: this.showGrid,
-    });
+    };
+    this.lastStats = renderPlan(this.ctx, frame);
+    if (this.activeTool.draw) {
+      worldSpace(this.ctx, frame);
+      this.activeTool.draw(this.ctx, frame);
+    }
     this.callbacks.onFrame?.(this.lastStats);
   }
 
@@ -240,30 +300,39 @@ export class Plan2dEditor {
     return [e.clientX - r.left, e.clientY - r.top];
   }
 
+  private toolPointer(e: PointerEvent, screen: Vec2): ToolPointer {
+    return { world: this.screenToWorld(screen), screen, button: e.button, shift: e.shiftKey, ctrl: e.ctrlKey || e.metaKey, alt: e.altKey };
+  }
+
   private pointerDown(e: PointerEvent): void {
     this.canvas?.focus({ preventScroll: true });
+    const screen = this.local(e);
     if (e.button === 1 || (e.button === 0 && this.spaceDown)) {
       e.preventDefault();
-      const [x, y] = this.local(e);
-      this.pan = { pointerId: e.pointerId, x, y };
+      this.pan = { pointerId: e.pointerId, x: screen[0], y: screen[1] };
       this.canvas?.setPointerCapture(e.pointerId);
+      return;
     }
+    this.activeTool.pointerDown?.(this.toolPointer(e, screen));
+    this.callbacks.onToolChange?.(this.activeTool.id, this.activeTool.hint());
   }
 
   private pointerMove(e: PointerEvent): void {
-    const [x, y] = this.local(e);
+    const screen = this.local(e);
     if (this.pan && e.pointerId === this.pan.pointerId) {
-      this.moveCamera(panBy(this.cameraValue, x - this.pan.x, y - this.pan.y));
-      this.pan = { ...this.pan, x, y };
-    }
-    this.callbacks.onCursor?.(this.screenToWorld([x, y]));
+      this.moveCamera(panBy(this.cameraValue, screen[0] - this.pan.x, screen[1] - this.pan.y));
+      this.pan = { ...this.pan, x: screen[0], y: screen[1] };
+    } else this.activeTool.pointerMove?.(this.toolPointer(e, screen));
+    this.callbacks.onCursor?.(this.screenToWorld(screen));
   }
 
   private pointerUp(e: PointerEvent): void {
     if (this.pan && e.pointerId === this.pan.pointerId) {
       this.pan = null;
       if (this.canvas?.hasPointerCapture(e.pointerId)) this.canvas.releasePointerCapture(e.pointerId);
+      return;
     }
+    this.activeTool.pointerUp?.(this.toolPointer(e, this.local(e)));
   }
 
   private wheel(e: WheelEvent): void {
@@ -273,6 +342,19 @@ export class Plan2dEditor {
   }
 
   private keyDown(e: KeyboardEvent): void {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === 'Escape') {
+      if (this.activeTool.busy) this.activeTool.cancel();
+      else this.setTool('select');
+      this.callbacks.onToolChange?.(this.activeTool.id, this.activeTool.hint());
+      e.preventDefault();
+      return;
+    }
+    if (this.activeTool.key?.(e)) {
+      this.callbacks.onToolChange?.(this.activeTool.id, this.activeTool.hint());
+      e.preventDefault();
+      return;
+    }
     if (e.key === ' ') {
       this.spaceDown = true;
       e.preventDefault();
@@ -281,6 +363,12 @@ export class Plan2dEditor {
       e.preventDefault();
     } else if (e.key === 'PageUp' || e.key === 'PageDown') {
       this.callbacks.onLevelStep?.(e.key === 'PageUp' ? 1 : -1);
+      e.preventDefault();
+    } else if (e.key === 'v' || e.key === 'V') {
+      this.setTool('select');
+      e.preventDefault();
+    } else if (e.key === 'w' || e.key === 'W') {
+      this.setTool('wall');
       e.preventDefault();
     }
   }

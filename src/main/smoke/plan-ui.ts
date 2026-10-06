@@ -1,5 +1,8 @@
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
+import type { Entity } from '@studio/core';
 import { wait, type Smoke } from './harness';
+
+type Wall = Extract<Entity, { type: 'wall' }>;
 
 const tab = '[data-tab-type="project.editor"]:not(.hidden)';
 const canvas = `${tab} [data-testid=plan-canvas]`;
@@ -111,4 +114,55 @@ export async function smokePlanUi(smoke: Smoke, towerId: string): Promise<void> 
   await client.close();
   await smoke.run('edit.undo', {}, { projectId: towerId });
   smoke.check('undoing it clears the canvas again', await smoke.until(async () => (await attr(smoke, 'entities')) === '4'));
+
+  smoke.section('drawing walls');
+  // The empty Gallery level, at the default camera (10 px per metre around the origin).
+  await smoke.fill(`${tab} [data-testid=plan-level]`, gallery);
+  await smoke.until(async () => (await attr(smoke, 'level')) === gallery);
+  await smoke.click(`${tab} [data-testid=plan-zoom-fit]`);
+  await wait(100);
+  rect = (await smoke.rect(canvas))!;
+  cam = (await readCamera(smoke))!;
+  const wallsOnGallery = () => Object.values(doc().levelData[gallery].entities).filter((e): e is Wall => e.type === 'wall');
+  await smoke.click(`${tab} [data-testid=tool-wall]`);
+  smoke.check('the wall tool shows its options', (await smoke.waitFor(`${tab} [data-testid=tool-options]`)) && (await attr(smoke, 'tool')) === 'wall');
+  // The options bar took space above the canvas: measure again.
+  await wait(100);
+  rect = (await smoke.rect(canvas))!;
+  cam = (await readCamera(smoke))!;
+  const hint = () => smoke.text(`${tab} [data-testid=plan-hint]`);
+  await smoke.clickAt(...xy(toScreen(rect, cam, [-3000, -2000])));
+  smoke.check('the first click starts a run', (await hint())?.includes('next point') === true, await hint());
+  await smoke.clickAt(...xy(toScreen(rect, cam, [3000, -2000])));
+  await smoke.clickAt(...xy(toScreen(rect, cam, [3000, 2000])));
+  await smoke.clickAt(...xy(toScreen(rect, cam, [-3000, 2000])));
+  await smoke.clickAt(...xy(toScreen(rect, cam, [-3000, -2000])));
+  smoke.check('clicking the corners draws one wall per side and closes on the first point', await smoke.until(() => wallsOnGallery().length === 4), wallsOnGallery().length);
+  const tolerance = 1 / cam.scale + 1;
+  const near = (p: readonly [number, number], q: readonly [number, number]) => Math.abs(p[0] - q[0]) <= tolerance && Math.abs(p[1] - q[1]) <= tolerance;
+  const last = wallsOnGallery()[3];
+  smoke.check('the clicked points are where the walls are', near(last.path.v[0].p, [-3000, 2000]) && near(last.path.v[1].p, [-3000, -2000]), last.path.v);
+  smoke.check('the run ended: the tool waits for a new start', (await hint())?.includes('start') === true, await hint());
+  const corner = await pixelAt([3080, -2080]);
+  const floor = await pixelAt([123, 45]);
+  smoke.check('walls meeting at a corner are joined to the outer corner', corner !== null && corner !== floor, { corner, floor });
+  await smoke.key('V');
+  smoke.check('V on the canvas selects', await smoke.until(async () => (await attr(smoke, 'tool')) === 'select'));
+  await smoke.key('W');
+  smoke.check('W on the canvas picks the wall tool', await smoke.until(async () => (await attr(smoke, 'tool')) === 'wall'));
+  await wait(100);
+  rect = (await smoke.rect(canvas))!;
+  // Inside the rectangle, so every click lands on the canvas (it is about 460 px tall at this window size).
+  await smoke.clickAt(...xy(toScreen(rect, cam, [-2000, 0])));
+  await smoke.key('A');
+  smoke.check('A asks for the end of an arc', (await hint())?.includes('end of the arc') === true, await hint());
+  await smoke.clickAt(...xy(toScreen(rect, cam, [2000, 0])));
+  await smoke.clickAt(...xy(toScreen(rect, cam, [0, 1200])));
+  smoke.check('A then an end and a through point draws an arc wall', await smoke.until(() => wallsOnGallery().length === 5 && wallsOnGallery()[4].path.v[0].s?.k === 'arc'), wallsOnGallery()[4]?.path.v);
+  await smoke.key('Escape');
+  await smoke.shots('16-plan-walls');
+  await smoke.key('Escape');
+  smoke.check('Escape leaves the tool', await smoke.until(async () => (await attr(smoke, 'tool')) === 'select'));
 }
+
+const xy = (p: { x: number; y: number }): [number, number] => [p.x, p.y];

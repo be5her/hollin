@@ -1,13 +1,16 @@
 import {
   EntitySchema,
   LAYER_KINDS,
+  PathSchema,
   StudioError,
   addEntityOps,
   addLayerOps,
   authorFrom,
+  bulgeThrough,
   defineCommand,
   defineModule,
   deleteEntitiesOps,
+  distance,
   editProject,
   entitiesOnLevel,
   moveLayerOps,
@@ -17,12 +20,46 @@ import {
   type CommandContext,
   type EditContext,
   type Entity,
+  type Path,
   type ProjectApi,
+  type Vec2,
+  type Vertex,
 } from '@studio/core';
 import { z } from 'zod';
 
 const levelId = z.string().describe('Level id, from building_get');
 const layerId = z.string().describe('Layer id, from building_get');
+const Point = z.tuple([z.number(), z.number()]).describe('[x, y] in mm, y up');
+
+const WallPointSchema = z.object({ p: Point, bulge: z.number().optional().describe('Makes the segment to the next point an arc: tan(sweep/4), positive counter-clockwise; 1 is a half circle') });
+
+/** The wall paths a `plan.wall.add` input describes: one per segment, or one for the whole run. */
+export function wallPaths(input: { from?: Vec2; to?: Vec2; through?: Vec2; points?: { p: Vec2; bulge?: number }[]; closed: boolean; path?: Path; single: boolean }): Path[] {
+  const vertex = (p: Vec2, bulge?: number): Vertex => (bulge ? { p, s: { k: 'arc', bulge } } : { p });
+  let paths: Path[];
+  if (input.path) paths = [input.path];
+  else if (input.from && input.to) {
+    const bulge = input.through ? (bulgeThrough(input.from, input.through, input.to) ?? 0) : 0;
+    paths = [{ closed: false, v: [vertex(input.from, bulge), { p: input.to }] }];
+  } else if (input.points) {
+    const pts = input.points;
+    if (input.single) paths = [{ closed: input.closed, v: pts.map((c) => vertex(c.p, c.bulge)) }];
+    else {
+      paths = [];
+      const n = input.closed ? pts.length : pts.length - 1;
+      for (let i = 0; i < n; i++) {
+        const a = pts[i];
+        const b = pts[(i + 1) % pts.length];
+        paths.push({ closed: false, v: [vertex(a.p, a.bulge), { p: b.p }] });
+      }
+    }
+  } else throw new StudioError('INVALID_INPUT', 'Give `from` and `to`, a list of `points`, or a `path`');
+  for (const path of paths) {
+    if (path.v.length < 2) throw new StudioError('INVALID_INPUT', 'A wall needs at least two points');
+    for (let i = 0; i < path.v.length - 1; i++) if (distance(path.v[i].p, path.v[i + 1].p) < 1) throw new StudioError('INVALID_INPUT', 'Two consecutive wall points are at the same place');
+  }
+  return paths;
+}
 
 /** Entity input: any entity without its id, level and layer (they are given separately). */
 const NewEntitySchema = z.discriminatedUnion(
@@ -176,6 +213,40 @@ export const planModule = defineModule({
         const name = ctx.project!.doc.layers[id]?.name ?? id;
         await editProject(ctx, `Remove layer "${name}"`, (tx) => tx.apply(removeLayerOps(tx.doc, id, withEntities)));
         return { removed: id };
+      },
+    }),
+    defineCommand({
+      id: 'plan.wall.add',
+      title: 'Add walls',
+      description:
+        'Draws walls on a level. Give `from` and `to` for one straight wall (add `through` for an arc that passes through a point), or `points` for a run of connected walls (one wall per segment, `closed` adds the last one back to the start; a point\'s `bulge` makes its segment an arc), or a full `path`. With `single` the whole run is one wall entity, which is how a wall gets fillet or chamfer corners. Separate walls join automatically where their ends meet. Thickness defaults to 200 mm; `alignment` says which side of the points the body lies on. Returns the ids (and `id`, the first).',
+      scope: 'project',
+      batchable: true,
+      input: z.object({
+        levelId,
+        layerId: layerId.optional(),
+        from: Point.optional(),
+        to: Point.optional(),
+        through: Point.optional(),
+        points: z.array(WallPointSchema).min(2).optional(),
+        closed: z.boolean().default(false),
+        path: PathSchema.optional(),
+        thickness: z.number().positive().default(200),
+        height: z.number().positive().nullable().optional().describe('null or omitted: the level height'),
+        alignment: z.enum(['center', 'left', 'right']).default('center'),
+        single: z.boolean().default(false),
+      }),
+      handler: async (input, ctx) => {
+        const paths = wallPaths(input);
+        const { result } = await editProject(ctx, paths.length === 1 ? 'Add wall' : `Add ${paths.length} walls`, (tx) =>
+          paths.map((path) => {
+            const entity = { type: 'wall' as const, path, thickness: input.thickness, height: input.height ?? null, alignment: input.alignment };
+            const { ops, id } = addEntityOps(tx.doc, { levelId: input.levelId, layerId: input.layerId, entity });
+            tx.apply(ops);
+            return id;
+          }),
+        );
+        return { id: result[0], ids: result };
       },
     }),
     defineCommand({

@@ -21,3 +21,8 @@ export * from './registry';
 export * from './test-host';
 export * from './types';
 export * from './units';
+export * from './geometry/polygon';
+export * from './geometry/clip';
+export * from './geometry/offset';
+export * from './geometry/walls';
+export * from './geometry/level-geometry';

@@ -4,4 +4,7 @@ export * from './plan2d/theme';
 export * from './plan2d/scene';
 export * from './plan2d/draw';
 export * from './plan2d/render';
+export * from './plan2d/geometry-cache';
 export * from './plan2d/editor';
+export * from './plan2d/tools/tool';
+export * from './plan2d/tools/wall';

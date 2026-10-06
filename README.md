@@ -11,7 +11,7 @@ Windows, macOS and Linux, built with Electron and Angular.
 | 1. Scaffold: monorepo, command registry, MCP server, host, shell, settings, smoke test, CI | done |
 | 2. Project library: storage, index, Home screen, tabs, autosave, snapshots, trash, packages | done |
 | 3. Document model: building, levels, layers, entities, connectors, transactions, undo, live mirror | done |
-| 4. 2D editor: plan view, walls and joins, snapping, exact input, openings, rooms, shapes, dimensions, thumbnails | in progress (plan view, level switcher and underlay done) |
+| 4. 2D editor: plan view, walls and joins, snapping, exact input, openings, rooms, shapes, dimensions, thumbnails | in progress (plan view, level switcher and underlay, walls and joins done) |
 | 5–9. Vertical circulation, AI tools and assistant, 3D view, decor, export | planned |
 
 ## Development
@@ -77,4 +77,5 @@ The host broadcasts typed **events** (`config.changed`, `library.changed`, `proj
 | @modelcontextprotocol/client (dev) | Unit tests and the smoke test talk to the server with the SDK's own client. |
 | fflate | Project packages (zip) without native modules. |
 | rbush (+ `@types/rbush`) | The plan's R-tree: culling what is drawn and hit-testing candidates. |
+| clipper2-ts | Polygon unions, differences and offsets (a TypeScript port of Clipper2): joined walls, opening cuts, room detection, the automatic slab. Pinned exactly to `2.0.1-18`: its releases are numbered `2.0.1-N`, which semver ranks below the old plain `2.0.1`. |
 | vitest, typescript | Tests and type checking (TypeScript 6.0 pinned for the Angular compiler, 7 elsewhere). |

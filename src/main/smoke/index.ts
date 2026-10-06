@@ -9,6 +9,7 @@ import { smokeHost } from './host';
 import { smokeLibrary } from './library';
 import { smokeLibraryUi } from './library-ui';
 import { smokeMcp } from './mcp';
+import { smokePlan } from './plan';
 import { smokePlanUi } from './plan-ui';
 import { smokeShell } from './shell';
 
@@ -31,6 +32,8 @@ export async function runSmoke(host: Host, openWindow: () => BrowserWindow): Pro
     await smokeMcp(smoke);
     const { houseId } = await smokeLibrary(smoke);
     const { towerId } = await smokeBuilding(smoke);
+    const { planId } = await smokePlan(smoke);
+    await smoke.run('project.close', { id: planId });
 
     smoke.section('renderer');
     await smoke.openWindow(openWindow);

@@ -1,4 +1,13 @@
 <div class="flex items-center gap-2 px-2 h-9 border-b border-edge bg-surface shrink-0 text-xs" data-testid="plan-toolbar">
+  <div class="flex items-center gap-0.5" role="toolbar" aria-label="Tools">
+    <button xIconButton size="sm" label="Select (V)" [class.bg-elevated]="tool() === 'select'" [class.text-fg]="tool() === 'select'" [attr.aria-pressed]="tool() === 'select'" (click)="chooseTool('select')" data-testid="tool-select">
+      <svg [xIcon]="icons.MousePointer2" class="size-3.5"></svg>
+    </button>
+    <button xIconButton size="sm" label="Wall (W)" [class.bg-elevated]="tool() === 'wall'" [class.text-fg]="tool() === 'wall'" [attr.aria-pressed]="tool() === 'wall'" (click)="chooseTool('wall')" data-testid="tool-wall">
+      <svg [xIcon]="icons.BrickWall" class="size-3.5"></svg>
+    </button>
+  </div>
+  <div class="w-px h-5 bg-edge"></div>
   <label class="text-muted" for="plan-level-select">Level</label>
   <select xSelect id="plan-level-select" class="h-7 text-xs max-w-56" (change)="chooseLevel($any($event.target).value)" data-testid="plan-level" aria-label="Level">
     @for (level of levelsTopDown(); track level.id) {
@@ -16,6 +25,31 @@
   <button xIconButton size="sm" label="Zoom in" (click)="zoom(1.25)" data-testid="plan-zoom-in"><svg [xIcon]="icons.ZoomIn" class="size-3.5"></svg></button>
   <button xIconButton size="sm" label="Zoom to fit (Home)" (click)="fit()" data-testid="plan-zoom-fit"><svg [xIcon]="icons.Maximize" class="size-3.5"></svg></button>
 </div>
+@if (tool() === 'wall') {
+  <div class="flex items-center gap-3 px-3 h-9 border-b border-edge bg-surface shrink-0 text-xs" data-testid="tool-options">
+    <span class="font-medium">Wall</span>
+    <label class="flex items-center gap-1.5 text-muted">
+      Thickness
+      <input xInput class="h-7 w-24 font-mono" [formField]="wallForm.thickness" (blur)="applyWallOptions()" (keydown.enter)="$any($event.target).blur()" aria-label="Wall thickness" data-testid="wall-thickness" />
+    </label>
+    <label class="flex items-center gap-1.5 text-muted">
+      Height
+      <input xInput class="h-7 w-24 font-mono" [formField]="wallForm.height" placeholder="level" (blur)="applyWallOptions()" (keydown.enter)="$any($event.target).blur()" aria-label="Wall height" data-testid="wall-height" />
+    </label>
+    <label class="flex items-center gap-1.5 text-muted">
+      Body
+      <select xSelect class="h-7 text-xs" [formField]="wallForm.alignment" (change)="applyWallOptions()" aria-label="Wall alignment" data-testid="wall-alignment">
+        <option value="center">centred on the line</option>
+        <option value="left">left of the line</option>
+        <option value="right">right of the line</option>
+      </select>
+    </label>
+    <label class="flex items-center gap-1.5 text-muted">
+      <input xCheckbox type="checkbox" [formField]="wallForm.single" (change)="applyWallOptions()" data-testid="wall-single" />
+      Single wall (one entity for the run)
+    </label>
+  </div>
+}
 <div #container class="relative flex-1 min-h-0 bg-canvas">
   <canvas
     #canvas
@@ -28,11 +62,12 @@
     [attr.data-underlay]="underlay()"
     [attr.data-entities]="entityCount()"
     [attr.data-frame-ms]="frameMs()"
+    [attr.data-tool]="tool()"
   ></canvas>
 </div>
 <div class="flex items-center gap-4 px-3 h-6 border-t border-edge bg-surface shrink-0 text-[11px] text-muted font-mono whitespace-nowrap overflow-hidden" data-testid="plan-footer">
   <span class="min-w-48 shrink-0" data-testid="plan-cursor">{{ cursorLabel() }}</span>
   <span class="truncate">{{ levelName() }}</span>
   <div class="flex-1"></div>
-  <span class="truncate">Middle-drag or Space+drag to pan · wheel to zoom · Home to fit · PageUp/PageDown to change level</span>
+  <span class="truncate" data-testid="plan-hint">{{ hint() }}</span>
 </div>

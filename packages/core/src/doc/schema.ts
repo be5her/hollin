@@ -20,8 +20,8 @@ const CatalogRef = z.string().min(1).max(200);
 
 // ---------- geometry ----------
 
-export const Vec2Schema = z.tuple([Mm, Mm]);
-export const Vec3Schema = z.tuple([Mm, Mm, Mm]);
+export const Vec2Schema = z.tuple([Mm, Mm]).readonly();
+export const Vec3Schema = z.tuple([Mm, Mm, Mm]).readonly();
 
 export const SegmentSchema = z.discriminatedUnion('k', [
   z.object({ k: z.literal('line') }),

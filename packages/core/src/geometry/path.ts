@@ -88,7 +88,8 @@ export function bulgeThrough(a: Vec2, through: Vec2, b: Vec2): number | null {
   return bulgeOf(-sweep);
 }
 
-const arcPoint = (g: ArcGeometry, t: number): Vec2 => [g.center[0] + g.radius * Math.cos(g.start + g.sweep * t), g.center[1] + g.radius * Math.sin(g.start + g.sweep * t)];
+/** The point at angle fraction t along an arc. */
+export const arcPoint = (g: ArcGeometry, t: number): Vec2 => [g.center[0] + g.radius * Math.cos(g.start + g.sweep * t), g.center[1] + g.radius * Math.sin(g.start + g.sweep * t)];
 
 // ---------- cubics ----------
 
@@ -300,7 +301,8 @@ function filletCentres(c1: Curve, c2: Curve, r: number, left: boolean): Vec2[] {
   return lineCircle(line.p, line.d, circle.c, offsetRadius(circle));
 }
 
-function lineCircle(p: Vec2, d: Vec2, c: Vec2, r: number): Vec2[] {
+/** Where the line through p with unit direction d meets the circle (0, 1 or 2 points). */
+export function lineCircle(p: Vec2, d: Vec2, c: Vec2, r: number): Vec2[] {
   if (r <= 0) return [];
   const f = sub(p, c);
   const b = dot(f, d);
@@ -310,7 +312,8 @@ function lineCircle(p: Vec2, d: Vec2, c: Vec2, r: number): Vec2[] {
   return [add(p, scale(d, -b - s)), add(p, scale(d, -b + s))];
 }
 
-function circleCircle(c1: Vec2, r1: number, c2: Vec2, r2: number): Vec2[] {
+/** Where two circles meet (0, 1 or 2 points). */
+export function circleCircle(c1: Vec2, r1: number, c2: Vec2, r2: number): Vec2[] {
   if (r1 <= 0 || r2 <= 0) return [];
   const d = distance(c1, c2);
   if (d < 1e-12 || d > r1 + r2 || d < Math.abs(r1 - r2)) return [];
