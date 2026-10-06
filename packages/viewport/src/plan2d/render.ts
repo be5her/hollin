@@ -1,4 +1,4 @@
-import { DEG, add, columnPolygon, dimensionGeometry, dimensionOutline, flatten, formatArea, normalize, openingFrame, openingMisfits, perp, polygonCentroid, resolveDimension, resolvePath, scale as vscale, sub, wallBody, type DimensionGeometry, type Entity, type EntityType, type Layer, type LevelGeometry, type LevelWalls, type Path, type Region, type UnitSettings, type Vec2 } from '@studio/core';
+import { DEG, add, columnPolygon, dimensionGeometry, dimensionOutline, flatten, formatArea, formatLength, normalize, openingFrame, openingMisfits, perp, polygonCentroid, resolveDimension, resolvePath, scale as vscale, sub, wallBody, type DimensionGeometry, type Entity, type EntityType, type Layer, type LevelGeometry, type LevelWalls, type Path, type Region, type UnitSettings, type Vec2 } from '@studio/core';
 import { visibleBox, worldToScreen, type Camera, type Size } from './camera';
 import { drawConnector, traceConnector, type PlanConnector } from './connectors';
 import { tracePath, tracePolygon, traceRegion, traceSegments } from './draw';
@@ -147,6 +147,8 @@ export interface RenderStats {
   drawn: number;
   /** Connectors drawn this frame. */
   connectors: number;
+  /** The level this frame drew (null without a scene), so a host can tell a frame of the new level from a stale one. */
+  levelId: string | null;
   ms: number;
 }
 
@@ -230,7 +232,7 @@ export function renderPlan(ctx: CanvasRenderingContext2D, frame: RenderFrame): R
     connectors++;
   }
   drawTexts(ctx, frame, texts);
-  return { drawn, connectors, ms: performance.now() - started };
+  return { drawn, connectors, levelId: frame.scene?.levelId ?? null, ms: performance.now() - started };
 }
 
 /** Text at a world position, drawn in screen space; for tools and overlays. Restores the world transform afterwards. */
@@ -258,7 +260,7 @@ export function drawConnectorPreview(ctx: CanvasRenderingContext2D, pc: PlanConn
 }
 
 /** The snap marker at the snapped point (a glyph per kind), its guide lines and a label. */
-export function drawSnap(ctx: CanvasRenderingContext2D, frame: RenderFrame, snap: { point: Vec2; kind: string; label: string; guides: { from: Vec2; to: Vec2 }[] }): void {
+export function drawSnap(ctx: CanvasRenderingContext2D, frame: RenderFrame, snap: { point: Vec2; kind: string; label: string; guides: { from: Vec2; to: Vec2 }[]; length?: number }): void {
   const { theme } = frame;
   ctx.strokeStyle = theme.snap;
   ctx.lineWidth = px(frame, 1);
@@ -321,15 +323,16 @@ export function drawSnap(ctx: CanvasRenderingContext2D, frame: RenderFrame, snap
   }
   ctx.fill();
   ctx.stroke();
-  if (snap.label) {
+  const text = snap.length !== undefined ? `${snap.label} · ${formatLength(snap.length, frame.units)}` : snap.label;
+  if (text) {
     ctx.font = `11px ${theme.fontSans}`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
-    const w = ctx.measureText(snap.label).width + 8;
+    const w = ctx.measureText(text).width + 8;
     ctx.fillStyle = withAlpha(theme.background, 0.9);
     ctx.fillRect(x + 12, y + 10, w, 16);
     ctx.fillStyle = theme.snap;
-    ctx.fillText(snap.label, x + 16, y + 12);
+    ctx.fillText(text, x + 16, y + 12);
   }
   worldSpace(ctx, frame);
 }

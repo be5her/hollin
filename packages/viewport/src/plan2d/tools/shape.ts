@@ -1,6 +1,7 @@
-import { DEG, bulgeThrough, circlePath, distance, formatAngle, formatLength, rectPath, resolveCoordinate, reversePath, signedArea, sub, type Coordinate, type Path, type Vec2, type Vertex } from '@studio/core';
+import { DEG, bulgeThrough, circlePath, distance, formatAngle, formatLength, normalize, rectPath, resolveCoordinate, reversePath, segmentTangent, signedArea, sub, type Coordinate, type Path, type Vec2, type Vertex } from '@studio/core';
 import { tracePath } from '../draw';
 import { drawScreenText, type RenderFrame } from '../render';
+import { referenceFrom, type SnapResult, type TrackReference } from '../snap';
 import { withAlpha } from '../theme';
 import type { Tool, ToolHost, ToolId, ToolPointer } from './tool';
 
@@ -25,6 +26,9 @@ export class ShapeTool implements Tool {
   private cursor: Vec2 | null = null;
   private arcNext = false;
   private arcEnd: Vec2 | null = null;
+  /** The direction of the segment before the one being drawn, and the wall or line the outline started on: tracked parallel and perpendicular. */
+  private previous: Vec2 | null = null;
+  private startRef: TrackReference | null = null;
 
   constructor(
     private readonly host: ToolHost,
@@ -39,9 +43,11 @@ export class ShapeTool implements Tool {
 
   pointerDown(e: ToolPointer): void {
     if (e.button !== 0) return;
-    const p = this.snapped(e);
+    const snap = this.snapped(e);
+    const p = snap.point;
     if (!this.points.length) {
       this.host.select([]);
+      this.startRef = referenceFrom(snap, this.host.entities());
       this.points = [{ p }];
       this.host.invalidate();
       return;
@@ -63,6 +69,7 @@ export class ShapeTool implements Tool {
         this.arcEnd = p;
       } else {
         last.bulge = bulgeThrough(last.p, p, this.arcEnd) ?? 0;
+        this.previous = segmentTangent(last.bulge ? { k: 'arc', a: last.p, b: this.arcEnd, bulge: last.bulge } : { k: 'line', a: last.p, b: this.arcEnd }, 1);
         this.points.push({ p: this.arcEnd });
         this.arcEnd = null;
         this.arcNext = false;
@@ -79,12 +86,13 @@ export class ShapeTool implements Tool {
       return;
     }
     if (distance(p, last.p) < 1e-6) return;
+    this.previous = normalize(sub(p, last.p));
     this.points.push({ p });
     this.host.invalidate();
   }
 
   pointerMove(e: ToolPointer): void {
-    this.cursor = this.snapped(e);
+    this.cursor = this.snapped(e).point;
     this.host.invalidate();
   }
 
@@ -214,11 +222,13 @@ export class ShapeTool implements Tool {
     return 8 / this.host.scale();
   }
 
-  private snapped(e: ToolPointer): Vec2 {
-    if (e.alt) return e.world;
+  /** The cursor snapped; while drawing, the direction from the last point is tracked (Alt suspends it, Shift locks it to 45°). */
+  private snapped(e: ToolPointer): Pick<SnapResult, 'point' | 'tangent'> {
+    if (e.alt) return { point: e.world };
     const last = this.points.length ? this.points[this.points.length - 1].p : undefined;
     const from = this.arcNext && this.arcEnd ? undefined : last;
-    return this.host.snap(e.world, { from, ortho: e.shift && Boolean(from) })?.point ?? e.world;
+    const relativeTo: TrackReference[] = [...(this.previous ? [{ direction: this.previous, name: 'previous' }] : []), ...(this.startRef ? [this.startRef] : [])];
+    return this.host.snap(e.world, { from, ortho: e.shift && Boolean(from), relativeTo }) ?? { point: e.world };
   }
 
   /** Ends a polyline: closed when asked (or when the outline must be a region); an open shape needs two points, a closed one three. */
@@ -233,6 +243,8 @@ export class ShapeTool implements Tool {
     this.points = [];
     this.arcNext = false;
     this.arcEnd = null;
+    this.previous = null;
+    this.startRef = null;
     this.host.invalidate();
   }
 

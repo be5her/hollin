@@ -12,8 +12,12 @@ export async function smokeConnectorsUi(smoke: Smoke, duplexId: string): Promise
   const upper = doc().building.stack[1];
 
   const showLevel = async (levelId: string) => {
+    // The switcher lists the levels once the document has arrived; a value set before that is dropped.
+    await smoke.waitFor(`${tab} [data-testid=plan-level] option[value="${levelId}"]`);
     await smoke.fill(`${tab} [data-testid=plan-level]`, levelId);
     await smoke.until(async () => (await canvasAttr(smoke, 'level')) === levelId);
+    // The switcher changes before the frame does: sample pixels only once a frame of this level has been drawn.
+    smoke.check(`the plan shows ${doc().levels[levelId].name}`, await smoke.until(async () => (await canvasAttr(smoke, 'frameLevel')) === levelId), { level: await canvasAttr(smoke, 'level'), frameLevel: await canvasAttr(smoke, 'frameLevel') });
     await smoke.click(`${tab} [data-testid=plan-zoom-fit]`);
     await wait(150);
     return view(smoke);

@@ -15,6 +15,7 @@ import { smokePerf } from './perf';
 import { smokePlan } from './plan';
 import { smokePlanUi } from './plan-ui';
 import { smokeShell } from './shell';
+import { smokeTrackingUi } from './tracking-ui';
 
 /**
  * `npm run smoke`: the built app, launched with `--smoke`, checks every feature through commands,
@@ -45,6 +46,7 @@ export async function runSmoke(host: Host, openWindow: () => BrowserWindow): Pro
     await smokeLibraryUi(smoke, houseId);
     await smokeBuildingUi(smoke, towerId);
     await smokePlanUi(smoke, towerId);
+    await smokeTrackingUi(smoke);
     await smokeConnectorsUi(smoke, duplexId);
     await smokePerf(smoke);
     smoke.check('renderer has no console errors', smoke.consoleErrors.length === 0, smoke.consoleErrors);

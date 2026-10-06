@@ -69,6 +69,8 @@ export class Plan2dEditor {
   private snapBuiltFor: { entities: Record<string, Entity>; walls: LevelWalls | null } | null = null;
   private snapSettings: SnapSettings = DEFAULT_SNAP_SETTINGS;
   private lastSnap: SnapResult | null = null;
+  /** Whether the tool snapped during the current pointer move. */
+  private snapAsked = false;
   private lastScreen: Vec2 | null = null;
   private lastWorld: Vec2 | null = null;
   private cameraValue: Camera = defaultCamera();
@@ -87,7 +89,7 @@ export class Plan2dEditor {
   private epochValue = 1;
   clipboard: Clipboard | null = null;
   showGrid = true;
-  lastStats: RenderStats = { drawn: 0, connectors: 0, ms: 0 };
+  lastStats: RenderStats = { drawn: 0, connectors: 0, levelId: null, ms: 0 };
 
   constructor(
     private readonly callbacks: EditorCallbacks = {},
@@ -263,6 +265,7 @@ export class Plan2dEditor {
 
   /** Snaps a point against the level, rebuilding the index when the level's entities or walls changed. */
   snap(p: Vec2, options: SnapOptions = {}): SnapResult | null {
+    this.snapAsked = true;
     const entities = this.entities();
     const walls = this.levelWalls();
     if (!this.snapBuiltFor || this.snapBuiltFor.entities !== entities || this.snapBuiltFor.walls !== walls) {
@@ -519,8 +522,15 @@ export class Plan2dEditor {
       this.pan = { ...this.pan, x: screen[0], y: screen[1] };
     } else {
       const before = this.activeTool.hint();
+      this.snapAsked = false;
       this.activeTool.pointerMove?.(this.toolPointer(e, screen));
       if (this.activeTool.hint() !== before) this.announceTool();
+      // A move the tool did not snap (Alt held, nothing being drawn) shows no stale marker or guide.
+      if (!this.snapAsked && this.lastSnap) {
+        this.lastSnap = null;
+        this.callbacks.onSnap?.(null);
+        this.invalidate();
+      }
     }
     this.lastScreen = screen;
     this.lastWorld = this.lastSnap?.point ?? this.screenToWorld(screen);

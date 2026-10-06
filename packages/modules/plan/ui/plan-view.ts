@@ -24,7 +24,7 @@ const SNAP_KINDS: { key: keyof EditorConfig; label: string }[] = [
   { key: 'snapIntersection', label: 'Intersections' },
   { key: 'snapPerpendicular', label: 'Perpendicular and tangent' },
   { key: 'snapExtension', label: 'Extensions' },
-  { key: 'snapAngle', label: 'Angle steps' },
+  { key: 'snapAngle', label: 'Angle tracking' },
   { key: 'snapGrid', label: 'Grid' },
 ];
 
@@ -92,6 +92,8 @@ export class PlanView {
   protected readonly entityCount = signal(0);
   protected readonly connectorCount = signal(0);
   protected readonly frameMs = signal('0');
+  /** The level the last frame drew: the canvas shows it, whatever the switcher already says. */
+  protected readonly frameLevel = signal<string | null>(null);
   protected readonly tool = signal<ToolId>('select');
   protected readonly isShapeTool = computed(() => this.tool() === 'shape' || this.tool() === 'rectangle' || this.tool() === 'circle');
   /** What the shape tools make from an outline, and whether a free shape is filled. */
@@ -154,6 +156,7 @@ export class PlanView {
       this.entityCount.set(stats.drawn);
       this.connectorCount.set(stats.connectors);
       this.frameMs.set(stats.ms.toFixed(1));
+      this.frameLevel.set(stats.levelId);
     },
     onLevelStep: (direction) => this.stepLevel(direction),
     onToolChange: (tool, hint) => {

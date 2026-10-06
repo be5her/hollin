@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { deriveWalls, type Entity, type Layer } from '@studio/core';
+import { DEG, deriveWalls, type Entity, type Layer } from '@studio/core';
+import { DEFAULT_SNAP_SETTINGS, SnapIndex, snapPoint } from '../snap';
 import { hitTest, marqueeSelect } from '../hit';
 import { createLevelScene, syncLevelScene } from '../scene';
 import { SelectTool } from './select';
@@ -144,6 +145,22 @@ describe('SelectTool', () => {
     expect(host.calls[4]).toEqual({ id: 'plan.transform', input: { ids: [a.id], mirror: { a: [0, 500], b: [1000, 500] }, copy: true } });
     expect(tool.key(keyOf('Delete'))).toBe(true);
     expect(host.calls[5]).toEqual({ id: 'plan.entity.delete', input: { ids: [a.id] } });
+  });
+
+  it('tracks a rotation perpendicular to its reference arm', () => {
+    const { host, a } = harness();
+    const idx = new SnapIndex();
+    idx.build({}, null);
+    host.snap = (p, options) => snapPoint(idx, p, 50, DEFAULT_SNAP_SETTINGS, options);
+    const tool = new SelectTool(host);
+    host.select([a.id]);
+    expect(tool.key(keyOf('r'))).toBe(true);
+    const polar = (from: [number, number], degrees: number, len: number): [number, number] => [from[0] + len * Math.cos(degrees * DEG), from[1] + len * Math.sin(degrees * DEG)];
+    tool.pointerDown(at(0, 0));
+    // The reference arm at 37° is tracked by nothing; the third click near 128° snaps to 127°: a quarter turn exactly.
+    tool.pointerDown(at(...polar([0, 0], 37, 2000)));
+    tool.pointerDown(at(...polar([0, 0], 128, 2000)));
+    expect(host.calls[0]).toEqual({ id: 'plan.transform', input: { ids: [a.id], rotate: { angle: 90, pivot: [0, 0] }, copy: false } });
   });
 
   it('drags a vertex grip with the wall ends that meet it, and edits a selected corner', () => {

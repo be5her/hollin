@@ -1,6 +1,7 @@
-import { DEG, bulgeThrough, distance, formatAngle, formatLength, resolveCoordinate, sub, wallBody, type Coordinate, type Path, type Vec2, type Vertex } from '@studio/core';
+import { DEG, bulgeThrough, distance, formatAngle, formatLength, resolveCoordinate, segmentTangent, sub, wallBody, type Coordinate, type Path, type Vec2, type Vertex } from '@studio/core';
 import { tracePolygon } from '../draw';
 import { drawScreenText, type RenderFrame } from '../render';
+import { referenceFrom, type SnapResult, type TrackReference } from '../snap';
 import { withAlpha } from '../theme';
 import type { Tool, ToolHost, ToolPointer } from './tool';
 
@@ -22,6 +23,10 @@ export class WallTool implements Tool {
   private cursor: Vec2 | null = null;
   private arcNext = false;
   private arcEnd: Vec2 | null = null;
+  /** The direction of the segment before the one being drawn, tracked parallel and perpendicular. */
+  private previous: Vec2 | null = null;
+  /** The wall or line the run started on, tracked the same way. */
+  private startRef: TrackReference | null = null;
 
   constructor(private readonly host: ToolHost) {}
 
@@ -31,9 +36,11 @@ export class WallTool implements Tool {
 
   pointerDown(e: ToolPointer): void {
     if (e.button !== 0) return;
-    const p = this.snapped(e);
+    const snap = this.snapped(e);
+    const p = snap.point;
     if (!this.chain.length) {
       this.host.select([]);
+      this.startRef = referenceFrom(snap, this.host.entities());
       this.chain = [{ p }];
       this.host.invalidate();
       return;
@@ -62,16 +69,23 @@ export class WallTool implements Tool {
   }
 
   pointerMove(e: ToolPointer): void {
-    this.cursor = this.snapped(e);
+    this.cursor = this.snapped(e).point;
     this.host.invalidate();
   }
 
-  /** The cursor snapped: to anything near; while drawing, also perpendicular, tangent and angle steps from the last point. Alt suspends it. */
-  private snapped(e: ToolPointer): Vec2 {
-    if (e.alt) return e.world;
+  /** The cursor snapped: to anything near; while drawing, also perpendicular and tangent from the last point and the tracked directions (the main angles, parallel or perpendicular to the previous segment and to the wall the run started on). Alt suspends it. */
+  private snapped(e: ToolPointer): Pick<SnapResult, 'point' | 'tangent'> {
+    if (e.alt) return { point: e.world };
     const last = this.chain.length ? this.chain[this.chain.length - 1].p : undefined;
     const from = this.arcNext && this.arcEnd ? undefined : last;
-    return this.host.snap(e.world, { from, ortho: e.shift && Boolean(from) })?.point ?? e.world;
+    return this.host.snap(e.world, { from, ortho: e.shift && Boolean(from), relativeTo: this.references() }) ?? { point: e.world };
+  }
+
+  private references(): TrackReference[] {
+    const refs: TrackReference[] = [];
+    if (this.previous) refs.push({ direction: this.previous, name: 'previous' });
+    if (this.startRef) refs.push(this.startRef);
+    return refs;
   }
 
   key(e: KeyboardEvent): boolean {
@@ -167,6 +181,7 @@ export class WallTool implements Tool {
 
   private addPoint(p: Vec2): void {
     const last = this.chain[this.chain.length - 1];
+    this.previous = segmentTangent(last.bulge ? { k: 'arc', a: last.p, b: p, bulge: last.bulge } : { k: 'line', a: last.p, b: p }, 1);
     if (this.host.options().wall.single) {
       this.chain.push({ p });
     } else {
@@ -196,6 +211,8 @@ export class WallTool implements Tool {
     this.chain = [];
     this.arcNext = false;
     this.arcEnd = null;
+    this.previous = null;
+    this.startRef = null;
     this.host.invalidate();
   }
 

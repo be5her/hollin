@@ -1,6 +1,6 @@
 import { dimensionGeometry, distance, offsetTowards, resolveCoordinate, sub, type Coordinate, type Dimension, type DimensionKind, type DimensionPoints, type Vec2 } from '@studio/core';
 import { drawDimensionGeometry, type RenderFrame } from '../render';
-import type { SnapAnchor } from '../snap';
+import { referenceFrom, type SnapAnchor, type SnapTangent, type TrackReference } from '../snap';
 import type { Tool, ToolHost, ToolPointer } from './tool';
 
 interface Picked {
@@ -19,6 +19,8 @@ export class DimensionTool implements Tool {
   readonly id = 'dimension';
   private picked: Picked[] = [];
   private cursor: Vec2 | null = null;
+  /** The wall or line the first point snapped to: the next points track parallel and perpendicular to it. */
+  private startRef: TrackReference | null = null;
 
   constructor(private readonly host: ToolHost) {}
 
@@ -37,9 +39,12 @@ export class DimensionTool implements Tool {
 
   pointerDown(e: ToolPointer): void {
     if (e.button !== 0) return;
-    const pick = this.snapped(e);
+    const { tangent, ...pick } = this.snapped(e);
     if (this.picked.length < this.pointsNeeded()) {
-      if (!this.picked.length) this.host.select([]);
+      if (!this.picked.length) {
+        this.host.select([]);
+        this.startRef = referenceFrom({ tangent }, this.host.entities());
+      }
       const last = this.picked[this.picked.length - 1];
       if (last && distance(last.p, pick.p) < 1e-6) return;
       this.picked.push(pick);
@@ -85,6 +90,7 @@ export class DimensionTool implements Tool {
 
   cancel(): void {
     this.picked = [];
+    this.startRef = null;
     this.host.invalidate();
   }
 
@@ -120,11 +126,11 @@ export class DimensionTool implements Tool {
 
   // ---------- internals ----------
 
-  private snapped(e: ToolPointer): Picked {
+  private snapped(e: ToolPointer): Picked & { tangent?: SnapTangent } {
     if (e.alt) return { p: e.world };
     const from = this.picked[this.picked.length - 1]?.p;
-    const r = this.host.snap(e.world, { from, ortho: e.shift && Boolean(from) });
-    return r ? { p: r.point, ...(r.anchor ? { anchor: r.anchor } : {}) } : { p: e.world };
+    const r = this.host.snap(e.world, { from, ortho: e.shift && Boolean(from), relativeTo: this.startRef ? [this.startRef] : [] });
+    return r ? { p: r.point, ...(r.anchor ? { anchor: r.anchor } : {}), ...(r.tangent ? { tangent: r.tangent } : {}) } : { p: e.world };
   }
 
   /** The points so far, the cursor standing in for the next one. */
@@ -160,6 +166,7 @@ export class DimensionTool implements Tool {
     const points = this.points(null);
     const picked = this.picked;
     this.picked = [];
+    this.startRef = null;
     this.host.invalidate();
     if (!levelId || !points) return;
     if (kind !== 'angular' && distance(points.from, points.to) < 1) return;

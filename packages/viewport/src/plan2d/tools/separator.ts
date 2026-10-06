@@ -1,5 +1,6 @@
-import { distance, type Coordinate, type Vec2, resolveCoordinate, sub } from '@studio/core';
+import { distance, normalize, type Coordinate, type Vec2, resolveCoordinate, sub } from '@studio/core';
 import type { RenderFrame } from '../render';
+import { referenceFrom, type SnapResult, type TrackReference } from '../snap';
 import type { Tool, ToolHost, ToolPointer } from './tool';
 
 /**
@@ -10,6 +11,9 @@ export class SeparatorTool implements Tool {
   readonly id = 'separator';
   private points: Vec2[] = [];
   private cursor: Vec2 | null = null;
+  /** The previous segment's direction and the wall or line the divider started on, tracked parallel and perpendicular. */
+  private previous: Vec2 | null = null;
+  private startRef: TrackReference | null = null;
 
   constructor(private readonly host: ToolHost) {}
 
@@ -19,19 +23,22 @@ export class SeparatorTool implements Tool {
 
   pointerDown(e: ToolPointer): void {
     if (e.button !== 0) return;
-    const p = this.snapped(e);
+    const snap = this.snapped(e);
+    const p = snap.point;
     if (e.clicks >= 2 && this.points.length >= 2) {
       this.finish();
       return;
     }
-    if (!this.points.length) this.host.select([]);
-    else if (distance(p, this.points[this.points.length - 1]) < 1e-6) return;
-    this.points.push(p);
+    if (!this.points.length) {
+      this.host.select([]);
+      this.startRef = referenceFrom(snap, this.host.entities());
+    } else if (distance(p, this.points[this.points.length - 1]) < 1e-6) return;
+    this.addPoint(p);
     this.host.invalidate();
   }
 
   pointerMove(e: ToolPointer): void {
-    this.cursor = this.snapped(e);
+    this.cursor = this.snapped(e).point;
     this.host.invalidate();
   }
 
@@ -52,14 +59,19 @@ export class SeparatorTool implements Tool {
     const last = this.points[this.points.length - 1];
     const point = resolveCoordinate(coord, { from: last, direction: cursor ? sub(cursor, last) : undefined });
     if (!point) return false;
-    this.points.push(point);
-    this.host.invalidate();
+    this.addPoint(point);
     return true;
   }
 
-  cancel(): void {
-    this.points = [];
+  private addPoint(p: Vec2): void {
+    const last = this.points[this.points.length - 1];
+    if (last) this.previous = normalize(sub(p, last));
+    this.points.push(p);
     this.host.invalidate();
+  }
+
+  cancel(): void {
+    this.reset();
   }
 
   hint(): string {
@@ -80,16 +92,23 @@ export class SeparatorTool implements Tool {
     ctx.setLineDash([]);
   }
 
-  private snapped(e: ToolPointer): Vec2 {
-    if (e.alt) return e.world;
+  private snapped(e: ToolPointer): Pick<SnapResult, 'point' | 'tangent'> {
+    if (e.alt) return { point: e.world };
     const last = this.points.length ? this.points[this.points.length - 1] : undefined;
-    return this.host.snap(e.world, { from: last, ortho: e.shift && Boolean(last) })?.point ?? e.world;
+    const relativeTo: TrackReference[] = [...(this.previous ? [{ direction: this.previous, name: 'previous' }] : []), ...(this.startRef ? [this.startRef] : [])];
+    return this.host.snap(e.world, { from: last, ortho: e.shift && Boolean(last), relativeTo }) ?? { point: e.world };
+  }
+
+  private reset(): void {
+    this.points = [];
+    this.previous = null;
+    this.startRef = null;
+    this.host.invalidate();
   }
 
   private finish(): void {
     const levelId = this.host.levelId();
     if (levelId && this.points.length >= 2) void this.host.invoke('plan.entity.add', { levelId, entity: { type: 'separator', path: { closed: false, v: this.points.map((p) => ({ p })) } } });
-    this.points = [];
-    this.host.invalidate();
+    this.reset();
   }
 }

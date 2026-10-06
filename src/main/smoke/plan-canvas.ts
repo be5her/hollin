@@ -18,7 +18,7 @@ export async function readCamera(smoke: Smoke): Promise<Camera | null> {
 /** World mm to window pixels, the same mapping the renderer uses (y up in the world, down on screen). */
 export const toScreen = (rect: Rect, cam: Camera, p: readonly [number, number]) => ({ x: rect.x + (p[0] - cam.x) * cam.scale + rect.width / 2, y: rect.y + (cam.y - p[1]) * cam.scale + rect.height / 2 });
 
-/** A canvas data attribute (`level`, `entities`, `tool`, `selection` …). */
+/** A canvas data attribute (`level`, `frameLevel` (the level the last frame drew), `entities`, `tool`, `selection` …). */
 export const canvasAttr = (smoke: Smoke, name: string) => smoke.js<string | undefined>(`document.querySelector('${canvas}')?.dataset.${name}`);
 
 /** The canvas rect and camera as they are now: measure again after anything that changes the canvas size (a tool's options bar) or the view. */

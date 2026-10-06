@@ -1,5 +1,5 @@
-import { DEG, angleOf, connectorPath, cornerFrame, cornerFromGrip, distance, fitOpening, formatAngle, insertVertex, joinWalls, junctionNodes, junctionPatches, moveVertex, nearestPoint, offsetTowards, parseAngle, pathOfEntity, resolveCoordinate, resolveDimension, setCorner, setSegment, sub, transformConnector, transformEntity, wallBody, wallEnds, withConnectorPath, withPath, type Box, type Connector, type Coordinate, type Corner, type Dimension, type Entity, type Path, type Transform, type Vec2, type WhichPath } from '@studio/core';
-import type { SnapAnchor } from '../snap';
+import { DEG, angleOf, connectorPath, cornerFrame, cornerFromGrip, distance, fitOpening, formatAngle, insertVertex, joinWalls, junctionNodes, junctionPatches, moveVertex, nearestPoint, normalize, offsetTowards, parseAngle, pathOfEntity, resolveCoordinate, resolveDimension, setCorner, setSegment, sub, transformConnector, transformEntity, wallBody, wallEnds, withConnectorPath, withPath, type Box, type Connector, type Coordinate, type Corner, type Dimension, type Entity, type Path, type Transform, type Vec2, type WhichPath } from '@studio/core';
+import type { SnapAnchor, TrackReference } from '../snap';
 
 type Opening = Extract<Entity, { type: 'opening' }>;
 import type { PlanConnector } from '../connectors';
@@ -60,7 +60,7 @@ export class SelectTool implements Tool {
     if (e.button !== 0) return;
     const mode = this.mode;
     if (mode.k === 'rotate') {
-      const p = this.snapped(e, mode.pivot);
+      const p = this.snapped(e, mode.pivot, undefined, this.rotateReferences(mode));
       if (!mode.pivot) this.mode = { ...mode, pivot: p };
       else if (!mode.reference) this.mode = { ...mode, reference: p };
       else this.commitRotate(mode.pivot, mode.reference, p, mode.copy || e.ctrl);
@@ -119,8 +119,11 @@ export class SelectTool implements Tool {
       const snapped = this.gripSnap(mode, e);
       this.mode = { ...mode, cursor: snapped.point, ...(snapped.anchor ? { anchor: snapped.anchor } : { anchor: undefined }) };
       this.host.invalidate();
-    } else if (mode.k === 'rotate' || mode.k === 'mirror') {
-      this.mode = { ...mode, cursor: this.snapped(e, mode.k === 'rotate' ? mode.pivot : mode.a) };
+    } else if (mode.k === 'rotate') {
+      this.mode = { ...mode, cursor: this.snapped(e, mode.pivot, undefined, this.rotateReferences(mode)) };
+      this.host.invalidate();
+    } else if (mode.k === 'mirror') {
+      this.mode = { ...mode, cursor: this.snapped(e, mode.a) };
       this.host.invalidate();
     }
   }
@@ -524,10 +527,15 @@ export class SelectTool implements Tool {
     ctx.globalAlpha = 1;
   }
 
-  /** The cursor snapped (Alt suspends it); `from` enables perpendicular and angle snaps, Shift forces 45° steps from it. */
-  private snapped(e: ToolPointer, from?: Vec2, exclude?: ReadonlySet<string>): Vec2 {
+  /** The cursor snapped (Alt suspends it); `from` enables the perpendicular snap and angle tracking, Shift forces 45° steps from it, `relativeTo` adds parallels and perpendiculars. */
+  private snapped(e: ToolPointer, from?: Vec2, exclude?: ReadonlySet<string>, relativeTo?: TrackReference[]): Vec2 {
     if (e.alt) return e.world;
-    return this.host.snap(e.world, { from, exclude, ortho: e.shift && Boolean(from) })?.point ?? e.world;
+    return this.host.snap(e.world, { from, exclude, ortho: e.shift && Boolean(from), relativeTo })?.point ?? e.world;
+  }
+
+  /** While rotating, the reference arm is tracked parallel and perpendicular, so a quarter turn snaps exactly. */
+  private rotateReferences(mode: { pivot?: Vec2; reference?: Vec2 }): TrackReference[] | undefined {
+    return mode.pivot && mode.reference && distance(mode.pivot, mode.reference) > 1e-9 ? [{ direction: normalize(sub(mode.reference, mode.pivot)), name: 'reference' }] : undefined;
   }
 
   /** A dragged vertex snaps to everything but its own entity and the walls that follow it; the vertex before it gives the direction. A dimension's point reports the wall or shape corner it snapped to. */
@@ -535,13 +543,19 @@ export class SelectTool implements Tool {
     if (e.alt || mode.grip.kind === 'corner') return { point: e.world };
     const exclude = new Set([mode.id, ...mode.joined.map((j) => j.id)]);
     let from: Vec2 | undefined;
+    let relativeTo: TrackReference[] | undefined;
     const entity = this.host.entities()[mode.id];
     if (mode.grip.kind === 'vertex' && entity?.type !== 'dimension') {
       const path = this.pathOf(mode.id, mode.grip.which);
-      const prev = path?.v[mode.grip.index - 1] ?? (path?.closed ? path.v[path.v.length - 1] : undefined);
+      const n = path?.v.length ?? 0;
+      const at = (i: number) => (path && n ? (i >= 0 ? path.v[i] : path.closed ? path.v[((i % n) + n) % n] : undefined) : undefined);
+      const prev = at(mode.grip.index - 1);
       from = prev?.p;
+      // The segment before the previous vertex is tracked parallel and perpendicular.
+      const before = n > 2 ? at(mode.grip.index - 2) : undefined;
+      if (prev && before && distance(before.p, prev.p) > 1e-9) relativeTo = [{ direction: normalize(sub(prev.p, before.p)), name: 'previous' }];
     }
-    const r = this.host.snap(e.world, { from, exclude, ortho: e.shift && Boolean(from) });
+    const r = this.host.snap(e.world, { from, exclude, ortho: e.shift && Boolean(from), relativeTo });
     if (!r) return { point: e.world };
     return { point: r.point, ...(entity?.type === 'dimension' && mode.grip.kind === 'vertex' && r.anchor ? { anchor: r.anchor } : {}) };
   }

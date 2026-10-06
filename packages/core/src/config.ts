@@ -55,7 +55,7 @@ const SECTIONS = {
     snapPerpendicular: z.boolean(),
     snapExtension: z.boolean(),
     snapGrid: z.boolean(),
-    /** Snap the drawing direction to multiples of `angleStep` degrees (Shift always does, in 45° steps). */
+    /** Angle tracking: the drawing direction snaps to the main angles (every 45°), to multiples of `angleStep` degrees, and parallel or perpendicular to the previous segment and to the wall a run started on (Shift always locks to 45° steps, Alt suspends it). */
     snapAngle: z.boolean(),
     angleStep: z.number().min(1).max(90),
     gridShow: z.boolean(),
@@ -113,7 +113,7 @@ const DEFAULTS: GlobalConfig = {
     snapPerpendicular: true,
     snapExtension: true,
     snapGrid: false,
-    snapAngle: false,
+    snapAngle: true,
     angleStep: 15,
     gridShow: true,
     gridSpacing: 100,

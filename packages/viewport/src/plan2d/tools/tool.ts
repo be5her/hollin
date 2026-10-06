@@ -3,7 +3,7 @@ import type { PlanConnector } from '../connectors';
 import type { VertexRef } from '../grips';
 import type { Hit } from '../hit';
 import type { RenderFrame } from '../render';
-import type { SnapResult } from '../snap';
+import type { SnapOptions, SnapResult } from '../snap';
 
 export type ToolId = 'select' | 'wall' | 'door' | 'window' | 'room' | 'separator' | 'shape' | 'rectangle' | 'circle' | 'dimension' | 'label';
 
@@ -52,8 +52,8 @@ export interface ToolHost {
   walls(exclude?: ReadonlySet<string>): LevelWalls | null;
   /** Everything the level derives to: walls, enclosed spaces, rooms, the automatic slab. */
   geometry(): LevelGeometry | null;
-  /** Snaps a cursor position (null: nothing near). The result is drawn until the next call. */
-  snap(p: Vec2, options?: { from?: Vec2; exclude?: ReadonlySet<string>; ortho?: boolean }): SnapResult | null;
+  /** Snaps a cursor position (null: nothing near): `from` enables the directional snaps and tracking, `relativeTo` the parallels and perpendiculars. The result is drawn until the next call. */
+  snap(p: Vec2, options?: SnapOptions): SnapResult | null;
   /** Opens an input at a screen position; `commit` gets what was typed (Enter), nothing on Escape. */
   requestText(request: TextRequest): void;
   clipboard: Clipboard | null;
