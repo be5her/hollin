@@ -33,6 +33,8 @@ function harness() {
     entities: () => entities,
     seq: () => 7,
     epoch: () => 1,
+    connectors: () => new Map(),
+    previewConnector: () => null,
     options: () => DEFAULT_TOOL_OPTIONS,
     scale: () => 0.1,
     toScreen: (p) => [p[0] / 10, -p[1] / 10],

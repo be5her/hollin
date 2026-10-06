@@ -1,5 +1,6 @@
 import { DEG, add, columnPolygon, dimensionGeometry, dimensionOutline, flatten, formatArea, normalize, openingFrame, openingMisfits, perp, polygonCentroid, resolveDimension, resolvePath, scale as vscale, sub, wallBody, type DimensionGeometry, type Entity, type EntityType, type Layer, type LevelGeometry, type LevelWalls, type Path, type Region, type UnitSettings, type Vec2 } from '@studio/core';
 import { visibleBox, worldToScreen, type Camera, type Size } from './camera';
+import { drawConnector, traceConnector, type PlanConnector } from './connectors';
 import { tracePath, tracePolygon, traceRegion, traceSegments } from './draw';
 import { entityBox, searchScene, type LevelScene, type SceneItem } from './scene';
 import { withAlpha, type PlanTheme } from './theme';
@@ -20,6 +21,8 @@ export interface RenderFrame {
   /** The reference level, drawn faintly under the plan. */
   underlay: LevelScene | null;
   showGrid: boolean;
+  /** The stairs, ramps, elevators and other connectors this level shows. */
+  connectors?: readonly PlanConnector[];
 }
 
 /** The joined walls' outlines as a `Path2D`, kept per derived geometry. */
@@ -142,6 +145,8 @@ export function drawOpeningSymbol(ctx: CanvasRenderingContext2D, frame: RenderFr
 export interface RenderStats {
   /** Entities drawn this frame (the underlay not counted). */
   drawn: number;
+  /** Connectors drawn this frame. */
+  connectors: number;
   ms: number;
 }
 
@@ -218,8 +223,14 @@ export function renderPlan(ctx: CanvasRenderingContext2D, frame: RenderFrame): R
     if (!wallsDrawn) drawWalls(ctx, frame);
     ctx.globalAlpha = 1;
   }
+  let connectors = 0;
+  for (const pc of frame.connectors ?? []) {
+    if (pc.box.maxX < visible.minX || pc.box.minX > visible.maxX || pc.box.maxY < visible.minY || pc.box.minY > visible.maxY) continue;
+    drawConnector(ctx, pc, frame, texts);
+    connectors++;
+  }
   drawTexts(ctx, frame, texts);
-  return { drawn, ms: performance.now() - started };
+  return { drawn, connectors, ms: performance.now() - started };
 }
 
 /** Text at a world position, drawn in screen space; for tools and overlays. Restores the world transform afterwards. */
@@ -234,6 +245,14 @@ export function drawEntityPreview(ctx: CanvasRenderingContext2D, entity: Entity,
   const box = entityBox(entity, frame.scene ? Object.fromEntries([...frame.scene.items].map(([id, item]) => [id, item.entity])) : {});
   const item: SceneItem = { ...box, id: entity.id, type: entity.type, layerId: entity.layerId, entity, path2d: null };
   drawEntity(ctx, item, frame, texts);
+  drawTexts(ctx, frame, texts);
+  worldSpace(ctx, frame);
+}
+
+/** A connector as a gesture would leave it (a move, a reshaped axis), drawn over the plan. */
+export function drawConnectorPreview(ctx: CanvasRenderingContext2D, pc: PlanConnector, frame: RenderFrame): void {
+  const texts: TextOp[] = [];
+  drawConnector(ctx, pc, frame, texts);
   drawTexts(ctx, frame, texts);
   worldSpace(ctx, frame);
 }
@@ -350,11 +369,19 @@ export function drawGrips(ctx: CanvasRenderingContext2D, frame: RenderFrame, gri
 
 /** The outline of each selected entity in the selection colour. */
 export function drawSelection(ctx: CanvasRenderingContext2D, frame: RenderFrame, selection: ReadonlySet<string>): void {
-  if (!selection.size || !frame.scene) return;
+  if (!selection.size) return;
   ctx.strokeStyle = frame.theme.selection;
   ctx.fillStyle = withAlpha(frame.theme.selection, 0.12);
   ctx.lineWidth = px(frame, 2);
   ctx.lineJoin = 'round';
+  for (const pc of frame.connectors ?? []) {
+    if (!selection.has(pc.id)) continue;
+    ctx.beginPath();
+    traceConnector(ctx, pc);
+    ctx.fill('nonzero');
+    ctx.stroke();
+  }
+  if (!frame.scene) return;
   for (const id of selection) {
     const item = frame.scene.items.get(id);
     if (!item) continue;

@@ -1,5 +1,6 @@
 import { defaultConfig, deriveLevels, emptyBox, parseCoordinate, type Box, type Entity, type Layer, type LevelGeometry, type LevelWalls, type ProjectDoc, type RuleLimits, type UnitSettings, type Vec2 } from '@studio/core';
 import { defaultCamera, fitBox, panBy, sameCamera, screenToWorld, worldToScreen, zoomAt, type Camera, type Size } from './camera';
+import { planConnectors, type PlanConnector } from './connectors';
 import { LevelGeometryCache } from './geometry-cache';
 import { sameVertex, type VertexRef } from './grips';
 import { hitTest, marqueeSelect, type Hit } from './hit';
@@ -81,11 +82,12 @@ export class Plan2dEditor {
   private activeTool: Tool;
   private selected = new Set<string>();
   private vertexRef: VertexRef | null = null;
+  private connectorIndex: { list: readonly PlanConnector[]; map: Map<string, PlanConnector> } | null = null;
   private seqValue = 0;
   private epochValue = 1;
   clipboard: Clipboard | null = null;
   showGrid = true;
-  lastStats: RenderStats = { drawn: 0, ms: 0 };
+  lastStats: RenderStats = { drawn: 0, connectors: 0, ms: 0 };
 
   constructor(
     private readonly callbacks: EditorCallbacks = {},
@@ -97,6 +99,12 @@ export class Plan2dEditor {
       invoke: (id, input) => this.callbacks.invoke?.(id, input) ?? Promise.resolve(undefined),
       levelId: () => this.levelId,
       entities: () => this.entities(),
+      connectors: () => this.connectorMap(),
+      previewConnector: (connector) => {
+        if (!this.doc || !this.levelId) return null;
+        const doc = { ...this.doc, connectors: { ...this.doc.connectors, [connector.id]: connector } };
+        return planConnectors(doc, this.levelId, this.limits).find((pc) => pc.id === connector.id) ?? null;
+      },
       seq: () => this.seqValue,
       epoch: () => this.epochValue,
       options: () => this.toolOptions,
@@ -223,7 +231,8 @@ export class Plan2dEditor {
     const entities = this.entities();
     this.activeTool.documentChanged?.(entities);
     // Whatever vanished (an agent's delete, an undo) leaves the selection.
-    const kept = [...this.selected].filter((id) => id in entities);
+    const connectors = this.connectorMap();
+    const kept = [...this.selected].filter((id) => id in entities || connectors.has(id));
     if (kept.length !== this.selected.size) this.select(kept);
   }
 
@@ -343,6 +352,17 @@ export class Plan2dEditor {
     return (this.doc && this.levelId ? this.doc.levelData[this.levelId]?.entities : undefined) ?? {};
   }
 
+  /** The stairs, ramps, elevators and other connectors the active level shows. */
+  levelConnectors(): readonly PlanConnector[] {
+    return this.doc && this.levelId ? this.geometry.connectorsOn(this.doc, this.levelId, this.limits) : [];
+  }
+
+  private connectorMap(): ReadonlyMap<string, PlanConnector> {
+    const list = this.levelConnectors();
+    if (this.connectorIndex?.list !== list) this.connectorIndex = { list, map: new Map(list.map((pc) => [pc.id, pc])) };
+    return this.connectorIndex.map;
+  }
+
   /** The joined walls of the active level, leaving out walls on hidden layers and `exclude`. */
   levelWalls(exclude?: ReadonlySet<string>): LevelWalls | null {
     const entities = this.doc && this.levelId ? this.doc.levelData[this.levelId]?.entities : undefined;
@@ -385,7 +405,7 @@ export class Plan2dEditor {
   // ---------- internals ----------
 
   private hitOptions() {
-    return { tolerance: HIT_PX / this.cameraValue.scale, layers: this.layers(), walls: this.levelWalls(), geometry: this.levelGeometry() };
+    return { tolerance: HIT_PX / this.cameraValue.scale, layers: this.layers(), walls: this.levelWalls(), geometry: this.levelGeometry(), connectors: this.levelConnectors() };
   }
 
   private contentBox(): Box | null {
@@ -451,6 +471,7 @@ export class Plan2dEditor {
       geometry: this.levelGeometry(),
       underlay: under ? (this.scenes.get(under) ?? null) : null,
       showGrid: this.showGrid,
+      connectors: this.levelConnectors(),
     };
     this.lastStats = renderPlan(this.ctx, frame);
     if (this.activeTool.draw) {

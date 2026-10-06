@@ -1,4 +1,5 @@
-import type { Box, Coordinate, DimensionKind, Entity, LevelGeometry, LevelWalls, Vec2 } from '@studio/core';
+import type { Box, Connector, Coordinate, DimensionKind, Entity, LevelGeometry, LevelWalls, Vec2 } from '@studio/core';
+import type { PlanConnector } from '../connectors';
 import type { VertexRef } from '../grips';
 import type { Hit } from '../hit';
 import type { RenderFrame } from '../render';
@@ -13,9 +14,10 @@ export interface TextRequest {
   commit(text: string): void;
 }
 
-/** What copy and paste carry: entities as data, and the point they were copied around. */
+/** What copy and paste carry: entities and connectors as data, and the point they were copied around. */
 export interface Clipboard {
   entities: Entity[];
+  connectors?: Connector[];
   anchor: Vec2;
 }
 
@@ -26,6 +28,10 @@ export interface ToolHost {
   levelId(): string | null;
   /** The active level's entities. */
   entities(): Record<string, Entity>;
+  /** The stairs, ramps, elevators and other connectors the active level shows, by id. */
+  connectors(): ReadonlyMap<string, PlanConnector>;
+  /** A connector as a gesture would leave it, derived for the active level (null when it would not show there). */
+  previewConnector(connector: Connector): PlanConnector | null;
   /** The mirror's change number and epoch, sent with edits addressed by index so a stale one is refused. */
   seq(): number;
   epoch(): number;

@@ -35,3 +35,4 @@ export * from './geometry/dimensions';
 export * from './geometry/intersect';
 export * from './geometry/rooms';
 export * from './geometry/connectors';
+export * from './geometry/connector-edit';

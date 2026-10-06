@@ -167,14 +167,22 @@ export async function smokePlanUi(smoke: Smoke, towerId: string): Promise<void> 
   smoke.check('clicking empty floor clears it', await smoke.until(async () => (await selection()).length === 0));
   await smoke.dragAt(toScreen(rect, cam, [-3500, -2500]), toScreen(rect, cam, [3500, 2500]));
   smoke.check('a window drag selects what lies inside', await smoke.until(async () => (await selection()).length === 5), await selection());
-  // From empty floor (a drag that starts on a selected entity moves it), leftwards across the arc wall only.
-  await smoke.dragAt(toScreen(rect, cam, [500, 600]), toScreen(rect, cam, [-500, -600]));
+  // From empty floor (a drag that starts on an entity or a connector moves it), leftwards across the arc wall only: the Tower's stair,
+  // which arrives on this level, stands at x -50..1050 from y 500 up, and a marquee takes connectors like entities.
+  await smoke.dragAt(toScreen(rect, cam, [1800, 900]), toScreen(rect, cam, [1200, -300]));
   smoke.check('a crossing drag selects what it touches', await smoke.until(async () => (await selection()).join() === arcWall.id), await selection());
+  const stair = Object.values(doc().connectors).find((c) => c.kind === 'stair')!;
+  await smoke.dragAt(toScreen(rect, cam, [1800, 900]), toScreen(rect, cam, [800, -300]));
+  smoke.check('a crossing drag that reaches the stair selects it too', await smoke.until(async () => (await selection()).sort().join() === [arcWall.id, stair.id].sort().join()), await selection());
   await smoke.shots('17-plan-selection');
+  await smoke.clickAt(...xy(toScreen(rect, cam, [-1500, -1000])));
+  await smoke.until(async () => (await selection()).length === 0);
+  // On the arc's body, clear of the stair (which ranks before walls under a click) and of the arc's grips.
+  const arcMid = toScreen(rect, cam, [1500, 632]);
+  await smoke.clickAt(arcMid.x, arcMid.y);
+  smoke.check('clicking the arc wall beside the stair selects the wall alone', await smoke.until(async () => (await selection()).join() === arcWall.id), await selection());
 
   const arcStart = arcWall.path.v[0].p;
-  // On the arc's body but away from its grips (its middle at (0, 1200) is one).
-  const arcMid = toScreen(rect, cam, [1000, 967]);
   await smoke.dragAt(arcMid, { x: arcMid.x + 50, y: arcMid.y });
   smoke.check('dragging a selected wall moves it', await smoke.until(() => Math.abs(wallsOnGallery().find((w) => w.id === arcWall.id)!.path.v[0].p[0] - (arcStart[0] + 50 / cam.scale)) < tolerance), wallsOnGallery().find((w) => w.id === arcWall.id)?.path.v[0].p);
   await smoke.key('Right');

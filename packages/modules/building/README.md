@@ -17,7 +17,7 @@ All allowed; every change is an undoable transaction attributed to the agent.
 
 - `building.get`: levels bottom to top with derived elevation, height, top, slab, whether it is the ground or a basement, its layers and entity counts; the connectors, each with `derived`: bottom, top and rise, the levels whose slab it cuts, the limits it breaks, and per kind its risers, riser height, tread depth and flights, slope, run or stops.
 - `building.level.add` (with `position` or `mezzanineOf`), `building.level.update` (name, height, slab, elevation, ground, `hostLevelId` for a mezzanine), `building.level.duplicate`, `building.level.move`, `building.level.remove`, and the read-only `building.level.impact` (what a removal would do).
-- `building.connector.add`, `building.connector.update`, `building.connector.remove`.
+- `building.connector.add`, `building.connector.update` (with optional `baseSeq` and `epoch`: an update from a stale copy is refused with CONFLICT, naming who changed it meanwhile, as `plan.entity.update` does), `building.connector.remove`.
 - All of these can be steps of `plan.apply`.
 
 ## Verified by

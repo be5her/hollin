@@ -15,6 +15,9 @@ export interface PlanTheme {
   snap: string;
   selection: string;
   warning: string;
+  /** Stairs, ramps, elevators and other connectors: their lines, and the fill of their treads and shafts. */
+  connector: string;
+  connectorFill: string;
   fontSans: string;
   fontMono: string;
 }
@@ -36,6 +39,8 @@ export const LIGHT_THEME: PlanTheme = {
   snap: '#1f8a4c',
   selection: '#2f6fda',
   warning: '#b7791f',
+  connector: '#33363c',
+  connectorFill: '#f1f1ee',
   fontSans: 'system-ui, sans-serif',
   fontMono: 'ui-monospace, monospace',
 };
@@ -56,6 +61,8 @@ const VARIABLES: Record<keyof PlanTheme, string> = {
   snap: '--plan-snap',
   selection: '--plan-selection',
   warning: '--plan-warning',
+  connector: '--plan-connector',
+  connectorFill: '--plan-connector-fill',
   fontSans: '--font-sans',
   fontMono: '--font-mono',
 };

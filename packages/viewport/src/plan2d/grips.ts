@@ -1,4 +1,4 @@
-import { add, cornerFrame, cornerGripPoint, dimensionGeometry, distance, openingFrame, pathOfEntity, rawSegments, resolveDimension, scale, segmentPoint, type Entity, type Vec2, type WhichPath } from '@studio/core';
+import { add, connectorPath, cornerFrame, cornerGripPoint, dimensionGeometry, distance, openingFrame, pathOfEntity, rawSegments, resolveDimension, scale, segmentPoint, type Connector, type Entity, type Path, type Vec2, type WhichPath } from '@studio/core';
 
 /** A handle on a selected entity: a vertex of its path, the middle of a segment, a corner's size, a door's hinge or swing side. */
 export interface Grip {
@@ -42,15 +42,25 @@ export function gripsOf(entity: Entity, entities?: Record<string, Entity>): Grip
   }
   for (const which of paths) {
     const path = pathOfEntity(entity, which);
-    if (!path) continue;
-    path.v.forEach((v, index) => grips.push({ kind: 'vertex', which, index, at: v.p }));
-    rawSegments(path).forEach((s, index) => grips.push({ kind: 'mid', which, index, at: segmentPoint(s, 0.5) }));
-    path.v.forEach((v, index) => {
-      if (!v.c) return;
-      const frame = cornerFrame(path, index);
-      if (frame) grips.push({ kind: 'corner', which, index, at: cornerGripPoint(frame, v.c) });
-    });
+    if (path) pathGrips(path, which, grips);
   }
+  return grips;
+}
+
+/** The grips of a connector: the vertices, segment middles and sized corners of a stair's or ramp's axis. Elevators, ladders and escalators have none: they are moved whole. */
+export function gripsOfConnector(connector: Connector): Grip[] {
+  const path = connectorPath(connector);
+  return path ? pathGrips(path, 'outer', []) : [];
+}
+
+function pathGrips(path: Path, which: WhichPath, grips: Grip[]): Grip[] {
+  path.v.forEach((v, index) => grips.push({ kind: 'vertex', which, index, at: v.p }));
+  rawSegments(path).forEach((s, index) => grips.push({ kind: 'mid', which, index, at: segmentPoint(s, 0.5) }));
+  path.v.forEach((v, index) => {
+    if (!v.c) return;
+    const frame = cornerFrame(path, index);
+    if (frame) grips.push({ kind: 'corner', which, index, at: cornerGripPoint(frame, v.c) });
+  });
   return grips;
 }
 

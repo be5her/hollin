@@ -4,6 +4,7 @@ import {
   StudioError,
   addConnectorOps,
   addLevelOps,
+  assertUnchanged,
   connectorCutLevels,
   defineCommand,
   defineModule,
@@ -206,10 +207,18 @@ export const buildingModule = defineModule({
       description: 'Sets fields of a stair, ramp, ladder, elevator or escalator (whole values: e.g. pass the complete `stops` list).',
       scope: 'project',
       batchable: true,
-      input: z.object({ id: z.string(), set: z.record(z.string(), z.unknown()) }),
-      handler: async ({ id, set }, ctx) => {
+      input: z.object({
+        id: z.string(),
+        set: z.record(z.string(), z.unknown()),
+        baseSeq: z.number().int().min(0).optional().describe('The change number (seq) your copy of the document had; refused with CONFLICT if the connector changed since'),
+        epoch: z.number().int().min(1).optional().describe('The document epoch your copy had'),
+      }),
+      handler: async ({ id, set, baseSeq, epoch }, ctx) => {
         const kind = ctx.project!.doc.connectors[id]?.kind ?? 'connector';
-        await editProject(ctx, `Change ${kind}`, (tx) => tx.apply(updateConnectorOps(tx.doc, id, set)));
+        await editProject(ctx, `Change ${kind}`, (tx) => {
+          assertUnchanged(ctx, id, kind, baseSeq, epoch);
+          tx.apply(updateConnectorOps(tx.doc, id, set));
+        });
         return ctx.project!.doc.connectors[id];
       },
     }),

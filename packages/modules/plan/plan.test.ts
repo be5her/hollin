@@ -127,6 +127,59 @@ describe('editing commands', () => {
   });
 });
 
+describe('connectors on the plan', () => {
+  async function twoStoreys() {
+    const ground = doc().building.groundLevelId;
+    const upper = (await run<{ id: string }>('building.level.add', { name: 'Upper' })).id;
+    const stair = (await run<{ id: string }>('building.connector.add', { connector: { kind: 'stair', shape: 'l', bottom: { levelId: ground }, top: { levelId: upper }, axis: { closed: false, v: [{ p: [0, 0] }, { p: [0, 2250] }, { p: [2250, 2250] }] }, width: 1000, handrails: { left: true, right: false } } })).id;
+    const lift = (await run<{ id: string }>('building.connector.add', { connector: { kind: 'elevator', at: [6000, 2000], shaft: { w: 2000, d: 2200 }, car: { w: 1100, d: 1400 }, stops: [{ levelId: ground }, { levelId: upper, door: 'front' }] } })).id;
+    return { ground, upper, stair, lift };
+  }
+  type Stair = { axis: { v: { p: number[]; c?: { k: string } }[] }; handrails: { left: boolean; right: boolean } };
+
+  it('edits a stair axis with the path commands, and refuses a stale edit naming who changed it', async () => {
+    const { stair } = await twoStoreys();
+    const { seq, epoch } = await run<{ seq: number; epoch: number }>('edit.history', {});
+    const moved = await run<Stair>('plan.path.vertex.move', { id: stair, index: 2, to: [2500, 2250], baseSeq: seq, epoch });
+    expect(moved.axis.v[2].p).toEqual([2500, 2250]);
+    await run('plan.path.vertex.move', { id: stair, index: 2, to: [2600, 2250] }, 'mcp', 'claude-code 2.1');
+    await expect(run('plan.path.vertex.move', { id: stair, index: 2, to: [3000, 2250], baseSeq: seq + 1, epoch })).rejects.toMatchObject({ code: 'CONFLICT', details: { by: { kind: 'mcp', name: 'claude-code 2.1' } } });
+    const rounded = await run<Stair>('plan.path.corner.set', { id: stair, index: 1, corner: { k: 'fillet', r: 500 } });
+    expect(rounded.axis.v[1].c?.k).toBe('fillet');
+    await expect(run('plan.path.vertex.move', { id: 'elv_0000000000000000', index: 0, to: [0, 0] })).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    const history = await run<{ undo: { label: string }[] }>('edit.history', {});
+    expect(history.undo[0].label).toBe('Round corner of stair');
+  });
+
+  it('moves, mirrors, copies and deletes connectors with entities, and lists them on the levels they reach', async () => {
+    const { ground, upper, stair, lift } = await twoStoreys();
+    const label = (await run<{ id: string }>('plan.entity.add', { levelId: ground, entity: { type: 'label', text: 'Hall', at: [0, 0] } })).id;
+    await run('plan.transform', { ids: [stair, lift, label], translate: [1000, 0] });
+    expect((doc().connectors[stair] as unknown as Stair).axis.v[0].p).toEqual([1000, 0]);
+    expect((doc().connectors[lift] as unknown as { at: number[] }).at).toEqual([7000, 2000]);
+    expect((await run<{ undo: { label: string }[] }>('edit.history', {})).undo[0].label).toBe('Move 3 items');
+    await run('plan.transform', { ids: [stair, lift], mirror: { a: [0, 0], b: [0, 1000] } });
+    const mirrored = doc().connectors[stair] as unknown as Stair;
+    expect(mirrored.axis.v[2].p).toEqual([-3250, 2250]);
+    expect(mirrored.handrails).toEqual({ left: false, right: true });
+    expect((doc().connectors[lift] as { stops: { door: string }[] }).stops.map((s) => s.door)).toEqual(['back', 'back']);
+    const copied = await run<{ ids: string[] }>('plan.transform', { ids: [stair], translate: [0, 5000], copy: true });
+    expect(copied.ids).toHaveLength(1);
+    expect(copied.ids[0]).toMatch(/^str_/);
+    expect(Object.keys(doc().connectors)).toHaveLength(3);
+
+    const onGround = await run<{ type: string; id: string; role?: string }[]>('plan.query', { levelId: ground });
+    expect(onGround.filter((e) => e.type === 'connector').map((e) => e.role).sort()).toEqual(['bottom', 'bottom', 'stop']);
+    expect((await run<{ role: string }[]>('plan.query', { levelId: upper, type: 'connector' })).map((c) => c.role).sort()).toEqual(['stop', 'top', 'top']);
+
+    await run('plan.entity.delete', { ids: [copied.ids[0], label] });
+    expect(doc().connectors[copied.ids[0]]).toBeUndefined();
+    expect(doc().levelData[ground].entities[label]).toBeUndefined();
+    await run('plan.entity.delete', { ids: [lift] });
+    expect((await run<{ undo: { label: string }[] }>('edit.history', {})).undo[0].label).toBe('Delete elevator');
+  });
+});
+
 describe('path edits and conflicts', () => {
   it('moves, splits, curves and rounds a wall by index, and refuses a stale edit', async () => {
     const ground = doc().building.groundLevelId;

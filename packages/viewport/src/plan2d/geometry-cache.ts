@@ -1,4 +1,5 @@
-import { connectorCuts, cutSlabs, deriveRooms, deriveWalls, wallBody, type Entity, type LevelGeometry, type LevelWalls, type Opening, type Polygon, type ProjectDoc, type RuleLimits, type Wall, type WallBody } from '@studio/core';
+import { connectorCuts, cutSlabs, deriveConnector, deriveRooms, deriveWalls, wallBody, type Connector, type ConnectorGeometry, type Entity, type LevelGeometry, type LevelWalls, type Opening, type Polygon, type ProjectDoc, type RuleLimits, type Wall, type WallBody } from '@studio/core';
+import { planConnectors, type PlanConnector } from './connectors';
 
 const NO_CUTS: readonly Polygon[] = Object.freeze([]);
 
@@ -14,6 +15,8 @@ export class LevelGeometryCache {
   private readonly whole = new WeakMap<Record<string, Entity>, LevelGeometry>();
   private readonly cut = new WeakMap<LevelGeometry, { cuts: readonly Polygon[]; geometry: LevelGeometry }>();
   private readonly openings = new WeakMap<ProjectDoc['connectors'], { key: unknown[]; byLevel: Map<string, readonly Polygon[]> }>();
+  private readonly shown = new WeakMap<ProjectDoc['connectors'], { key: unknown[]; byLevel: Map<string, readonly PlanConnector[]> }>();
+  private readonly connectorGeometry = new WeakMap<Connector, { key: unknown[]; geometry: ConnectorGeometry }>();
 
   readonly bodyOf = (wall: Wall): WallBody => {
     let body = this.bodies.get(wall);
@@ -60,6 +63,28 @@ export class LevelGeometryCache {
       entry.byLevel.set(levelId, cuts);
     }
     return cuts;
+  }
+
+  /** The connectors a level shows with their geometry, the same array (and objects) until the connectors, the levels or the limits change. */
+  connectorsOn(doc: Pick<ProjectDoc, 'building' | 'levels' | 'connectors'>, levelId: string, limits: RuleLimits): readonly PlanConnector[] {
+    const key = [doc.building, doc.levels, limits];
+    let entry = this.shown.get(doc.connectors);
+    if (!entry || entry.key.some((k, i) => k !== key[i])) {
+      entry = { key, byLevel: new Map() };
+      this.shown.set(doc.connectors, entry);
+    }
+    let list = entry.byLevel.get(levelId);
+    if (!list) {
+      list = planConnectors(doc, levelId, limits, (c, levels) => {
+        const known = this.connectorGeometry.get(c);
+        if (known && known.key.every((k, i) => k === key[i])) return known.geometry;
+        const geometry = deriveConnector(c, levels, limits);
+        this.connectorGeometry.set(c, { key, geometry });
+        return geometry;
+      });
+      entry.byLevel.set(levelId, list);
+    }
+    return list;
   }
 
   /** The joined walls of a level's entities, leaving out `exclude` (hidden layers, a drag preview's walls). */

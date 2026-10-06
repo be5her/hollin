@@ -1,9 +1,11 @@
 import { columnPolygon, dimensionGeometry, dimensionOutline, distance, flatten, openingFrame, polygonContains, polygonEdgeDistance, regionContains, resolveDimension, wallBody, type Box, type Entity, type EntityType, type Layer, type LevelGeometry, type LevelWalls, type Polygon, type Region, type Vec2 } from '@studio/core';
+import { connectorDistance, type PlanConnector } from './connectors';
 import { searchScene, type LevelScene, type SceneItem } from './scene';
 
 export interface Hit {
   id: string;
-  type: EntityType;
+  /** The entity's type, or 'connector' for a stair, ramp, ladder, elevator or escalator. */
+  type: EntityType | 'connector';
   /** 0 inside the entity, else the distance to its outline (mm). */
   distance: number;
 }
@@ -16,10 +18,12 @@ export interface HitOptions {
   walls: LevelWalls | null;
   /** The level's geometry, so a detected room is hit anywhere in its space. */
   geometry?: LevelGeometry | null;
+  /** The connectors the level shows: hit anywhere on their footprint. They are on no layer, so never hidden or locked. */
+  connectors?: readonly PlanConnector[];
 }
 
 /** Smaller things first, then what they sit on; rooms and slabs last, so a click inside a room picks a wall or a door before the room. */
-const PRIORITY: Record<EntityType, number> = { opening: 0, dimension: 1, label: 1, column: 2, fixture: 2, point: 2, item: 2, light: 2, separator: 3, wall: 3, shape: 4, void: 5, shaft: 5, room: 6, slab: 7 };
+const PRIORITY: Record<EntityType | 'connector', number> = { opening: 0, dimension: 1, label: 1, column: 2, fixture: 2, point: 2, item: 2, light: 2, connector: 2.5, separator: 3, wall: 3, shape: 4, void: 5, shaft: 5, room: 6, slab: 7 };
 
 const GLYPH = 100;
 
@@ -116,6 +120,11 @@ export function hitAll(scene: LevelScene, p: Vec2, options: HitOptions): Hit[] {
     const d = entityDistance(item, p, scene, options);
     if (d !== null) hits.push({ id: item.id, type: item.type, distance: d });
   }
+  for (const pc of options.connectors ?? []) {
+    if (p[0] < pc.box.minX - t || p[0] > pc.box.maxX + t || p[1] < pc.box.minY - t || p[1] > pc.box.maxY + t) continue;
+    const d = connectorDistance(pc, p, t);
+    if (d !== null) hits.push({ id: pc.id, type: 'connector', distance: d });
+  }
   return hits.sort((a, b) => PRIORITY[a.type] - PRIORITY[b.type] || a.distance - b.distance);
 }
 
@@ -130,6 +139,12 @@ export function marqueeSelect(scene: LevelScene, box: Box, mode: 'window' | 'cro
     if (!visible(item, options)) continue;
     const inside = item.minX >= box.minX && item.maxX <= box.maxX && item.minY >= box.minY && item.maxY <= box.maxY;
     if (mode === 'window' ? inside : true) ids.push(item.id);
+  }
+  for (const pc of options.connectors ?? []) {
+    const b = pc.box;
+    const inside = b.minX >= box.minX && b.maxX <= box.maxX && b.minY >= box.minY && b.maxY <= box.maxY;
+    const touches = b.maxX >= box.minX && b.minX <= box.maxX && b.maxY >= box.minY && b.minY <= box.maxY;
+    if (mode === 'window' ? inside : touches) ids.push(pc.id);
   }
   return ids;
 }

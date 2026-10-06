@@ -57,6 +57,7 @@ export function renderLevelToPng(doc: ProjectDoc, levelId: string, options: Snap
     geometry: cache.level(entities, cache.cuts(doc, levelId, options.limits ?? DEFAULT_RULE_LIMITS)),
     underlay: null,
     showGrid: options.showGrid ?? false,
+    connectors: cache.connectorsOn(doc, levelId, options.limits ?? DEFAULT_RULE_LIMITS),
   };
   const canvas = options.createCanvas(size.width, size.height);
   const ctx = canvas.getContext('2d');

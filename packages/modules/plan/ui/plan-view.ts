@@ -90,6 +90,7 @@ export class PlanView {
     return p ? `${this.units.length(p[0])}, ${this.units.length(p[1])}` : '';
   });
   protected readonly entityCount = signal(0);
+  protected readonly connectorCount = signal(0);
   protected readonly frameMs = signal('0');
   protected readonly tool = signal<ToolId>('select');
   protected readonly isShapeTool = computed(() => this.tool() === 'shape' || this.tool() === 'rectangle' || this.tool() === 'circle');
@@ -151,6 +152,7 @@ export class PlanView {
     onCursor: (p) => this.cursor.set(p),
     onFrame: (stats) => {
       this.entityCount.set(stats.drawn);
+      this.connectorCount.set(stats.connectors);
       this.frameMs.set(stats.ms.toFixed(1));
     },
     onLevelStep: (direction) => this.stepLevel(direction),

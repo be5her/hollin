@@ -1,0 +1,121 @@
+@let c = connector();
+<section class="px-4 py-3 flex flex-col gap-2.5" [attr.data-kind]="c.kind">
+  <label>
+    <span class="block text-xs font-medium text-muted mb-1">Name</span>
+    <input xInput [formField]="f.name" placeholder="—" (blur)="setName()" (keydown.enter)="$any($event.target).blur()" data-testid="connector-name" />
+  </label>
+
+  @if (c.kind === 'stair') {
+    <label>
+      <span class="block text-xs font-medium text-muted mb-1">Shape</span>
+      <select xSelect class="w-full" [formField]="f.shape" (change)="set('shape', $any($event.target).value)" data-testid="connector-shape">
+        @for (s of shapes; track s.value) {
+          <option [value]="s.value">{{ s.label }}</option>
+        }
+      </select>
+    </label>
+  }
+
+  @if (c.kind !== 'elevator') {
+    <div class="grid grid-cols-2 gap-2">
+      <label>
+        <span class="block text-xs font-medium text-muted mb-1">From</span>
+        <select xSelect class="w-full" [formField]="f.bottomLevel" (change)="setEnd('bottom', 'levelId', $any($event.target).value)" data-testid="connector-bottom">
+          @for (l of levels(); track l.id) {
+            <option [value]="l.id">{{ l.name }}</option>
+          }
+        </select>
+      </label>
+      <label>
+        <span class="block text-xs font-medium text-muted mb-1">Above its floor</span>
+        <input xInput xLength class="font-mono" [formField]="f.bottomOffset" (commit)="setEnd('bottom', 'offset', $event)" />
+      </label>
+      <label>
+        <span class="block text-xs font-medium text-muted mb-1">To</span>
+        <select xSelect class="w-full" [formField]="f.topLevel" (change)="setEnd('top', 'levelId', $any($event.target).value)" data-testid="connector-top">
+          @for (l of levels(); track l.id) {
+            <option [value]="l.id">{{ l.name }}</option>
+          }
+        </select>
+      </label>
+      <label>
+        <span class="block text-xs font-medium text-muted mb-1">Above its floor</span>
+        <input xInput xLength class="font-mono" [formField]="f.topOffset" (commit)="setEnd('top', 'offset', $event)" />
+      </label>
+      <label>
+        <span class="block text-xs font-medium text-muted mb-1">Width</span>
+        <input xInput xLength class="font-mono" [formField]="f.width" (commit)="setLength('width', $event)" data-testid="connector-width" />
+      </label>
+      @if (c.kind === 'stair') {
+        <label>
+          <span class="block text-xs font-medium text-muted mb-1">Risers</span>
+          <input xInput class="font-mono" placeholder="auto" [formField]="f.risers" (blur)="setRisers()" (keydown.enter)="$any($event.target).blur()" data-testid="connector-risers" />
+        </label>
+      } @else if (c.kind === 'ramp') {
+        <label>
+          <span class="block text-xs font-medium text-muted mb-1">Steepest (%)</span>
+          <input xInput class="font-mono" [formField]="f.maxSlope" (blur)="setSlope()" (keydown.enter)="$any($event.target).blur()" data-testid="connector-max-slope" />
+        </label>
+      } @else if (c.kind === 'ladder') {
+        <label>
+          <span class="block text-xs font-medium text-muted mb-1">Angle</span>
+          <input xInput xAngle class="font-mono" [formField]="f.angle" (commit)="set('angle', $event)" />
+        </label>
+      }
+      @if (c.kind === 'ladder' || c.kind === 'escalator') {
+        <label>
+          <span class="block text-xs font-medium text-muted mb-1">Direction</span>
+          <input xInput xAngle class="font-mono" [formField]="f.direction" (commit)="set('direction', $event)" />
+        </label>
+      }
+    </div>
+    @if (c.kind === 'stair') {
+      <div class="flex items-center gap-4 text-xs">
+        <span class="text-muted">Handrails</span>
+        <label class="flex items-center gap-1.5"><input xCheckbox type="checkbox" [formField]="f.railLeft" (change)="setRail('left', $any($event.target).checked)" /> Left</label>
+        <label class="flex items-center gap-1.5"><input xCheckbox type="checkbox" [formField]="f.railRight" (change)="setRail('right', $any($event.target).checked)" /> Right</label>
+      </div>
+    }
+  } @else {
+    <div class="grid grid-cols-2 gap-2">
+      <label><span class="block text-xs font-medium text-muted mb-1">Shaft width</span><input xInput xLength class="font-mono" [formField]="f.shaftW" (commit)="setSize('shaft', 'w', $event)" data-testid="connector-shaft-w" /></label>
+      <label><span class="block text-xs font-medium text-muted mb-1">Shaft depth</span><input xInput xLength class="font-mono" [formField]="f.shaftD" (commit)="setSize('shaft', 'd', $event)" /></label>
+      <label><span class="block text-xs font-medium text-muted mb-1">Car width</span><input xInput xLength class="font-mono" [formField]="f.carW" (commit)="setSize('car', 'w', $event)" /></label>
+      <label><span class="block text-xs font-medium text-muted mb-1">Car depth</span><input xInput xLength class="font-mono" [formField]="f.carD" (commit)="setSize('car', 'd', $event)" /></label>
+      <label><span class="block text-xs font-medium text-muted mb-1">Rotation</span><input xInput xAngle class="font-mono" [formField]="f.rotation" (commit)="set('rotation', $event)" /></label>
+    </div>
+    <div class="flex flex-col gap-1" data-testid="connector-stops">
+      <span class="text-xs font-medium text-muted">Stops</span>
+      @for (s of stops(); track s.levelId) {
+        <div class="flex items-center gap-2 text-xs" data-testid="connector-stop" [attr.data-level]="s.levelId">
+          <label class="flex items-center gap-1.5 flex-1 min-w-0">
+            <input xCheckbox type="checkbox" [checked]="s.stop" (change)="setStop(s.levelId, { stop: $any($event.target).checked })" />
+            <span class="truncate">{{ s.name }}</span>
+          </label>
+          @if (s.stop) {
+            <select xSelect class="w-28" [value]="s.door" (change)="setStop(s.levelId, { door: $any($event.target).value })" aria-label="Door side">
+              <option value="front" [selected]="s.door === 'front'">Door front</option>
+              <option value="back" [selected]="s.door === 'back'">Door back</option>
+              <option value="left" [selected]="s.door === 'left'">Door left</option>
+              <option value="right" [selected]="s.door === 'right'">Door right</option>
+            </select>
+          }
+        </div>
+      }
+    </div>
+  }
+
+  @if (derived(); as d) {
+    <div class="mt-1 rounded-md bg-surface/60 border border-edge px-2.5 py-2 text-xs flex flex-col gap-0.5" data-testid="connector-derived">
+      @for (line of d.lines; track $index) {
+        <div class="font-mono">{{ line }}</div>
+      }
+      @for (b of d.broken; track $index) {
+        <div class="text-warning" data-testid="connector-broken">{{ b }}</div>
+      }
+    </div>
+  }
+  @if (c.kind === 'stair' || c.kind === 'ramp') {
+    <div class="text-[11px] text-muted">Drag the grips on the plan to reshape its walk line; click a corner to round it.</div>
+  }
+</section>

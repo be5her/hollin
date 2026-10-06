@@ -37,6 +37,8 @@
   --plan-snap: #1f8a4c;
   --plan-selection: #2f6fda;
   --plan-warning: #b7791f;
+  --plan-connector: #33363c;
+  --plan-connector-fill: #f1f1ee;
 }
 
 .dark {
@@ -65,6 +67,8 @@
   --plan-snap: #4fcf86;
   --plan-selection: #5b9bf8;
   --plan-warning: #f0b94a;
+  --plan-connector: #d5d7db;
+  --plan-connector-fill: #1b1c1f;
 }
 
 @theme inline {

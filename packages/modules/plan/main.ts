@@ -6,6 +6,7 @@ import {
   PathSchema,
   RegionSchema,
   StudioError,
+  addConnectorOps,
   addEntityOps,
   addLayerOps,
   assertUnchanged,
@@ -13,6 +14,8 @@ import {
   bulgeThrough,
   changedFields,
   connectorCutsLevel,
+  connectorPath,
+  connectorsOnLevel,
   defineCommand,
   defineModule,
   deleteEntitiesOps,
@@ -25,6 +28,7 @@ import {
   entitiesOnLevel,
   fitOpening,
   insertVertex,
+  isConnectorId,
   labelPoint,
   moveLayerOps,
   moveVertex,
@@ -38,24 +42,30 @@ import {
   remapRefs,
   resolveDimension,
   untiedFields,
+  removeConnectorOps,
   removeLayerOps,
   removeVertex,
   requireEntity,
   setCorner,
   setSegment,
+  transformConnector,
   transformEntity,
   unclaimedCavities,
+  updateConnectorOps,
   updateEntityOps,
   withPath,
   type CommandContext,
+  type Connector,
   type Dimension,
   type EditContext,
   type Entity,
   type Op,
+  type NewConnector,
   type Opening,
   type Path,
   type Polygon,
   type ProjectApi,
+  type ProjectDoc,
   type Transform,
   type Vec2,
   type Vertex,
@@ -81,7 +91,8 @@ const PathEdit = { id: z.string(), which: WhichSchema, index: z.number().int().m
  * Runs one path edit on an entity as a transaction, with the conflict check inside the edit queue.
  * `remap` says where each vertex of the outline went (null: removed), so dimensions tied to it follow.
  */
-async function editPath(ctx: CommandContext, input: { id: string; which: WhichPath; baseSeq?: number; epoch?: number }, label: string, change: (path: Path) => Path, remap?: (vertex: number) => number | null): Promise<Entity> {
+async function editPath(ctx: CommandContext, input: { id: string; which: WhichPath; baseSeq?: number; epoch?: number }, label: string, change: (path: Path) => Path, remap?: (vertex: number) => number | null): Promise<Entity | Connector> {
+  if (isConnectorId(input.id)) return editConnectorAxis(ctx, input, label, change);
   const type = requireEntity(ctx.project!.doc, input.id).type;
   await editProject(ctx, `${label} of ${type}`, (tx) => {
     assertUnchanged(ctx, input.id, type, input.baseSeq, input.epoch);
@@ -106,6 +117,31 @@ async function editPath(ctx: CommandContext, input: { id: string; which: WhichPa
     }
   });
   return requireEntity(ctx.project!.doc, input.id);
+}
+
+function requireConnector(doc: ProjectDoc, id: string): Connector {
+  const connector = doc.connectors[id];
+  if (!connector) throw new StudioError('NOT_FOUND', `No connector ${id}`);
+  return connector;
+}
+
+/** A path edit on a stair's or ramp's axis: the same edits and conflict check as an entity's path. */
+async function editConnectorAxis(ctx: CommandContext, input: { id: string; which: WhichPath; baseSeq?: number; epoch?: number }, label: string, change: (path: Path) => Path): Promise<Connector> {
+  const kind = requireConnector(ctx.project!.doc, input.id).kind;
+  await editProject(ctx, `${label} of ${kind}`, (tx) => {
+    assertUnchanged(ctx, input.id, kind, input.baseSeq, input.epoch);
+    const connector = requireConnector(tx.doc, input.id);
+    const path = connectorPath(connector);
+    if (!path || input.which !== 'outer') throw new StudioError('INVALID_INPUT', `A ${connector.kind} has no ${path ? `hole` : 'axis'} to edit`);
+    let next: Path;
+    try {
+      next = change(path);
+    } catch (err) {
+      throw new StudioError('INVALID_INPUT', (err as Error).message);
+    }
+    tx.apply(updateConnectorOps(tx.doc, input.id, { axis: next }));
+  });
+  return requireConnector(ctx.project!.doc, input.id);
 }
 
 /** The wall paths a `plan.wall.add` input describes: one per segment, or one for the whole run. */
@@ -227,7 +263,8 @@ export const planModule = defineModule({
     defineCommand({
       id: 'plan.query',
       title: 'Find entities',
-      description: 'Lists the entities on a level (including columns, shafts and voids that pass through it), optionally only one layer, one type, or given ids.',
+      description:
+        "Lists the entities on a level (including columns, shafts and voids that pass through it), optionally only one layer, one type, or given ids. With `levelId`, the stairs, ramps, ladders, elevators and escalators that reach the level follow, as `{ type: 'connector', role, ...connector }` where role is bottom, top, stop (an elevator stops there) or crosses (it only passes through); `type: 'connector'` lists only those.",
       scope: 'project',
       input: z.object({ levelId: levelId.optional(), layerId: layerId.optional(), type: z.string().optional(), ids: z.array(z.string()).optional() }),
       handler: async ({ levelId: lv, layerId: layer, type, ids }, ctx) => {
@@ -237,7 +274,11 @@ export const planModule = defineModule({
         if (layer) entities = entities.filter((e) => e.layerId === layer);
         if (type) entities = entities.filter((e) => e.type === type);
         if (ids) entities = entities.filter((e) => ids.includes(e.id));
-        return entities;
+        if (!lv || layer || (type && type !== 'connector')) return entities;
+        const connectors = connectorsOnLevel(doc, lv)
+          .filter(({ connector }) => !ids || ids.includes(connector.id))
+          .map(({ connector, role }) => ({ type: 'connector' as const, role, ...connector }));
+        return [...entities, ...connectors];
       },
     }),
     defineCommand({
@@ -537,7 +578,7 @@ export const planModule = defineModule({
       id: 'plan.transform',
       title: 'Move, rotate, mirror or copy entities',
       description:
-        'Moves entities by `translate` [dx, dy], rotates them by `rotate.angle` degrees (counter-clockwise) about `rotate.pivot`, or mirrors them across the line from `mirror.a` to `mirror.b`; several may be combined (mirror, then rotate, then move). With `copy`, the originals stay and transformed copies are made (a wall\'s openings come along; `translate` [0, 0] copies in place). Openings are not moved on their own: they follow their wall. `nudge` merges quick repeated moves into one undo step. Returns the ids of the moved entities, or of the copies.',
+        'Moves entities by `translate` [dx, dy], rotates them by `rotate.angle` degrees (counter-clockwise) about `rotate.pivot`, or mirrors them across the line from `mirror.a` to `mirror.b`; several may be combined (mirror, then rotate, then move). With `copy`, the originals stay and transformed copies are made (a wall\'s openings come along; `translate` [0, 0] copies in place). Openings are not moved on their own: they follow their wall. Stairs, ramps, ladders, elevators and escalators move the same way on the plan (their levels stay). `nudge` merges quick repeated moves into one undo step. Returns the ids of the moved entities, or of the copies.',
       scope: 'project',
       batchable: true,
       input: z.object({
@@ -552,8 +593,10 @@ export const planModule = defineModule({
         if (!translate && !rotate && !mirror && !copy) throw new StudioError('INVALID_INPUT', 'Give translate, rotate or mirror (or copy)');
         const xf: Transform = { ...(translate ? { translate } : {}), ...(rotate ? { rotate } : {}), ...(mirror ? { mirror } : {}) };
         const doc = ctx.project!.doc;
-        const selected = ids.map((id) => requireEntity(doc, id));
-        const what = selected.length === 1 ? selected[0].type : `${selected.length} items`;
+        const connectorIds = ids.filter(isConnectorId);
+        const connectors = connectorIds.map((id) => requireConnector(doc, id));
+        const selected = ids.filter((id) => !isConnectorId(id)).map((id) => requireEntity(doc, id));
+        const what = ids.length === 1 ? (selected[0]?.type ?? connectors[0].kind) : `${ids.length} items`;
         const label = copy ? `Copy ${what}` : rotate ? `Rotate ${what}` : mirror ? `Mirror ${what}` : nudge ? `Nudge ${what}` : `Move ${what}`;
         const { result } = await editProject(
           ctx,
@@ -584,8 +627,17 @@ export const planModule = defineModule({
                 const moved = transformEntity({ ...source, id }, xf);
                 ops.push({ t: 'ins', c: 'entity', id, lv: e.levelId, v: moved });
               }
+              for (const c of connectors) {
+                const added = addConnectorOps(transformConnector(c, xf) as unknown as NewConnector);
+                map.set(c.id, added.id);
+                ops.push(...added.ops);
+              }
               tx.apply(ops);
-              return selected.map((e) => map.get(e.id)).filter((id): id is string => Boolean(id));
+              return ids.map((id) => map.get(id)).filter((id): id is string => Boolean(id));
+            }
+            for (const c of connectors) {
+              const set = changedFields(c as unknown as Entity, transformConnector(c, xf) as unknown as Entity);
+              if (Object.keys(set).length) tx.apply(updateConnectorOps(tx.doc, c.id, set));
             }
             for (const e of selected) {
               if (e.type === 'opening') {
@@ -654,7 +706,7 @@ export const planModule = defineModule({
     defineCommand({
       id: 'plan.path.vertex.move',
       title: 'Move a corner',
-      description: "Moves vertex `index` of an entity's path (a wall's, shape's or divider's path, or a region's outline or hole) to a point. Returns the entity.",
+      description: "Moves vertex `index` of an entity's path (a wall's, shape's or divider's path, a region's outline or hole, or a stair's or ramp's axis given the connector's id) to a point. Returns the entity or connector.",
       scope: 'project',
       batchable: true,
       input: z.object({ ...PathEdit, to: Point }),
@@ -699,13 +751,16 @@ export const planModule = defineModule({
     defineCommand({
       id: 'plan.entity.delete',
       title: 'Delete entities',
-      description: 'Deletes entities (openings in a deleted wall go with it). Can be undone.',
+      description: 'Deletes entities (openings in a deleted wall go with it), and stairs, ramps, ladders, elevators or escalators given by id. Can be undone.',
       scope: 'project',
       batchable: true,
       input: z.object({ ids: z.array(z.string()).min(1) }),
       handler: async ({ ids }, ctx) => {
-        const { result } = await editProject(ctx, ids.length === 1 ? `Delete ${requireEntity(ctx.project!.doc, ids[0]).type}` : `Delete ${ids.length} items`, (tx) => {
-          const ops = deleteEntitiesOps(tx.doc, ids);
+        const doc = ctx.project!.doc;
+        const what = ids.length === 1 ? (isConnectorId(ids[0]) ? requireConnector(doc, ids[0]).kind : requireEntity(doc, ids[0]).type) : `${ids.length} items`;
+        const { result } = await editProject(ctx, `Delete ${what}`, (tx) => {
+          const entityIds = ids.filter((id) => !isConnectorId(id));
+          const ops = [...(entityIds.length ? deleteEntitiesOps(tx.doc, entityIds) : []), ...ids.filter(isConnectorId).flatMap((id) => removeConnectorOps(tx.doc, id))];
           tx.apply(ops);
           return ops.map((o) => o.id);
         });

@@ -1,7 +1,9 @@
+import { NgTemplateOutlet } from '@angular/common';
 import { Component, computed, inject, input, linkedSignal, untracked } from '@angular/core';
 import { FormField, form } from '@angular/forms/signals';
-import { arcGeometry, bulgeOf, dimensionGeometry, distance, findEntity, formatArea, pathLength, pathOfEntity, resolveDimension, signedArea, type Entity, type Path, type Vec2 } from '@studio/core';
+import { arcGeometry, bulgeOf, connectorPath, dimensionGeometry, distance, findEntity, formatArea, isConnectorId, pathLength, pathOfEntity, resolveDimension, signedArea, type Connector, type Entity, type Path, type Vec2 } from '@studio/core';
 import { AngleInput, Checkbox, EmptyState, HostBridge, Input, LengthInput, ProjectDocs, Select, Toasts, Units } from '@studio/ui';
+import { ConnectorProperties } from './connector-properties';
 import { PlanGeometry } from './plan-geometry';
 import { PlanSelection } from './plan-selection';
 
@@ -53,7 +55,7 @@ interface VertexDraft {
  */
 @Component({
   selector: 'x-properties-panel',
-  imports: [AngleInput, Checkbox, EmptyState, FormField, Input, LengthInput, Select],
+  imports: [AngleInput, Checkbox, ConnectorProperties, EmptyState, FormField, Input, LengthInput, NgTemplateOutlet, Select],
   templateUrl: './properties-panel.html',
   host: { class: 'flex flex-col', 'data-testid': 'properties-panel' },
 })
@@ -76,6 +78,12 @@ export class PropertiesPanel {
     return this.selected().ids.map((id) => findEntity(doc, id)).filter((e): e is Entity => Boolean(e));
   });
   protected readonly entity = computed(() => (this.entities().length === 1 ? this.entities()[0] : null));
+  /** The one selected stair, ramp, ladder, elevator or escalator. */
+  protected readonly connector = computed((): Connector | null => {
+    const ids = this.selected().ids;
+    const doc = this.state()?.doc;
+    return ids.length === 1 && isConnectorId(ids[0]) && doc ? (doc.connectors[ids[0]] ?? null) : null;
+  });
   protected readonly sameType = computed(() => {
     const list = this.entities();
     return list.length > 1 && list.every((e) => e.type === list[0].type) ? list[0].type : null;
@@ -159,6 +167,8 @@ export class PropertiesPanel {
   protected readonly vertexPath = computed((): Path | null => {
     const v = this.vertexRef();
     const e = this.entity();
+    const c = this.connector();
+    if (v && c && c.id === v.id) return v.which === 'outer' ? connectorPath(c) : null;
     return v && e && e.id === v.id ? pathOfEntity(e, v.which) : null;
   });
   protected readonly vertexDraft = linkedSignal<{ path: Path | null; index: number }, VertexDraft>({
@@ -329,6 +339,10 @@ export class PropertiesPanel {
       const d2 = field === 'd2' ? mm : (this.units.parseLength(d.d2) ?? d1);
       this.pathEdit('plan.path.corner.set', { corner: { k: 'chamfer', d1, d2 } });
     }
+  }
+
+  protected connectorName(c: Connector): string {
+    return { stair: 'Stair', ladder: 'Ladder', ramp: 'Ramp', elevator: 'Elevator', escalator: 'Escalator' }[c.kind];
   }
 
   protected typeName(e: Entity): string {
