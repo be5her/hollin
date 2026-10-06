@@ -12,8 +12,9 @@ Windows, macOS and Linux, built with Electron and Angular.
 | 2. Project library: storage, index, Home screen, tabs, autosave, snapshots, trash, packages | done |
 | 3. Document model: building, levels, layers, entities, connectors, transactions, undo, live mirror | done |
 | 4. 2D editor: plan view, walls and joins, snapping, exact input, openings, rooms, shapes, dimensions, thumbnails | done |
-| 5. Vertical circulation: stairs, ramps and elevators on the plan, slab openings, plan symbols, rule warnings | next |
-| 6–9. AI tools and assistant, 3D view, decor, export | planned |
+| 5. Vertical circulation: stairs, ramps and elevators on the plan, slab openings, plan symbols, drawing tools, angle tracking, rule warnings | done |
+| 6. AI tools and the in-app assistant | next |
+| 7–9. 3D view, decor, export | planned |
 
 ## Development
 
@@ -55,7 +56,7 @@ Every feature is a set of **commands** with zod input schemas, registered in one
 
 **Mutating** commands (delete, write outside the library, otherwise destructive) are refused to MCP agents until the user allows it in Settings, and the assistant will ask the user first. Ordinary design edits are undoable transactions instead.
 
-The **document** of an open project lives in the main process: a building (datum, ground level, level stack) with levels, per-level layers and entities, and connectors between levels. Elevations are derived from the stack. Every edit is a validated transaction with a label and an author on one undo stack; the renderer mirrors the document from `doc.patched` events. See `packages/modules/building`, `plan` and `edit`.
+The **document** of an open project lives in the main process: a building (datum, ground level, level stack) with levels, per-level layers and entities, and connectors between levels. Elevations are derived from the stack. Every edit is a validated transaction with a label and an author on one undo stack; the renderer mirrors the document from `doc.patched` events. The stairs, ramps and elevators between levels are stored as intent (a walk line, levels, a width) and everything else about them (risers, treads, the holes they cut in the slabs, the limits they break) is derived from the level heights and the rule limits, never stored; a rules watcher in main keeps the warnings current. See `packages/modules/building`, `plan`, `edit` and `rules`.
 
 Projects live in one **library** folder the app owns (see `packages/modules/library/README.md`): crash-safe saves, autosave, snapshots, a restorable trash and single-file packages.
 
