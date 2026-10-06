@@ -1,4 +1,4 @@
-import { DEFAULT_RULE_LIMITS, defaultConfig, type ProjectDoc, type RuleLimits, type UnitSettings } from '@studio/core';
+import { DEFAULT_RULE_LIMITS, defaultConfig, entitiesOnLevel, type Entity, type ProjectDoc, type RuleLimits, type UnitSettings } from '@studio/core';
 import { fitBox } from './camera';
 import { LevelGeometryCache } from './geometry-cache';
 import { renderPlan, type RenderFrame } from './render';
@@ -30,8 +30,11 @@ export interface SnapshotOptions {
  * to draw (the Home card keeps its placeholder) or the canvas gives no 2D context.
  */
 export function renderLevelToPng(doc: ProjectDoc, levelId: string, options: SnapshotOptions): string | null {
-  const entities = doc.levelData[levelId]?.entities;
-  if (!entities) return null;
+  const own = doc.levelData[levelId]?.entities;
+  if (!own) return null;
+  // Columns, shafts and voids spanning up from other levels show here too, as on the plan view (`Plan2dEditor.entitiesOf`).
+  const spanning = entitiesOnLevel(doc, levelId).filter((e) => e.levelId !== levelId);
+  const entities: Record<string, Entity> = spanning.length ? { ...own, ...Object.fromEntries(spanning.map((e) => [e.id, e])) } : own;
   // Text and seeds alone make no plan worth a thumbnail.
   if (!Object.values(entities).some((e) => DRAWN.has(e.type) || (e.type === 'room' && e.boundary.k === 'region'))) return null;
   const scene = createLevelScene(levelId);

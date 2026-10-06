@@ -1,4 +1,5 @@
 import type { z } from 'zod';
+import type { AssistantEvent } from './assistant-types';
 import type { ConfigPatch, GlobalConfig } from './config';
 import type { Author, DocPatch, EditContext, HistoryInfo, HistoryState, LastTouched } from './doc/engine';
 import { StudioError } from './errors';
@@ -147,6 +148,10 @@ export interface HostApi {
   /** Runs another command with the given context (e.g. the steps of `plan.apply`). */
   execute(id: string, input: unknown, ctx: CommandContext): Promise<unknown>;
   meta(id: string): CommandMeta | undefined;
+  /** Every command's metadata, hidden ones included (an agent-facing caller filters on `hidden`). */
+  listCommands(): CommandMeta[];
+  /** A command's input as JSON Schema (`toolInputSchema`), for tool definitions. */
+  inputSchema(id: string): Record<string, unknown> | undefined;
   /** Native dialogs, present when the host has a window. */
   dialogs?: {
     pickFile(options?: FileDialogOptions): Promise<string | undefined>;
@@ -158,8 +163,9 @@ export interface HostApi {
   /** Listen to the host's events in main (a module's watcher); returns the function that stops listening. */
   on<E extends HostEventName>(event: E, listener: (payload: HostEvents[E]) => void): () => void;
   /**
-   * Ask the user in the UI whether the in-app assistant may run a mutating command.
-   * Absent until the assistant exists; mutating assistant calls are refused meanwhile.
+   * Ask the user in the UI whether the in-app assistant may run a mutating command. The assistant
+   * module installs it when it starts (the question appears in the chat); without it, mutating
+   * assistant calls are refused with MUTATION_BLOCKED.
    */
   confirmMutation?(request: MutationRequest): Promise<boolean>;
 }
@@ -266,6 +272,10 @@ export interface HostEvents {
   'doc.patched': DocPatch & { projectId: string };
   /** A project's warnings changed (see `rules.check`); `count` is the new total. */
   'rules.changed': { projectId: string; count: number };
+  /** `view.snapshot` asks a window to draw a level; the window answers with the hidden `view.snapshot.reply`. */
+  'view.snapshot.request': { id: string; projectId: string; levelId: string; width: number; height: number };
+  /** The assistant's chat for a project changed: the whole chat after a structural change, or a text delta while a reply streams. */
+  'assistant.event': { projectId: string; event: AssistantEvent };
 }
 
 export type HostEventName = keyof HostEvents;

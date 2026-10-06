@@ -12,6 +12,8 @@ export const ERROR_CODES = [
   'CONFLICT',
   /** A file was written by a newer version of the app and cannot be opened safely. */
   'UNSUPPORTED_VERSION',
+  /** The host cannot do this right now, e.g. a snapshot with no window to draw it. */
+  'UNAVAILABLE',
   'INTERNAL',
 ] as const;
 

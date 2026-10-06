@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addEntityOps, applyPatch, newProjectDoc, rectPath } from '@studio/core';
+import { addEntityOps, addLevelOps, applyPatch, newProjectDoc, rectPath } from '@studio/core';
 import { renderLevelToPng } from './offscreen';
 
 /** A canvas whose 2D context swallows every call, enough to run the renderer in node. */
@@ -34,5 +34,23 @@ describe('renderLevelToPng', () => {
     // The background was painted over the whole canvas.
     expect(log[0]).toBe('fillRect 0,0,480,360');
     expect(renderLevelToPng(doc, 'lvl_0000000000000000', { width: 10, height: 10, createCanvas: fakeCanvas([]) })).toBeNull();
+  });
+
+  it('draws the columns, shafts and voids that span up from other levels, as the plan view does', () => {
+    let doc = newProjectDoc({ name: 'Span' });
+    const ground = doc.building.groundLevelId;
+    const added = addLevelOps(doc, { position: 'top' });
+    doc = applyPatch(doc, added.ops);
+    const upper = added.levelId;
+    // Nothing of its own upstairs: the level is empty until the column from downstairs spans it.
+    expect(renderLevelToPng(doc, upper, { width: 100, height: 100, createCanvas: fakeCanvas([]) })).toBeNull();
+    doc = applyPatch(doc, addEntityOps(doc, { levelId: ground, entity: { type: 'column', at: [1000, 1000], shape: { k: 'rect', w: 400, d: 400 }, rotation: 0, span: { topLevelId: upper, baseOffset: 0, topOffset: 3000 } } }).ops);
+    expect(renderLevelToPng(doc, upper, { width: 100, height: 100, createCanvas: fakeCanvas([]) })).toBe('iVBORw0KGgo=');
+    // A column that stops at the upper floor's slab (topOffset 0) does not show there.
+    let doc2 = newProjectDoc({ name: 'Stop' });
+    const up2 = addLevelOps(doc2, { position: 'top' });
+    doc2 = applyPatch(doc2, up2.ops);
+    doc2 = applyPatch(doc2, addEntityOps(doc2, { levelId: doc2.building.groundLevelId, entity: { type: 'column', at: [0, 0], shape: { k: 'rect', w: 400, d: 400 }, rotation: 0, span: { topLevelId: up2.levelId, baseOffset: 0, topOffset: 0 } } }).ops);
+    expect(renderLevelToPng(doc2, up2.levelId, { width: 100, height: 100, createCanvas: fakeCanvas([]) })).toBeNull();
   });
 });

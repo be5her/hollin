@@ -41,3 +41,4 @@ export * from './rules/check';
 export * from './describe/describe';
 export * from './tools';
 export * from './guidelines';
+export * from './assistant-types';

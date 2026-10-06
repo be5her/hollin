@@ -4,6 +4,7 @@ import {
   CommandRegistry,
   StudioError,
   toErrorPayload,
+  toolInputSchema,
   type Caller,
   type ErrorPayload,
   type HostApi,
@@ -92,6 +93,11 @@ export class Host {
       dialogs: opts.dialogs,
       execute: (id, input, ctx) => this.registry.execute(id, input, ctx),
       meta: (id) => this.registry.meta(id),
+      listCommands: () => this.registry.list(),
+      inputSchema: (id) => {
+        const entry = this.registry.get(id);
+        return entry ? toolInputSchema(entry.command.input) : undefined;
+      },
       emit: (event, payload) => this.emit(event, payload),
       on: (event, listener) => this.onEvent((message) => void (message.event === event && listener(message.payload as never))),
     };

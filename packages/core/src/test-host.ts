@@ -1,6 +1,8 @@
 import { defaultConfig, mergeConfig, type ConfigPatch, type GlobalConfig } from './config';
 import { StudioError } from './errors';
-import type { HostApi, HostEventMessage, MutationRequest, ProjectsApi, SecretsApi } from './types';
+import type { CommandRegistry } from './registry';
+import { toolInputSchema } from './tools';
+import type { CommandContext, HostApi, HostEventMessage, MutationRequest, ProjectsApi, SecretsApi } from './types';
 
 /** A projects API with no library: there is never a current project, and everything else fails. */
 const noProjects = new Proxy({} as ProjectsApi, {
@@ -17,8 +19,8 @@ const noProjects = new Proxy({} as ProjectsApi, {
   },
 });
 
-/** An in-memory host for unit tests: config, secrets and the events that were emitted. */
-export function testHost(options: { config?: ConfigPatch; confirm?: (request: MutationRequest) => boolean } = {}): HostApi & { events: HostEventMessage[] } {
+/** An in-memory host for unit tests: config, secrets and the events that were emitted. With `registry`, `execute` and the command listing run against it. */
+export function testHost(options: { config?: ConfigPatch; confirm?: (request: MutationRequest) => boolean; registry?: CommandRegistry; projects?: ProjectsApi } = {}): HostApi & { events: HostEventMessage[] } {
   let config: GlobalConfig = mergeConfig(defaultConfig(), options.config ?? {});
   const values = new Map<string, string>();
   const secrets: SecretsApi = {
@@ -38,9 +40,14 @@ export function testHost(options: { config?: ConfigPatch; confirm?: (request: Mu
       update: async (patch) => (config = mergeConfig(config, patch)),
     },
     secrets,
-    projects: noProjects,
-    execute: () => Promise.reject(new StudioError('INTERNAL', 'The test host runs no other commands')),
-    meta: () => undefined,
+    projects: options.projects ?? noProjects,
+    execute: (id: string, input: unknown, ctx: CommandContext) => (options.registry ? options.registry.execute(id, input, ctx) : Promise.reject(new StudioError('INTERNAL', 'The test host runs no other commands'))),
+    meta: (id) => options.registry?.meta(id),
+    listCommands: () => options.registry?.list() ?? [],
+    inputSchema: (id) => {
+      const entry = options.registry?.get(id);
+      return entry ? toolInputSchema(entry.command.input) : undefined;
+    },
     emit: (event, payload) => {
       const message = { event, payload } as HostEventMessage;
       events.push(message);

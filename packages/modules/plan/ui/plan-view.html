@@ -1,4 +1,4 @@
-<div class="flex items-center gap-1.5 px-1.5 h-9 border-b border-edge bg-surface shrink-0 text-xs overflow-hidden" data-testid="plan-toolbar">
+<div class="flex flex-wrap items-center gap-x-1.5 gap-y-1 px-1.5 py-1 min-h-9 border-b border-edge bg-surface shrink-0 text-xs" data-testid="plan-toolbar">
   <div class="flex items-center shrink-0" role="toolbar" aria-label="Tools">
     <button xIconButton size="sm" label="Select (V)" [class.bg-elevated]="tool() === 'select'" [class.text-fg]="tool() === 'select'" [attr.aria-pressed]="tool() === 'select'" (click)="chooseTool('select')" data-testid="tool-select">
       <svg [xIcon]="icons.MousePointer2" class="size-3.5"></svg>
@@ -54,12 +54,12 @@
   </div>
   <div class="w-px h-5 bg-edge"></div>
   <label class="sr-only" for="plan-level-select">Level</label>
-  <select xSelect id="plan-level-select" class="h-7 text-xs min-w-0 shrink max-w-56" (change)="chooseLevel($any($event.target).value)" data-testid="plan-level" aria-label="Level">
+  <select xSelect id="plan-level-select" class="h-7 text-xs shrink-0 w-44" (change)="chooseLevel($any($event.target).value)" data-testid="plan-level" aria-label="Level">
     @for (level of levelsTopDown(); track level.id) {
       <option [value]="level.id" [selected]="level.id === activeLevelId()">{{ level.name }} · {{ units.length(level.elevation) }}</option>
     }
   </select>
-  <select xSelect class="h-7 text-xs min-w-0 shrink max-w-40" (change)="chooseUnderlay($any($event.target).value)" data-testid="plan-underlay" aria-label="Reference level">
+  <select xSelect class="h-7 text-xs shrink-0 w-32" (change)="chooseUnderlay($any($event.target).value)" data-testid="plan-underlay" aria-label="Reference level">
     <option value="none" [selected]="underlay() === 'none'">No reference</option>
     <option value="below" [selected]="underlay() === 'below'">Level below</option>
     <option value="above" [selected]="underlay() === 'above'">Level above</option>

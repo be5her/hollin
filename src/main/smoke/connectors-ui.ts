@@ -80,7 +80,11 @@ export async function smokeConnectorsUi(smoke: Smoke, duplexId: string): Promise
   const top = v.at([2000, 4750]);
   const further = v.at([2000, 5250]);
   await smoke.dragAt(top, further, { modifiers: ['alt'] });
-  smoke.check("dragging the top of the stair's walk line lengthens it", await smoke.until(() => axis() === '2000,1000 2000,5250'), axis());
+  // The pointer lands on whole pixels, so the top ends where that pixel maps to: within a pixel of the asked point.
+  const axisPoints = () => (doc().connectors[stairId] as { axis: { v: { p: readonly [number, number] }[] } }).axis.v.map((x) => x.p);
+  const within = (p: readonly [number, number], q: readonly [number, number], tol: number) => Math.abs(p[0] - q[0]) <= tol && Math.abs(p[1] - q[1]) <= tol;
+  const pixel = 1 / v.cam.scale + 0.01;
+  smoke.check("dragging the top of the stair's walk line lengthens it", await smoke.until(() => within(axisPoints()[1], [2000, 5250], pixel) && within(axisPoints()[0], [2000, 1000], 0.01)), axis());
   smoke.check('and regenerates its treads', await smoke.waitFor(`${tab} [data-testid=connector-derived]`, 3000, '16 risers'));
   await smoke.key('Z', ['control']);
   await smoke.until(() => axis() === '2000,1000 2000,4750');

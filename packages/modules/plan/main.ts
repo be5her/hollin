@@ -254,6 +254,10 @@ async function runSteps(ctx: CommandContext, steps: z.infer<typeof StepSchema>[]
   return { results, ids: Object.fromEntries(refs) };
 }
 
+/** Snapshots waiting for a window to draw them, by request id. */
+const pendingSnapshots = new Map<string, { resolve: (png: string) => void; reject: (err: Error) => void; timer: ReturnType<typeof setTimeout> }>();
+const SNAPSHOT_TIMEOUT = 10_000;
+
 /**
  * Editing on a level: layers and entities (walls, openings, rooms, fixtures, items…), and
  * `plan.apply`, which runs many edits as one transaction and one undo step.
@@ -290,6 +294,52 @@ export const planModule = defineModule({
       scope: 'project',
       input: z.object({}),
       handler: async (_input, ctx) => describeDesign(ctx.project!.doc, ctx.host.config.get().rules),
+    }),
+    defineCommand({
+      id: 'view.snapshot',
+      title: 'Snapshot of a level',
+      description:
+        "Draws one level's plan from above (walls joined, openings cut, rooms with their names and areas, stairs and elevators with their symbols, columns, slabs, dimensions and labels) fitted into a PNG and returns it as an image, with the level's id and name and the image size. The ground level unless `levelId` is given. Use it to look at the result of a change. Needs the app window: it fails with UNAVAILABLE when no window can draw, and with NOT_FOUND when nothing is drawn on the level yet.",
+      scope: 'project',
+      output: 'image',
+      input: z.object({
+        levelId: levelId.optional().describe('Default: the ground level'),
+        width: z.number().int().min(64).max(2048).default(800).describe('Pixels'),
+        height: z.number().int().min(64).max(2048).default(600).describe('Pixels'),
+      }),
+      handler: async ({ levelId: lv, width, height }, ctx) => {
+        const doc = ctx.project!.doc;
+        const level = lv ?? doc.building.groundLevelId;
+        if (!doc.levels[level]) throw new StudioError('NOT_FOUND', `No level ${level}`);
+        const id = newId('snp');
+        const png = new Promise<string>((resolve, reject) => {
+          const timer = setTimeout(() => {
+            pendingSnapshots.delete(id);
+            reject(new StudioError('UNAVAILABLE', 'No window drew the snapshot in time: snapshots need the app window open.'));
+          }, SNAPSHOT_TIMEOUT);
+          pendingSnapshots.set(id, { resolve, reject, timer });
+        });
+        ctx.host.emit('view.snapshot.request', { id, projectId: ctx.project!.id, levelId: level, width, height });
+        const data = await png;
+        return { mimeType: 'image/png', data, levelId: level, levelName: doc.levels[level].name, width, height };
+      },
+    }),
+    defineCommand({
+      id: 'view.snapshot.reply',
+      title: 'Answer a snapshot request',
+      description: 'The window returns the PNG a `view.snapshot.request` asked for, or why it could not draw it.',
+      scope: 'global',
+      hidden: true,
+      input: z.object({ id: z.string(), png: z.string().optional(), error: z.string().optional() }),
+      handler: async ({ id, png, error }) => {
+        const waiting = pendingSnapshots.get(id);
+        if (!waiting) return { taken: false };
+        pendingSnapshots.delete(id);
+        clearTimeout(waiting.timer);
+        if (png) waiting.resolve(png);
+        else waiting.reject(new StudioError('NOT_FOUND', error ?? 'The snapshot could not be drawn.'));
+        return { taken: true };
+      },
     }),
     defineCommand({
       id: 'plan.layer.add',

@@ -595,7 +595,10 @@ export async function smokePlanUi(smoke: Smoke, towerId: string): Promise<void> 
   const gripScreen2 = toScreen(rect, cam, [2200 - k, -900 - k]);
   await smoke.dragAt(gripScreen2, { x: gripScreen2.x - 28, y: gripScreen2.y + 28 });
   smoke.check('dragging the corner grip grows the fillet', await smoke.until(() => ((shapeById(typedRect.id).path.v[2].c as { r?: number } | undefined)?.r ?? 0) > 450), shapeById(typedRect.id).path.v[2].c);
-  smoke.check('the fillet is limited to what the edges allow', ((shapeById(typedRect.id).path.v[2].c as { r?: number }).r ?? 0) <= 600 + 1e-6, shapeById(typedRect.id).path.v[2].c);
+  // The drag asks for far more than the corner can take, so the radius stops at the shorter edge (the first corner was clicked, so that edge is as long as the pixel it landed on made it).
+  const edges = shapeById(typedRect.id).path.v;
+  const shorterEdge = Math.min(Math.hypot(edges[2].p[0] - edges[1].p[0], edges[2].p[1] - edges[1].p[1]), Math.hypot(edges[3].p[0] - edges[2].p[0], edges[3].p[1] - edges[2].p[1]));
+  smoke.check('the fillet is limited to what the edges allow', Math.abs(((edges[2].c as { r?: number }).r ?? 0) - shorterEdge) <= 0.5, { corner: edges[2].c, shorterEdge });
   await smoke.key('Escape');
   await smoke.key('Escape');
 
