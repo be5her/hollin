@@ -1,8 +1,8 @@
 import { DOCUMENT, Component, DestroyRef, ElementRef, afterNextRender, afterRenderEffect, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
 import { FormField, form } from '@angular/forms/signals';
-import { deriveLevels, type DimensionKind, type GlobalConfig, type Vec2 } from '@studio/core';
+import { deriveLevels, type DimensionKind, type GlobalConfig, type ProjectDoc, type Vec2 } from '@studio/core';
 import { AppState, Checkbox, ContextMenu, HostBridge, Icon, IconButton, Input, LengthInput, ProjectDocs, ProjectView, Select, Toasts, Units, type ContextMenuItem } from '@studio/ui';
-import { DEFAULT_TOOL_OPTIONS, Plan2dEditor, drawingScale, readPlanTheme, type Camera, type ShapeOptions, type SnapResult, type TextRequest, type ToolId, type UnderlayMode, type WallOptions } from '@studio/viewport';
+import { DEFAULT_TOOL_OPTIONS, LIGHT_THEME, Plan2dEditor, drawingScale, readPlanTheme, renderLevelToPng, type Camera, type ShapeOptions, type SnapResult, type TextRequest, type ToolId, type UnderlayMode, type WallOptions } from '@studio/viewport';
 import { Blinds, BrickWall, ChevronDown, Circle, DoorOpen, LandPlot, Magnet, Maximize, MousePointer2, Pentagon, Ruler, SeparatorVertical, Square, Type, ZoomIn, ZoomOut } from 'lucide';
 import { PlanGeometry } from './plan-geometry';
 import { PlanSelection } from './plan-selection';
@@ -125,6 +125,11 @@ export class PlanView {
 
   private cameraRestored = false;
   private persistTimer: ReturnType<typeof setTimeout> | undefined;
+  /** The project thumbnail: the ground floor, drawn 1.5 s after the last change (or when the tab is left). */
+  private thumbnailTimer: ReturnType<typeof setTimeout> | undefined;
+  private thumbnailDirty = false;
+  /** The document the thumbnail is drawn from: the last one seen, never read back (reading a closed project's document would reopen it). */
+  private thumbnailDoc: ProjectDoc | undefined;
   private readonly editor = new Plan2dEditor({
     invoke: async (id, input) => {
       try {
@@ -200,6 +205,19 @@ export class PlanView {
       if (c) this.editor.setToolOptions(this.toolOptions(c));
     });
     effect(() => {
+      // Every change schedules a fresh thumbnail of the ground floor, 1.5 s after the last one.
+      const state = this.docs.read(this.projectId());
+      if (!state?.doc) return;
+      this.thumbnailDoc = state.doc;
+      this.thumbnailDirty = true;
+      clearTimeout(this.thumbnailTimer);
+      this.thumbnailTimer = setTimeout(() => this.writeThumbnail(), 1500);
+    });
+    effect(() => {
+      // Leaving the tab writes a pending thumbnail at once.
+      if (this.app.activeProjectId() !== this.projectId() && this.thumbnailDirty) this.writeThumbnail();
+    });
+    effect(() => {
       // A camera stored with the project is restored once; afterwards the editor's own moves are what is stored.
       const stored = this.view.get<Camera | null>(this.projectId(), 'camera', null);
       if (stored && !this.cameraRestored) {
@@ -222,8 +240,33 @@ export class PlanView {
     afterNextRender(() => this.mount());
     this.destroyRef.onDestroy(() => {
       clearTimeout(this.persistTimer);
+      if (this.thumbnailDirty) this.writeThumbnail();
       this.editor.detach();
     });
+  }
+
+  /** Draws the ground floor into a canvas and stores it as the project's thumbnail (the Home card shows it). */
+  private writeThumbnail(): void {
+    clearTimeout(this.thumbnailTimer);
+    this.thumbnailDirty = false;
+    const projectId = untracked(this.projectId);
+    const doc = this.thumbnailDoc;
+    if (!doc) return;
+    const png = renderLevelToPng(doc, doc.building.groundLevelId, {
+      width: 480,
+      height: 360,
+      theme: LIGHT_THEME,
+      units: untracked(this.units.settings),
+      cache: this.planGeometry.cache,
+      createCanvas: (width, height) => {
+        const c = this.document.createElement('canvas');
+        c.width = width;
+        c.height = height;
+        return c;
+      },
+    });
+    if (!png) return;
+    this.host.invoke('project.thumbnail.set', { id: projectId, png }, null).catch(() => undefined);
   }
 
   private mount(): void {

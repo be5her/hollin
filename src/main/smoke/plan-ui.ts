@@ -1,3 +1,4 @@
+import { promises as fs } from 'node:fs';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import type { Entity } from '@studio/core';
 import { wait, type Smoke } from './harness';
@@ -748,6 +749,16 @@ export async function smokePlanUi(smoke: Smoke, towerId: string): Promise<void> 
   await smoke.key('Escape');
   await smoke.run('plan.entity.delete', { ids: [...dims().map((d) => d.id), ...labels().map((l) => l.id)] }, { projectId: towerId });
   await smoke.until(() => dims().length === 0 && labels().length === 0);
+
+  smoke.section('thumbnails');
+  const library = host.projects.library;
+  smoke.check('a thumbnail of the ground floor is written after the last change', await smoke.until(() => Boolean(library.get(towerId)?.thumbnail), 8000), library.get(towerId)?.thumbnail);
+  const file = library.thumbnailFile(towerId);
+  const png = file ? await fs.readFile(file) : Buffer.alloc(0);
+  smoke.check('it is a real PNG of some size', png.length > 1000 && png[0] === 0x89 && png[1] === 0x50 && png[2] === 0x4e && png[3] === 0x47, { file, bytes: png.length });
+  await smoke.click('[data-testid=tab][data-type="shell.home"]');
+  smoke.check('Home shows the plan on the project card', await smoke.until(() => smoke.js<boolean>(`(() => { const img = document.querySelector('[data-testid=project-card][data-name="Tower"] img'); return !!img && img.complete && img.naturalWidth > 0; })()`), 8000));
+  await smoke.shots('25-home-thumbnails');
 }
 
 const xy = (p: { x: number; y: number }): [number, number] => [p.x, p.y];

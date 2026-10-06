@@ -9,6 +9,7 @@ export * from './plan2d/grips';
 export * from './plan2d/snap';
 export * from './plan2d/geometry-cache';
 export * from './plan2d/editor';
+export * from './plan2d/offscreen';
 export * from './plan2d/tools/tool';
 export * from './plan2d/tools/select';
 export * from './plan2d/tools/wall';
