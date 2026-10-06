@@ -1,4 +1,4 @@
-import { DOCUMENT, Component, DestroyRef, ElementRef, afterNextRender, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
+import { DOCUMENT, Component, DestroyRef, ElementRef, afterNextRender, afterRenderEffect, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
 import { FormField, form } from '@angular/forms/signals';
 import { deriveLevels, type GlobalConfig, type Vec2 } from '@studio/core';
 import { AppState, Checkbox, ContextMenu, HostBridge, Icon, IconButton, Input, LengthInput, ProjectDocs, ProjectView, Select, Toasts, Units, type ContextMenuItem } from '@studio/ui';
@@ -56,6 +56,7 @@ export class PlanView {
 
   private readonly canvas = viewChild.required<ElementRef<HTMLCanvasElement>>('canvas');
   private readonly container = viewChild.required<ElementRef<HTMLDivElement>>('container');
+  private readonly dynamicInputEl = viewChild<ElementRef<HTMLInputElement>>('dynamicInput');
 
   protected readonly icons = { BrickWall, ChevronDown, Magnet, Maximize, MousePointer2, ZoomIn, ZoomOut };
   protected readonly snapKinds = SNAP_KINDS;
@@ -92,6 +93,8 @@ export class PlanView {
   protected readonly vertexAttr = signal('');
   protected readonly snapLabel = signal('');
   protected readonly snapMenuOpen = signal(false);
+  /** The input that opens at the cursor when a digit is typed while a tool waits for a point. */
+  protected readonly dynamicInput = signal<{ x: number; y: number; value: string } | null>(null);
   protected readonly selectionAttr = computed(() => this.selection().join(' '));
   protected readonly selectionLabel = computed(() => {
     const n = this.selection().length;
@@ -142,6 +145,7 @@ export class PlanView {
     },
     onSnap: (snap: SnapResult | null) => this.snapLabel.set(snap?.label ?? ''),
     onContextMenu: (event, ids) => this.menu.open(event, this.menuItems(ids)),
+    onDynamicInput: ({ char, screen }) => this.dynamicInput.set({ x: screen[0] + 14, y: screen[1] + 14, value: char }),
   });
 
   constructor() {
@@ -179,6 +183,14 @@ export class PlanView {
     effect(() => {
       this.app.resolvedTheme();
       this.editor.setTheme(readPlanTheme(this.document.documentElement));
+    });
+    afterRenderEffect(() => {
+      // Focus the dynamic input as soon as it appears, with the caret after the seeded character.
+      const el = this.dynamicInputEl()?.nativeElement;
+      if (el && this.dynamicInput() && this.document.activeElement !== el) {
+        el.focus();
+        el.setSelectionRange(el.value.length, el.value.length);
+      }
     });
     afterNextRender(() => this.mount());
     this.destroyRef.onDestroy(() => {
@@ -231,6 +243,23 @@ export class PlanView {
       { label: 'Select all', shortcut: 'Ctrl+A', testId: 'menu-select-all', select: () => this.editor.select(Object.keys(this.editor.entities())) },
       { label: 'Zoom to fit', shortcut: 'Home', select: () => this.editor.zoomToFit() },
     ];
+  }
+
+  // ---------- typed coordinates ----------
+
+  protected commitTyped(): void {
+    const value = this.dynamicInputEl()?.nativeElement.value ?? '';
+    if (!value.trim()) {
+      this.closeTyped();
+      return;
+    }
+    if (this.editor.typed(value)) this.closeTyped();
+    else this.toasts.notify(`"${value}" is not a length or coordinate (try 3000, 3000<45, @1000,500 or 1000,500)`, 'error');
+  }
+
+  protected closeTyped(): void {
+    this.dynamicInput.set(null);
+    this.canvas().nativeElement.focus({ preventScroll: true });
   }
 
   // ---------- tools ----------

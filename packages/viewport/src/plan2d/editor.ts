@@ -1,4 +1,4 @@
-import { defaultConfig, deriveLevels, emptyBox, type Box, type Entity, type Layer, type LevelWalls, type ProjectDoc, type UnitSettings, type Vec2 } from '@studio/core';
+import { defaultConfig, deriveLevels, emptyBox, parseCoordinate, type Box, type Entity, type Layer, type LevelWalls, type ProjectDoc, type UnitSettings, type Vec2 } from '@studio/core';
 import { defaultCamera, fitBox, panBy, sameCamera, screenToWorld, worldToScreen, zoomAt, type Camera, type Size } from './camera';
 import { LevelGeometryCache } from './geometry-cache';
 import { sameVertex, type VertexRef } from './grips';
@@ -33,6 +33,8 @@ export interface EditorCallbacks {
   onVertexSelect?(vertex: VertexRef | null): void;
   /** A right click: the host shows a menu for the selection (the hit entity is selected first). */
   onContextMenu?(event: MouseEvent, ids: string[]): void;
+  /** A digit (or @ - . +) typed while a tool waits for a point: the host shows an input at the cursor seeded with it. */
+  onDynamicInput?(request: { char: string; screen: Vec2 }): void;
 }
 
 /**
@@ -57,6 +59,8 @@ export class Plan2dEditor {
   private snapBuiltFor: { entities: Record<string, Entity>; walls: LevelWalls | null } | null = null;
   private snapSettings: SnapSettings = DEFAULT_SNAP_SETTINGS;
   private lastSnap: SnapResult | null = null;
+  private lastScreen: Vec2 | null = null;
+  private lastWorld: Vec2 | null = null;
   private cameraValue: Camera = defaultCamera();
   private fitted = false;
   private frameId = 0;
@@ -332,6 +336,15 @@ export class Plan2dEditor {
     return this.levelScene ? hitTest(this.levelScene, p, this.hitOptions()) : null;
   }
 
+  /** Text from the dynamic input: parsed as a coordinate and handed to the tool. False when the tool could not use it. */
+  typed(text: string): boolean {
+    if (!this.activeTool.typed) return false;
+    const coord = parseCoordinate(text, this.units);
+    const used = this.activeTool.typed(text, coord, this.lastWorld);
+    if (used) this.announceTool();
+    return used;
+  }
+
   invalidate(): void {
     if (this.frameId || !this.ctx || typeof requestAnimationFrame === 'undefined') return;
     this.frameId = requestAnimationFrame(() => {
@@ -458,6 +471,8 @@ export class Plan2dEditor {
       this.activeTool.pointerMove?.(this.toolPointer(e, screen));
       if (this.activeTool.busy !== busy) this.announceTool();
     }
+    this.lastScreen = screen;
+    this.lastWorld = this.lastSnap?.point ?? this.screenToWorld(screen);
     this.callbacks.onCursor?.(this.screenToWorld(screen));
   }
 
@@ -502,6 +517,11 @@ export class Plan2dEditor {
       return;
     }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (/^[0-9@.+-]$/.test(e.key) && this.activeTool.acceptsTyped?.() && this.callbacks.onDynamicInput) {
+      this.callbacks.onDynamicInput({ char: e.key, screen: this.lastScreen ?? [this.size.width / 2, this.size.height / 2] });
+      e.preventDefault();
+      return;
+    }
     if (e.key === ' ') {
       this.spaceDown = true;
       e.preventDefault();

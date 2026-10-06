@@ -108,6 +108,22 @@
     [attr.data-selection]="selectionAttr()"
     [attr.data-vertex]="vertexAttr()"
   ></canvas>
+  @if (dynamicInput(); as d) {
+    <input
+      #dynamicInput
+      xInput
+      class="absolute z-10 h-7 !w-44 font-mono text-xs shadow-md"
+      [style.left.px]="d.x"
+      [style.top.px]="d.y"
+      [value]="d.value"
+      placeholder="3000 · 3000<45 · @dx,dy · x,y"
+      aria-label="Typed length or coordinate"
+      data-testid="dynamic-input"
+      (keydown.enter)="commitTyped(); $event.preventDefault()"
+      (keydown.escape)="closeTyped(); $event.preventDefault()"
+      (blur)="closeTyped()"
+    />
+  }
 </div>
 <div class="flex items-center gap-4 px-3 h-6 border-t border-edge bg-surface shrink-0 text-[11px] text-muted font-mono whitespace-nowrap overflow-hidden" data-testid="plan-footer">
   <span class="min-w-48 shrink-0" data-testid="plan-cursor">{{ cursorLabel() }}</span>

@@ -303,6 +303,7 @@ export async function smokePlanUi(smoke: Smoke, towerId: string): Promise<void> 
 
   smoke.section('snapping');
   const exact = (p: readonly [number, number], q: readonly [number, number]) => Math.abs(p[0] - q[0]) < 1e-6 && Math.abs(p[1] - q[1]) < 1e-6;
+  const snapBase = new Set(wallsOnGallery().map((w) => w.id));
   await focusCanvas();
   await smoke.key('W');
   await wait(100);
@@ -360,7 +361,47 @@ export async function smokePlanUi(smoke: Smoke, towerId: string): Promise<void> 
   await smoke.key('Escape');
   await smoke.click(`${tab} [data-testid=snap-toggle]`);
   smoke.check('and back on', await smoke.until(async () => (await smoke.run<{ editor: { snap: boolean } }>('config.get')).editor.snap === true));
-  await smoke.run('plan.entity.delete', { ids: wallsOnGallery().slice(5).map((w) => w.id) }, { projectId: towerId });
+  await smoke.run('plan.entity.delete', { ids: wallsOnGallery().filter((w) => !snapBase.has(w.id)).map((w) => w.id) }, { projectId: towerId });
+  smoke.check('the snapping walls are cleared away', await smoke.until(() => wallsOnGallery().length === 5), wallsOnGallery().length);
+
+  smoke.section('exact input');
+  const base = new Set(wallsOnGallery().map((w) => w.id));
+  await focusCanvas();
+  remember();
+  await smoke.key('W');
+  const start: [number, number] = [-1500, -1000];
+  const s0 = toScreen(rect, cam, start);
+  await smoke.clickAt(s0.x, s0.y);
+  // The cursor to the right of the start gives the direction a typed length runs along.
+  await smoke.mouseMove(s0.x + 60, s0.y);
+  await smoke.key('3');
+  smoke.check('a digit opens the input at the cursor', (await smoke.waitFor(`${tab} [data-testid=dynamic-input]`)) && (await smoke.js<string>(`document.querySelector('${tab} [data-testid=dynamic-input]').value`)) === '3');
+  await smoke.typeText('000');
+  await smoke.shots('20-plan-input');
+  await smoke.key('Return');
+  const typedWall = () => snappedWall();
+  // The start was clicked (pixel-rounded); the typed length is exact from there.
+  smoke.check('a typed length draws the wall exactly that long, along the cursor', await smoke.until(() => wallsOnGallery().length === 6 && near(typedWall().path.v[0].p, start) && exact(typedWall().path.v[1].p, [typedWall().path.v[0].p[0] + 3000, typedWall().path.v[0].p[1]])), typedWall()?.path.v);
+  smoke.check('the input closed and the canvas has the keyboard again', await smoke.gone(`${tab} [data-testid=dynamic-input]`));
+  remember();
+  await smoke.key('2');
+  await smoke.typeText('000<90');
+  await smoke.key('Return');
+  smoke.check('a polar coordinate draws the next wall at that length and angle', await smoke.until(() => wallsOnGallery().length === 7 && Math.abs(typedWall().path.v[1].p[0] - typedWall().path.v[0].p[0]) < 1e-6 && Math.abs(typedWall().path.v[1].p[1] - typedWall().path.v[0].p[1] - 2000) < 1e-6), typedWall()?.path.v);
+  remember();
+  await smoke.key('-');
+  await smoke.typeText('500,0');
+  await smoke.key('Return');
+  smoke.check('an absolute coordinate ends the next wall exactly there', await smoke.until(() => wallsOnGallery().length >= 8 && exact(typedWall().path.v[1].p, [-500, 0])), { walls: wallsOnGallery().length, v: typedWall()?.path.v });
+  await smoke.key('5');
+  await smoke.typeText('x');
+  await smoke.key('Return');
+  smoke.check('text that is not a coordinate is refused and the input stays', (await smoke.waitFor('body', 3000, 'is not a length or coordinate')) && (await smoke.count(`${tab} [data-testid=dynamic-input]`)) === 1);
+  await smoke.key('Escape');
+  await focusCanvas();
+  await smoke.key('Escape');
+  await smoke.key('Escape');
+  await smoke.run('plan.entity.delete', { ids: wallsOnGallery().filter((w) => !base.has(w.id)).map((w) => w.id) }, { projectId: towerId });
   await smoke.until(() => wallsOnGallery().length === 5);
 }
 

@@ -1,4 +1,4 @@
-import { bulgeThrough, distance, formatLength, wallBody, type Path, type Vec2, type Vertex } from '@studio/core';
+import { DEG, bulgeThrough, distance, formatAngle, formatLength, resolveCoordinate, sub, wallBody, type Coordinate, type Path, type Vec2, type Vertex } from '@studio/core';
 import { tracePolygon } from '../draw';
 import { drawScreenText, type RenderFrame } from '../render';
 import { withAlpha } from '../theme';
@@ -89,6 +89,21 @@ export class WallTool implements Tool {
     return false;
   }
 
+  acceptsTyped(): boolean {
+    return true;
+  }
+
+  /** A typed length runs from the last point towards the cursor; polar, relative and absolute forms as written. Without a start, only an absolute position starts the run. */
+  typed(_text: string, coord: Coordinate | null, cursor: Vec2 | null): boolean {
+    if (!coord) return false;
+    const last = this.chain.length ? this.chain[this.chain.length - 1].p : undefined;
+    const direction = last && cursor ? sub(cursor, last) : undefined;
+    const point = resolveCoordinate(coord, { from: last, direction });
+    if (!point) return false;
+    this.pointerDown({ world: point, screen: [0, 0], button: 0, shift: false, ctrl: false, alt: true, clicks: 1 });
+    return true;
+  }
+
   cancel(): void {
     if (this.chain.length > 1 && this.host.options().wall.single) {
       this.finishRun(false);
@@ -138,7 +153,10 @@ export class WallTool implements Tool {
     const a = preview[preview.length - 2].p;
     const b = preview[preview.length - 1].p;
     const d = distance(a, b);
-    if (d > 0) drawScreenText(ctx, frame, { text: formatLength(d, frame.units), at: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], screenPx: 11, color: theme.selection, align: 'center', baseline: 'bottom', dy: -6, mono: true });
+    if (d > 0) {
+      const angle = Math.atan2(b[1] - a[1], b[0] - a[0]) / DEG;
+      drawScreenText(ctx, frame, { text: `${formatLength(d, frame.units)} · ${formatAngle(((angle % 360) + 360) % 360, { precision: 1 })}`, at: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], screenPx: 11, color: theme.selection, align: 'center', baseline: 'bottom', dy: -6, mono: true });
+    }
   }
 
   // ---------- internals ----------

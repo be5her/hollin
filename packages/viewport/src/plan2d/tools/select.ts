@@ -1,4 +1,4 @@
-import { DEG, angleOf, distance, formatAngle, insertVertex, joinWalls, junctionNodes, junctionPatches, moveVertex, pathOfEntity, setSegment, sub, transformEntity, wallBody, wallEnds, withPath, type Box, type Entity, type Transform, type Vec2 } from '@studio/core';
+import { DEG, angleOf, distance, formatAngle, insertVertex, joinWalls, junctionNodes, junctionPatches, moveVertex, parseAngle, pathOfEntity, resolveCoordinate, setSegment, sub, transformEntity, wallBody, wallEnds, withPath, type Box, type Coordinate, type Entity, type Transform, type Vec2 } from '@studio/core';
 import { tracePolygon } from '../draw';
 import { gripAt, gripsOf, type Grip, type VertexRef } from '../grips';
 import { drawEntityPreview, drawGrips, drawScreenText, drawSelection, type RenderFrame } from '../render';
@@ -206,6 +206,55 @@ export class SelectTool implements Tool {
     }
     if (key === 'm' && e.shiftKey && ids.length) {
       this.mode = { k: 'mirror', copy: false };
+      this.host.invalidate();
+      return true;
+    }
+    return false;
+  }
+
+  acceptsTyped(): boolean {
+    const mode = this.mode;
+    return mode.k === 'drag' || mode.k === 'grip-drag' || (mode.k === 'rotate' && Boolean(mode.pivot && mode.reference)) || (mode.k === 'mirror' && Boolean(mode.a));
+  }
+
+  /** While moving: a length runs along the drag, relative and absolute forms as written. While rotating: an angle. While mirroring: the axis's second point. */
+  typed(text: string, coord: Coordinate | null, cursor: Vec2 | null): boolean {
+    const mode = this.mode;
+    if (mode.k === 'rotate' && mode.pivot && mode.reference) {
+      const degrees = parseAngle(text);
+      if (degrees === null) return false;
+      const ids = [...this.host.selection()];
+      this.mode = { k: 'idle' };
+      if (degrees !== 0 && ids.length) void this.transform(ids, { rotate: { angle: degrees, pivot: mode.pivot } }, mode.copy);
+      this.host.invalidate();
+      return true;
+    }
+    if (!coord) return false;
+    if (mode.k === 'drag') {
+      const direction = cursor ? sub(cursor, mode.start) : undefined;
+      const point = resolveCoordinate(coord, { from: mode.start, direction });
+      if (!point) return false;
+      this.mode = { k: 'idle' };
+      const delta = sub(point, mode.start);
+      if (distance(delta, [0, 0]) > 0) void this.transform(mode.ids, { translate: delta }, mode.copy);
+      this.host.invalidate();
+      return true;
+    }
+    if (mode.k === 'grip-drag') {
+      const entity = this.host.entities()[mode.id];
+      const path = entity ? pathOfEntity(entity, mode.grip.which) : null;
+      const from = mode.grip.kind === 'vertex' ? (path?.v[mode.grip.index - 1]?.p ?? (path?.closed ? path.v[path.v.length - 1]?.p : undefined)) : mode.grip.at;
+      const point = resolveCoordinate(coord, { from, direction: from && cursor ? sub(cursor, from) : undefined });
+      if (!point) return false;
+      this.mode = { k: 'idle' };
+      this.commitGrip(mode, point);
+      this.host.invalidate();
+      return true;
+    }
+    if (mode.k === 'mirror' && mode.a) {
+      const point = resolveCoordinate(coord, { from: mode.a, direction: cursor ? sub(cursor, mode.a) : undefined });
+      if (!point) return false;
+      this.commitMirror(mode.a, point, mode.copy);
       this.host.invalidate();
       return true;
     }

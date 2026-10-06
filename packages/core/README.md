@@ -17,6 +17,7 @@ The engine. Everything here is pure TypeScript with no Electron, Node I/O or UI 
 |---|---|
 | `config.ts` | The config schema and `mergeConfig`: sections merged one level deep and normalised field by field, so an old or hand-edited file falls back per field instead of failing. `ConfigPatchSchema` validates patches strictly. `AI_MODELS` lists the assistant's models. The `editor` section holds the 2D editor's snapping, grid and tool defaults. |
 | `units.ts` | `formatLength`/`parseLength` (metric mm/cm/m, imperial feet-inches or inches with fractions) and `formatAngle`/`parseAngle`. Lengths are always stored in millimetres. |
+| `input.ts` | The coordinate grammar typed while drawing (`3000`, `3000<45`, `@1000,500`, `1000,500`, lengths in any unit) and `resolveCoordinate`, which turns one into a point given the last point and the current direction. |
 | `ids.ts` | `newId(prefix)`: prefix + 16 lowercase Crockford base32 characters (80 bits) from `crypto.getRandomValues`. |
 | `branding.ts` | The product names from `branding.json`. |
 | `mcp-snippets.ts` | Ready-to-copy MCP client configuration for Settings. |

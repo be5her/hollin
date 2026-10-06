@@ -16,6 +16,7 @@ export * from './geometry/vec';
 export * from './projects';
 export * from './errors';
 export * from './ids';
+export * from './input';
 export * from './mcp-snippets';
 export * from './registry';
 export * from './test-host';

@@ -1,4 +1,4 @@
-import type { Box, Entity, LevelWalls, Vec2 } from '@studio/core';
+import type { Box, Coordinate, Entity, LevelWalls, Vec2 } from '@studio/core';
 import type { VertexRef } from '../grips';
 import type { Hit } from '../hit';
 import type { RenderFrame } from '../render';
@@ -90,4 +90,8 @@ export interface Tool {
   draw?(ctx: CanvasRenderingContext2D, frame: RenderFrame): void;
   /** A one-line hint for the footer. */
   hint(): string;
+  /** True while the tool waits for a point that can be typed instead of clicked. */
+  acceptsTyped?(): boolean;
+  /** A coordinate typed into the dynamic input (`coord` is null when the text is not one; a tool may still read `text`, e.g. as an angle). True when it was used. */
+  typed?(text: string, coord: Coordinate | null, cursor: Vec2 | null): boolean;
 }
