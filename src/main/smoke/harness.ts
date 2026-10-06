@@ -249,17 +249,20 @@ export class Smoke {
     })))`);
   }
 
-  /** A real right click at the centre of the element. */
-  async rightClick(selector: string): Promise<boolean> {
+  /** A real right click at the centre of the element (or at an offset from its top-left corner). */
+  async rightClick(selector: string, offset?: { x: number; y: number }): Promise<boolean> {
     const r = await this.rect(selector);
     if (!r) return false;
-    const wc = this.window.webContents;
-    const x = Math.round(r.x + r.width / 2);
-    const y = Math.round(r.y + r.height / 2);
-    wc.sendInputEvent({ type: 'mouseDown', x, y, button: 'right', clickCount: 1 });
-    wc.sendInputEvent({ type: 'mouseUp', x, y, button: 'right', clickCount: 1 });
-    await wait(80);
+    await this.rightClickAt(offset ? r.x + offset.x : r.x + r.width / 2, offset ? r.y + offset.y : r.y + r.height / 2);
     return true;
+  }
+
+  /** A real right click at a window point. */
+  async rightClickAt(x: number, y: number): Promise<void> {
+    const wc = this.window.webContents;
+    wc.sendInputEvent({ type: 'mouseDown', x: Math.round(x), y: Math.round(y), button: 'right', clickCount: 1 });
+    wc.sendInputEvent({ type: 'mouseUp', x: Math.round(x), y: Math.round(y), button: 'right', clickCount: 1 });
+    await wait(80);
   }
 
   async setDark(dark: boolean): Promise<void> {

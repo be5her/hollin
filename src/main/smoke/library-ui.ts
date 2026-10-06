@@ -5,6 +5,14 @@ import { wait, type Smoke } from './harness';
 const tabSelector = (title: string) => `[data-testid=tab][data-type="project.editor"][data-title="${title}"]`;
 const cardSelector = (name: string) => `[data-testid=project-card][data-name="${name}"]`;
 
+/** Right-clicks a Home card near its top-left corner, after dismissing the toasts that stack over the bottom-right corner (where the last card sits). */
+async function rightClickCard(smoke: Smoke, name: string): Promise<boolean> {
+  if (!(await smoke.waitFor(cardSelector(name)))) return false;
+  await smoke.js("[...document.querySelectorAll('[aria-label=Dismiss]')].forEach((b) => b.click())");
+  await wait(120);
+  return smoke.rightClick(cardSelector(name), { x: 40, y: 40 });
+}
+
 /** Answers the open prompt dialog with `value`. */
 async function answerPrompt(smoke: Smoke, value: string): Promise<boolean> {
   if (!(await smoke.waitFor('x-dialog-host form input'))) return false;
@@ -87,16 +95,18 @@ export async function smokeLibraryUi(smoke: Smoke, houseId: string): Promise<voi
 
   smoke.section('context menus and trash');
   await smoke.click('[data-testid=tab][data-type="shell.home"]');
-  await smoke.rightClick(cardSelector('Office Block'));
-  await smoke.click('[data-testid=project-menu-rename]');
+  const cardRect = await smoke.rect(cardSelector('Office Block'));
+  const clicked = await rightClickCard(smoke, 'Office Block');
+  const opened = await smoke.waitFor('[data-testid=context-menu]', 2000);
+  const chosen = await smoke.click('[data-testid=project-menu-rename]');
   const answered = await answerPrompt(smoke, 'Office Block 2');
-  smoke.check('renaming from the card menu works', await smoke.waitFor(cardSelector('Office Block 2')), { answered, cards: await smoke.js('[...document.querySelectorAll("[data-testid=project-card]")].map((c) => c.dataset.name)'), menu: await smoke.js('!!document.querySelector("[data-testid=context-menu]")'), dialog: await smoke.js('document.querySelector("x-dialog-host")?.textContent?.slice(0, 200) ?? null') });
+  smoke.check('renaming from the card menu works', await smoke.waitFor(cardSelector('Office Block 2')), { cardRect, inner: await smoke.js('[innerWidth, innerHeight, scrollY]'), clicked, opened, chosen, answered, cards: await smoke.js('[...document.querySelectorAll("[data-testid=project-card]")].map((c) => c.dataset.name)'), menu: await smoke.js('!!document.querySelector("[data-testid=context-menu]")'), dialog: await smoke.js('document.querySelector("x-dialog-host")?.textContent?.slice(0, 200) ?? null') });
 
   await smoke.click(`[data-testid=tab][data-title="UI Villa Renamed"]`);
   await smoke.click(`${visibleTab} [data-testid=project-trash]`);
   smoke.check('moving the open project to the trash closes its tab', await smoke.gone(tabSelector('UI Villa Renamed')));
   await smoke.click('[data-testid=tab][data-type="shell.home"]');
-  await smoke.rightClick(cardSelector('Smoke House copy'));
+  await rightClickCard(smoke, 'Smoke House copy');
   await smoke.click('[data-testid=project-menu-trash]');
   smoke.check('the card menu moves a project to the trash', await smoke.gone(cardSelector('Smoke House copy')));
   await smoke.click('[data-testid=library-trash]');
