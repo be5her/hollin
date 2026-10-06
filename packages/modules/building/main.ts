@@ -1,10 +1,13 @@
 import {
   ConnectorSchema,
+  DEFAULT_RULE_LIMITS,
   StudioError,
   addConnectorOps,
   addLevelOps,
+  connectorCutLevels,
   defineCommand,
   defineModule,
+  deriveConnector,
   deriveLevels,
   duplicateLevelOps,
   editProject,
@@ -15,7 +18,9 @@ import {
   updateConnectorOps,
   updateLevelOps,
   type Connector,
+  type DerivedLevel,
   type ProjectDoc,
+  type RuleLimits,
 } from '@studio/core';
 import { z } from 'zod';
 
@@ -30,9 +35,29 @@ const NewConnectorSchema = z.discriminatedUnion(
   (ConnectorSchema.options as readonly z.ZodObject<z.ZodRawShape>[]).map((o) => o.omit({ id: true })) as unknown as [z.ZodObject<{ kind: z.ZodLiteral<'stair'> }>, ...z.ZodObject<{ kind: z.ZodLiteral<Connector['kind']> }>[]],
 );
 
-/** The building as agents and the UI read it: levels bottom to top with derived elevations, their layers, and the connectors. */
-export function describeBuilding(doc: ProjectDoc) {
-  const levels = deriveLevels(doc).map((l) => ({
+/** A connector's derived numbers, rounded for reading: what it climbs, how, which slabs it cuts and the limits it breaks. */
+export function connectorNumbers(connector: Connector, levels: DerivedLevel[], limits: RuleLimits) {
+  const g = deriveConnector(connector, levels, limits);
+  const r = (v: number) => Math.round(v * 10) / 10;
+  const base = { bottom: g.bottom, top: g.top, rise: g.rise, cuts: connectorCutLevels(connector, levels), broken: g.broken };
+  switch (g.kind) {
+    case 'stair':
+      return { ...base, risers: g.risers, riserHeight: r(g.riserHeight), treadDepth: r(g.treadDepth), walkLength: r(g.walkLength), flights: g.flights.map((f) => ({ risers: f.risers, tread: r(f.tread) })), landings: g.landings.length };
+    case 'ramp':
+      return { ...base, slope: r(g.slope * 10) / 10, maxSlope: g.maxSlope, run: r(g.run), landings: g.landings.length };
+    case 'ladder':
+      return { ...base, run: r(g.run) };
+    case 'escalator':
+      return { ...base, run: r(g.run) };
+    case 'elevator':
+      return { ...base, stops: g.stops.map((s) => ({ levelId: s.levelId, elevation: s.elevation, door: s.side })) };
+  }
+}
+
+/** The building as agents and the UI read it: levels bottom to top with derived elevations, their layers, and the connectors with their derived numbers. */
+export function describeBuilding(doc: ProjectDoc, limits: RuleLimits = DEFAULT_RULE_LIMITS) {
+  const derived = deriveLevels(doc);
+  const levels = derived.map((l) => ({
     ...l,
     layers: Object.values(doc.layers)
       .filter((layer) => layer.levelId === l.id)
@@ -44,7 +69,7 @@ export function describeBuilding(doc: ProjectDoc) {
     datum: doc.building.datum,
     groundLevelId: doc.building.groundLevelId,
     levels,
-    connectors: Object.values(doc.connectors).map((c) => ({ id: c.id, kind: c.kind, name: c.name ?? null, levels: 'stops' in c ? c.stops.map((s) => s.levelId) : [c.bottom.levelId, c.top.levelId] })),
+    connectors: Object.values(doc.connectors).map((c) => ({ id: c.id, kind: c.kind, name: c.name ?? null, levels: 'stops' in c ? c.stops.map((s) => s.levelId) : [c.bottom.levelId, c.top.levelId], derived: connectorNumbers(c, derived, limits) })),
   };
 }
 
@@ -59,10 +84,10 @@ export const buildingModule = defineModule({
       id: 'building.get',
       title: 'Describe the building',
       description:
-        'The levels from bottom to top with their elevation (mm, negative below ground), floor-to-floor height, slab thickness and layers, plus the stairs, ramps, elevators and other connectors between levels.',
+        'The levels from bottom to top with their elevation (mm, negative below ground), floor-to-floor height, slab thickness and layers, plus the stairs, ramps, elevators and other connectors between levels. Each connector has derived: its bottom, top and rise (mm), the levels whose slab it cuts, the limits it breaks (roken), and for a stair its risers, riser height, tread depth and flights, for a ramp its slope (%), for an elevator its stops bottom to top. Derived numbers follow level heights and are never stored.',
       scope: 'project',
       input: z.object({}),
-      handler: async (_input, ctx) => describeBuilding(ctx.project!.doc),
+      handler: async (_input, ctx) => describeBuilding(ctx.project!.doc, ctx.host.config.get().rules),
     }),
     defineCommand({
       id: 'building.level.add',

@@ -6,7 +6,7 @@ import type { Smoke } from './harness';
 
 const text = (result: unknown) => JSON.parse((result as { content: { text: string }[] }).content[0].text) as Record<string, unknown>;
 
-type Building = { levels: (DerivedLevel & { layers: { id: string; kind: string }[] })[]; connectors: { kind: string }[] };
+type Building = { levels: (DerivedLevel & { layers: { id: string; kind: string }[] })[]; connectors: { kind: string; derived: unknown }[] };
 
 const names = (levels: DerivedLevel[]) => levels.map((l) => `${l.name}@${l.elevation}`).join(', ');
 /** Key order differs between memory and files, so compare with keys sorted. */
@@ -39,6 +39,10 @@ export async function smokeBuilding(smoke: Smoke): Promise<{ towerId: string }> 
   await run('building.level.update', { levelId: ground, height: 3600 });
   building = await run<Building>('building.get');
   smoke.check('a taller ground floor lifts every level above it; the mezzanine keeps its offset', names(building.levels) === 'Basement@-3000, Ground floor@0, Gallery@1500, Level 1@3600, Level 2@6600', names(building.levels));
+  const stairNumbers = (b: Building) => b.connectors.find((c) => c.kind === 'stair')?.derived as { risers: number; riserHeight: number; treadDepth: number; cuts: string[]; broken: unknown[] } | undefined;
+  // 3600 / 190 = 18.9: 19 risers of 189.5 over 4500 mm of walk line, 18 treads of 250.
+  smoke.check('building.get derives the stair from the new height: 19 risers, 250 mm treads', stairNumbers(building)?.risers === 19 && stairNumbers(building)?.riserHeight === 189.5 && stairNumbers(building)?.treadDepth === 250, stairNumbers(building));
+  smoke.check('the stair cuts the slabs of the mezzanine it passes and of its top level', stairNumbers(building)?.cuts.join() === [mezz, l1].join() && stairNumbers(building)?.broken.length === 0, stairNumbers(building));
   await run('building.level.update', { levelId: l2, elevation: 7000 });
   smoke.check('setting an elevation changes the height of the level below', (await run<Building>('building.get')).levels.find((l) => l.id === l1)?.height === 3400);
   await run('edit.undo');

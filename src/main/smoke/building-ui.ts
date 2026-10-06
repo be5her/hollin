@@ -14,6 +14,7 @@ export async function smokeBuildingUi(smoke: Smoke, towerId: string): Promise<vo
   await smoke.click(`${tab} [data-testid=center-tab-section]`);
   smoke.check('the main view switches to the section', await smoke.waitFor(`${tab} [data-testid=section-view]`));
   smoke.check('the section draws every level and connector', (await smoke.count(`${tab} [data-testid=section-level]`)) === 5 && (await smoke.count(`${tab} [data-testid=section-connector]`)) === 2);
+  smoke.check('the section draws the stair with its 19 derived risers', (await smoke.js<string | undefined>(`document.querySelector('${tab} [data-testid=section-stair-steps]')?.dataset.risers`)) === '19');
   smoke.check('the active level lists what it holds', await smoke.waitFor(`${tab} [data-testid=level-contents]`, 3000, '1 wall'));
   await smoke.shots('11-building');
 
@@ -40,6 +41,7 @@ export async function smokeBuildingUi(smoke: Smoke, towerId: string): Promise<vo
   await smoke.fill(`${tab} [data-testid=level-height-input]`, '4m');
   await smoke.js(`document.querySelector('${tab} [data-testid=level-height-input]').dispatchEvent(new FocusEvent('blur'))`);
   smoke.check('a height typed in any unit moves the levels above on screen', await smoke.until(async () => (await smoke.js<string>(`document.querySelector('${row('Level 1')} [data-testid=level-elevation]').textContent.trim()`)) === '4000 mm'));
+  smoke.check('and regenerates the stair: 22 risers in the section', await smoke.until(async () => (await smoke.js<string | undefined>(`document.querySelector('${tab} [data-testid=section-stair-steps]')?.dataset.risers`)) === '22'));
   await smoke.fill(`${tab} [data-testid=level-height-input]`, 'tall');
   await smoke.js(`document.querySelector('${tab} [data-testid=level-height-input]').dispatchEvent(new FocusEvent('blur'))`);
   smoke.check('text that is not a length is refused', (await smoke.waitFor('body', 3000, '"tall" is not a length')) && host.projects.session(towerId)!.doc.levels[host.projects.session(towerId)!.doc.building.groundLevelId].place.height === 4000);
@@ -140,7 +142,7 @@ async function smokeLevelManagement(smoke: Smoke, towerId: string): Promise<void
   await menu('Ground floor', 'level-menu-remove');
   smoke.check('a level hosting a mezzanine cannot be removed, and says why', await smoke.waitFor('body', 3000, 'Move or remove "Gallery" first'));
   await menu('Level 1', 'level-menu-remove');
-  smoke.check('removing a level lists the stair that goes and the elevator that stops skipping it', (await smoke.waitFor('x-dialog-host [data-testid=confirm-details]', 3000, 'Removed with it: stair')) && (await smoke.text('x-dialog-host [data-testid=confirm-details]')).includes('No longer stopping here: elevator'));
+  smoke.check('removing a level lists the stair that goes and the elevator that stops skipping it', (await smoke.waitFor('x-dialog-host [data-testid=confirm-details]', 3000, 'Removed with it: stair')) && ((await smoke.text('x-dialog-host [data-testid=confirm-details]')) ?? '').includes('No longer stopping here: elevator'));
   await smoke.shots('13b-remove-level');
   await smoke.click('x-dialog-host button', 'Remove');
   smoke.check('confirming removes it with its stair', (await smoke.gone(row('Level 1'))) && Object.values(doc().connectors).every((c) => c.kind !== 'stair'));

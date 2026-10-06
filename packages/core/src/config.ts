@@ -70,6 +70,24 @@ const SECTIONS = {
     windowHeight: z.number().positive(),
     windowSill: z.number().min(0),
   }),
+  /** The limits connectors are checked against (rule warnings). A stair's own riser and tread values override the stair ones. */
+  rules: z.object({
+    /** Highest riser, mm. */
+    maxRiser: z.number().positive(),
+    /** Lowest riser, mm. */
+    minRiser: z.number().positive(),
+    /** Shallowest tread (going), mm, measured on the walk line. */
+    minTread: z.number().positive(),
+    /** The comfortable range of 2 × riser + tread (the step formula), mm. */
+    comfortMin: z.number().positive(),
+    comfortMax: z.number().positive(),
+    /** Narrowest stair, mm. */
+    minStairWidth: z.number().positive(),
+    /** Steepest ramp, in percent, given to new ramps. */
+    maxRampSlope: z.number().positive().max(100),
+    /** Where the plan cuts a stair on its bottom level: this high above the floor, mm. */
+    stairCutHeight: z.number().positive(),
+  }),
 };
 
 type Sections = typeof SECTIONS;
@@ -107,7 +125,12 @@ const DEFAULTS: GlobalConfig = {
     windowHeight: 1200,
     windowSill: 900,
   },
+  rules: { maxRiser: 190, minRiser: 100, minTread: 250, comfortMin: 600, comfortMax: 650, minStairWidth: 800, maxRampSlope: 8.33, stairCutHeight: 1200 },
 };
+
+export type RuleLimits = GlobalConfig['rules'];
+/** The default limits, for code that has no settings at hand (tests, previews). */
+export const DEFAULT_RULE_LIMITS: Readonly<RuleLimits> = Object.freeze({ ...DEFAULTS.rules });
 
 /** Validates patches strictly: unknown sections or fields and invalid values are errors, not silently fixed. */
 export const ConfigPatchSchema = z
@@ -119,6 +142,7 @@ export const ConfigPatchSchema = z
     library: SECTIONS.library.partial().strict().optional(),
     session: SECTIONS.session.partial().strict().optional(),
     editor: SECTIONS.editor.partial().strict().optional(),
+    rules: SECTIONS.rules.partial().strict().optional(),
   })
   .strict();
 

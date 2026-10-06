@@ -7,6 +7,7 @@ The Settings tab (activity bar gear, `Ctrl+,`, or the palette) and the commands 
 - **MCP server:** on/off, port (applied when the field loses focus; the server restarts on the new port), whether agents may run mutating commands, ready-to-copy client snippets, and the latest agent calls with their outcome.
 - **Assistant:** the model (Claude Opus 5.5 by default) and the Claude API key.
 - **About:** version, runtime and data folder.
+- Other modules add sections through `SettingsSections`: **Library** (its folder; the library module) and **Rules** (the stair and ramp limits, typed in any unit; the building module).
 
 Choices apply as they are made, through the hidden `config.update` command.
 

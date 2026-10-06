@@ -135,6 +135,14 @@ export async function smokeLibraryUi(smoke: Smoke, houseId: string): Promise<voi
 
   await smoke.click('[data-testid=activity-settings]');
   smoke.check('Settings shows where the library is', await smoke.waitFor('[data-testid=library-path]', 3000, host.projects.library.root));
+  // The rule limits, typed in any unit and kept in the settings; put back afterwards.
+  smoke.check('Settings shows the stair limits in display units', (await smoke.waitFor('[data-testid=rule-maxRiser]')) && (await smoke.js<string>(`document.querySelector('[data-testid=rule-maxRiser]').value`)) === '190 mm');
+  await smoke.fill('[data-testid=rule-maxRiser]', '18cm');
+  await smoke.js(`document.querySelector('[data-testid=rule-maxRiser]').dispatchEvent(new FocusEvent('blur'))`);
+  smoke.check('a limit typed in centimetres is stored in millimetres', await smoke.until(() => host.config.get().rules.maxRiser === 180));
+  await smoke.js(`document.querySelector('[data-testid=rule-maxRiser]').scrollIntoView({ block: 'center' })`);
+  await smoke.shots('09a-settings-rules');
+  await smoke.run('config.update', { patch: { rules: { maxRiser: 190 } } });
   await smoke.key('W', ['control']);
   await wait(100);
 }

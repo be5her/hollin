@@ -1,6 +1,6 @@
 import { Component, computed, inject, input } from '@angular/core';
-import { deriveLevels, type Connector, type DerivedLevel } from '@studio/core';
-import { EmptyState, ProjectDocs, Units } from '@studio/ui';
+import { defaultConfig, deriveConnector, deriveLevels, type Connector, type DerivedLevel } from '@studio/core';
+import { AppState, EmptyState, ProjectDocs, Units } from '@studio/ui';
 import { BuildingActions } from './building-actions';
 
 const W = 1000;
@@ -74,6 +74,8 @@ const TYPE_NAMES: Record<string, [string, string]> = {
               @for (stop of c.stops; track stop) {
                 <circle [attr.cx]="x" [attr.cy]="y(stop) - 10" r="4" class="fill-accent" />
               }
+            } @else if (c.risers) {
+              <path [attr.d]="steps(x, c.bottom, c.top, c.risers)" class="stroke-accent fill-none" stroke-width="2" stroke-linejoin="round" data-testid="section-stair-steps" [attr.data-risers]="c.risers" />
             } @else {
               <line [attr.x1]="x - (c.kind === 'ladder' ? 0 : 10)" [attr.x2]="x + (c.kind === 'ladder' ? 0 : 10)" [attr.y1]="y(c.bottom)" [attr.y2]="y(c.top)" class="stroke-accent" stroke-width="3" stroke-linecap="round" />
             }
@@ -100,6 +102,7 @@ const TYPE_NAMES: Record<string, [string, string]> = {
 export class SectionView {
   private readonly docs = inject(ProjectDocs);
   private readonly actions = inject(BuildingActions);
+  private readonly app = inject(AppState);
   protected readonly units = inject(Units);
 
   readonly projectId = input.required<string>();
@@ -130,15 +133,17 @@ export class SectionView {
     const doc = this.doc();
     if (!doc) return [];
     const levels = this.levels();
+    const limits = this.app.config()?.rules ?? defaultConfig().rules;
     const at = (id: string, offset = 0) => (levels.find((l) => l.id === id)?.elevation ?? 0) + offset;
     const names: Record<Connector['kind'], string> = { stair: 'Stair', ladder: 'Ladder', ramp: 'Ramp', elevator: 'Elevator', escalator: 'Escalator' };
     return Object.values(doc.connectors).map((c) => {
       if (c.kind === 'elevator') {
         const stops = c.stops.map((s) => at(s.levelId));
         const top = Math.max(...stops) + 2400;
-        return { id: c.id, kind: c.kind, label: c.name ?? names[c.kind], bottom: Math.min(...stops), top, stops };
+        return { id: c.id, kind: c.kind, label: c.name ?? names[c.kind], bottom: Math.min(...stops), top, stops, risers: 0 };
       }
-      return { id: c.id, kind: c.kind, label: c.name ?? names[c.kind], bottom: at(c.bottom.levelId, c.bottom.offset), top: at(c.top.levelId, c.top.offset), stops: [] as number[] };
+      const risers = c.kind === 'stair' ? (deriveConnector(c, levels, limits) as { risers: number }).risers : 0;
+      return { id: c.id, kind: c.kind, label: c.name ?? names[c.kind], bottom: at(c.bottom.levelId, c.bottom.offset), top: at(c.top.levelId, c.top.offset), stops: [] as number[], risers };
     });
   });
   protected readonly laneStep = computed(() => Math.min(70, (LANES_W - 48) / Math.max(1, this.connectors().length - 1)));
@@ -156,6 +161,16 @@ export class SectionView {
   protected y(elevation: number): number {
     const { lo, hi } = this.range();
     return 20 + ((hi - elevation) / (hi - lo)) * (H - 40);
+  }
+
+  /** A stair's profile in its lane: its risers as steps from bottom to top, 20 px across. */
+  protected steps(x: number, bottom: number, top: number, risers: number): string {
+    const y0 = this.y(bottom);
+    const rise = (this.y(top) - y0) / risers;
+    const run = 20 / risers;
+    let d = `M ${x - 10} ${y0}`;
+    for (let i = 0; i < risers; i++) d += ` v ${rise} h ${run}`;
+    return d;
   }
 
   protected slab(level: DerivedLevel): number {
