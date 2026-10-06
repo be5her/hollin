@@ -1,4 +1,6 @@
-import { DEG, angleOf, distance, formatAngle, insertVertex, joinWalls, junctionNodes, junctionPatches, moveVertex, parseAngle, pathOfEntity, resolveCoordinate, setSegment, sub, transformEntity, wallBody, wallEnds, withPath, type Box, type Coordinate, type Entity, type Transform, type Vec2 } from '@studio/core';
+import { DEG, angleOf, distance, fitOpening, formatAngle, insertVertex, joinWalls, junctionNodes, junctionPatches, moveVertex, nearestPoint, parseAngle, pathOfEntity, resolveCoordinate, setSegment, sub, transformEntity, wallBody, wallEnds, withPath, type Box, type Coordinate, type Entity, type Transform, type Vec2 } from '@studio/core';
+
+type Opening = Extract<Entity, { type: 'opening' }>;
 import { tracePolygon } from '../draw';
 import { gripAt, gripsOf, type Grip, type VertexRef } from '../grips';
 import { drawEntityPreview, drawGrips, drawScreenText, drawSelection, type RenderFrame } from '../render';
@@ -14,7 +16,7 @@ interface JoinedEnd {
 type Mode =
   | { k: 'idle' }
   | { k: 'press'; start: Vec2; screen: Vec2; hit: string | null; toggle: boolean; copy: boolean }
-  | { k: 'drag'; start: Vec2; ids: string[]; copy: boolean; delta: Vec2 }
+  | { k: 'drag'; start: Vec2; ids: string[]; copy: boolean; delta: Vec2; slide?: { wallId: string; along: number } }
   | { k: 'marquee'; start: Vec2; end: Vec2; toggle: boolean }
   | { k: 'rotate'; pivot?: Vec2; reference?: Vec2; cursor?: Vec2; copy: boolean }
   | { k: 'mirror'; a?: Vec2; cursor?: Vec2; copy: boolean }
@@ -69,7 +71,7 @@ export class SelectTool implements Tool {
     }
     const single = this.singleSelected();
     if (single) {
-      const grip = gripAt(gripsOf(single), e.screen, (p) => this.host.toScreen(p));
+      const grip = gripAt(gripsOf(single, this.host.entities()), e.screen, (p) => this.host.toScreen(p));
       if (grip) {
         this.mode = { k: 'grip-press', id: single.id, grip, screen: e.screen, alt: e.alt, clicks: e.clicks };
         return;
@@ -94,13 +96,16 @@ export class SelectTool implements Tool {
     }
     if (mode.k === 'grip-press') {
       if (distance(mode.screen, e.screen) < DRAG_THRESHOLD_PX) return;
+      if (mode.grip.kind === 'hinge' || mode.grip.kind === 'side') return;
       const joined = mode.grip.kind === 'vertex' && !mode.alt ? this.joinedEnds(mode.id, mode.grip) : [];
       this.mode = { k: 'grip-drag', id: mode.id, grip: mode.grip, cursor: e.world, alt: mode.alt, joined };
       this.host.invalidate();
       return;
     }
     if (mode.k === 'drag') {
-      this.mode = { ...mode, delta: sub(this.snapped(e, mode.start, new Set(mode.ids)), mode.start) };
+      const opening = this.slidingOpening(mode.ids);
+      if (opening) this.mode = { ...mode, delta: sub(e.world, mode.start), slide: this.slideTarget(opening, e.world) };
+      else this.mode = { ...mode, delta: sub(this.snapped(e, mode.start, new Set(mode.ids)), mode.start) };
       this.host.invalidate();
     } else if (mode.k === 'marquee') {
       this.mode = { ...mode, end: e.world };
@@ -127,7 +132,8 @@ export class SelectTool implements Tool {
     }
     if (mode.k === 'grip-press') {
       this.mode = { k: 'idle' };
-      if (mode.grip.kind === 'vertex') this.host.selectVertex({ id: mode.id, which: mode.grip.which, index: mode.grip.index });
+      if (mode.grip.kind === 'hinge' || mode.grip.kind === 'side') this.flipSwing(mode.id, mode.grip.kind);
+      else if (mode.grip.kind === 'vertex') this.host.selectVertex({ id: mode.id, which: mode.grip.which, index: mode.grip.index });
       else if (mode.clicks >= 2) void this.pathEdit(mode.id, 'plan.path.segment.set', { which: mode.grip.which, index: mode.grip.index, segment: { k: 'line' } });
       this.host.invalidate();
       return;
@@ -139,8 +145,15 @@ export class SelectTool implements Tool {
       return;
     }
     if (mode.k === 'drag') {
-      const delta = sub(this.snapped(e, mode.start, new Set(mode.ids)), mode.start);
+      const opening = this.slidingOpening(mode.ids);
       this.mode = { k: 'idle' };
+      if (opening) {
+        const slide = this.slideTarget(opening, e.world);
+        if (slide && (slide.along !== opening.along || slide.wallId !== opening.wallId)) void this.host.invoke('plan.entity.update', { id: opening.id, set: { along: slide.along, wallId: slide.wallId }, ...this.stale() });
+        this.host.invalidate();
+        return;
+      }
+      const delta = sub(this.snapped(e, mode.start, new Set(mode.ids)), mode.start);
       if (distance(delta, [0, 0]) > 0) void this.transform(mode.ids, { translate: delta }, mode.copy || e.ctrl);
       this.host.invalidate();
       return;
@@ -284,13 +297,14 @@ export class SelectTool implements Tool {
 
   excluded(): ReadonlySet<string> {
     const mode = this.mode;
-    if (mode.k === 'drag' && !mode.copy) return new Set(mode.ids);
+    if (mode.k === 'drag' && !mode.copy && !mode.slide) return new Set(mode.ids);
     if (mode.k === 'grip-drag') return new Set([mode.id, ...mode.joined.map((j) => j.id)]);
     return new Set();
   }
 
   hint(): string {
     const mode = this.mode;
+    if (mode.k === 'drag' && mode.slide) return 'Release to slide the opening here (over another wall: move it there)';
     if (mode.k === 'drag') return mode.copy ? 'Release to copy here' : 'Release to move here · Ctrl: copy';
     if (mode.k === 'marquee') return mode.end[0] >= mode.start[0] ? 'Window: what lies fully inside' : 'Crossing: what the box touches';
     if (mode.k === 'rotate') return !mode.pivot ? 'Rotate: click the pivot' : !mode.reference ? 'Click a reference point' : 'Click the new direction · Ctrl: keep a copy';
@@ -315,7 +329,7 @@ export class SelectTool implements Tool {
       const single = this.singleSelected();
       if (single) {
         const vertex = this.host.vertex();
-        drawGrips(ctx, frame, gripsOf(single), vertex && vertex.id === single.id ? vertex : null);
+        drawGrips(ctx, frame, gripsOf(single, this.host.entities()), vertex && vertex.id === single.id ? vertex : null);
       }
     }
     if (mode.k === 'marquee') {
@@ -369,6 +383,10 @@ export class SelectTool implements Tool {
     const entities = this.host.entities();
     let xf: Transform | null = null;
     let copy = false;
+    if (mode.k === 'drag' && mode.slide) {
+      const opening = this.slidingOpening(mode.ids);
+      return opening ? { entities: [{ ...opening, wallId: mode.slide.wallId, along: mode.slide.along }], copy: false } : null;
+    }
     if (mode.k === 'drag') {
       xf = { translate: mode.delta };
       copy = mode.copy;
@@ -468,6 +486,36 @@ export class SelectTool implements Tool {
     while (deg > 180) deg -= 360;
     while (deg <= -180) deg += 360;
     return Math.round(deg * 1000) / 1000;
+  }
+
+  /** The one opening being dragged, if the selection is exactly that. */
+  private slidingOpening(ids: string[]): Opening | null {
+    if (ids.length !== 1) return null;
+    const e = this.host.entities()[ids[0]];
+    return e?.type === 'opening' ? e : null;
+  }
+
+  /** Where a dragged opening goes: the cursor projected on the wall under it (or its own), moved into the nearest free gap. */
+  private slideTarget(opening: Opening, cursor: Vec2): { wallId: string; along: number } | undefined {
+    const entities = this.host.entities();
+    const hit = this.host.hit(cursor);
+    let wall = hit ? entities[hit.id] : undefined;
+    if (wall?.type === 'opening') wall = entities[wall.wallId];
+    if (!wall || wall.type !== 'wall') wall = entities[opening.wallId];
+    if (!wall || wall.type !== 'wall') return undefined;
+    const others = Object.values(entities).filter((e): e is Opening => e.type === 'opening' && e.wallId === wall!.id && e.id !== opening.id);
+    const fit = fitOpening(wall, others, nearestPoint(wall.path, cursor).along, opening.width);
+    if (Number.isNaN(fit.along)) return undefined;
+    return { wallId: wall.id, along: fit.along };
+  }
+
+  private flipSwing(id: string, which: 'hinge' | 'side'): void {
+    const e = this.host.entities()[id];
+    if (e?.type !== 'opening') return;
+    const swing = { hinge: e.swing?.hinge ?? 'start', side: e.swing?.side ?? 'left' };
+    if (which === 'hinge') swing.hinge = swing.hinge === 'start' ? 'end' : 'start';
+    else swing.side = swing.side === 'left' ? 'right' : 'left';
+    void this.host.invoke('plan.entity.update', { id, set: { swing }, ...this.stale() });
   }
 
   private singleSelected(): Entity | null {

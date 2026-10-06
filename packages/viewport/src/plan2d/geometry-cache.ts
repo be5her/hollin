@@ -1,4 +1,4 @@
-import { deriveWalls, wallBody, type Entity, type LevelWalls, type Wall, type WallBody } from '@studio/core';
+import { deriveWalls, wallBody, type Entity, type LevelWalls, type Opening, type Wall, type WallBody } from '@studio/core';
 
 /**
  * Derived geometry memoised by object identity. Valid in the renderer only: the mirror builds a
@@ -30,11 +30,13 @@ export class LevelGeometryCache {
     let walls = byKey.get(key);
     if (!walls) {
       const list: Wall[] = [];
+      const openings: Opening[] = [];
       for (const id in entities) {
         const e = entities[id];
         if (e.type === 'wall') list.push(e);
+        else if (e.type === 'opening') openings.push(e);
       }
-      walls = deriveWalls(list, { exclude, bodyOf: this.bodyOf });
+      walls = deriveWalls(list, { exclude, openings, bodyOf: this.bodyOf });
       byKey.set(key, walls);
     }
     return walls;

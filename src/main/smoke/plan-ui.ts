@@ -58,7 +58,8 @@ export async function smokePlanUi(smoke: Smoke, towerId: string): Promise<void> 
   const doorPixel = await pixelAt([4000, 0]);
   const badgePixel = await pixelAt([4500, 3000]);
   smoke.check('the wall is painted and the floor inside it is not', background !== null && wallPixel !== null && wallPixel !== background, { background, wallPixel });
-  smoke.check('the door cuts the wall', doorPixel === background, { background, doorPixel });
+  // The cut is a real hole: the grid and the axis line show through it, so compare with the wall, not the background.
+  smoke.check('the door cuts the wall', doorPixel !== null && doorPixel !== wallPixel, { wallPixel, doorPixel });
   smoke.check('the room is marked at its seed', badgePixel !== background, { background, badgePixel });
   await smoke.shots('14-plan');
 
@@ -403,6 +404,67 @@ export async function smokePlanUi(smoke: Smoke, towerId: string): Promise<void> 
   await smoke.key('Escape');
   await smoke.run('plan.entity.delete', { ids: wallsOnGallery().filter((w) => !base.has(w.id)).map((w) => w.id) }, { projectId: towerId });
   await smoke.until(() => wallsOnGallery().length === 5);
+
+  smoke.section('openings');
+  type Opening = Extract<Entity, { type: 'opening' }>;
+  const openings = () => Object.values(doc().levelData[gallery].entities).filter((e): e is Opening => e.type === 'opening');
+  const bottomWall = wallById(bottom.id);
+  const bottomMidY = bottomWall.path.v[0].p[1];
+  await focusCanvas();
+  await smoke.key('D');
+  smoke.check('D picks the door tool and shows its sizes', (await smoke.until(async () => (await attr(smoke, 'tool')) === 'door')) && (await smoke.waitFor(`${tab} [data-testid=door-width]`)));
+  await wait(100);
+  rect = (await smoke.rect(canvas))!;
+  cam = (await readCamera(smoke))!;
+  const onBottom = toScreen(rect, cam, [0, bottomMidY]);
+  await smoke.mouseMove(onBottom.x, onBottom.y);
+  smoke.check('hovering a wall offers to place the door', await smoke.until(async () => (await hint())?.includes('Click to place the door') === true), await hint());
+  await smoke.clickAt(onBottom.x, onBottom.y);
+  smoke.check('a click puts a 900 wide door where the cursor projects on the wall', await smoke.until(() => openings().length === 1 && openings()[0].wallId === bottom.id && Math.abs(openings()[0].along - 3000) <= tolerance && openings()[0].width === 900 && openings()[0].swing?.side === 'left'), openings()[0]);
+  const nearEnd = toScreen(rect, cam, [2900, bottomMidY]);
+  await smoke.clickAt(nearEnd.x, nearEnd.y);
+  smoke.check('a door too near the end is moved into the nearest free place', await smoke.until(() => openings().length === 2 && Math.abs(openings().find((o) => o.along > 5000)!.along - 5550) < 1e-6), openings().map((o) => o.along));
+  await smoke.key('N');
+  const onRight = toScreen(rect, cam, [3000, -1000]);
+  await smoke.mouseMove(onRight.x, onRight.y);
+  await smoke.clickAt(onRight.x, onRight.y);
+  smoke.check('N places a window with a sill', await smoke.until(() => openings().some((o) => o.kind === 'window' && o.wallId === right.id && o.sill === 900)), openings().map((o) => o.kind));
+  await smoke.key('D');
+  const leftWall = wallsOnGallery().find((w) => w.path.v[0].p[0] === w.path.v[1].p[0] && w.path.v[0].p[0] < -1000)!;
+  const onLeft = toScreen(rect, cam, [-3000, 0]);
+  await smoke.mouseMove(onLeft.x, onLeft.y);
+  await smoke.key('1');
+  await smoke.typeText('500');
+  await smoke.key('Return');
+  smoke.check('a typed distance places the door exactly that far from the wall start', await smoke.until(() => openings().some((o) => o.wallId === leftWall.id && Math.abs(o.along - 1500) < 1e-6)), openings().filter((o) => o.wallId === leftWall.id).map((o) => o.along));
+  await smoke.shots('21-plan-openings');
+
+  smoke.section('editing openings');
+  await focusCanvas();
+  await smoke.key('V');
+  const firstDoor = openings().find((o) => o.wallId === bottom.id && o.along < 4000)!;
+  const doorScreen = toScreen(rect, cam, [firstDoor.along - 3000, bottomMidY]);
+  await smoke.clickAt(doorScreen.x, doorScreen.y);
+  smoke.check('clicking a door selects it before its wall', await smoke.until(async () => (await selection()).join() === firstDoor.id), await selection());
+  await smoke.dragAt(doorScreen, { x: doorScreen.x - 100, y: doorScreen.y });
+  smoke.check('dragging a door slides it along its wall', await smoke.until(() => Math.abs(openings().find((o) => o.id === firstDoor.id)!.along - (firstDoor.along - 1000)) <= tolerance), openings().find((o) => o.id === firstDoor.id)?.along);
+  const slid = openings().find((o) => o.id === firstDoor.id)!;
+  await smoke.clickAt(...xy(toScreen(rect, cam, [slid.along - 3000, bottomMidY])), { button: 'right' });
+  await smoke.waitFor('[data-testid=context-menu]');
+  await smoke.click('[data-testid=menu-flip-side]');
+  smoke.check('the menu flips the swing side', await smoke.until(() => openings().find((o) => o.id === firstDoor.id)!.swing?.side === 'right'));
+  await smoke.expectError('a door that does not fit is refused with the free ranges', 'plan.opening.add', { wallId: bottom.id, kind: 'door', along: 100 }, 'INVALID_INPUT', { projectId: towerId });
+  const agentDoor = new Client({ name: 'smoke-door-agent', version: '1.0' });
+  await agentDoor.connect(new StreamableHTTPClientTransport(new URL(`${status.url}?project=${towerId}`)));
+  const placed = await agentDoor.callTool({ name: 'plan_opening_add', arguments: { wallId: right.id, kind: 'opening', at: [3000, 1500], width: 800, height: 2000 } });
+  smoke.check('an agent places an opening by a point near the wall', !placed.isError && openings().some((o) => o.kind === 'opening' && o.wallId === right.id), (placed.content as { text: string }[])[0]?.text);
+  await agentDoor.close();
+  const wallSample = await pixelAt([-1500, bottomMidY]);
+  const cutSample = await pixelAt([slid.along - 3000, bottomMidY]);
+  smoke.check('the door cuts the wall body', wallSample !== null && cutSample !== null && wallSample !== cutSample, { wallSample, cutSample });
+  await smoke.key('Escape');
+  await smoke.run('plan.entity.delete', { ids: openings().map((o) => o.id) }, { projectId: towerId });
+  await smoke.until(() => openings().length === 0);
 }
 
 const xy = (p: { x: number; y: number }): [number, number] => [p.x, p.y];

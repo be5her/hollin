@@ -116,3 +116,14 @@ describe('junctions', () => {
     expect(area(joined)).toBeCloseTo(1_000_000, 0);
   });
 });
+
+describe('openings in the drawn walls', () => {
+  it('cuts the openings out of what is drawn but not out of what encloses rooms', () => {
+    const a = wall('a', line([0, 0], [5000, 0]));
+    const door = { id: 'opn_000000000000000d', type: 'opening' as const, levelId: a.levelId, layerId: a.layerId, kind: 'door' as const, wallId: 'a', along: 2500, width: 1000, height: 2100, sill: 0 };
+    const { joined, cut } = deriveWalls([a], { openings: [door] });
+    expect(area(joined)).toBeCloseTo(1_000_000, 0);
+    expect(cut.length).toBe(2);
+    expect(area(cut)).toBeCloseTo(1_000_000 - 1000 * 200, -1);
+  });
+});

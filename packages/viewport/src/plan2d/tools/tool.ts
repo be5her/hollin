@@ -4,7 +4,7 @@ import type { Hit } from '../hit';
 import type { RenderFrame } from '../render';
 import type { SnapResult } from '../snap';
 
-export type ToolId = 'select' | 'wall';
+export type ToolId = 'select' | 'wall' | 'door' | 'window';
 
 /** What copy and paste carry: entities as data, and the point they were copied around. */
 export interface Clipboard {
@@ -52,11 +52,13 @@ export interface WallOptions {
 
 export interface ToolOptions {
   wall: WallOptions;
+  door: { width: number; height: number };
+  window: { width: number; height: number; sill: number };
   /** How far the arrow keys move the selection, in mm. */
   nudge: number;
 }
 
-export const DEFAULT_TOOL_OPTIONS: ToolOptions = { wall: { thickness: 200, height: null, alignment: 'center', single: false }, nudge: 100 };
+export const DEFAULT_TOOL_OPTIONS: ToolOptions = { wall: { thickness: 200, height: null, alignment: 'center', single: false }, door: { width: 900, height: 2100 }, window: { width: 1200, height: 1200, sill: 900 }, nudge: 100 };
 
 export interface ToolPointer {
   world: Vec2;

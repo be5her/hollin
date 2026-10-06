@@ -9,6 +9,7 @@ import { createLevelScene, sceneBox, syncLevelScene, type LevelScene } from './s
 import { LIGHT_THEME, type PlanTheme } from './theme';
 import { SelectTool } from './tools/select';
 import { DEFAULT_TOOL_OPTIONS, type Clipboard, type Tool, type ToolHost, type ToolId, type ToolOptions, type ToolPointer } from './tools/tool';
+import { OpeningTool } from './tools/opening';
 import { WallTool } from './tools/wall';
 
 export type UnderlayMode = 'none' | 'below' | 'above';
@@ -106,7 +107,7 @@ export class Plan2dEditor {
         editor.clipboard = value;
       },
     };
-    this.tools = { select: new SelectTool(host), wall: new WallTool(host) };
+    this.tools = { select: new SelectTool(host), wall: new WallTool(host), door: new OpeningTool(host, 'door'), window: new OpeningTool(host, 'window') };
     this.activeTool = this.tools.select;
   }
 
@@ -467,9 +468,9 @@ export class Plan2dEditor {
       this.moveCamera(panBy(this.cameraValue, screen[0] - this.pan.x, screen[1] - this.pan.y));
       this.pan = { ...this.pan, x: screen[0], y: screen[1] };
     } else {
-      const busy = this.activeTool.busy;
+      const before = this.activeTool.hint();
       this.activeTool.pointerMove?.(this.toolPointer(e, screen));
-      if (this.activeTool.busy !== busy) this.announceTool();
+      if (this.activeTool.hint() !== before) this.announceTool();
     }
     this.lastScreen = screen;
     this.lastWorld = this.lastSnap?.point ?? this.screenToWorld(screen);
@@ -536,6 +537,12 @@ export class Plan2dEditor {
       e.preventDefault();
     } else if (e.key === 'w' || e.key === 'W') {
       this.setTool('wall');
+      e.preventDefault();
+    } else if (e.key === 'd' || e.key === 'D') {
+      this.setTool('door');
+      e.preventDefault();
+    } else if (e.key === 'n' || e.key === 'N') {
+      this.setTool('window');
       e.preventDefault();
     }
   }

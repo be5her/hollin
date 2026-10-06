@@ -1,4 +1,4 @@
-import { DEG, add, columnPolygon, distance, formatLength, normalize, openingFrame, perp, resolvePath, scale as vscale, sub, type Entity, type EntityType, type Layer, type LevelWalls, type Path, type Region, type UnitSettings, type Vec2 } from '@studio/core';
+import { DEG, add, columnPolygon, distance, formatLength, normalize, openingFrame, openingMisfits, perp, resolvePath, scale as vscale, sub, type Entity, type EntityType, type Layer, type LevelWalls, type Path, type Region, type UnitSettings, type Vec2 } from '@studio/core';
 import { visibleBox, worldToScreen, type Camera, type Size } from './camera';
 import { tracePath, tracePolygon, traceRegion, traceSegments } from './draw';
 import { entityBox, searchScene, type LevelScene, type SceneItem } from './scene';
@@ -28,7 +28,7 @@ function joinedPath(walls: LevelWalls): Path2D | null {
   let p = joinedPaths.get(walls);
   if (!p) {
     p = new Path2D();
-    for (const poly of walls.joined) tracePolygon(p, poly);
+    for (const poly of walls.cut) tracePolygon(p, poly);
     joinedPaths.set(walls, p);
   }
   return p;
@@ -56,11 +56,85 @@ function drawWalls(ctx: CanvasRenderingContext2D, frame: RenderFrame): void {
     ctx.stroke(p);
   } else {
     ctx.beginPath();
-    for (const poly of walls.joined) tracePolygon(ctx, poly);
+    for (const poly of walls.cut) tracePolygon(ctx, poly);
     ctx.fill('nonzero');
     ctx.stroke();
   }
   ctx.globalAlpha = 1;
+}
+
+/** The openings of a scene grouped by wall, kept per scene version. */
+const openingGroups = new WeakMap<LevelScene, { version: number; byWall: Map<string, Extract<Entity, { type: 'opening' }>[]> }>();
+
+function openingsByWall(scene: LevelScene): Map<string, Extract<Entity, { type: 'opening' }>[]> {
+  const cached = openingGroups.get(scene);
+  if (cached && cached.version === scene.version) return cached.byWall;
+  const byWall = new Map<string, Extract<Entity, { type: 'opening' }>[]>();
+  for (const item of scene.items.values()) {
+    if (item.type !== 'opening') continue;
+    const o = item.entity as Extract<Entity, { type: 'opening' }>;
+    const list = byWall.get(o.wallId);
+    if (list) list.push(o);
+    else byWall.set(o.wallId, [o]);
+  }
+  openingGroups.set(scene, { version: scene.version, byWall });
+  return byWall;
+}
+
+/**
+ * An opening's symbol: the jamb lines, and a door's leaf with its swing or a window's glazing lines.
+ * The cut itself is part of the drawn walls. With `outline`, the cut's outline is drawn too (previews).
+ */
+export function drawOpeningSymbol(ctx: CanvasRenderingContext2D, frame: RenderFrame, wall: Extract<Entity, { type: 'wall' }>, e: Pick<Extract<Entity, { type: 'opening' }>, 'kind' | 'along' | 'width' | 'swing'>, color: string, outline = false): void {
+  const { jambs, normal: n, cut, across } = openingFrame(wall, e);
+  const [jambA, jambB] = jambs;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = px(frame, 1);
+  if (outline) {
+    ctx.fillStyle = withAlpha(color, 0.12);
+    ctx.beginPath();
+    tracePolygon(ctx, cut);
+    ctx.fill();
+    ctx.stroke();
+  }
+  ctx.beginPath();
+  ctx.moveTo(cut[0][0], cut[0][1]);
+  ctx.lineTo(cut[3][0], cut[3][1]);
+  ctx.moveTo(cut[1][0], cut[1][1]);
+  ctx.lineTo(cut[2][0], cut[2][1]);
+  if (e.kind === 'window') {
+    const mid = (across.left + across.right) / 2;
+    const quarter = (across.left - across.right) / 4;
+    for (const k of [mid - quarter, mid + quarter]) {
+      const a = add(jambA, vscale(n, k));
+      const b = add(jambB, vscale(n, k));
+      ctx.moveTo(a[0], a[1]);
+      ctx.lineTo(b[0], b[1]);
+    }
+    ctx.stroke();
+    return;
+  }
+  if (e.kind !== 'door') {
+    ctx.stroke();
+    return;
+  }
+  const hinge = e.swing?.hinge === 'end' ? jambB : jambA;
+  const other = hinge === jambA ? jambB : jambA;
+  const side = e.swing?.side === 'right' ? -1 : 1;
+  const leafEnd = add(hinge, vscale(n, side * e.width));
+  ctx.moveTo(hinge[0], hinge[1]);
+  ctx.lineTo(leafEnd[0], leafEnd[1]);
+  ctx.stroke();
+  ctx.beginPath();
+  const a0 = Math.atan2(leafEnd[1] - hinge[1], leafEnd[0] - hinge[0]);
+  const a1 = Math.atan2(other[1] - hinge[1], other[0] - hinge[0]);
+  let sweep = a1 - a0;
+  while (sweep > Math.PI) sweep -= 2 * Math.PI;
+  while (sweep < -Math.PI) sweep += 2 * Math.PI;
+  ctx.setLineDash([px(frame, 3), px(frame, 3)]);
+  ctx.arc(hinge[0], hinge[1], e.width, a0, a0 + sweep, sweep < 0);
+  ctx.stroke();
+  ctx.setLineDash([]);
 }
 
 export interface RenderStats {
@@ -234,7 +308,7 @@ export function drawSnap(ctx: CanvasRenderingContext2D, frame: RenderFrame, snap
 }
 
 /** The grips of the selected entity: squares at vertices (the selected one filled), circles at segment middles. Drawn in screen space. */
-export function drawGrips(ctx: CanvasRenderingContext2D, frame: RenderFrame, grips: readonly { kind: 'vertex' | 'mid'; index: number; which: unknown; at: Vec2 }[], selected: { index: number; which: unknown } | null): void {
+export function drawGrips(ctx: CanvasRenderingContext2D, frame: RenderFrame, grips: readonly { kind: string; index: number; which: unknown; at: Vec2 }[], selected: { index: number; which: unknown } | null): void {
   if (!grips.length) return;
   screenSpace(ctx, frame);
   ctx.lineWidth = 1.5;
@@ -245,7 +319,14 @@ export function drawGrips(ctx: CanvasRenderingContext2D, frame: RenderFrame, gri
     ctx.fillStyle = isSelected ? frame.theme.selection : frame.theme.background;
     ctx.beginPath();
     if (g.kind === 'vertex') ctx.rect(Math.round(x) - 4, Math.round(y) - 4, 8, 8);
-    else ctx.arc(x, y, 3.5, 0, Math.PI * 2);
+    else if (g.kind === 'mid') ctx.arc(x, y, 3.5, 0, Math.PI * 2);
+    else {
+      ctx.moveTo(x, y - 5);
+      ctx.lineTo(x + 5, y);
+      ctx.lineTo(x, y + 5);
+      ctx.lineTo(x - 5, y);
+      ctx.closePath();
+    }
     ctx.fill();
     ctx.stroke();
   }
@@ -540,55 +621,9 @@ function drawOpening(ctx: CanvasRenderingContext2D, item: SceneItem, frame: Rend
   const e = item.entity as Extract<Entity, { type: 'opening' }>;
   const wall = frame.scene?.items.get(e.wallId)?.entity;
   if (!wall || wall.type !== 'wall') return;
-  const { theme } = frame;
-  const { jambs, normal: n, cut, across } = openingFrame(wall, e);
-  const [jambA, jambB] = jambs;
-  // The cut: the wall body between the jambs, in the background colour, a hair oversized to cover the body outline.
-  const corners = cut;
-  ctx.fillStyle = theme.background;
-  ctx.beginPath();
-  tracePolygon(ctx, corners);
-  ctx.fill();
-  ctx.strokeStyle = theme.wallLine;
-  ctx.lineWidth = px(frame, 1);
-  ctx.beginPath();
-  // Jamb lines.
-  ctx.moveTo(corners[0][0], corners[0][1]);
-  ctx.lineTo(corners[3][0], corners[3][1]);
-  ctx.moveTo(corners[1][0], corners[1][1]);
-  ctx.lineTo(corners[2][0], corners[2][1]);
-  if (e.kind === 'window') {
-    const mid = (across.left + across.right) / 2;
-    const quarter = (across.left - across.right) / 4;
-    for (const k of [mid - quarter, mid + quarter]) {
-      const a = add(jambA, vscale(n, k));
-      const b = add(jambB, vscale(n, k));
-      ctx.moveTo(a[0], a[1]);
-      ctx.lineTo(b[0], b[1]);
-    }
-  } else if (e.kind === 'door') {
-    const hinge = e.swing?.hinge === 'end' ? jambB : jambA;
-    const other = hinge === jambA ? jambB : jambA;
-    const side = e.swing?.side === 'right' ? -1 : 1;
-    const dir = vscale(n, side);
-    const leafEnd = add(hinge, vscale(dir, e.width));
-    ctx.moveTo(hinge[0], hinge[1]);
-    ctx.lineTo(leafEnd[0], leafEnd[1]);
-    ctx.stroke();
-    ctx.beginPath();
-    // A quarter circle from the leaf end to the opposite jamb.
-    const a0 = Math.atan2(leafEnd[1] - hinge[1], leafEnd[0] - hinge[0]);
-    const a1 = Math.atan2(other[1] - hinge[1], other[0] - hinge[0]);
-    let sweep = a1 - a0;
-    while (sweep > Math.PI) sweep -= 2 * Math.PI;
-    while (sweep < -Math.PI) sweep += 2 * Math.PI;
-    ctx.setLineDash([px(frame, 3), px(frame, 3)]);
-    ctx.arc(hinge[0], hinge[1], e.width, a0, a0 + sweep, sweep < 0);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    return;
-  }
-  ctx.stroke();
+  const others = frame.scene ? (openingsByWall(frame.scene).get(e.wallId) ?? []) : [];
+  const misfit = openingMisfits(wall, e, others);
+  drawOpeningSymbol(ctx, frame, wall, e, misfit ? frame.theme.warning : frame.theme.wallLine, misfit);
 }
 
 function drawDimension(ctx: CanvasRenderingContext2D, e: Extract<Entity, { type: 'dimension' }>, frame: RenderFrame, texts: TextOp[]): void {

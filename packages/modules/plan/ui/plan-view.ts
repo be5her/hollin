@@ -3,7 +3,7 @@ import { FormField, form } from '@angular/forms/signals';
 import { deriveLevels, type GlobalConfig, type Vec2 } from '@studio/core';
 import { AppState, Checkbox, ContextMenu, HostBridge, Icon, IconButton, Input, LengthInput, ProjectDocs, ProjectView, Select, Toasts, Units, type ContextMenuItem } from '@studio/ui';
 import { DEFAULT_TOOL_OPTIONS, Plan2dEditor, drawingScale, readPlanTheme, type Camera, type SnapResult, type ToolId, type UnderlayMode, type WallOptions } from '@studio/viewport';
-import { BrickWall, ChevronDown, Magnet, Maximize, MousePointer2, ZoomIn, ZoomOut } from 'lucide';
+import { Blinds, BrickWall, ChevronDown, DoorOpen, Magnet, Maximize, MousePointer2, ZoomIn, ZoomOut } from 'lucide';
 import { PlanSelection } from './plan-selection';
 
 interface WallDraft {
@@ -58,7 +58,7 @@ export class PlanView {
   private readonly container = viewChild.required<ElementRef<HTMLDivElement>>('container');
   private readonly dynamicInputEl = viewChild<ElementRef<HTMLInputElement>>('dynamicInput');
 
-  protected readonly icons = { BrickWall, ChevronDown, Magnet, Maximize, MousePointer2, ZoomIn, ZoomOut };
+  protected readonly icons = { Blinds, BrickWall, ChevronDown, DoorOpen, Magnet, Maximize, MousePointer2, ZoomIn, ZoomOut };
   protected readonly snapKinds = SNAP_KINDS;
   protected readonly doc = computed(() => this.docs.read(this.projectId())?.doc);
   protected readonly levels = computed(() => {
@@ -105,6 +105,9 @@ export class PlanView {
   protected readonly wallDraft = signal<WallDraft>({ thickness: '', height: '', alignment: 'center', single: false });
   protected readonly wallForm = form(this.wallDraft);
   private wallOptions: WallOptions = { ...DEFAULT_TOOL_OPTIONS.wall };
+  /** The door and window tools' sizes, typed in display units and remembered in the settings. */
+  protected readonly openingDraft = signal({ doorWidth: '', doorHeight: '', windowWidth: '', windowHeight: '', windowSill: '' });
+  protected readonly openingForm = form(this.openingDraft);
   /** The grid spacing field in the snap menu. */
   protected readonly gridDraft = signal({ spacing: '' });
   protected readonly gridForm = form(this.gridDraft);
@@ -166,9 +169,11 @@ export class PlanView {
       if (!c) return;
       this.editor.setSnapSettings({ enabled: c.snap, endpoint: c.snapEndpoint, midpoint: c.snapMidpoint, center: c.snapCenter, intersection: c.snapIntersection, perpendicular: c.snapPerpendicular, extension: c.snapExtension, grid: c.snapGrid, gridSpacing: c.gridSpacing, angle: c.snapAngle, angleStep: c.angleStep });
       this.editor.showGrid = c.gridShow;
-      this.editor.setToolOptions({ ...DEFAULT_TOOL_OPTIONS, nudge: c.gridSpacing, wall: { ...this.wallOptions, thickness: c.wallThickness, height: c.wallHeight } });
       this.wallOptions = { ...this.wallOptions, thickness: c.wallThickness, height: c.wallHeight };
+      this.editor.setToolOptions(this.toolOptions(c));
       this.showWallOptions();
+      const len = (mm: number) => this.units.length(mm);
+      this.openingDraft.set({ doorWidth: len(c.doorWidth), doorHeight: len(c.doorHeight), windowWidth: len(c.windowWidth), windowHeight: len(c.windowHeight), windowSill: len(c.windowSill) });
       this.gridDraft.set({ spacing: this.units.length(c.gridSpacing) });
       this.editor.invalidate();
     });
@@ -238,11 +243,22 @@ export class PlanView {
             if (copies?.length) this.editor.select(copies);
           }),
       },
+      ...this.swingItems(ids),
       { label: `Delete ${what}`, shortcut: 'Del', danger: true, disabled: !n, testId: 'menu-delete', select: () => void run('plan.entity.delete', { ids }) },
       'separator',
       { label: 'Select all', shortcut: 'Ctrl+A', testId: 'menu-select-all', select: () => this.editor.select(Object.keys(this.editor.entities())) },
       { label: 'Zoom to fit', shortcut: 'Home', select: () => this.editor.zoomToFit() },
     ];
+  }
+
+  private toolOptions(c: EditorConfig) {
+    return { ...DEFAULT_TOOL_OPTIONS, nudge: c.gridSpacing, wall: this.wallOptions, door: { width: c.doorWidth, height: c.doorHeight }, window: { width: c.windowWidth, height: c.windowHeight, sill: c.windowSill } };
+  }
+
+  /** A door or window size typed in the options bar, in any unit: remembered in the settings. */
+  protected setOpeningSize(key: 'doorWidth' | 'doorHeight' | 'windowWidth' | 'windowHeight' | 'windowSill', mm: number | null): void {
+    if (mm === null || (mm <= 0 && key !== 'windowSill') || mm < 0) return;
+    void this.updateEditorConfig({ [key]: mm });
   }
 
   // ---------- typed coordinates ----------
@@ -260,6 +276,20 @@ export class PlanView {
   protected closeTyped(): void {
     this.dynamicInput.set(null);
     this.canvas().nativeElement.focus({ preventScroll: true });
+  }
+
+  /** For a single selected door: flip its swing side or hinge. */
+  private swingItems(ids: string[]): ContextMenuItem[] {
+    if (ids.length !== 1) return [];
+    const e = this.editor.entities()[ids[0]];
+    if (!e || e.type !== 'opening' || e.kind !== 'door') return [];
+    const swing = { hinge: e.swing?.hinge ?? 'start', side: e.swing?.side ?? 'left' };
+    const projectId = untracked(this.projectId);
+    const flip = (next: typeof swing) => void this.host.invoke('plan.entity.update', { id: e.id, set: { swing: next } }, projectId).catch((err) => this.toasts.error(err));
+    return [
+      { label: 'Flip swing side', testId: 'menu-flip-side', select: () => flip({ ...swing, side: swing.side === 'left' ? 'right' : 'left' }) },
+      { label: 'Flip hinge', testId: 'menu-flip-hinge', select: () => flip({ ...swing, hinge: swing.hinge === 'start' ? 'end' : 'start' }) },
+    ];
   }
 
   // ---------- tools ----------
@@ -284,7 +314,8 @@ export class PlanView {
     else this.wallOptions = { ...this.wallOptions, height };
     this.wallOptions = { ...this.wallOptions, alignment: draft.alignment, single: draft.single };
     this.showWallOptions();
-    this.editor.setToolOptions({ ...DEFAULT_TOOL_OPTIONS, nudge: untracked(this.editorConfig)?.gridSpacing ?? 100, wall: this.wallOptions });
+    const current = untracked(this.editorConfig);
+    if (current) this.editor.setToolOptions(this.toolOptions(current));
     const c = untracked(this.editorConfig);
     if (c && (c.wallThickness !== this.wallOptions.thickness || c.wallHeight !== this.wallOptions.height)) void this.updateEditorConfig({ wallThickness: this.wallOptions.thickness, wallHeight: this.wallOptions.height });
   }

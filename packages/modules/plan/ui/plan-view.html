@@ -6,6 +6,12 @@
     <button xIconButton size="sm" label="Wall (W)" [class.bg-elevated]="tool() === 'wall'" [class.text-fg]="tool() === 'wall'" [attr.aria-pressed]="tool() === 'wall'" (click)="chooseTool('wall')" data-testid="tool-wall">
       <svg [xIcon]="icons.BrickWall" class="size-3.5"></svg>
     </button>
+    <button xIconButton size="sm" label="Door (D)" [class.bg-elevated]="tool() === 'door'" [class.text-fg]="tool() === 'door'" [attr.aria-pressed]="tool() === 'door'" (click)="chooseTool('door')" data-testid="tool-door">
+      <svg [xIcon]="icons.DoorOpen" class="size-3.5"></svg>
+    </button>
+    <button xIconButton size="sm" label="Window (N)" [class.bg-elevated]="tool() === 'window'" [class.text-fg]="tool() === 'window'" [attr.aria-pressed]="tool() === 'window'" (click)="chooseTool('window')" data-testid="tool-window">
+      <svg [xIcon]="icons.Blinds" class="size-3.5"></svg>
+    </button>
   </div>
   <div class="w-px h-5 bg-edge"></div>
   <label class="text-muted" for="plan-level-select">Level</label>
@@ -90,6 +96,20 @@
       <input xCheckbox type="checkbox" [formField]="wallForm.single" (change)="applyWallOptions()" data-testid="wall-single" />
       Single wall (one entity for the run)
     </label>
+  </div>
+}
+@if (tool() === 'door' || tool() === 'window') {
+  <div class="flex items-center gap-3 px-3 h-9 border-b border-edge bg-surface shrink-0 text-xs" data-testid="tool-options">
+    <span class="font-medium">{{ tool() === 'door' ? 'Door' : 'Window' }}</span>
+    @if (tool() === 'door') {
+      <label class="flex items-center gap-1.5 text-muted">Width <input xInput xLength class="h-7 w-24 font-mono" [formField]="openingForm.doorWidth" (commit)="setOpeningSize('doorWidth', $event)" aria-label="Door width" data-testid="door-width" /></label>
+      <label class="flex items-center gap-1.5 text-muted">Height <input xInput xLength class="h-7 w-24 font-mono" [formField]="openingForm.doorHeight" (commit)="setOpeningSize('doorHeight', $event)" aria-label="Door height" /></label>
+      <span class="text-muted">F: flip side · H: flip hinge</span>
+    } @else {
+      <label class="flex items-center gap-1.5 text-muted">Width <input xInput xLength class="h-7 w-24 font-mono" [formField]="openingForm.windowWidth" (commit)="setOpeningSize('windowWidth', $event)" aria-label="Window width" data-testid="window-width" /></label>
+      <label class="flex items-center gap-1.5 text-muted">Height <input xInput xLength class="h-7 w-24 font-mono" [formField]="openingForm.windowHeight" (commit)="setOpeningSize('windowHeight', $event)" aria-label="Window height" /></label>
+      <label class="flex items-center gap-1.5 text-muted">Sill <input xInput xLength class="h-7 w-24 font-mono" [formField]="openingForm.windowSill" (commit)="setOpeningSize('windowSill', $event)" aria-label="Window sill" /></label>
+    }
   </div>
 }
 <div #container class="relative flex-1 min-h-0 bg-canvas">

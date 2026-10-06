@@ -12,3 +12,4 @@ export * from './plan2d/editor';
 export * from './plan2d/tools/tool';
 export * from './plan2d/tools/select';
 export * from './plan2d/tools/wall';
+export * from './plan2d/tools/opening';

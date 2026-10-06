@@ -61,7 +61,7 @@ The engine. Everything here is pure TypeScript with no Electron, Node I/O or UI 
 | `intersect.ts` | Segment–segment intersections (lines and arcs, within the segments or extended), the perpendicular foot and tangent points from a point, for snapping and joins. |
 | `transform.ts` | `transformEntity`: every entity type moved, rotated about a pivot or mirrored across a line (openings stay on their wall; a mirror swaps a door's swing and flips arcs), and `changedFields` for the resulting update. |
 | `path-edit.ts` | Vertex, segment and corner edits on a path, and `pathOfEntity`/`withPath` to address a wall's path or a region's outline or hole. |
-| `openings.ts` | `openingFrame` (an opening's centre, jambs and cut through its wall's body) and `columnPolygon`. |
+| `openings.ts` | `openingFrame` (an opening's centre, jambs and cut through its wall's body), `fitOpening` (whether an opening fits between the wall's ends and its other openings, the nearest place that does, the free ranges), `openingMisfits` and `columnPolygon`. |
 | `level-geometry.ts` | `deriveWalls` / `deriveLevelGeometry`: everything a level's entities derive to, uncached. The renderer memoises by object identity (valid there, where the mirror builds a fresh draft per patch); main derives afresh, because a transaction mutates a level's record in place while a batch runs. |
 
 ## Tests

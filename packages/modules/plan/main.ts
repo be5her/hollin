@@ -16,10 +16,13 @@ import {
   distance,
   editProject,
   entitiesOnLevel,
+  fitOpening,
   insertVertex,
   moveLayerOps,
   moveVertex,
+  nearestPoint,
   newId,
+  openingFrame,
   pathOfEntity,
   remapRefs,
   removeLayerOps,
@@ -34,6 +37,7 @@ import {
   type EditContext,
   type Entity,
   type Op,
+  type Opening,
   type Path,
   type ProjectApi,
   type Transform,
@@ -294,6 +298,45 @@ export const planModule = defineModule({
       },
     }),
     defineCommand({
+      id: 'plan.opening.add',
+      title: 'Add a door or window',
+      description:
+        "Puts a door, window or plain opening in a wall, at `along` mm from the start of the wall's path to its centre, or at the point of the wall nearest to `at`. It must fit between the wall's ends and its other openings, or the call fails with INVALID_INPUT and the free ranges in `details.gaps`. Defaults: a door 900 × 2100 with the hinge at the start opening to the left; a window 1200 × 1200 with a 900 sill. Returns its id.",
+      scope: 'project',
+      batchable: true,
+      input: z.object({
+        wallId: z.string(),
+        kind: z.enum(['door', 'window', 'opening']),
+        along: z.number().min(0).optional(),
+        at: Point.optional(),
+        width: z.number().positive().optional(),
+        height: z.number().positive().optional(),
+        sill: z.number().min(0).optional(),
+        swing: z.object({ hinge: z.enum(['start', 'end']), side: z.enum(['left', 'right']) }).optional(),
+        style: z.string().min(1).max(200).optional(),
+      }),
+      handler: async (input, ctx) => {
+        const { result } = await editProject(ctx, `Add ${input.kind}`, (tx) => {
+          const wall = requireEntity(tx.doc, input.wallId);
+          if (wall.type !== 'wall') throw new StudioError('INVALID_INPUT', `${input.wallId} is a ${wall.type}, not a wall`);
+          const width = input.width ?? (input.kind === 'window' ? 1200 : 900);
+          const height = input.height ?? (input.kind === 'window' ? 1200 : 2100);
+          const sill = input.sill ?? (input.kind === 'window' ? 900 : 0);
+          const along = input.along ?? (input.at ? nearestPoint(wall.path, input.at).along : undefined);
+          if (along === undefined) throw new StudioError('INVALID_INPUT', 'Give `along` (from the start of the wall) or `at` (a point near the wall)');
+          const others = Object.values(tx.doc.levelData[wall.levelId].entities).filter((e): e is Opening => e.type === 'opening' && e.wallId === wall.id);
+          const fit = fitOpening(wall, others, along, width);
+          if (!fit.fits) throw new StudioError('INVALID_INPUT', Number.isNaN(fit.along) ? `The ${input.kind} does not fit anywhere on this wall` : `The ${input.kind} does not fit at ${Math.round(along)} mm; the nearest place is ${Math.round(fit.along)} mm`, { gaps: fit.gaps, length: fit.length, nearest: fit.along });
+          const swing = input.kind === 'door' ? (input.swing ?? { hinge: 'start', side: 'left' }) : input.swing;
+          const entity = { type: 'opening' as const, kind: input.kind, wallId: wall.id, along, width, height, sill, ...(swing ? { swing } : {}), ...(input.style ? { style: input.style } : {}) };
+          const { ops, id } = addEntityOps(tx.doc, { levelId: wall.levelId, layerId: wall.layerId, entity });
+          tx.apply(ops);
+          return id;
+        });
+        return { id: result };
+      },
+    }),
+    defineCommand({
       id: 'plan.transform',
       title: 'Move, rotate, mirror or copy entities',
       description:
@@ -339,7 +382,16 @@ export const planModule = defineModule({
               return selected.map((e) => map.get(e.id)).filter((id): id is string => Boolean(id));
             }
             for (const e of selected) {
-              if (e.type === 'opening') continue;
+              if (e.type === 'opening') {
+                // An opening stays in its wall: a move slides it by the move's component along the wall.
+                const wall = translate && !rotate && !mirror ? tx.doc.levelData[e.levelId]?.entities[e.wallId] : undefined;
+                if (wall?.type === 'wall') {
+                  const { tangent } = openingFrame(wall, e);
+                  const d = translate![0] * tangent[0] + translate![1] * tangent[1];
+                  if (Math.abs(d) > 1e-9) tx.apply(updateEntityOps(tx.doc, e.id, { along: Math.max(0, e.along + d) }));
+                }
+                continue;
+              }
               const set = changedFields(e, transformEntity(e, xf));
               if (Object.keys(set).length) tx.apply(updateEntityOps(tx.doc, e.id, set));
             }
