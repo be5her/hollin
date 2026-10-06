@@ -6,9 +6,11 @@
   "description": "Feature modules. One folder per feature: main.ts (commands, Node side), ui/ (Angular side) and README.md.",
   "exports": {
     "./main": "./main.ts",
-    "./ui": "./ui.ts"
+    "./ui": "./ui.ts",
+    "./assistant/fake-api": "./assistant/fake-api.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.131.0",
     "zod": "^4.6.5"
   }
 }

@@ -54,7 +54,7 @@ src/renderer             The Angular app and the shell (its own npm workspace).
 
 Every feature is a set of **commands** with zod input schemas, registered in one `CommandRegistry`. The UI reaches the host only through commands (`window.studio.invoke(id, input, projectId)`), and the same registry backs the command palette, the MCP server and, later, the in-app assistant, so every feature reaches all of them for free. `execute` checks, in order: unknown id (`UNKNOWN_COMMAND`), missing project (`NO_PROJECT`), input (`INVALID_INPUT`, one "path: message" per issue), then the mutating gate, then runs the handler. Errors cross IPC and MCP as `{ code, message, details? }`.
 
-**Mutating** commands (delete, write outside the library, otherwise destructive) are refused to MCP agents until the user allows it in Settings, and the assistant will ask the user first. Ordinary design edits are undoable transactions instead.
+**Mutating** commands (delete, write outside the library, otherwise destructive) are refused to MCP agents until the user allows it in Settings, and the in-app assistant pauses until the user allows or declines the call in the chat. Ordinary design edits are undoable transactions instead.
 
 The **document** of an open project lives in the main process: a building (datum, ground level, level stack) with levels, per-level layers and entities, and connectors between levels. Elevations are derived from the stack. Every edit is a validated transaction with a label and an author on one undo stack; the renderer mirrors the document from `doc.patched` events. The stairs, ramps and elevators between levels are stored as intent (a walk line, levels, a width) and everything else about them (risers, treads, the holes they cut in the slabs, the limits they break) is derived from the level heights and the rule limits, never stored; a rules watcher in main keeps the warnings current. See `packages/modules/building`, `plan`, `edit` and `rules`.
 
@@ -77,6 +77,7 @@ The host broadcasts typed **events** (`config.changed`, `library.changed`, `proj
 | zod | Every command's input schema; also the MCP tool schemas and the config normaliser. |
 | @modelcontextprotocol/server, @modelcontextprotocol/node | The MCP server (SDK v2: the stable line; v1 only gets fixes until early 2027). |
 | @modelcontextprotocol/client (dev) | Unit tests and the smoke test talk to the server with the SDK's own client. |
+| @anthropic-ai/sdk | The in-app assistant's Claude API client: streaming, typed errors and the request types (`packages/modules/assistant`). |
 | fflate | Project packages (zip) without native modules. |
 | rbush (+ `@types/rbush`) | The plan's R-tree: culling what is drawn and hit-testing candidates. |
 | clipper2-ts | Polygon unions, differences and offsets (a TypeScript port of Clipper2): joined walls, opening cuts, room detection, the automatic slab. Pinned exactly to `2.0.1-18`: its releases are numbered `2.0.1-N`, which semver ranks below the old plain `2.0.1`. |

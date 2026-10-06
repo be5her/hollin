@@ -26,7 +26,8 @@ export async function smokeHost(smoke: Smoke): Promise<void> {
     const by = (id: string) => list.find((c) => c.id === id);
     return by('smoke.destroy')?.mutating === true && by('smoke.maybe')?.conditional === true && by('config.update')?.hidden === true && by('app.info')?.noInput === true && by('smoke.echo')?.noInput === false;
   })());
-  await smoke.expectError('the assistant cannot run mutating commands without a confirmation channel', 'smoke.destroy', {}, 'MUTATION_BLOCKED', { caller: 'assistant' });
+  // The assistant module asks in the chat a tool call belongs to; a direct call has no chat, so nobody can allow it.
+  await smoke.expectError('mutating assistant calls outside a chat are declined', 'smoke.destroy', {}, 'MUTATION_DECLINED', { caller: 'assistant' });
 
   smoke.section('config');
   const info = await smoke.run<{ productName: string; version: string; mcp: { running: boolean } }>('app.info');
