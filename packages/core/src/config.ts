@@ -69,6 +69,16 @@ const SECTIONS = {
     windowWidth: z.number().positive(),
     windowHeight: z.number().positive(),
     windowSill: z.number().min(0),
+    /** The stair, ramp, elevator and column tools' sizes, mm. */
+    stairWidth: z.number().positive(),
+    rampWidth: z.number().positive(),
+    elevatorShaftW: z.number().positive(),
+    elevatorShaftD: z.number().positive(),
+    elevatorCarW: z.number().positive(),
+    elevatorCarD: z.number().positive(),
+    columnW: z.number().positive(),
+    columnD: z.number().positive(),
+    columnR: z.number().positive(),
   }),
   /** The limits connectors are checked against (rule warnings). A stair's own riser and tread values override the stair ones. */
   rules: z.object({
@@ -124,6 +134,15 @@ const DEFAULTS: GlobalConfig = {
     windowWidth: 1200,
     windowHeight: 1200,
     windowSill: 900,
+    stairWidth: 1000,
+    rampWidth: 1200,
+    elevatorShaftW: 2000,
+    elevatorShaftD: 2200,
+    elevatorCarW: 1100,
+    elevatorCarD: 1400,
+    columnW: 300,
+    columnD: 300,
+    columnR: 150,
   },
   rules: { maxRiser: 190, minRiser: 100, minTread: 250, comfortMin: 600, comfortMax: 650, minStairWidth: 800, maxRampSlope: 8.33, stairCutHeight: 1200 },
 };

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { DEFAULT_RULE_LIMITS } from '@studio/core';
 import { deriveWalls, type Entity, type Layer } from '@studio/core';
 import { hitTest } from '../hit';
 import { createLevelScene, syncLevelScene } from '../scene';
@@ -30,6 +31,8 @@ function harness() {
     epoch: () => 1,
     connectors: () => new Map(),
     previewConnector: () => null,
+    levels: () => [],
+    limits: () => DEFAULT_RULE_LIMITS,
     options: () => DEFAULT_TOOL_OPTIONS,
     scale: () => 0.1,
     toScreen: (p) => [p[0] / 10, -p[1] / 10],

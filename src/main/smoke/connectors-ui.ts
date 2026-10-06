@@ -1,3 +1,4 @@
+import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import { wait, type Smoke } from './harness';
 import { canvas, canvasAttr, tab, view } from './plan-canvas';
 
@@ -89,4 +90,58 @@ export async function smokeConnectorsUi(smoke: Smoke, duplexId: string): Promise
   await smoke.key('Z', ['control']);
   smoke.check('and Ctrl+Z brings it back', await smoke.until(() => Boolean(doc().connectors[stairId])));
   await smoke.key('Escape');
+
+  smoke.section('drawing connectors');
+  const connectorIds = () => new Set(Object.keys(doc().connectors));
+  let known = connectorIds();
+  const newConnector = () => Object.values(doc().connectors).find((c) => !known.has(c.id));
+  const near = (p: readonly number[], q: readonly number[]) => Math.abs(p[0] - q[0]) < 2 / v.cam.scale && Math.abs(p[1] - q[1]) < 2 / v.cam.scale;
+  await smoke.clickAt(v.at([5123, 1937]).x, v.at([5123, 1937]).y);
+  await smoke.click(`${tab} [data-testid=tool-stair]`);
+  smoke.check('the stair tool shows its options', (await smoke.waitFor(`${tab} [data-testid=tool-options]`)) && (await canvasAttr(smoke, 'tool')) === 'stair');
+  await smoke.fill(`${tab} [data-testid=stair-shape]`, 'l');
+  smoke.check('the levels default to this floor and the one above', (await smoke.js<string>(`document.querySelector('${tab} [data-testid=connector-from]').value`)) === ground && (await smoke.js<string>(`document.querySelector('${tab} [data-testid=connector-to]').value`)) === upper);
+  // The options bar changed the canvas height: measure again. An L from (4000, 1000) up to its corner and right to (5750, 4000), long enough for 14 treads within the limits; tracking keeps the flights straight.
+  v = await view(smoke);
+  for (const p of [[4000, 1000], [4000, 4000], [5750, 4000]] as const) await smoke.clickAt(v.at(p).x, v.at(p).y);
+  smoke.check('three clicks draw an L stair to the upper floor', (await smoke.until(() => newConnector()?.kind === 'stair')) && newConnector()!.kind === 'stair' && (newConnector() as { shape: string }).shape === 'l' && (newConnector() as { bottom: { levelId: string }; top: { levelId: string } }).top.levelId === upper, newConnector());
+  const drawn = newConnector() as { axis: { v: { p: readonly number[] }[] } };
+  smoke.check('its corner is where it was clicked, the flights exactly straight', drawn.axis.v.length === 3 && near(drawn.axis.v[1].p, [4000, 4000]) && drawn.axis.v[0].p[0] === drawn.axis.v[1].p[0] && drawn.axis.v[1].p[1] === drawn.axis.v[2].p[1], drawn.axis.v);
+  smoke.check('the stair it makes is within the limits', (await smoke.waitFor(`${tab} [data-testid=connector-derived]`, 3000, '16 risers')) && (await smoke.count(`${tab} [data-testid=connector-broken]`)) === 0, await smoke.text(`${tab} [data-testid=connector-derived]`));
+  smoke.check('the panel shows the new stair', await smoke.waitFor(`${tab} [data-testid=properties-title]`, 3000, 'Stair'));
+  await smoke.shots('24-stair-tool');
+  known = connectorIds();
+  await smoke.key('Escape');
+  await smoke.until(async () => (await canvasAttr(smoke, 'tool')) === 'select');
+  await smoke.key('E');
+  smoke.check('E picks the elevator tool', await smoke.until(async () => (await canvasAttr(smoke, 'tool')) === 'elevator'));
+  v = await view(smoke);
+  await smoke.clickAt(v.at([4000, 6500]).x, v.at([4000, 6500]).y);
+  smoke.check('a click places an elevator stopping at both floors', (await smoke.until(() => newConnector()?.kind === 'elevator')) && near((newConnector() as { at: readonly number[] }).at, [4000, 6500]) && (newConnector() as { stops: { levelId: string }[] }).stops.map((s) => s.levelId).join() === [ground, upper].join(), newConnector());
+  known = connectorIds();
+  await smoke.key('Escape');
+  await smoke.until(async () => (await canvasAttr(smoke, 'tool')) === 'select');
+  const columns = () => Object.values(doc().levelData[ground].entities).filter((e) => e.type === 'column') as { at: readonly number[]; shape: { k: string } }[];
+  await smoke.key('C');
+  smoke.check('C picks the column tool', await smoke.until(async () => (await canvasAttr(smoke, 'tool')) === 'column'));
+  v = await view(smoke);
+  // Just inside the left wall's inner face (x = 100): the column snaps onto the face.
+  await smoke.clickAt(v.at([130, 3000]).x, v.at([130, 3000]).y);
+  smoke.check('a click places a column snapped to the wall face', (await smoke.until(() => columns().length === 1)) && columns()[0].at[0] === 100 && Math.abs(columns()[0].at[1] - 3000) < 2 / v.cam.scale && columns()[0].shape.k === 'rect', columns()[0]);
+  await smoke.key('Escape');
+  await smoke.until(async () => (await canvasAttr(smoke, 'tool')) === 'select');
+
+  smoke.section('connector intents over MCP');
+  const status = await smoke.run<{ url: string }>('mcp.status');
+  const agent = new Client({ name: 'smoke-stair-intent', version: '1.0' });
+  await agent.connect(new StreamableHTTPClientTransport(new URL(`${status.url}?project=${duplexId}`)));
+  const added = await agent.callTool({ name: 'building_connector_add', arguments: { connector: { kind: 'stair', shape: 'u', from: [8000, 1000], to: [8000, 3000], bottomLevelId: ground, topLevelId: upper, width: 1000, turn: 'right' } } });
+  const addedId = added.isError ? '' : (JSON.parse((added.content as { text: string }[])[0].text) as { id: string }).id;
+  const laid = doc().connectors[addedId] as { axis: { v: unknown[] } } | undefined;
+  smoke.check('an agent asks for a U stair by two points and gets its walk line laid out', !added.isError && laid?.axis.v.length === 4, added.isError ? added.content : laid?.axis);
+  const described = JSON.parse(((await agent.callTool({ name: 'building_get', arguments: {} })).content as { text: string }[])[0].text) as { connectors: { id: string; derived: { risers: number; flights: unknown[] } }[] };
+  smoke.check('and reads it back as 16 risers in two flights', described.connectors.find((c) => c.id === addedId)?.derived.risers === 16 && described.connectors.find((c) => c.id === addedId)?.derived.flights.length === 2, described.connectors.find((c) => c.id === addedId)?.derived);
+  await agent.close();
+  smoke.check('the agent\'s stair appears on the plan', await smoke.until(async () => (await canvasAttr(smoke, 'connectors')) === '5'), await canvasAttr(smoke, 'connectors'));
+  await smoke.shots('25-connectors-drawn');
 }

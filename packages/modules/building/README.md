@@ -17,7 +17,8 @@ All allowed; every change is an undoable transaction attributed to the agent.
 
 - `building.get`: levels bottom to top with derived elevation, height, top, slab, whether it is the ground or a basement, its layers and entity counts; the connectors, each with `derived`: bottom, top and rise, the levels whose slab it cuts, the limits it breaks, and per kind its risers, riser height, tread depth and flights, slope, run or stops.
 - `building.level.add` (with `position` or `mezzanineOf`), `building.level.update` (name, height, slab, elevation, ground, `hostLevelId` for a mezzanine), `building.level.duplicate`, `building.level.move`, `building.level.remove`, and the read-only `building.level.impact` (what a removal would do).
-- `building.connector.add`, `building.connector.update` (with optional `baseSeq` and `epoch`: an update from a stale copy is refused with CONFLICT, naming who changed it meanwhile, as `plan.entity.update` does), `building.connector.remove`.
+- `building.connector.add` takes a full record or an intent form: a stair by `shape`, `from`, `to`, `bottomLevelId` and `topLevelId` (plus `width`, `turn`), whose walk line is laid out from the rise and the rule limits (an L turns at the right angle on the turn's side, a U runs two flights a width apart as long as their treads need, a curve is a quarter circle, a spiral sweeps around `from` as far as the treads need), a ramp by `from`, `to` and its levels, an elevator by `at`, `fromLevelId` and `toLevelId` (it stops at every stacked level between, with `door` on each). Refused with INVALID_INPUT when the points allow no such stair or the elevator has fewer than two stops.
+- `building.connector.update` (with optional `baseSeq` and `epoch`: an update from a stale copy is refused with CONFLICT, naming who changed it meanwhile, as `plan.entity.update` does), `building.connector.remove`.
 - All of these can be steps of `plan.apply`.
 
 ## Verified by

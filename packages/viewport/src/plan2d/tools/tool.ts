@@ -1,11 +1,13 @@
-import type { Box, Connector, Coordinate, DimensionKind, Entity, LevelGeometry, LevelWalls, Vec2 } from '@studio/core';
+import type { Box, Connector, Coordinate, DerivedLevel, DimensionKind, Entity, LevelGeometry, LevelWalls, RuleLimits, Vec2 } from '@studio/core';
 import type { PlanConnector } from '../connectors';
 import type { VertexRef } from '../grips';
 import type { Hit } from '../hit';
 import type { RenderFrame } from '../render';
 import type { SnapOptions, SnapResult } from '../snap';
 
-export type ToolId = 'select' | 'wall' | 'door' | 'window' | 'room' | 'separator' | 'shape' | 'rectangle' | 'circle' | 'dimension' | 'label';
+export type ToolId = 'select' | 'wall' | 'door' | 'window' | 'room' | 'separator' | 'shape' | 'rectangle' | 'circle' | 'dimension' | 'label' | 'stair' | 'ramp' | 'ladder' | 'elevator' | 'column';
+
+export type StairShape = Extract<Connector, { kind: 'stair' }>['shape'];
 
 /** A tool asks the host for a line of text typed at a screen position (a label's text). */
 export interface TextRequest {
@@ -32,6 +34,10 @@ export interface ToolHost {
   connectors(): ReadonlyMap<string, PlanConnector>;
   /** A connector as a gesture would leave it, derived for the active level (null when it would not show there). */
   previewConnector(connector: Connector): PlanConnector | null;
+  /** The levels bottom to top with their elevations, the same array while the document's levels are unchanged. */
+  levels(): readonly DerivedLevel[];
+  /** The limits connectors are derived with. */
+  limits(): RuleLimits;
   /** The mirror's change number and epoch, sent with edits addressed by index so a stale one is refused. */
   seq(): number;
   epoch(): number;
@@ -83,9 +89,16 @@ export interface ToolOptions {
   label: { size: number };
   /** How far the arrow keys move the selection, in mm. */
   nudge: number;
+  /** The levels a new stair, ramp, ladder or elevator joins; null: the active level and the stacked level above it. */
+  connector: { bottomLevelId: string | null; topLevelId: string | null };
+  stair: { shape: StairShape; width: number; turn: 'left' | 'right' };
+  ramp: { width: number };
+  elevator: { shaft: { w: number; d: number }; car: { w: number; d: number } };
+  /** A new column: rectangular (w × d) or round (r), its rotation, and the level it reaches up to (null: this level only). */
+  column: { shape: 'rect' | 'circle'; w: number; d: number; r: number; rotation: number; topLevelId: string | null };
 }
 
-export const DEFAULT_TOOL_OPTIONS: ToolOptions = { wall: { thickness: 200, height: null, alignment: 'center', single: false }, door: { width: 900, height: 2100 }, window: { width: 1200, height: 1200, sill: 900 }, shape: { kind: 'shape', filled: true }, dimension: { kind: 'aligned' }, label: { size: 250 }, nudge: 100 };
+export const DEFAULT_TOOL_OPTIONS: ToolOptions = { wall: { thickness: 200, height: null, alignment: 'center', single: false }, door: { width: 900, height: 2100 }, window: { width: 1200, height: 1200, sill: 900 }, shape: { kind: 'shape', filled: true }, dimension: { kind: 'aligned' }, label: { size: 250 }, nudge: 100, connector: { bottomLevelId: null, topLevelId: null }, stair: { shape: 'straight', width: 1000, turn: 'left' }, ramp: { width: 1200 }, elevator: { shaft: { w: 2000, d: 2200 }, car: { w: 1100, d: 1400 } }, column: { shape: 'rect', w: 300, d: 300, r: 150, rotation: 0, topLevelId: null } };
 
 export interface ToolPointer {
   world: Vec2;

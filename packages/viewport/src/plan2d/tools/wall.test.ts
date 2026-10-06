@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { DEFAULT_RULE_LIMITS } from '@studio/core';
 import { DEG } from '@studio/core';
 import { DEFAULT_SNAP_SETTINGS, SnapIndex, snapPoint } from '../snap';
 import { DEFAULT_TOOL_OPTIONS, type ToolHost, type ToolOptions, type ToolPointer } from './tool';
@@ -20,6 +21,8 @@ function host(options: Partial<ToolOptions['wall']> = {}) {
     epoch: () => 1,
     connectors: () => new Map(),
     previewConnector: () => null,
+    levels: () => [],
+    limits: () => DEFAULT_RULE_LIMITS,
     options: () => ({ ...DEFAULT_TOOL_OPTIONS, wall: { ...DEFAULT_TOOL_OPTIONS.wall, ...options } }),
     scale: () => 0.1,
     toScreen: (p) => [p[0] / 10, -p[1] / 10],

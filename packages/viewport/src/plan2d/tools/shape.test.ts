@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { DEFAULT_RULE_LIMITS } from '@studio/core';
 import { ShapeTool } from './shape';
 import { DEFAULT_TOOL_OPTIONS, type ToolHost, type ToolOptions, type ToolPointer } from './tool';
 
@@ -17,6 +18,8 @@ function host(options: Partial<ToolOptions['shape']> = {}) {
     epoch: () => 1,
     connectors: () => new Map(),
     previewConnector: () => null,
+    levels: () => [],
+    limits: () => DEFAULT_RULE_LIMITS,
     options: () => ({ ...DEFAULT_TOOL_OPTIONS, shape: { ...DEFAULT_TOOL_OPTIONS.shape, ...options } }),
     scale: () => 0.1,
     toScreen: (p) => [p[0] / 10, -p[1] / 10],

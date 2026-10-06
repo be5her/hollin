@@ -45,6 +45,8 @@ function harness() {
     entities: () => entities,
     connectors: () => byId,
     previewConnector: (c) => planConnectors({ ...doc, connectors: { ...doc.connectors, [c.id]: c } }, ground, DEFAULT_RULE_LIMITS).find((pc) => pc.id === c.id) ?? null,
+    levels: () => [],
+    limits: () => DEFAULT_RULE_LIMITS,
     seq: () => 7,
     epoch: () => 1,
     options: () => DEFAULT_TOOL_OPTIONS,

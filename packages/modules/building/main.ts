@@ -22,6 +22,9 @@ import {
   type DerivedLevel,
   type ProjectDoc,
   type RuleLimits,
+  connectorFromIntent,
+  isConnectorIntent,
+  type ConnectorIntent,
 } from '@studio/core';
 import { z } from 'zod';
 
@@ -35,6 +38,34 @@ const NewConnectorSchema = z.discriminatedUnion(
   'kind',
   (ConnectorSchema.options as readonly z.ZodObject<z.ZodRawShape>[]).map((o) => o.omit({ id: true })) as unknown as [z.ZodObject<{ kind: z.ZodLiteral<'stair'> }>, ...z.ZodObject<{ kind: z.ZodLiteral<Connector['kind']> }>[]],
 );
+
+const point = z.tuple([z.number(), z.number()]).readonly();
+const turn = z.enum(['left', 'right']).optional().describe('Which way the stair turns (default left)');
+/** Intent forms: a stair, ramp or elevator asked for by its points and levels; the record is laid out from the rise and the rule limits. */
+const StairIntentSchema = z.object({
+  kind: z.literal('stair'),
+  shape: z.enum(['straight', 'l', 'u', 'winder', 'spiral', 'curved']),
+  from: point.describe('Start of the walk line (a spiral: its centre)'),
+  to: point.describe('End of the walk line (a U: the direction; a spiral: the first step)'),
+  bottomLevelId: levelId,
+  topLevelId: levelId,
+  width: z.number().positive().optional().describe('mm, default 1000'),
+  turn,
+  name: z.string().max(200).optional(),
+});
+const RampIntentSchema = z.object({ kind: z.literal('ramp'), from: point, to: point, bottomLevelId: levelId, topLevelId: levelId, width: z.number().positive().optional().describe('mm, default 1200'), maxSlope: z.number().positive().max(100).optional().describe('Percent; default from the rules'), name: z.string().max(200).optional() });
+const ElevatorIntentSchema = z.object({
+  kind: z.literal('elevator'),
+  at: point.describe('Shaft centre'),
+  fromLevelId: levelId.describe('Lowest stop'),
+  toLevelId: levelId.describe('Highest stop; it stops at every stacked level between'),
+  shaft: z.object({ w: z.number().positive(), d: z.number().positive() }).optional().describe('Default 2000 × 2200'),
+  car: z.object({ w: z.number().positive(), d: z.number().positive() }).optional().describe('Default 1100 × 1400'),
+  rotation: z.number().optional().describe('Degrees'),
+  door: z.enum(['front', 'back', 'left', 'right']).optional(),
+  name: z.string().max(200).optional(),
+});
+const ConnectorIntentSchema = z.discriminatedUnion('kind', [StairIntentSchema, RampIntentSchema, ElevatorIntentSchema]);
 
 /** A connector's derived numbers, rounded for reading: what it climbs, how, which slabs it cuts and the limits it breaks. */
 export function connectorNumbers(connector: Connector, levels: DerivedLevel[], limits: RuleLimits) {
@@ -188,13 +219,14 @@ export const buildingModule = defineModule({
       id: 'building.connector.add',
       title: 'Add a stair, ramp, ladder, elevator or escalator',
       description:
-        'Adds a vertical connector between levels. Stairs and ramps follow an axis path (bottom to top); elevators list the levels they stop at. Lengths in mm, angles in degrees. Returns its id.',
+        'Adds a vertical connector between levels. Either the full record (stairs and ramps follow an axis path bottom to top; elevators list the levels they stop at) or an intent: a stair by shape, from, to, bottomLevelId and topLevelId (its walk line is laid out from the rise: an L turns at the right angle, a U runs two flights a width apart, a spiral sweeps around `from`), a ramp by from, to and its levels, an elevator by its shaft centre and the lowest and highest level (it stops at every stacked level between). Lengths in mm, angles in degrees. Returns its id.',
       scope: 'project',
       batchable: true,
-      input: z.object({ connector: NewConnectorSchema }),
+      input: z.object({ connector: z.union([ConnectorIntentSchema, NewConnectorSchema]).describe('A full connector record, or an intent form (see the description)') }),
       handler: async ({ connector }, ctx) => {
+        const record = isConnectorIntent(connector as { kind: string } & Record<string, unknown>) ? connectorFromIntent(connector as ConnectorIntent, ctx.project!.doc, ctx.host.config.get().rules) : connector;
         const { result } = await editProject(ctx, `Add ${connector.kind}`, (tx) => {
-          const { ops, id } = addConnectorOps(connector as unknown as Parameters<typeof addConnectorOps>[0]);
+          const { ops, id } = addConnectorOps(record as unknown as Parameters<typeof addConnectorOps>[0]);
           tx.apply(ops);
           return id;
         });

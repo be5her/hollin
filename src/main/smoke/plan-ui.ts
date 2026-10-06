@@ -330,7 +330,8 @@ export async function smokePlanUi(smoke: Smoke, towerId: string): Promise<void> 
   // A second point far from anything, so nothing snaps there, and well inside the canvas (about 690 px wide here).
   const free = toScreen(rect, cam, [mid[0] - 1500, mid[1] - 1250]);
   await smoke.clickAt(free.x, free.y);
-  smoke.check('a click near the middle of a wall starts at its midpoint', (await smoke.until(() => wallsOnGallery().length === 7)) && exact(snappedWall().path.v[0].p, mid), { got: snappedWall()?.path.v[0].p, mid, hint: await hint() });
+  // Stored coordinates are rounded to a thousandth, which an odd midpoint cannot hit exactly.
+  smoke.check('a click near the middle of a wall starts at its midpoint', (await smoke.until(() => wallsOnGallery().length === 7)) && Math.abs(snappedWall().path.v[0].p[0] - mid[0]) <= 0.001 && Math.abs(snappedWall().path.v[0].p[1] - mid[1]) <= 0.001, { got: snappedWall()?.path.v[0].p, mid, hint: await hint() });
   await focusCanvas();
   await smoke.key('Escape');
   await smoke.key('Escape');
@@ -414,7 +415,8 @@ export async function smokePlanUi(smoke: Smoke, towerId: string): Promise<void> 
   smoke.check('hovering a wall offers to place the door', await smoke.until(async () => (await hint())?.includes('Click to place the door') === true), await hint());
   await smoke.clickAt(onBottom.x, onBottom.y);
   smoke.check('a click puts a 900 wide door where the cursor projects on the wall', await smoke.until(() => openings().length === 1 && openings()[0].wallId === bottom.id && Math.abs(openings()[0].along - 3000) <= tolerance && openings()[0].width === 900 && openings()[0].swing?.side === 'left'), openings()[0]);
-  const nearEnd = toScreen(rect, cam, [2900, bottomMidY]);
+  // Near the end of the bottom wall but clear of the right wall's body (x from 2900), so the click is on the bottom wall.
+  const nearEnd = toScreen(rect, cam, [2700, bottomMidY]);
   await smoke.clickAt(nearEnd.x, nearEnd.y);
   smoke.check('a door too near the end is moved into the nearest free place', await smoke.until(() => openings().length === 2 && Math.abs(openings().find((o) => o.along > 5000)!.along - 5550) < 1e-6), openings().map((o) => o.along));
   await smoke.key('N');

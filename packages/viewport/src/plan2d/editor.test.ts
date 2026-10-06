@@ -32,6 +32,32 @@ describe('Plan2dEditor without a canvas', () => {
     expect(editor.levelScene?.items.values().next().value?.type).toBe('column');
   });
 
+  it('shows the columns, shafts and voids of other levels that span through the active one, keeping the record while nothing changes', () => {
+    const { doc: two, ground, upper } = building();
+    // A span ends at the floor of its top level: to pass through the upper level the pillar reaches the level above it.
+    const attic = addLevelOps(two, { name: 'Attic' });
+    const doc = applyPatch(two, attic.ops);
+    const pillar = addEntityOps(doc, { levelId: ground, entity: { type: 'column', at: [2000, 2000], shape: { k: 'rect', w: 400, d: 400 }, span: { topLevelId: attic.levelId, baseOffset: 0, topOffset: 0 } } });
+    const spanned = applyPatch(doc, pillar.ops);
+    let selection: string[] = [];
+    const editor = new Plan2dEditor({ onSelectionChange: (ids) => (selection = ids) });
+    editor.setDocument(spanned);
+    editor.setLevel(upper);
+    // The upper level's own column plus the ground floor's pillar reaching up through it.
+    expect(editor.levelScene?.items.size).toBe(2);
+    expect(editor.levelScene?.items.has(pillar.id)).toBe(true);
+    const merged = editor.entities();
+    expect(merged[pillar.id]?.levelId).toBe(ground);
+    expect(editor.entities()).toBe(merged);
+    editor.select([pillar.id]);
+    editor.setDocument(spanned, 1);
+    expect(selection).toEqual([pillar.id]);
+    // The ground floor itself is its own record.
+    editor.setLevel(ground);
+    expect(editor.entities()).toBe(spanned.levelData[ground].entities);
+    expect(editor.levelScene?.items.size).toBe(2);
+  });
+
   it('zooms to the level and reports camera changes', () => {
     const { doc, ground } = building();
     const changes: number[] = [];

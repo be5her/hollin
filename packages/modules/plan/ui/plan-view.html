@@ -1,5 +1,5 @@
-<div class="flex items-center gap-2 px-2 h-9 border-b border-edge bg-surface shrink-0 text-xs" data-testid="plan-toolbar">
-  <div class="flex items-center gap-0.5" role="toolbar" aria-label="Tools">
+<div class="flex items-center gap-1.5 px-1.5 h-9 border-b border-edge bg-surface shrink-0 text-xs overflow-hidden" data-testid="plan-toolbar">
+  <div class="flex items-center shrink-0" role="toolbar" aria-label="Tools">
     <button xIconButton size="sm" label="Select (V)" [class.bg-elevated]="tool() === 'select'" [class.text-fg]="tool() === 'select'" [attr.aria-pressed]="tool() === 'select'" (click)="chooseTool('select')" data-testid="tool-select">
       <svg [xIcon]="icons.MousePointer2" class="size-3.5"></svg>
     </button>
@@ -18,7 +18,23 @@
     <button xIconButton size="sm" label="Room divider (S)" [class.bg-elevated]="tool() === 'separator'" [class.text-fg]="tool() === 'separator'" [attr.aria-pressed]="tool() === 'separator'" (click)="chooseTool('separator')" data-testid="tool-separator">
       <svg [xIcon]="icons.SeparatorVertical" class="size-3.5"></svg>
     </button>
-    <div class="w-px h-5 bg-edge mx-0.5"></div>
+    <div class="w-px h-5 bg-edge mx-1"></div>
+    <button xIconButton size="sm" label="Stair (Shift+S)" [class.bg-elevated]="tool() === 'stair'" [class.text-fg]="tool() === 'stair'" [attr.aria-pressed]="tool() === 'stair'" (click)="chooseTool('stair')" data-testid="tool-stair">
+      <svg [xIcon]="icons.Footprints" class="size-3.5"></svg>
+    </button>
+    <button xIconButton size="sm" label="Ramp (Shift+R)" [class.bg-elevated]="tool() === 'ramp'" [class.text-fg]="tool() === 'ramp'" [attr.aria-pressed]="tool() === 'ramp'" (click)="chooseTool('ramp')" data-testid="tool-ramp">
+      <svg [xIcon]="icons.TrendingUp" class="size-3.5"></svg>
+    </button>
+    <button xIconButton size="sm" label="Ladder (Shift+L)" [class.bg-elevated]="tool() === 'ladder'" [class.text-fg]="tool() === 'ladder'" [attr.aria-pressed]="tool() === 'ladder'" (click)="chooseTool('ladder')" data-testid="tool-ladder">
+      <svg [xIcon]="icons.ChevronsUp" class="size-3.5"></svg>
+    </button>
+    <button xIconButton size="sm" label="Elevator (E)" [class.bg-elevated]="tool() === 'elevator'" [class.text-fg]="tool() === 'elevator'" [attr.aria-pressed]="tool() === 'elevator'" (click)="chooseTool('elevator')" data-testid="tool-elevator">
+      <svg [xIcon]="icons.ArrowBigUp" class="size-3.5"></svg>
+    </button>
+    <button xIconButton size="sm" label="Column (C)" [class.bg-elevated]="tool() === 'column'" [class.text-fg]="tool() === 'column'" [attr.aria-pressed]="tool() === 'column'" (click)="chooseTool('column')" data-testid="tool-column">
+      <svg [xIcon]="icons.CircleDot" class="size-3.5"></svg>
+    </button>
+    <div class="w-px h-5 bg-edge mx-1"></div>
     <button xIconButton size="sm" label="Shape (P)" [class.bg-elevated]="tool() === 'shape'" [class.text-fg]="tool() === 'shape'" [attr.aria-pressed]="tool() === 'shape'" (click)="chooseTool('shape')" data-testid="tool-shape">
       <svg [xIcon]="icons.Pentagon" class="size-3.5"></svg>
     </button>
@@ -28,7 +44,7 @@
     <button xIconButton size="sm" label="Circle (O)" [class.bg-elevated]="tool() === 'circle'" [class.text-fg]="tool() === 'circle'" [attr.aria-pressed]="tool() === 'circle'" (click)="chooseTool('circle')" data-testid="tool-circle">
       <svg [xIcon]="icons.Circle" class="size-3.5"></svg>
     </button>
-    <div class="w-px h-5 bg-edge mx-0.5"></div>
+    <div class="w-px h-5 bg-edge mx-1"></div>
     <button xIconButton size="sm" label="Dimension (L)" [class.bg-elevated]="tool() === 'dimension'" [class.text-fg]="tool() === 'dimension'" [attr.aria-pressed]="tool() === 'dimension'" (click)="chooseTool('dimension')" data-testid="tool-dimension">
       <svg [xIcon]="icons.Ruler" class="size-3.5"></svg>
     </button>
@@ -37,13 +53,13 @@
     </button>
   </div>
   <div class="w-px h-5 bg-edge"></div>
-  <label class="text-muted" for="plan-level-select">Level</label>
-  <select xSelect id="plan-level-select" class="h-7 text-xs max-w-56" (change)="chooseLevel($any($event.target).value)" data-testid="plan-level" aria-label="Level">
+  <label class="sr-only" for="plan-level-select">Level</label>
+  <select xSelect id="plan-level-select" class="h-7 text-xs min-w-0 shrink max-w-56" (change)="chooseLevel($any($event.target).value)" data-testid="plan-level" aria-label="Level">
     @for (level of levelsTopDown(); track level.id) {
       <option [value]="level.id" [selected]="level.id === activeLevelId()">{{ level.name }} · {{ units.length(level.elevation) }}</option>
     }
   </select>
-  <select xSelect class="h-7 text-xs" (change)="chooseUnderlay($any($event.target).value)" data-testid="plan-underlay" aria-label="Reference level">
+  <select xSelect class="h-7 text-xs min-w-0 shrink max-w-40" (change)="chooseUnderlay($any($event.target).value)" data-testid="plan-underlay" aria-label="Reference level">
     <option value="none" [selected]="underlay() === 'none'">No reference</option>
     <option value="below" [selected]="underlay() === 'below'">Level below</option>
     <option value="above" [selected]="underlay() === 'above'">Level above</option>
@@ -176,6 +192,148 @@
       </select>
     </label>
     <span class="text-muted">A point on a wall or shape corner ties the dimension to it</span>
+  </div>
+}
+@if (tool() === 'stair') {
+  <div class="flex items-center gap-3 px-3 h-9 border-b border-edge bg-surface shrink-0 text-xs" data-testid="tool-options">
+    <span class="font-medium">Stair</span>
+    <label class="flex items-center gap-1.5 text-muted">
+      Shape
+      <select xSelect class="h-7 text-xs" [value]="stairShape()" (change)="setStairShape($any($event.target).value)" aria-label="Stair shape" data-testid="stair-shape">
+        <option value="straight">straight</option>
+        <option value="l">L</option>
+        <option value="u">U</option>
+        <option value="winder">winder</option>
+        <option value="curved">curved</option>
+        <option value="spiral">spiral</option>
+      </select>
+    </label>
+    <label class="flex items-center gap-1.5 text-muted">Width <input xInput xLength class="h-7 w-24 font-mono" [formField]="sizeForm.stairWidth" (commit)="setToolSize('stairWidth', $event)" aria-label="Width" data-testid="stair-width" /></label>
+    <label class="flex items-center gap-1.5 text-muted">
+      From
+      <select xSelect class="h-7 text-xs max-w-40" [value]="connectorFromShown()" (change)="setConnectorLevel('from', $any($event.target).value)" aria-label="From level" data-testid="connector-from">
+        @for (level of levelsTopDown(); track level.id) {
+          <option [value]="level.id" [selected]="level.id === connectorFromShown()">{{ level.name }}</option>
+        }
+      </select>
+    </label>
+    <label class="flex items-center gap-1.5 text-muted">
+      To
+      <select xSelect class="h-7 text-xs max-w-40" [value]="connectorToShown()" (change)="setConnectorLevel('to', $any($event.target).value)" aria-label="To level" data-testid="connector-to">
+        @for (level of levelsTopDown(); track level.id) {
+          <option [value]="level.id" [selected]="level.id === connectorToShown()">{{ level.name }}</option>
+        }
+      </select>
+    </label>
+    @if (stairShape() === 'u' || stairShape() === 'spiral') {
+      <label class="flex items-center gap-1.5 text-muted">
+        Turn
+        <select xSelect class="h-7 text-xs" [value]="stairTurn()" (change)="setStairTurn($any($event.target).value)" aria-label="Stair turn" data-testid="stair-turn">
+          <option value="left">left</option>
+          <option value="right">right</option>
+        </select>
+      </label>
+    }
+  </div>
+}
+@if (tool() === 'ramp') {
+  <div class="flex items-center gap-3 px-3 h-9 border-b border-edge bg-surface shrink-0 text-xs" data-testid="tool-options">
+    <span class="font-medium">Ramp</span>
+    <label class="flex items-center gap-1.5 text-muted">Width <input xInput xLength class="h-7 w-24 font-mono" [formField]="sizeForm.rampWidth" (commit)="setToolSize('rampWidth', $event)" aria-label="Width" data-testid="ramp-width" /></label>
+    <label class="flex items-center gap-1.5 text-muted">
+      From
+      <select xSelect class="h-7 text-xs max-w-40" [value]="connectorFromShown()" (change)="setConnectorLevel('from', $any($event.target).value)" aria-label="From level" data-testid="connector-from">
+        @for (level of levelsTopDown(); track level.id) {
+          <option [value]="level.id" [selected]="level.id === connectorFromShown()">{{ level.name }}</option>
+        }
+      </select>
+    </label>
+    <label class="flex items-center gap-1.5 text-muted">
+      To
+      <select xSelect class="h-7 text-xs max-w-40" [value]="connectorToShown()" (change)="setConnectorLevel('to', $any($event.target).value)" aria-label="To level" data-testid="connector-to">
+        @for (level of levelsTopDown(); track level.id) {
+          <option [value]="level.id" [selected]="level.id === connectorToShown()">{{ level.name }}</option>
+        }
+      </select>
+    </label>
+    <span class="text-muted">Click the points of the axis · Enter or double-click: end</span>
+  </div>
+}
+@if (tool() === 'ladder') {
+  <div class="flex items-center gap-3 px-3 h-9 border-b border-edge bg-surface shrink-0 text-xs" data-testid="tool-options">
+    <span class="font-medium">Ladder</span>
+    <label class="flex items-center gap-1.5 text-muted">
+      From
+      <select xSelect class="h-7 text-xs max-w-40" [value]="connectorFromShown()" (change)="setConnectorLevel('from', $any($event.target).value)" aria-label="From level" data-testid="connector-from">
+        @for (level of levelsTopDown(); track level.id) {
+          <option [value]="level.id" [selected]="level.id === connectorFromShown()">{{ level.name }}</option>
+        }
+      </select>
+    </label>
+    <label class="flex items-center gap-1.5 text-muted">
+      To
+      <select xSelect class="h-7 text-xs max-w-40" [value]="connectorToShown()" (change)="setConnectorLevel('to', $any($event.target).value)" aria-label="To level" data-testid="connector-to">
+        @for (level of levelsTopDown(); track level.id) {
+          <option [value]="level.id" [selected]="level.id === connectorToShown()">{{ level.name }}</option>
+        }
+      </select>
+    </label>
+    <span class="text-muted">Click the foot, then the direction it leans towards</span>
+  </div>
+}
+@if (tool() === 'elevator') {
+  <div class="flex items-center gap-3 px-3 h-9 border-b border-edge bg-surface shrink-0 text-xs" data-testid="tool-options">
+    <span class="font-medium">Elevator</span>
+    <span class="text-muted">Shaft</span>
+    <label class="flex items-center gap-1.5 text-muted">W <input xInput xLength class="h-7 w-24 font-mono" [formField]="sizeForm.elevatorShaftW" (commit)="setToolSize('elevatorShaftW', $event)" aria-label="W" data-testid="elevator-shaft-w" /></label>
+    <label class="flex items-center gap-1.5 text-muted">D <input xInput xLength class="h-7 w-24 font-mono" [formField]="sizeForm.elevatorShaftD" (commit)="setToolSize('elevatorShaftD', $event)" aria-label="D" data-testid="elevator-shaft-d" /></label>
+    <span class="text-muted">Car</span>
+    <label class="flex items-center gap-1.5 text-muted">W <input xInput xLength class="h-7 w-24 font-mono" [formField]="sizeForm.elevatorCarW" (commit)="setToolSize('elevatorCarW', $event)" aria-label="W" data-testid="elevator-car-w" /></label>
+    <label class="flex items-center gap-1.5 text-muted">D <input xInput xLength class="h-7 w-24 font-mono" [formField]="sizeForm.elevatorCarD" (commit)="setToolSize('elevatorCarD', $event)" aria-label="D" data-testid="elevator-car-d" /></label>
+    <label class="flex items-center gap-1.5 text-muted">
+      From
+      <select xSelect class="h-7 text-xs max-w-40" [value]="connectorFromShown()" (change)="setConnectorLevel('from', $any($event.target).value)" aria-label="From level" data-testid="connector-from">
+        @for (level of levelsTopDown(); track level.id) {
+          <option [value]="level.id" [selected]="level.id === connectorFromShown()">{{ level.name }}</option>
+        }
+      </select>
+    </label>
+    <label class="flex items-center gap-1.5 text-muted">
+      To
+      <select xSelect class="h-7 text-xs max-w-40" [value]="connectorToShown()" (change)="setConnectorLevel('to', $any($event.target).value)" aria-label="To level" data-testid="connector-to">
+        @for (level of levelsTopDown(); track level.id) {
+          <option [value]="level.id" [selected]="level.id === connectorToShown()">{{ level.name }}</option>
+        }
+      </select>
+    </label>
+  </div>
+}
+@if (tool() === 'column') {
+  <div class="flex items-center gap-3 px-3 h-9 border-b border-edge bg-surface shrink-0 text-xs" data-testid="tool-options">
+    <span class="font-medium">Column</span>
+    <label class="flex items-center gap-1.5 text-muted">
+      Shape
+      <select xSelect class="h-7 text-xs" [value]="columnShape()" (change)="setColumnShape($any($event.target).value)" aria-label="Column shape" data-testid="column-shape">
+        <option value="rect">rectangular</option>
+        <option value="circle">round</option>
+      </select>
+    </label>
+    @if (columnShape() === 'rect') {
+      <label class="flex items-center gap-1.5 text-muted">W <input xInput xLength class="h-7 w-24 font-mono" [formField]="sizeForm.columnW" (commit)="setToolSize('columnW', $event)" aria-label="W" data-testid="column-w" /></label>
+      <label class="flex items-center gap-1.5 text-muted">D <input xInput xLength class="h-7 w-24 font-mono" [formField]="sizeForm.columnD" (commit)="setToolSize('columnD', $event)" aria-label="D" data-testid="column-d" /></label>
+      <label class="flex items-center gap-1.5 text-muted">Rotation <input xInput class="h-7 w-16 font-mono" [value]="columnRotation()" (change)="setColumnRotation($any($event.target).value)" (keydown.enter)="$any($event.target).blur()" aria-label="Column rotation" data-testid="column-rotation" /></label>
+    } @else {
+      <label class="flex items-center gap-1.5 text-muted">Radius <input xInput xLength class="h-7 w-24 font-mono" [formField]="sizeForm.columnR" (commit)="setToolSize('columnR', $event)" aria-label="Radius" data-testid="column-r" /></label>
+    }
+    <label class="flex items-center gap-1.5 text-muted">
+      Up to
+      <select xSelect class="h-7 text-xs max-w-40" [value]="columnSpan() ?? ''" (change)="setColumnSpan($any($event.target).value)" aria-label="The level the column reaches" data-testid="column-span">
+        <option value="">this level only</option>
+        @for (level of levelsTopDown(); track level.id) {
+          <option [value]="level.id" [selected]="level.id === columnSpan()">{{ level.name }}</option>
+        }
+      </select>
+    </label>
   </div>
 }
 @if (tool() === 'label') {

@@ -1,4 +1,4 @@
-import { defaultConfig, deriveLevels, emptyBox, parseCoordinate, type Box, type Entity, type Layer, type LevelGeometry, type LevelWalls, type ProjectDoc, type RuleLimits, type UnitSettings, type Vec2 } from '@studio/core';
+import { defaultConfig, deriveLevels, emptyBox, entitiesOnLevel, parseCoordinate, type Box, type DerivedLevel, type Entity, type Layer, type LevelGeometry, type LevelWalls, type ProjectDoc, type RuleLimits, type UnitSettings, type Vec2 } from '@studio/core';
 import { defaultCamera, fitBox, panBy, sameCamera, screenToWorld, worldToScreen, zoomAt, type Camera, type Size } from './camera';
 import { planConnectors, type PlanConnector } from './connectors';
 import { LevelGeometryCache } from './geometry-cache';
@@ -17,6 +17,8 @@ import { ShapeTool } from './tools/shape';
 import { DimensionTool } from './tools/dimension';
 import { LabelTool } from './tools/label';
 import { WallTool } from './tools/wall';
+import { ElevatorTool, LadderTool, RampTool, StairTool } from './tools/connectors';
+import { ColumnTool } from './tools/column';
 
 export type UnderlayMode = 'none' | 'below' | 'above';
 
@@ -107,6 +109,8 @@ export class Plan2dEditor {
         const doc = { ...this.doc, connectors: { ...this.doc.connectors, [connector.id]: connector } };
         return planConnectors(doc, this.levelId, this.limits).find((pc) => pc.id === connector.id) ?? null;
       },
+      levels: () => this.levels(),
+      limits: () => this.limits,
       seq: () => this.seqValue,
       epoch: () => this.epochValue,
       options: () => this.toolOptions,
@@ -131,7 +135,7 @@ export class Plan2dEditor {
         editor.clipboard = value;
       },
     };
-    this.tools = { select: new SelectTool(host), wall: new WallTool(host), door: new OpeningTool(host, 'door'), window: new OpeningTool(host, 'window'), room: new RoomTool(host), separator: new SeparatorTool(host), shape: new ShapeTool(host, 'polyline'), rectangle: new ShapeTool(host, 'rectangle'), circle: new ShapeTool(host, 'circle'), dimension: new DimensionTool(host), label: new LabelTool(host) };
+    this.tools = { select: new SelectTool(host), wall: new WallTool(host), door: new OpeningTool(host, 'door'), window: new OpeningTool(host, 'window'), room: new RoomTool(host), separator: new SeparatorTool(host), shape: new ShapeTool(host, 'polyline'), rectangle: new ShapeTool(host, 'rectangle'), circle: new ShapeTool(host, 'circle'), dimension: new DimensionTool(host), label: new LabelTool(host), stair: new StairTool(host), ramp: new RampTool(host), ladder: new LadderTool(host), elevator: new ElevatorTool(host), column: new ColumnTool(host) };
     this.activeTool = this.tools.select;
   }
 
@@ -350,9 +354,37 @@ export class Plan2dEditor {
     return levels[i + (this.underlayMode === 'below' ? -1 : 1)]?.id ?? null;
   }
 
-  /** The active level's entities (empty when none). */
+  /** The active level's entities, with those of other levels that span through it (empty when none). */
   entities(): Record<string, Entity> {
-    return (this.doc && this.levelId ? this.doc.levelData[this.levelId]?.entities : undefined) ?? {};
+    return (this.levelId ? this.entitiesOf(this.levelId) : undefined) ?? {};
+  }
+
+  private merged: { doc: ProjectDoc; levelId: string; own: Record<string, Entity>; result: Record<string, Entity> } | null = null;
+
+  /** A level's entities plus the columns, shafts and voids of other levels that span through it: the level's own record while nothing spans it, else a merged record kept while nothing changed. */
+  private entitiesOf(levelId: string): Record<string, Entity> | undefined {
+    const doc = this.doc;
+    const own = doc?.levelData[levelId]?.entities;
+    if (!doc || !own) return undefined;
+    const cached = this.merged;
+    if (cached && cached.doc === doc && cached.levelId === levelId) return cached.result;
+    const spanning = entitiesOnLevel(doc, levelId).filter((e) => e.levelId !== levelId);
+    let result = own;
+    if (spanning.length) {
+      const same = cached?.levelId === levelId && cached.own === own && Object.keys(cached.result).length === Object.keys(own).length + spanning.length && spanning.every((e) => cached.result[e.id] === e);
+      result = same ? cached.result : { ...own, ...Object.fromEntries(spanning.map((e) => [e.id, e])) };
+    }
+    this.merged = { doc, levelId, own, result };
+    return result;
+  }
+
+  private levelsCache: { doc: ProjectDoc; levels: DerivedLevel[] } | null = null;
+
+  /** The levels bottom to top with their elevations, the same array while the document is unchanged. */
+  levels(): readonly DerivedLevel[] {
+    if (!this.doc) return [];
+    if (this.levelsCache?.doc !== this.doc) this.levelsCache = { doc: this.doc, levels: deriveLevels(this.doc) };
+    return this.levelsCache.levels;
   }
 
   /** The stairs, ramps, elevators and other connectors the active level shows. */
@@ -368,7 +400,7 @@ export class Plan2dEditor {
 
   /** The joined walls of the active level, leaving out walls on hidden layers and `exclude`. */
   levelWalls(exclude?: ReadonlySet<string>): LevelWalls | null {
-    const entities = this.doc && this.levelId ? this.doc.levelData[this.levelId]?.entities : undefined;
+    const entities = this.levelId ? this.entitiesOf(this.levelId) : undefined;
     if (!entities) return null;
     const out = new Set<string>(exclude ?? []);
     for (const id in entities) {
@@ -380,7 +412,7 @@ export class Plan2dEditor {
 
   /** Everything the active level derives to, from all its walls (hidden ones still enclose). */
   levelGeometry(): LevelGeometry | null {
-    const entities = this.doc && this.levelId ? this.doc.levelData[this.levelId]?.entities : undefined;
+    const entities = this.levelId ? this.entitiesOf(this.levelId) : undefined;
     return entities ? this.geometry.level(entities, this.geometry.cuts(this.doc!, this.levelId!, this.limits)) : null;
   }
 
@@ -441,7 +473,7 @@ export class Plan2dEditor {
         scene = createLevelScene(id);
         this.scenes.set(id, scene);
       }
-      syncLevelScene(scene, this.doc!.levelData[id].entities);
+      syncLevelScene(scene, this.entitiesOf(id)!);
     }
     this.invalidate();
   }
@@ -591,6 +623,15 @@ export class Plan2dEditor {
       e.preventDefault();
     } else if (e.key === 'PageUp' || e.key === 'PageDown') {
       this.callbacks.onLevelStep?.(e.key === 'PageUp' ? 1 : -1);
+      e.preventDefault();
+    } else if (e.shiftKey && (e.key === 'S' || e.key === 'R' || e.key === 'L')) {
+      this.setTool(e.key === 'S' ? 'stair' : e.key === 'R' ? 'ramp' : 'ladder');
+      e.preventDefault();
+    } else if (e.key === 'e' || e.key === 'E') {
+      this.setTool('elevator');
+      e.preventDefault();
+    } else if (e.key === 'c' || e.key === 'C') {
+      this.setTool('column');
       e.preventDefault();
     } else if (e.key === 'v' || e.key === 'V') {
       this.setTool('select');

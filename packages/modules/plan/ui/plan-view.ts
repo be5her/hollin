@@ -1,9 +1,9 @@
 import { DOCUMENT, Component, DestroyRef, ElementRef, afterNextRender, afterRenderEffect, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
 import { FormField, form } from '@angular/forms/signals';
-import { DEFAULT_RULE_LIMITS, deriveLevels, type DimensionKind, type GlobalConfig, type ProjectDoc, type Vec2 } from '@studio/core';
+import { DEFAULT_RULE_LIMITS, deriveLevels, type DimensionKind, type GlobalConfig, type ProjectDoc, type Vec2, parseAngle } from '@studio/core';
 import { AppState, Checkbox, ContextMenu, HostBridge, Icon, IconButton, Input, LengthInput, ProjectDocs, ProjectView, Select, Toasts, Units, type ContextMenuItem } from '@studio/ui';
-import { DEFAULT_TOOL_OPTIONS, LIGHT_THEME, Plan2dEditor, drawingScale, readPlanTheme, renderLevelToPng, type Camera, type ShapeOptions, type SnapResult, type TextRequest, type ToolId, type UnderlayMode, type WallOptions } from '@studio/viewport';
-import { Blinds, BrickWall, ChevronDown, Circle, DoorOpen, LandPlot, Magnet, Maximize, MousePointer2, Pentagon, Ruler, SeparatorVertical, Square, Type, ZoomIn, ZoomOut } from 'lucide';
+import { DEFAULT_TOOL_OPTIONS, LIGHT_THEME, Plan2dEditor, drawingScale, readPlanTheme, renderLevelToPng, type Camera, type ShapeOptions, type SnapResult, type StairShape, type TextRequest, type ToolId, type UnderlayMode, type WallOptions } from '@studio/viewport';
+import { ArrowBigUp, Blinds, BrickWall, ChevronDown, ChevronsUp, Circle, CircleDot, DoorOpen, Footprints, LandPlot, Magnet, Maximize, MousePointer2, Pentagon, Ruler, SeparatorVertical, Square, TrendingUp, Type, ZoomIn, ZoomOut } from 'lucide';
 import { PlanGeometry } from './plan-geometry';
 import { PlanSelection } from './plan-selection';
 
@@ -60,7 +60,7 @@ export class PlanView {
   private readonly container = viewChild.required<ElementRef<HTMLDivElement>>('container');
   private readonly dynamicInputEl = viewChild<ElementRef<HTMLInputElement>>('dynamicInput');
 
-  protected readonly icons = { Blinds, BrickWall, ChevronDown, Circle, DoorOpen, LandPlot, Magnet, Maximize, MousePointer2, Pentagon, Ruler, SeparatorVertical, Square, Type, ZoomIn, ZoomOut };
+  protected readonly icons = { ArrowBigUp, Blinds, BrickWall, ChevronDown, ChevronsUp, Circle, CircleDot, DoorOpen, Footprints, LandPlot, Magnet, Maximize, MousePointer2, Pentagon, Ruler, SeparatorVertical, Square, TrendingUp, Type, ZoomIn, ZoomOut };
   protected readonly snapKinds = SNAP_KINDS;
   protected readonly doc = computed(() => this.docs.read(this.projectId())?.doc);
   protected readonly levels = computed(() => {
@@ -104,6 +104,21 @@ export class PlanView {
   protected readonly labelSize = signal(250);
   protected readonly labelDraft = signal({ size: '' });
   protected readonly labelForm = form(this.labelDraft);
+  /** The connector and column tools' choices that live in the view: the stair's shape and turn, the levels a new connector joins (null: the active level and the stacked level above it), the column's shape, rotation and span. */
+  protected readonly stairShape = signal<StairShape>('straight');
+  protected readonly stairTurn = signal<'left' | 'right'>('left');
+  protected readonly connectorFrom = signal<string | null>(null);
+  protected readonly connectorTo = signal<string | null>(null);
+  protected readonly columnShape = signal<'rect' | 'circle'>('rect');
+  protected readonly columnRotation = signal(0);
+  protected readonly columnSpan = signal<string | null>(null);
+  protected readonly isConnectorTool = computed(() => this.tool() === 'stair' || this.tool() === 'ramp' || this.tool() === 'ladder' || this.tool() === 'elevator');
+  /** The levels the options show for a new connector: the chosen ones, else the active level and the stacked level above it. */
+  protected readonly connectorFromShown = computed(() => this.connectorFrom() ?? this.activeLevelId() ?? '');
+  protected readonly connectorToShown = computed(() => this.connectorTo() ?? this.levelAbove(this.connectorFromShown()) ?? '');
+  /** The sizes of the connector and column tools, typed in display units and remembered in the settings. */
+  protected readonly sizeDraft = signal({ stairWidth: '', rampWidth: '', elevatorShaftW: '', elevatorShaftD: '', elevatorCarW: '', elevatorCarD: '', columnW: '', columnD: '', columnR: '' });
+  protected readonly sizeForm = form(this.sizeDraft);
   protected readonly hint = signal('');
   protected readonly selection = signal<string[]>([]);
   protected readonly vertexAttr = signal('');
@@ -202,6 +217,7 @@ export class PlanView {
       this.showWallOptions();
       const len = (mm: number) => this.units.length(mm);
       this.openingDraft.set({ doorWidth: len(c.doorWidth), doorHeight: len(c.doorHeight), windowWidth: len(c.windowWidth), windowHeight: len(c.windowHeight), windowSill: len(c.windowSill) });
+      this.sizeDraft.set({ stairWidth: len(c.stairWidth), rampWidth: len(c.rampWidth), elevatorShaftW: len(c.elevatorShaftW), elevatorShaftD: len(c.elevatorShaftD), elevatorCarW: len(c.elevatorCarW), elevatorCarD: len(c.elevatorCarD), columnW: len(c.columnW), columnD: len(c.columnD), columnR: len(c.columnR) });
       this.gridDraft.set({ spacing: this.units.length(c.gridSpacing) });
       this.editor.invalidate();
     });
@@ -211,6 +227,13 @@ export class PlanView {
       this.shapeFilled();
       this.dimensionKind();
       this.labelSize();
+      this.stairShape();
+      this.stairTurn();
+      this.connectorFrom();
+      this.connectorTo();
+      this.columnShape();
+      this.columnRotation();
+      this.columnSpan();
       const c = untracked(this.editorConfig);
       if (c) this.editor.setToolOptions(this.toolOptions(c));
     });
@@ -334,7 +357,51 @@ export class PlanView {
   }
 
   private toolOptions(c: EditorConfig) {
-    return { ...DEFAULT_TOOL_OPTIONS, nudge: c.gridSpacing, wall: this.wallOptions, door: { width: c.doorWidth, height: c.doorHeight }, window: { width: c.windowWidth, height: c.windowHeight, sill: c.windowSill }, shape: { kind: untracked(this.shapeKind), filled: untracked(this.shapeFilled) }, dimension: { kind: untracked(this.dimensionKind) }, label: { size: untracked(this.labelSize) } };
+    return { ...DEFAULT_TOOL_OPTIONS, nudge: c.gridSpacing, wall: this.wallOptions, door: { width: c.doorWidth, height: c.doorHeight }, window: { width: c.windowWidth, height: c.windowHeight, sill: c.windowSill }, shape: { kind: untracked(this.shapeKind), filled: untracked(this.shapeFilled) }, dimension: { kind: untracked(this.dimensionKind) }, label: { size: untracked(this.labelSize) }, connector: { bottomLevelId: untracked(this.connectorFrom), topLevelId: untracked(this.connectorTo) }, stair: { shape: untracked(this.stairShape), width: c.stairWidth, turn: untracked(this.stairTurn) }, ramp: { width: c.rampWidth }, elevator: { shaft: { w: c.elevatorShaftW, d: c.elevatorShaftD }, car: { w: c.elevatorCarW, d: c.elevatorCarD } }, column: { shape: untracked(this.columnShape), w: c.columnW, d: c.columnD, r: c.columnR, rotation: untracked(this.columnRotation), topLevelId: untracked(this.columnSpan) } };
+  }
+
+  /** The stacked level above a level (a mezzanine's: above its host), or null at the top. */
+  protected levelAbove(levelId: string): string | null {
+    const from = this.levels().find((l) => l.id === levelId);
+    if (!from) return null;
+    return this.levels().filter((l) => l.placement === 'stack' && l.elevation > from.elevation).sort((a, b) => a.elevation - b.elevation)[0]?.id ?? null;
+  }
+
+  protected setStairShape(value: string): void {
+    if (value === 'straight' || value === 'l' || value === 'u' || value === 'winder' || value === 'spiral' || value === 'curved') this.stairShape.set(value);
+    this.canvas().nativeElement.focus({ preventScroll: true });
+  }
+
+  protected setStairTurn(value: string): void {
+    if (value === 'left' || value === 'right') this.stairTurn.set(value);
+    this.canvas().nativeElement.focus({ preventScroll: true });
+  }
+
+  protected setConnectorLevel(which: 'from' | 'to', levelId: string): void {
+    (which === 'from' ? this.connectorFrom : this.connectorTo).set(levelId || null);
+    this.canvas().nativeElement.focus({ preventScroll: true });
+  }
+
+  protected setColumnShape(value: string): void {
+    if (value === 'rect' || value === 'circle') this.columnShape.set(value);
+    this.canvas().nativeElement.focus({ preventScroll: true });
+  }
+
+  protected setColumnRotation(value: string): void {
+    const degrees = parseAngle(value);
+    if (degrees !== null) this.columnRotation.set(degrees);
+    this.canvas().nativeElement.focus({ preventScroll: true });
+  }
+
+  protected setColumnSpan(levelId: string): void {
+    this.columnSpan.set(levelId || null);
+    this.canvas().nativeElement.focus({ preventScroll: true });
+  }
+
+  /** A connector or column size typed in the options bar, in any unit: remembered in the settings. */
+  protected setToolSize(key: 'stairWidth' | 'rampWidth' | 'elevatorShaftW' | 'elevatorShaftD' | 'elevatorCarW' | 'elevatorCarD' | 'columnW' | 'columnD' | 'columnR', mm: number | null): void {
+    if (mm === null || mm <= 0) return;
+    void this.updateEditorConfig({ [key]: mm });
   }
 
   protected setDimensionKind(value: string): void {

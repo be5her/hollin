@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { DEFAULT_RULE_LIMITS } from '@studio/core';
 import type { SnapResult } from '../snap';
 import { DimensionTool } from './dimension';
 import { LabelTool } from './label';
@@ -21,6 +22,8 @@ function host(options: Partial<ToolOptions['dimension']> = {}, snap: (p: readonl
     epoch: () => 1,
     connectors: () => new Map(),
     previewConnector: () => null,
+    levels: () => [],
+    limits: () => DEFAULT_RULE_LIMITS,
     options: () => ({ ...DEFAULT_TOOL_OPTIONS, dimension: { ...DEFAULT_TOOL_OPTIONS.dimension, ...options } }),
     scale: () => 0.1,
     toScreen: (p) => [p[0] / 10, -p[1] / 10],

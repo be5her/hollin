@@ -36,3 +36,4 @@ export * from './geometry/intersect';
 export * from './geometry/rooms';
 export * from './geometry/connectors';
 export * from './geometry/connector-edit';
+export * from './geometry/connector-intent';

@@ -137,6 +137,24 @@ describe('connectors on the plan', () => {
   }
   type Stair = { axis: { v: { p: number[]; c?: { k: string } }[] }; handrails: { left: boolean; right: boolean } };
 
+  it('lays a stair, a ramp and an elevator out from an intent form', async () => {
+    const { ground, upper } = await twoStoreys();
+    const l = (await run<{ id: string }>('building.connector.add', { connector: { kind: 'stair', shape: 'l', from: [0, 0], to: [3000, 2000], bottomLevelId: ground, topLevelId: upper, turn: 'right' } })).id;
+    expect((doc().connectors[l] as unknown as Stair).axis.v.map((v) => v.p)).toEqual([[0, 0], [0, 2000], [3000, 2000]]);
+    expect(doc().connectors[l]).toMatchObject({ kind: 'stair', shape: 'l', width: 1000, bottom: { levelId: ground, offset: 0 }, top: { levelId: upper, offset: 0 } });
+    const u = (await run<{ id: string }>('building.connector.add', { connector: { kind: 'stair', shape: 'u', from: [5000, 0], to: [5000, 3000], bottomLevelId: ground, topLevelId: upper, width: 1100 } })).id;
+    expect((doc().connectors[u] as unknown as Stair).axis.v.length).toBe(4);
+    const risers = (await run<{ connectors: { id: string; derived: { risers: number; broken: unknown[] } }[] }>('building.get', {})).connectors.find((c) => c.id === u)!.derived;
+    expect(risers.risers).toBe(16);
+    expect(risers.broken).toEqual([]);
+    const ramp = (await run<{ id: string }>('building.connector.add', { connector: { kind: 'ramp', from: [0, 5000], to: [9000, 5000], bottomLevelId: ground, topLevelId: upper } })).id;
+    expect(doc().connectors[ramp]).toMatchObject({ kind: 'ramp', width: 1200, maxSlope: 8.33 });
+    const lift = (await run<{ id: string }>('building.connector.add', { connector: { kind: 'elevator', at: [8000, 8000], fromLevelId: upper, toLevelId: ground } })).id;
+    expect((doc().connectors[lift] as unknown as { stops: { levelId: string; door: string }[] }).stops).toEqual([{ levelId: ground, door: 'front' }, { levelId: upper, door: 'front' }]);
+    await expect(run('building.connector.add', { connector: { kind: 'stair', shape: 'l', from: [0, 0], to: [3000, 0], bottomLevelId: ground, topLevelId: upper } })).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+    await expect(run('building.connector.add', { connector: { kind: 'elevator', at: [0, 0], fromLevelId: ground, toLevelId: ground } })).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+  });
+
   it('edits a stair axis with the path commands, and refuses a stale edit naming who changed it', async () => {
     const { stair } = await twoStoreys();
     const { seq, epoch } = await run<{ seq: number; epoch: number }>('edit.history', {});

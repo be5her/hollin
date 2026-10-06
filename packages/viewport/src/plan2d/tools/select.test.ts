@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { DEFAULT_RULE_LIMITS } from '@studio/core';
 import { DEG, deriveWalls, type Entity, type Layer } from '@studio/core';
 import { DEFAULT_SNAP_SETTINGS, SnapIndex, snapPoint } from '../snap';
 import { hitTest, marqueeSelect } from '../hit';
@@ -36,6 +37,8 @@ function harness() {
     epoch: () => 1,
     connectors: () => new Map(),
     previewConnector: () => null,
+    levels: () => [],
+    limits: () => DEFAULT_RULE_LIMITS,
     options: () => DEFAULT_TOOL_OPTIONS,
     scale: () => 0.1,
     toScreen: (p) => [p[0] / 10, -p[1] / 10],
