@@ -19,7 +19,7 @@ async function readCamera(smoke: Smoke): Promise<Camera | null> {
 }
 
 /** World mm to window pixels, the same mapping the renderer uses (y up in the world, down on screen). */
-const toScreen = (rect: Rect, cam: Camera, p: [number, number]) => ({ x: rect.x + (p[0] - cam.x) * cam.scale + rect.width / 2, y: rect.y + (cam.y - p[1]) * cam.scale + rect.height / 2 });
+const toScreen = (rect: Rect, cam: Camera, p: readonly [number, number]) => ({ x: rect.x + (p[0] - cam.x) * cam.scale + rect.width / 2, y: rect.y + (cam.y - p[1]) * cam.scale + rect.height / 2 });
 
 const attr = (smoke: Smoke, name: string) => smoke.js<string | undefined>(`document.querySelector('${canvas}')?.dataset.${name}`);
 
@@ -187,7 +187,8 @@ export async function smokePlanUi(smoke: Smoke, towerId: string): Promise<void> 
   await smoke.shots('17-plan-selection');
 
   const arcStart = arcWall.path.v[0].p;
-  const arcMid = toScreen(rect, cam, [0, 1200]);
+  // On the arc's body but away from its grips (its middle at (0, 1200) is one).
+  const arcMid = toScreen(rect, cam, [1000, 967]);
   await smoke.dragAt(arcMid, { x: arcMid.x + 50, y: arcMid.y });
   smoke.check('dragging a selected wall moves it', await smoke.until(() => Math.abs(wallsOnGallery().find((w) => w.id === arcWall.id)!.path.v[0].p[0] - (arcStart[0] + 50 / cam.scale)) < tolerance), wallsOnGallery().find((w) => w.id === arcWall.id)?.path.v[0].p);
   await smoke.key('Right');
@@ -204,7 +205,7 @@ export async function smokePlanUi(smoke: Smoke, towerId: string): Promise<void> 
 
   smoke.section('agents and drags');
   const movedArc = wallsOnGallery().find((w) => w.path.v[0].s?.k === 'arc')!;
-  const grab = toScreen(rect, cam, [(movedArc.path.v[0].p[0] + movedArc.path.v[1].p[0]) / 2, 1200]);
+  const grab = toScreen(rect, cam, [(movedArc.path.v[0].p[0] + movedArc.path.v[1].p[0]) / 2 + 1000, 967]);
   await smoke.clickAt(grab.x, grab.y);
   await smoke.until(async () => (await selection()).join() === movedArc.id);
   await smoke.mouseMove(grab.x, grab.y);
@@ -237,6 +238,68 @@ export async function smokePlanUi(smoke: Smoke, towerId: string): Promise<void> 
   smoke.check('Ctrl+C and Ctrl+V paste a copy at the cursor', await smoke.until(() => wallsOnGallery().length === 6 && wallsOnGallery().some((w) => Math.abs(w.path.v[0].p[1] - 1000) < tolerance)), wallsOnGallery().map((w) => w.path.v[0].p));
   await smoke.key('Delete');
   await smoke.until(() => wallsOnGallery().length === 5);
+
+  smoke.section('grips and corners');
+  const focusCanvas = () => smoke.js(`document.querySelector('${canvas}').focus()`);
+  const wallById = (id: string) => wallsOnGallery().find((w) => w.id === id)!;
+  const top = wallsOnGallery().find((w) => w.path.v[0].p[1] === w.path.v[1].p[1] && w.path.v[0].p[1] > 1000)!;
+  await smoke.clickAt(...xy(toScreen(rect, cam, [right.path.v[0].p[0], 0])));
+  await smoke.until(async () => (await selection()).join() === right.id);
+  const cornerIndex = right.path.v[1].p[1] > right.path.v[0].p[1] ? 1 : 0;
+  const cornerPos = right.path.v[cornerIndex].p;
+  const topIndex = top.path.v.findIndex((v) => Math.hypot(v.p[0] - cornerPos[0], v.p[1] - cornerPos[1]) < 1);
+  const cornerScreen = toScreen(rect, cam, cornerPos);
+  await smoke.dragAt(cornerScreen, { x: cornerScreen.x + 50, y: cornerScreen.y - 50 });
+  const expected: [number, number] = [cornerPos[0] + 50 / cam.scale, cornerPos[1] + 50 / cam.scale];
+  smoke.check('dragging a corner grip moves the wall end', await smoke.until(() => near(wallById(right.id).path.v[cornerIndex].p, expected)), wallById(right.id).path.v[cornerIndex].p);
+  smoke.check('the wall end that met it follows', topIndex >= 0 && near(wallById(top.id).path.v[topIndex].p, expected), wallById(top.id).path.v[topIndex]?.p);
+  smoke.check('both moved in one change', (await smoke.run<{ undo: { label: string }[] }>('edit.history', {}, { projectId: towerId })).undo[0].label === 'Move corner');
+  await smoke.click(`${tab} [data-testid=right-tab-properties]`);
+  const gripScreen = toScreen(rect, cam, wallById(right.id).path.v[cornerIndex].p);
+  await smoke.clickAt(gripScreen.x, gripScreen.y);
+  smoke.check('clicking a corner grip selects the corner', await smoke.until(async () => (await attr(smoke, 'vertex')) === `${right.id}:${cornerIndex}`), await attr(smoke, 'vertex'));
+  smoke.check('the inspector shows the corner', await smoke.waitFor(`${tab} [data-testid=vertex-editor]`));
+  const vertexX = await smoke.rect(`${tab} [data-testid=vertex-x]`);
+  if (vertexX) {
+    await smoke.clickAt(vertexX.x + vertexX.width / 2, vertexX.y + vertexX.height / 2);
+    await smoke.key('A', ['control']);
+    await smoke.typeText('3000');
+    await smoke.key('Return');
+    smoke.check('a corner position typed in the inspector moves the wall end', await smoke.until(() => Math.abs(wallById(right.id).path.v[cornerIndex].p[0] - 3000) < 0.01), wallById(right.id).path.v[cornerIndex].p);
+  }
+  await focusCanvas();
+  await smoke.key('Escape');
+  smoke.check('Escape drops the corner', await smoke.until(async () => (await attr(smoke, 'vertex')) === ''));
+
+  smoke.section('the inspector');
+  await smoke.clickAt(...xy(toScreen(rect, cam, [0, bottom.path.v[0].p[1]])));
+  smoke.check('the inspector shows the wall', (await smoke.waitFor(`${tab} [data-testid=entity-editor][data-type=wall]`)) && (await smoke.js<string>(`document.querySelector('${tab} [data-testid=prop-thickness]').value`)) === '200 mm');
+  const thickness = (await smoke.rect(`${tab} [data-testid=prop-thickness]`))!;
+  await smoke.clickAt(thickness.x + thickness.width / 2, thickness.y + thickness.height / 2);
+  await smoke.key('A', ['control']);
+  await smoke.typeText('30cm');
+  await smoke.key('Return');
+  smoke.check('a thickness typed in any unit changes the wall', await smoke.until(() => wallById(bottom.id).thickness === 300), wallById(bottom.id).thickness);
+  await smoke.clickAt(thickness.x + thickness.width / 2, thickness.y + thickness.height / 2);
+  await smoke.key('A', ['control']);
+  await smoke.typeText('thick');
+  smoke.check('text that is not a length is marked invalid while typing', await smoke.waitFor(`${tab} [data-testid=prop-thickness][aria-invalid=true]`));
+  await smoke.key('Return');
+  smoke.check('and put back on Enter', (await smoke.until(async () => (await smoke.js<string>(`document.querySelector('${tab} [data-testid=prop-thickness]').value`)) === '300 mm')) && wallById(bottom.id).thickness === 300);
+  await focusCanvas();
+  // A crossing selection (leftwards) that touches all five walls, kept inside the canvas.
+  await smoke.dragAt(toScreen(rect, cam, [3400, 2300]), toScreen(rect, cam, [-3400, -2300]));
+  smoke.check('a multi-selection of one kind edits them together', (await smoke.waitFor(`${tab} [data-testid=properties-title]`, 3000, '5 items')) && (await smoke.waitFor(`${tab} [data-testid=entity-editor][data-type=wall]`)));
+  await smoke.shots('18-plan-inspector');
+  await smoke.clickAt(...xy(toScreen(rect, cam, [-1500, -1000])));
+
+  smoke.section('stale edits');
+  const agent = new Client({ name: 'smoke-late-agent', version: '1.0' });
+  await agent.connect(new StreamableHTTPClientTransport(new URL(`${status.url}?project=${towerId}`)));
+  const stale = await agent.callTool({ name: 'plan_entity_update', arguments: { id: bottom.id, set: { thickness: 150 }, baseSeq: 1 } });
+  const staleText = (stale.content as { text: string }[])[0]?.text ?? '';
+  smoke.check('an agent editing from an old copy is refused and told who changed it', stale.isError === true && staleText.includes('CONFLICT') && staleText.includes('meanwhile') && wallById(bottom.id).thickness === 300, staleText);
+  await agent.close();
 }
 
 const xy = (p: { x: number; y: number }): [number, number] => [p.x, p.y];

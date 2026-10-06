@@ -1,4 +1,5 @@
 import type { Box, Entity, LevelWalls, Vec2 } from '@studio/core';
+import type { VertexRef } from '../grips';
 import type { Hit } from '../hit';
 import type { RenderFrame } from '../render';
 
@@ -17,14 +18,20 @@ export interface ToolHost {
   levelId(): string | null;
   /** The active level's entities. */
   entities(): Record<string, Entity>;
+  /** The mirror's change number and epoch, sent with edits addressed by index so a stale one is refused. */
+  seq(): number;
+  epoch(): number;
   options(): ToolOptions;
   /** The zoom, to turn pixel tolerances into millimetres. */
   scale(): number;
+  toScreen(p: Vec2): Vec2;
   invalidate(): void;
   /** A tool asks to go back to selecting. */
   finish(): void;
   selection(): ReadonlySet<string>;
   select(ids: Iterable<string>, mode?: 'replace' | 'add' | 'toggle'): void;
+  vertex(): VertexRef | null;
+  selectVertex(vertex: VertexRef | null): void;
   hit(p: Vec2): Hit | null;
   marquee(box: Box, mode: 'window' | 'crossing'): string[];
   /** The level's joined walls, leaving out the given ones (for a drag preview). */
@@ -55,6 +62,8 @@ export interface ToolPointer {
   shift: boolean;
   ctrl: boolean;
   alt: boolean;
+  /** 1 for a click, 2 for the second click of a double click. */
+  clicks: number;
 }
 
 /** A tool is a small state machine fed pointer and key events; it previews on the canvas and commits through commands. */
@@ -70,6 +79,8 @@ export interface Tool {
   cancel(): void;
   /** The document changed: a drag whose entity vanished is dropped. */
   documentChanged?(entities: Record<string, Entity>): void;
+  /** The selection changed (by a click, a prune, the host). */
+  selectionChanged?(): void;
   /** Entities the tool draws itself right now (a drag preview), left out of the joined walls. */
   excluded?(): ReadonlySet<string>;
   /** Draws the preview; the context is in world space, `frame` has the camera and theme. */

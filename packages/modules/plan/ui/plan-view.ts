@@ -4,6 +4,7 @@ import { deriveLevels, type Vec2 } from '@studio/core';
 import { AppState, Checkbox, ContextMenu, HostBridge, Icon, IconButton, Input, ProjectDocs, ProjectView, Select, Toasts, Units, type ContextMenuItem } from '@studio/ui';
 import { DEFAULT_TOOL_OPTIONS, Plan2dEditor, drawingScale, readPlanTheme, type Camera, type ToolId, type UnderlayMode, type WallOptions } from '@studio/viewport';
 import { BrickWall, Maximize, MousePointer2, ZoomIn, ZoomOut } from 'lucide';
+import { PlanSelection } from './plan-selection';
 
 interface WallDraft {
   thickness: string;
@@ -32,6 +33,7 @@ export class PlanView {
   private readonly host = inject(HostBridge);
   private readonly toasts = inject(Toasts);
   private readonly menu = inject(ContextMenu);
+  private readonly planSelection = inject(PlanSelection);
   private readonly document = inject(DOCUMENT);
   private readonly destroyRef = inject(DestroyRef);
   protected readonly units = inject(Units);
@@ -71,6 +73,7 @@ export class PlanView {
   protected readonly tool = signal<ToolId>('select');
   protected readonly hint = signal('');
   protected readonly selection = signal<string[]>([]);
+  protected readonly vertexAttr = signal('');
   protected readonly selectionAttr = computed(() => this.selection().join(' '));
   protected readonly selectionLabel = computed(() => {
     const n = this.selection().length;
@@ -108,7 +111,14 @@ export class PlanView {
       this.tool.set(tool);
       this.hint.set(hint);
     },
-    onSelectionChange: (ids) => this.selection.set(ids),
+    onSelectionChange: (ids) => {
+      this.selection.set(ids);
+      this.planSelection.setIds(untracked(this.projectId), ids);
+    },
+    onVertexSelect: (vertex) => {
+      this.vertexAttr.set(vertex ? `${vertex.id}:${vertex.index}` : '');
+      this.planSelection.setVertex(untracked(this.projectId), vertex);
+    },
     onContextMenu: (event, ids) => this.menu.open(event, this.menuItems(ids)),
   });
 
@@ -137,7 +147,10 @@ export class PlanView {
   }
 
   constructor() {
-    effect(() => this.editor.setDocument(this.doc()));
+    effect(() => {
+      const state = this.docs.read(this.projectId());
+      this.editor.setDocument(state?.doc, state?.seq ?? 0, state?.epoch ?? 1);
+    });
     effect(() => this.editor.setLevel(this.activeLevelId()));
     effect(() => this.editor.setUnderlay(this.underlay()));
     effect(() => {

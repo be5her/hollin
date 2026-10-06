@@ -126,3 +126,42 @@ describe('editing commands', () => {
     expect(building.levels[0].layers).toHaveLength(3);
   });
 });
+
+describe('path edits and conflicts', () => {
+  it('moves, splits, curves and rounds a wall by index, and refuses a stale edit', async () => {
+    const ground = doc().building.groundLevelId;
+    const { id } = await run<{ id: string }>('plan.wall.add', { levelId: ground, points: [{ p: [0, 0] }, { p: [5000, 0] }, { p: [5000, 4000] }], single: true });
+    const seq = (await run<{ seq: number; epoch: number }>('edit.history', {})).seq;
+    const epoch = (await run<{ seq: number; epoch: number }>('edit.history', {})).epoch;
+    const moved = await run<{ path: { v: { p: number[]; s?: unknown; c?: unknown }[] } }>('plan.path.vertex.move', { id, index: 2, to: [5000, 3000], baseSeq: seq, epoch });
+    expect(moved.path.v[2].p).toEqual([5000, 3000]);
+    // The same base is stale now: the wall changed since.
+    await expect(run('plan.path.vertex.move', { id, index: 2, to: [5000, 2000], baseSeq: seq, epoch })).rejects.toMatchObject({ code: 'CONFLICT', details: { kind: 'stale', by: { kind: 'user' } } });
+    expect((doc().levelData[ground].entities[id] as { path: { v: { p: readonly number[] }[] } }).path.v[2].p).toEqual([5000, 3000]);
+    await expect(run('plan.path.vertex.move', { id, index: 2, to: [5000, 2000], baseSeq: seq + 1, epoch: epoch + 1 })).rejects.toMatchObject({ code: 'CONFLICT' });
+    const split = await run<{ path: { v: unknown[] } }>('plan.path.vertex.insert', { id, index: 0, at: [2500, 100] });
+    expect(split.path.v.length).toBe(4);
+    const curved = await run<{ path: { v: { s?: { k: string } }[] } }>('plan.path.segment.set', { id, index: 0, segment: { k: 'arc', through: [1250, -500] } });
+    expect(curved.path.v[0].s?.k).toBe('arc');
+    const rounded = await run<{ path: { v: { c?: { k: string } }[] } }>('plan.path.corner.set', { id, index: 2, corner: { k: 'fillet', r: 300 } });
+    expect(rounded.path.v[2].c?.k).toBe('fillet');
+    await expect(run('plan.path.corner.set', { id, index: 0, corner: { k: 'fillet', r: 300 } })).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+    const removed = await run<{ path: { v: unknown[] } }>('plan.path.vertex.remove', { id, index: 1 });
+    expect(removed.path.v.length).toBe(3);
+    await expect(run('plan.path.vertex.move', { id: 'wal_0000000000000000', index: 0, to: [0, 0] })).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    const history = await run<{ undo: { label: string }[] }>('edit.history', {});
+    expect(history.undo[0].label).toBe('Remove corner of wall');
+  });
+
+  it('names the agent whose change made a field edit stale', async () => {
+    const ground = doc().building.groundLevelId;
+    const { id } = await run<{ id: string }>('plan.wall.add', { levelId: ground, from: [0, 0], to: [3000, 0] });
+    const base = await run<{ seq: number }>('edit.history', {});
+    await run('plan.entity.update', { id, set: { thickness: 300 } }, 'mcp', 'Claude Desktop');
+    await expect(run('plan.entity.update', { id, set: { thickness: 150 }, baseSeq: base.seq })).rejects.toMatchObject({ code: 'CONFLICT', message: expect.stringContaining('via MCP: Claude Desktop') });
+    expect((doc().levelData[ground].entities[id] as { thickness: number }).thickness).toBe(300);
+    const fresh = await run<{ seq: number }>('edit.history', {});
+    await run('plan.entity.update', { id, set: { thickness: 150 }, baseSeq: fresh.seq });
+    expect((doc().levelData[ground].entities[id] as { thickness: number }).thickness).toBe(150);
+  });
+});

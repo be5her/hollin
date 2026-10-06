@@ -6,6 +6,7 @@ import {
   StudioError,
   addEntityOps,
   addLayerOps,
+  assertUnchanged,
   authorFrom,
   bulgeThrough,
   changedFields,
@@ -15,13 +16,20 @@ import {
   distance,
   editProject,
   entitiesOnLevel,
+  insertVertex,
   moveLayerOps,
+  moveVertex,
   newId,
+  pathOfEntity,
   remapRefs,
   removeLayerOps,
+  removeVertex,
   requireEntity,
+  setCorner,
+  setSegment,
   transformEntity,
   updateEntityOps,
+  withPath,
   type CommandContext,
   type EditContext,
   type Entity,
@@ -31,6 +39,7 @@ import {
   type Transform,
   type Vec2,
   type Vertex,
+  type WhichPath,
 } from '@studio/core';
 import { z } from 'zod';
 
@@ -39,6 +48,34 @@ const layerId = z.string().describe('Layer id, from building_get');
 const Point = z.tuple([z.number(), z.number()]).describe('[x, y] in mm, y up');
 
 const WallPointSchema = z.object({ p: Point, bulge: z.number().optional().describe('Makes the segment to the next point an arc: tan(sweep/4), positive counter-clockwise; 1 is a half circle') });
+
+/** Edits addressed by index carry the change number the caller saw, so a stale edit fails instead of landing on moved geometry. */
+const Stale = {
+  baseSeq: z.number().int().min(0).optional().describe('The change number (seq) your copy of the document had; refused with CONFLICT if the entity changed since'),
+  epoch: z.number().int().min(1).optional().describe('The document epoch your copy had'),
+};
+const WhichSchema = z.union([z.literal('outer'), z.object({ hole: z.number().int().min(0) })]).default('outer').describe("Which path: a wall's own path or a region's outline ('outer'), or a region's hole");
+const PathEdit = { id: z.string(), which: WhichSchema, index: z.number().int().min(0), ...Stale };
+
+/** Runs one path edit on an entity as a transaction, with the conflict check inside the edit queue. */
+async function editPath(ctx: CommandContext, input: { id: string; which: WhichPath; baseSeq?: number; epoch?: number }, label: string, change: (path: Path) => Path): Promise<Entity> {
+  const type = requireEntity(ctx.project!.doc, input.id).type;
+  await editProject(ctx, `${label} of ${type}`, (tx) => {
+    assertUnchanged(ctx, input.id, type, input.baseSeq, input.epoch);
+    const entity = requireEntity(tx.doc, input.id);
+    const path = pathOfEntity(entity, input.which);
+    if (!path) throw new StudioError('INVALID_INPUT', `A ${entity.type} has no ${input.which === 'outer' ? 'path' : `hole ${input.which.hole}`} to edit`);
+    let next: Path;
+    try {
+      next = change(path);
+    } catch (err) {
+      throw new StudioError('INVALID_INPUT', (err as Error).message);
+    }
+    const set = changedFields(entity, withPath(entity, input.which, next));
+    if (Object.keys(set).length) tx.apply(updateEntityOps(tx.doc, input.id, set));
+  });
+  return requireEntity(ctx.project!.doc, input.id);
+}
 
 /** The wall paths a `plan.wall.add` input describes: one per segment, or one for the whole run. */
 export function wallPaths(input: { from?: Vec2; to?: Vec2; through?: Vec2; points?: { p: Vec2; bulge?: number }[]; closed: boolean; path?: Path; single: boolean }): Path[] {
@@ -333,15 +370,64 @@ export const planModule = defineModule({
     defineCommand({
       id: 'plan.entity.update',
       title: 'Change an entity',
-      description: "Sets fields of an entity (whole values: e.g. pass the complete `path`). `unset` removes optional fields. Its type and level cannot change; its layer can, within the level.",
+      description:
+        'Sets fields of an entity (whole values: e.g. pass the complete `path`). `unset` removes optional fields. Its type and level cannot change; its layer can, within the level. Pass `baseSeq` (the change number your copy had) to be refused with CONFLICT if someone changed the entity meanwhile.',
       scope: 'project',
       batchable: true,
-      input: z.object({ id: z.string(), set: z.record(z.string(), z.unknown()).default({}), unset: z.array(z.string()).default([]) }),
-      handler: async ({ id, set, unset }, ctx) => {
+      input: z.object({ id: z.string(), set: z.record(z.string(), z.unknown()).default({}), unset: z.array(z.string()).default([]), ...Stale }),
+      handler: async ({ id, set, unset, baseSeq, epoch }, ctx) => {
         const entity = requireEntity(ctx.project!.doc, id);
-        await editProject(ctx, `Change ${entity.type}`, (tx) => tx.apply(updateEntityOps(tx.doc, id, set, unset)));
+        await editProject(ctx, `Change ${entity.type}`, (tx) => {
+          assertUnchanged(ctx, id, entity.type, baseSeq, epoch);
+          tx.apply(updateEntityOps(tx.doc, id, set, unset));
+        });
         return requireEntity(ctx.project!.doc, id);
       },
+    }),
+    defineCommand({
+      id: 'plan.path.vertex.move',
+      title: 'Move a corner',
+      description: "Moves vertex `index` of an entity's path (a wall's path, or a region's outline or hole) to a point. Returns the entity.",
+      scope: 'project',
+      batchable: true,
+      input: z.object({ ...PathEdit, to: Point }),
+      handler: (input, ctx) => editPath(ctx, input, 'Move corner', (path) => moveVertex(path, input.index, input.to)),
+    }),
+    defineCommand({
+      id: 'plan.path.vertex.insert',
+      title: 'Add a corner',
+      description: "Splits segment `index` of an entity's path with a new vertex at a point (an arc becomes two arcs on the same circle). Returns the entity.",
+      scope: 'project',
+      batchable: true,
+      input: z.object({ ...PathEdit, at: Point }),
+      handler: (input, ctx) => editPath(ctx, input, 'Add corner', (path) => insertVertex(path, input.index, input.at)),
+    }),
+    defineCommand({
+      id: 'plan.path.vertex.remove',
+      title: 'Remove a corner',
+      description: "Removes vertex `index` of an entity's path; the segment before it runs straight to the next vertex. A path keeps at least two vertices (three when closed). Returns the entity.",
+      scope: 'project',
+      batchable: true,
+      input: z.object(PathEdit),
+      handler: (input, ctx) => editPath(ctx, input, 'Remove corner', (path) => removeVertex(path, input.index)),
+    }),
+    defineCommand({
+      id: 'plan.path.segment.set',
+      title: 'Straighten or curve a segment',
+      description: "Makes segment `index` of an entity's path a straight line, or an arc given by its bulge (tan(sweep/4), positive counter-clockwise) or by a point it passes through. Returns the entity.",
+      scope: 'project',
+      batchable: true,
+      input: z.object({ ...PathEdit, segment: z.union([z.object({ k: z.literal('line') }), z.object({ k: z.literal('arc'), bulge: z.number() }), z.object({ k: z.literal('arc'), through: Point })]) }),
+      handler: (input, ctx) => editPath(ctx, input, 'Change segment', (path) => setSegment(path, input.index, input.segment)),
+    }),
+    defineCommand({
+      id: 'plan.path.corner.set',
+      title: 'Round or chamfer a corner',
+      description: "Sets the corner at vertex `index` of an entity's path: a fillet of radius `r`, a chamfer of `d1` along the incoming edge and `d2` along the outgoing one (default `d1`), or null for a sharp corner. The ends of an open path have no corner. Returns the entity.",
+      scope: 'project',
+      batchable: true,
+      input: z.object({ ...PathEdit, corner: z.union([z.null(), z.object({ k: z.literal('fillet'), r: z.number().positive() }), z.object({ k: z.literal('chamfer'), d1: z.number().positive(), d2: z.number().positive().optional() })]) }),
+      handler: (input, ctx) => editPath(ctx, input, input.corner ? (input.corner.k === 'fillet' ? 'Round corner' : 'Chamfer corner') : 'Sharpen corner', (path) => setCorner(path, input.index, input.corner)),
     }),
     defineCommand({
       id: 'plan.entity.delete',

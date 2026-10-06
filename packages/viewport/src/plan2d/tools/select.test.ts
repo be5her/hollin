@@ -3,6 +3,7 @@ import { deriveWalls, type Entity, type Layer } from '@studio/core';
 import { hitTest, marqueeSelect } from '../hit';
 import { createLevelScene, syncLevelScene } from '../scene';
 import { SelectTool } from './select';
+import type { VertexRef } from '../grips';
 import { DEFAULT_TOOL_OPTIONS, type Clipboard, type ToolHost, type ToolPointer } from './tool';
 
 const lv = 'lvl_0000000000000001';
@@ -20,6 +21,7 @@ function harness() {
   const walls = deriveWalls([a, b] as Extract<Entity, { type: 'wall' }>[]);
   const calls: { id: string; input: unknown }[] = [];
   let selection = new Set<string>();
+  let vertex: VertexRef | null = null;
   const host: ToolHost & { calls: typeof calls; setEntities(e: Record<string, Entity>): void; selected(): string[] } = {
     calls,
     clipboard: null as Clipboard | null,
@@ -29,10 +31,15 @@ function harness() {
     },
     levelId: () => lv,
     entities: () => entities,
+    seq: () => 7,
+    epoch: () => 1,
     options: () => DEFAULT_TOOL_OPTIONS,
     scale: () => 0.1,
+    toScreen: (p) => [p[0] / 10, -p[1] / 10],
     invalidate: () => {},
     finish: () => {},
+    vertex: () => vertex,
+    selectVertex: (v) => (vertex = v),
     selection: () => selection,
     select: (ids, mode = 'replace') => {
       if (mode === 'replace') selection = new Set(ids);
@@ -50,7 +57,7 @@ function harness() {
   return { host, a, b, door };
 }
 
-const at = (x: number, y: number, extra: Partial<ToolPointer> = {}): ToolPointer => ({ world: [x, y], screen: [x / 10, -y / 10], button: 0, shift: false, ctrl: false, alt: false, ...extra });
+const at = (x: number, y: number, extra: Partial<ToolPointer> = {}): ToolPointer => ({ world: [x, y], screen: [x / 10, -y / 10], button: 0, shift: false, ctrl: false, alt: false, clicks: 1, ...extra });
 const keyOf = (key: string, extra: Partial<KeyboardEvent> = {}) => ({ key, ctrlKey: false, metaKey: false, shiftKey: false, ...extra }) as KeyboardEvent;
 
 describe('SelectTool', () => {
@@ -132,6 +139,44 @@ describe('SelectTool', () => {
     expect(host.calls[4]).toEqual({ id: 'plan.transform', input: { ids: [a.id], mirror: { a: [0, 500], b: [1000, 500] }, copy: true } });
     expect(tool.key(keyOf('Delete'))).toBe(true);
     expect(host.calls[5]).toEqual({ id: 'plan.entity.delete', input: { ids: [a.id] } });
+  });
+
+  it('drags a vertex grip with the wall ends that meet it, and edits a selected corner', () => {
+    const { host, a } = harness();
+    // A second wall whose end sits on a's end.
+    const c = wall('wal_000000000000000c', 0);
+    const cc = { ...c, path: { closed: false, v: [{ p: [5000, 0] as [number, number] }, { p: [5000, 4000] as [number, number] }] } } as Entity;
+    host.setEntities({ ...host.entities(), [cc.id]: cc });
+    host.select([a.id]);
+    const tool = new SelectTool(host);
+    // The end vertex of a is at (5000, 0): screen (500, 0).
+    tool.pointerDown(at(5000, 0));
+    tool.pointerMove(at(5000, 500));
+    expect(tool.busy).toBe(true);
+    expect([...tool.excluded()].sort()).toEqual([a.id, cc.id].sort());
+    tool.pointerUp(at(5000, 500));
+    const apply = host.calls[0].input as { label: string; steps: { command: string; input: { id: string; index: number; to: number[]; baseSeq: number } }[] };
+    expect(host.calls[0].id).toBe('plan.apply');
+    expect(apply.steps.map((s) => s.input.id).sort()).toEqual([a.id, cc.id].sort());
+    expect(apply.steps.every((s) => s.command === 'plan.path.vertex.move' && s.input.baseSeq === 7)).toBe(true);
+    // A click on a vertex selects it; F rounds it (the vertex is an end, so main would refuse; the tool just asks).
+    tool.pointerDown(at(0, 0));
+    tool.pointerUp(at(0, 0));
+    expect(host.vertex()).toEqual({ id: a.id, which: 'outer', index: 0 });
+    expect(tool.key(keyOf('f'))).toBe(true);
+    expect(host.calls[1]).toMatchObject({ id: 'plan.path.corner.set', input: { id: a.id, index: 0, corner: { k: 'fillet', r: 300 }, baseSeq: 7, epoch: 1 } });
+    // A segment middle curves through the cursor; with Alt it adds a vertex.
+    tool.pointerDown(at(2500, 0));
+    tool.pointerMove(at(2500, -400));
+    tool.pointerUp(at(2500, -400));
+    expect(host.calls[2]).toMatchObject({ id: 'plan.path.segment.set', input: { index: 0, segment: { k: 'arc', through: [2500, -400] } } });
+    tool.pointerDown(at(2500, 0, { alt: true }));
+    tool.pointerMove(at(2500, -400, { alt: true }));
+    tool.pointerUp(at(2500, -400, { alt: true }));
+    expect(host.calls[3]).toMatchObject({ id: 'plan.path.vertex.insert', input: { index: 0, at: [2500, -400] } });
+    tool.pointerDown(at(2500, 0, { clicks: 2 }));
+    tool.pointerUp(at(2500, 0, { clicks: 2 }));
+    expect(host.calls[4]).toMatchObject({ id: 'plan.path.segment.set', input: { segment: { k: 'line' } } });
   });
 
   it('copies and pastes as one batch with openings naming their walls', async () => {

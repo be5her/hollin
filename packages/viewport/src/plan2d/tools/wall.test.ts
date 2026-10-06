@@ -14,12 +14,17 @@ function host(options: Partial<ToolOptions['wall']> = {}) {
     },
     levelId: () => 'lvl_0000000000000001',
     entities: () => ({}),
+    seq: () => 0,
+    epoch: () => 1,
     options: () => ({ ...DEFAULT_TOOL_OPTIONS, wall: { ...DEFAULT_TOOL_OPTIONS.wall, ...options } }),
     scale: () => 0.1,
+    toScreen: (p) => [p[0] / 10, -p[1] / 10],
     invalidate: () => {},
     finish: () => h.finished++,
     selection: () => new Set(),
     select: () => {},
+    vertex: () => null,
+    selectVertex: () => {},
     hit: () => null,
     marquee: () => [],
     walls: () => null,
@@ -27,7 +32,7 @@ function host(options: Partial<ToolOptions['wall']> = {}) {
   return h;
 }
 
-const click = (x: number, y: number): ToolPointer => ({ world: [x, y], screen: [0, 0], button: 0, shift: false, ctrl: false, alt: false });
+const click = (x: number, y: number): ToolPointer => ({ world: [x, y], screen: [0, 0], button: 0, shift: false, ctrl: false, alt: false, clicks: 1 });
 const keyOf = (key: string) => ({ key }) as KeyboardEvent;
 
 describe('WallTool', () => {

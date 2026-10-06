@@ -20,6 +20,7 @@ export * from './controls/button';
 export * from './controls/empty-state';
 export * from './controls/icon-button';
 export * from './controls/kbd';
+export * from './controls/length';
 export * from './controls/native-controls';
 export * from './controls/section-header';
 export * from './controls/segmented';

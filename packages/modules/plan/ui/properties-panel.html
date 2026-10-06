@@ -1,0 +1,192 @@
+@if (!entities().length) {
+  <x-empty-state title="Nothing selected" hint="Click an entity on the plan to see and change its properties." />
+} @else {
+  <div class="px-4 py-3 border-b border-edge">
+    <div class="text-sm font-semibold" data-testid="properties-title">
+      @if (entity(); as e) {
+        {{ typeName(e) }}
+      } @else {
+        {{ entities().length }} items
+      }
+    </div>
+    @if (!entity()) {
+      <div class="text-xs text-muted mt-0.5" data-testid="properties-summary">{{ summary() }}</div>
+    }
+  </div>
+
+  @if (vertexRef() && vertexPath()) {
+    <section class="px-4 py-3 border-b border-edge flex flex-col gap-2.5" data-testid="vertex-editor">
+      <div class="text-xs font-medium">Corner {{ vertexRef()!.index + 1 }}</div>
+      <div class="grid grid-cols-2 gap-2">
+        <label>
+          <span class="block text-xs font-medium text-muted mb-1">X</span>
+          <input xInput xLength class="font-mono" [formField]="vf.x" (commit)="moveVertex(0, $event)" data-testid="vertex-x" />
+        </label>
+        <label>
+          <span class="block text-xs font-medium text-muted mb-1">Y</span>
+          <input xInput xLength class="font-mono" [formField]="vf.y" (commit)="moveVertex(1, $event)" data-testid="vertex-y" />
+        </label>
+      </div>
+      @if (vertexHasSegment()) {
+        <div class="grid grid-cols-2 gap-2">
+          <label>
+            <span class="block text-xs font-medium text-muted mb-1">Segment to next</span>
+            <select xSelect class="w-full" [formField]="vf.segment" (change)="setSegment()" data-testid="vertex-segment">
+              <option value="line">Straight</option>
+              <option value="arc">Arc</option>
+            </select>
+          </label>
+          @if (vertexDraft().segment === 'arc') {
+            <label>
+              <span class="block text-xs font-medium text-muted mb-1">Radius</span>
+              <input xInput xLength class="font-mono" [formField]="vf.radius" (commit)="setArcRadius($event)" data-testid="vertex-radius" />
+            </label>
+            <label>
+              <span class="block text-xs font-medium text-muted mb-1">Turns</span>
+              <select xSelect class="w-full" [formField]="vf.direction" (change)="setSegment()">
+                <option value="ccw">Left (counter-clockwise)</option>
+                <option value="cw">Right (clockwise)</option>
+              </select>
+            </label>
+          }
+        </div>
+      }
+      @if (vertexHasCorner()) {
+        <div class="grid grid-cols-2 gap-2">
+          <label>
+            <span class="block text-xs font-medium text-muted mb-1">Corner</span>
+            <select xSelect class="w-full" [formField]="vf.corner" (change)="setCornerKind($any($event.target).value)" data-testid="vertex-corner">
+              <option value="sharp">Sharp</option>
+              <option value="fillet">Rounded</option>
+              <option value="chamfer">Chamfered</option>
+            </select>
+          </label>
+          @if (vertexDraft().corner === 'fillet') {
+            <label>
+              <span class="block text-xs font-medium text-muted mb-1">Radius</span>
+              <input xInput xLength class="font-mono" [formField]="vf.cornerRadius" (commit)="setCornerSize('cornerRadius', $event)" data-testid="vertex-fillet" />
+            </label>
+          } @else if (vertexDraft().corner === 'chamfer') {
+            <label>
+              <span class="block text-xs font-medium text-muted mb-1">Before</span>
+              <input xInput xLength class="font-mono" [formField]="vf.d1" (commit)="setCornerSize('d1', $event)" data-testid="vertex-d1" />
+            </label>
+            <label>
+              <span class="block text-xs font-medium text-muted mb-1">After</span>
+              <input xInput xLength class="font-mono" [formField]="vf.d2" (commit)="setCornerSize('d2', $event)" data-testid="vertex-d2" />
+            </label>
+          }
+        </div>
+      }
+    </section>
+  }
+
+  @if (subject(); as e) {
+    <section class="px-4 py-3 flex flex-col gap-2.5" data-testid="entity-editor" [attr.data-type]="e.type">
+      @if (e.type !== 'room') {
+        <label>
+          <span class="block text-xs font-medium text-muted mb-1">Name</span>
+          <input xInput [formField]="f.name" placeholder="—" (blur)="setName()" (keydown.enter)="$any($event.target).blur()" data-testid="prop-name" />
+        </label>
+      }
+      @switch (e.type) {
+        @case ('wall') {
+          <div class="grid grid-cols-2 gap-2">
+            <label>
+              <span class="block text-xs font-medium text-muted mb-1">Thickness</span>
+              <input xInput xLength #t="xLength" class="font-mono" [formField]="f.thickness" (commit)="setLength('thickness', $event)" data-testid="prop-thickness" />
+              @if (t.invalid()) {
+                <span class="block text-[11px] text-danger mt-0.5">Not a length</span>
+              }
+            </label>
+            <label>
+              <span class="block text-xs font-medium text-muted mb-1">Height</span>
+              <input xInput xLength [allowEmpty]="true" class="font-mono" placeholder="level" [formField]="f.height" (commit)="setNullable('height', $event)" data-testid="prop-height" />
+            </label>
+          </div>
+          <label>
+            <span class="block text-xs font-medium text-muted mb-1">Body</span>
+            <select xSelect class="w-full" [formField]="f.alignment" (change)="set({ alignment: $any($event.target).value })" data-testid="prop-alignment">
+              <option value="center">Centred on the line</option>
+              <option value="left">Left of the line</option>
+              <option value="right">Right of the line</option>
+            </select>
+          </label>
+          @if (entity()) {
+            <div class="text-xs text-muted">Length <span class="font-mono text-fg" data-testid="prop-length">{{ wallLength() }}</span></div>
+          }
+        }
+        @case ('opening') {
+          <label>
+            <span class="block text-xs font-medium text-muted mb-1">Kind</span>
+            <select xSelect class="w-full" [formField]="f.kind" (change)="set({ kind: $any($event.target).value })" data-testid="prop-kind">
+              <option value="door">Door</option>
+              <option value="window">Window</option>
+              <option value="opening">Opening</option>
+            </select>
+          </label>
+          <div class="grid grid-cols-2 gap-2">
+            <label><span class="block text-xs font-medium text-muted mb-1">Width</span><input xInput xLength class="font-mono" [formField]="f.width" (commit)="setLength('width', $event)" data-testid="prop-width" /></label>
+            <label><span class="block text-xs font-medium text-muted mb-1">Height</span><input xInput xLength class="font-mono" [formField]="f.height" (commit)="setLength('height', $event)" /></label>
+            <label><span class="block text-xs font-medium text-muted mb-1">Sill</span><input xInput xLength class="font-mono" [formField]="f.sill" (commit)="setLength('sill', $event)" /></label>
+            <label><span class="block text-xs font-medium text-muted mb-1">Along the wall</span><input xInput xLength class="font-mono" [formField]="f.along" (commit)="setLength('along', $event)" data-testid="prop-along" /></label>
+          </div>
+          @if (draft().kind === 'door') {
+            <div class="grid grid-cols-2 gap-2">
+              <label>
+                <span class="block text-xs font-medium text-muted mb-1">Hinge</span>
+                <select xSelect class="w-full" [formField]="f.hinge" (change)="setSwing('hinge', $any($event.target).value)" data-testid="prop-hinge">
+                  <option value="start">At the start</option>
+                  <option value="end">At the end</option>
+                </select>
+              </label>
+              <label>
+                <span class="block text-xs font-medium text-muted mb-1">Opens to</span>
+                <select xSelect class="w-full" [formField]="f.side" (change)="setSwing('side', $any($event.target).value)" data-testid="prop-side">
+                  <option value="left">The left</option>
+                  <option value="right">The right</option>
+                </select>
+              </label>
+            </div>
+          }
+        }
+        @case ('room') {
+          <label><span class="block text-xs font-medium text-muted mb-1">Name</span><input xInput [formField]="f.name" (blur)="setName()" (keydown.enter)="$any($event.target).blur()" data-testid="prop-name" /></label>
+          <label><span class="block text-xs font-medium text-muted mb-1">Number</span><input xInput [formField]="f.number" placeholder="—" (blur)="setText('number')" (keydown.enter)="$any($event.target).blur()" /></label>
+        }
+        @case ('label') {
+          <label><span class="block text-xs font-medium text-muted mb-1">Text</span><input xInput [formField]="f.text" (blur)="setText('text')" (keydown.enter)="$any($event.target).blur()" data-testid="prop-text" /></label>
+          <div class="grid grid-cols-2 gap-2">
+            <label><span class="block text-xs font-medium text-muted mb-1">Text height</span><input xInput xLength class="font-mono" [formField]="f.size" (commit)="setLength('size', $event)" /></label>
+            <label><span class="block text-xs font-medium text-muted mb-1">Rotation</span><input xInput xAngle class="font-mono" [formField]="f.rotation" (commit)="set({ rotation: $event })" /></label>
+          </div>
+        }
+        @case ('column') {
+          <div class="grid grid-cols-2 gap-2">
+            @if (draft().r) {
+              <label><span class="block text-xs font-medium text-muted mb-1">Radius</span><input xInput xLength class="font-mono" [formField]="f.r" (commit)="setColumnSize('r', $event)" /></label>
+            } @else {
+              <label><span class="block text-xs font-medium text-muted mb-1">Width</span><input xInput xLength class="font-mono" [formField]="f.w" (commit)="setColumnSize('w', $event)" /></label>
+              <label><span class="block text-xs font-medium text-muted mb-1">Depth</span><input xInput xLength class="font-mono" [formField]="f.d" (commit)="setColumnSize('d', $event)" /></label>
+            }
+            <label><span class="block text-xs font-medium text-muted mb-1">Rotation</span><input xInput xAngle class="font-mono" [formField]="f.rotation" (commit)="set({ rotation: $event })" /></label>
+          </div>
+        }
+        @case ('slab') {
+          <label><span class="block text-xs font-medium text-muted mb-1">Thickness</span><input xInput xLength [allowEmpty]="true" class="font-mono" placeholder="level" [formField]="f.thickness" (commit)="setLength('thickness', $event)" /></label>
+        }
+        @case ('dimension') {
+          <label><span class="block text-xs font-medium text-muted mb-1">Offset</span><input xInput xLength class="font-mono" [formField]="f.offset" (commit)="setNullable('offset', $event)" /></label>
+        }
+        @case ('fixture') {
+          <label><span class="block text-xs font-medium text-muted mb-1">Rotation</span><input xInput xAngle class="font-mono" [formField]="f.rotation" (commit)="set({ rotation: $event })" /></label>
+        }
+        @case ('point') {
+          <label><span class="block text-xs font-medium text-muted mb-1">Rotation</span><input xInput xAngle class="font-mono" [formField]="f.rotation" (commit)="set({ rotation: $event })" /></label>
+        }
+      }
+    </section>
+  } @else {
+    <div class="px-4 py-3 text-xs text-muted">Select items of one kind to change them together.</div>
+  }
+}

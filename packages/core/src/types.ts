@@ -1,6 +1,7 @@
 import type { z } from 'zod';
 import type { ConfigPatch, GlobalConfig } from './config';
-import type { Author, DocPatch, EditContext, HistoryInfo, HistoryState } from './doc/engine';
+import type { Author, DocPatch, EditContext, HistoryInfo, HistoryState, LastTouched } from './doc/engine';
+import { StudioError } from './errors';
 import type { ProjectDoc } from './doc/schema';
 import type { LibraryInfo, ListQuery, OpenProject, ProjectSummary, SaveStatus, SnapshotInfo } from './projects';
 
@@ -38,8 +39,8 @@ export interface ProjectApi {
   undo(ifTop?: string): Promise<HistoryState>;
   redo(): Promise<HistoryState>;
   history(): { undo: HistoryInfo[]; redo: HistoryInfo[]; seq: number; epoch: number };
-  /** The change number at which a record last changed, for conflict checks. */
-  lastTouched(id: string): number;
+  /** When a record last changed and by whom (null: not since opening), for conflict checks. */
+  lastTouched(id: string): LastTouched | null;
   /** True inside a `plan.apply` batch. */
   readonly batching?: boolean;
 }
@@ -53,6 +54,22 @@ export function authorFrom(ctx: Pick<CommandContext, 'caller' | 'agent'>): Autho
   if (ctx.caller === 'ui') return { kind: 'user', name: 'You', label: 'You' };
   if (ctx.caller === 'assistant') return { kind: 'assistant', name: ctx.agent ?? 'Assistant', label: `Assistant${ctx.agent ? ` (${ctx.agent})` : ''}` };
   return { kind: 'mcp', name: ctx.agent ?? 'unknown agent', label: `via MCP: ${ctx.agent ?? 'unknown agent'}` };
+}
+
+/**
+ * Refuses an edit addressed by index (a vertex, a field read from a copy) when the record changed
+ * since the caller looked at it: `baseSeq` is the change number the caller's copy had. Call it inside
+ * the edit, where it runs in the project's edit queue. A reload (new epoch) counts as a change.
+ */
+export function assertUnchanged(ctx: CommandContext, id: string, what: string, baseSeq?: number, epoch?: number): void {
+  if (baseSeq === undefined || !ctx.project) return;
+  const current = ctx.project.history();
+  if (epoch !== undefined && epoch !== current.epoch) throw new StudioError('CONFLICT', 'The project was reloaded since you looked at it; nothing was changed. Try again.', { kind: 'stale', epoch: current.epoch });
+  const last = ctx.project.lastTouched(id);
+  if (last && last.seq > baseSeq) {
+    const by = last.author.kind === 'user' ? 'you' : last.author.kind === 'assistant' ? `the assistant (${last.author.name})` : `via MCP: ${last.author.name}`;
+    throw new StudioError('CONFLICT', `The ${what} was changed by ${by} meanwhile; nothing was changed. Look again and retry.`, { kind: 'stale', seq: last.seq, by: last.author });
+  }
 }
 
 /** Runs an edit of the command's project, attributed to whoever called the command. */

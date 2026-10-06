@@ -9,6 +9,12 @@ export interface Author {
   name: string;
 }
 
+/** When a record last changed, and who changed it. */
+export interface LastTouched {
+  seq: number;
+  author: Author;
+}
+
 export interface HistoryInfo {
   id: string;
   label: string;
@@ -66,7 +72,7 @@ export class DocumentEngine {
   private redoStack: Entry[] = [];
   private seqValue = 0;
   private epochValue = 1;
-  private readonly touchedAt = new Map<string, number>();
+  private readonly touchedAt = new Map<string, LastTouched>();
   private readonly opts: Required<Omit<EngineOptions, 'onChange'>> & Pick<EngineOptions, 'onChange'>;
 
   constructor(doc: ProjectDoc, options: EngineOptions) {
@@ -86,9 +92,9 @@ export class DocumentEngine {
     return this.epochValue;
   }
 
-  /** The change number when a record last changed (0 if not since opening). */
-  lastTouched(id: string): number {
-    return this.touchedAt.get(id) ?? 0;
+  /** The change number at which a record last changed, and by whom; null if not since opening (or since a reload). */
+  lastTouched(id: string): LastTouched | null {
+    return this.touchedAt.get(id) ?? null;
   }
 
   history(): HistoryState {
@@ -139,7 +145,7 @@ export class DocumentEngine {
     this.trim();
     this.current = committed.doc;
     this.seqValue++;
-    for (const r of committed.after.values()) this.touchedAt.set(r.id, this.seqValue);
+    for (const r of committed.after.values()) this.touchedAt.set(r.id, { seq: this.seqValue, author });
     this.emit({ id: entry.id, label, author, kind: 'do' }, patchOps(committed.before, committed.after));
     return { result, changed: true, txId: entry.id };
   }
@@ -171,7 +177,7 @@ export class DocumentEngine {
     const committed = tx.commit();
     if (committed) this.current = committed.doc;
     this.seqValue++;
-    for (const r of to.values()) this.touchedAt.set(r.id, this.seqValue);
+    for (const r of to.values()) this.touchedAt.set(r.id, { seq: this.seqValue, author: entry.author });
     this.emit({ id: entry.id, label: entry.label, author: entry.author, kind }, ops);
   }
 

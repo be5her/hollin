@@ -156,6 +156,25 @@ export function drawEntityPreview(ctx: CanvasRenderingContext2D, entity: Entity,
   worldSpace(ctx, frame);
 }
 
+/** The grips of the selected entity: squares at vertices (the selected one filled), circles at segment middles. Drawn in screen space. */
+export function drawGrips(ctx: CanvasRenderingContext2D, frame: RenderFrame, grips: readonly { kind: 'vertex' | 'mid'; index: number; which: unknown; at: Vec2 }[], selected: { index: number; which: unknown } | null): void {
+  if (!grips.length) return;
+  screenSpace(ctx, frame);
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = frame.theme.selection;
+  for (const g of grips) {
+    const [x, y] = worldToScreen(frame.camera, frame.size, g.at);
+    const isSelected = selected !== null && g.kind === 'vertex' && g.index === selected.index && JSON.stringify(g.which) === JSON.stringify(selected.which);
+    ctx.fillStyle = isSelected ? frame.theme.selection : frame.theme.background;
+    ctx.beginPath();
+    if (g.kind === 'vertex') ctx.rect(Math.round(x) - 4, Math.round(y) - 4, 8, 8);
+    else ctx.arc(x, y, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
+  worldSpace(ctx, frame);
+}
+
 /** The outline of each selected entity in the selection colour. */
 export function drawSelection(ctx: CanvasRenderingContext2D, frame: RenderFrame, selection: ReadonlySet<string>): void {
   if (!selection.size || !frame.scene) return;

@@ -1,8 +1,15 @@
-import { DEG, angleOf, distance, formatAngle, joinWalls, junctionNodes, junctionPatches, sub, transformEntity, wallBody, wallEnds, type Box, type Entity, type Transform, type Vec2 } from '@studio/core';
+import { DEG, angleOf, distance, formatAngle, insertVertex, joinWalls, junctionNodes, junctionPatches, moveVertex, pathOfEntity, setSegment, sub, transformEntity, wallBody, wallEnds, withPath, type Box, type Entity, type Transform, type Vec2 } from '@studio/core';
 import { tracePolygon } from '../draw';
-import { drawEntityPreview, drawScreenText, drawSelection, type RenderFrame } from '../render';
+import { gripAt, gripsOf, type Grip, type VertexRef } from '../grips';
+import { drawEntityPreview, drawGrips, drawScreenText, drawSelection, type RenderFrame } from '../render';
 import { withAlpha } from '../theme';
 import type { Tool, ToolHost, ToolPointer } from './tool';
+
+/** Another wall's end that sits on a dragged vertex and moves with it. */
+interface JoinedEnd {
+  id: string;
+  index: number;
+}
 
 type Mode =
   | { k: 'idle' }
@@ -10,15 +17,24 @@ type Mode =
   | { k: 'drag'; start: Vec2; ids: string[]; copy: boolean; delta: Vec2 }
   | { k: 'marquee'; start: Vec2; end: Vec2; toggle: boolean }
   | { k: 'rotate'; pivot?: Vec2; reference?: Vec2; cursor?: Vec2; copy: boolean }
-  | { k: 'mirror'; a?: Vec2; cursor?: Vec2; copy: boolean };
+  | { k: 'mirror'; a?: Vec2; cursor?: Vec2; copy: boolean }
+  | { k: 'grip-press'; id: string; grip: Grip; screen: Vec2; alt: boolean; clicks: number }
+  | { k: 'grip-drag'; id: string; grip: Grip; cursor: Vec2; alt: boolean; joined: JoinedEnd[] };
 
 const DRAG_THRESHOLD_PX = 3;
+/** Wall ends this close to a dragged vertex move with it. */
+const JOIN_TOLERANCE = 1;
+const DEFAULT_FILLET = 300;
+const DEFAULT_CHAMFER = 200;
 
 /**
  * Selecting and editing: click (Shift toggles), a window or crossing marquee, dragging the selection
  * (Ctrl copies), arrow-key nudges, Delete, Ctrl+A/C/V/D, R to rotate about a pivot (click the
- * pivot, a reference point, then the new direction) and Shift+M to mirror across two points. Every
- * change is one command; the drag previews locally and sends it on pointer-up.
+ * pivot, a reference point, then the new direction) and Shift+M to mirror across two points. A
+ * single selected entity shows grips: drag a vertex (wall ends that meet it come along; Alt
+ * detaches), drag a segment's middle to curve it through the cursor (Alt inserts a vertex instead),
+ * double-click it to straighten, click a vertex to edit it (F and C round or chamfer it, Delete
+ * removes it). Every change is one command; drags preview locally and send it on pointer-up.
  */
 export class SelectTool implements Tool {
   readonly id = 'select';
@@ -28,7 +44,7 @@ export class SelectTool implements Tool {
   constructor(private readonly host: ToolHost) {}
 
   get busy(): boolean {
-    return this.mode.k !== 'idle' && this.mode.k !== 'press';
+    return this.mode.k !== 'idle' && this.mode.k !== 'press' && this.mode.k !== 'grip-press';
   }
 
   // ---------- pointer ----------
@@ -49,6 +65,14 @@ export class SelectTool implements Tool {
       this.host.invalidate();
       return;
     }
+    const single = this.singleSelected();
+    if (single) {
+      const grip = gripAt(gripsOf(single), e.screen, (p) => this.host.toScreen(p));
+      if (grip) {
+        this.mode = { k: 'grip-press', id: single.id, grip, screen: e.screen, alt: e.alt, clicks: e.clicks };
+        return;
+      }
+    }
     const hit = this.host.hit(e.world);
     this.mode = { k: 'press', start: e.world, screen: e.screen, hit: hit?.id ?? null, toggle: e.shift, copy: e.ctrl };
     if (hit && !e.shift && !this.host.selection().has(hit.id)) this.host.select([hit.id]);
@@ -66,11 +90,21 @@ export class SelectTool implements Tool {
       this.host.invalidate();
       return;
     }
+    if (mode.k === 'grip-press') {
+      if (distance(mode.screen, e.screen) < DRAG_THRESHOLD_PX) return;
+      const joined = mode.grip.kind === 'vertex' && !mode.alt ? this.joinedEnds(mode.id, mode.grip) : [];
+      this.mode = { k: 'grip-drag', id: mode.id, grip: mode.grip, cursor: e.world, alt: mode.alt, joined };
+      this.host.invalidate();
+      return;
+    }
     if (mode.k === 'drag') {
       this.mode = { ...mode, delta: sub(e.world, mode.start) };
       this.host.invalidate();
     } else if (mode.k === 'marquee') {
       this.mode = { ...mode, end: e.world };
+      this.host.invalidate();
+    } else if (mode.k === 'grip-drag') {
+      this.mode = { ...mode, cursor: e.world };
       this.host.invalidate();
     } else if (mode.k === 'rotate' || mode.k === 'mirror') {
       this.mode = { ...mode, cursor: e.world };
@@ -86,6 +120,19 @@ export class SelectTool implements Tool {
         else this.host.select([mode.hit]);
       } else if (!mode.toggle) this.host.select([]);
       this.mode = { k: 'idle' };
+      this.host.invalidate();
+      return;
+    }
+    if (mode.k === 'grip-press') {
+      this.mode = { k: 'idle' };
+      if (mode.grip.kind === 'vertex') this.host.selectVertex({ id: mode.id, which: mode.grip.which, index: mode.grip.index });
+      else if (mode.clicks >= 2) void this.pathEdit(mode.id, 'plan.path.segment.set', { which: mode.grip.which, index: mode.grip.index, segment: { k: 'line' } });
+      this.host.invalidate();
+      return;
+    }
+    if (mode.k === 'grip-drag') {
+      this.mode = { k: 'idle' };
+      this.commitGrip(mode, e.world);
       this.host.invalidate();
       return;
     }
@@ -111,6 +158,7 @@ export class SelectTool implements Tool {
     const ids = [...this.host.selection()];
     const ctrl = e.ctrlKey || e.metaKey;
     const key = e.key.toLowerCase();
+    const vertex = this.host.vertex();
     if (ctrl && key === 'a') {
       this.host.select(Object.keys(this.host.entities()));
       return true;
@@ -132,8 +180,16 @@ export class SelectTool implements Tool {
     }
     if (ctrl) return false;
     if (e.key === 'Delete' || e.key === 'Backspace') {
+      if (vertex) {
+        void this.pathEdit(vertex.id, 'plan.path.vertex.remove', { which: vertex.which, index: vertex.index });
+        return true;
+      }
       if (ids.length) void this.host.invoke('plan.entity.delete', { ids });
       return ids.length > 0;
+    }
+    if ((key === 'f' || key === 'c') && vertex && !e.shiftKey) {
+      this.toggleCorner(vertex, key === 'f' ? 'fillet' : 'chamfer');
+      return true;
     }
     if (e.key.startsWith('Arrow') && ids.length) {
       const step = this.host.options().nudge * (e.shiftKey ? 10 : 1);
@@ -162,11 +218,23 @@ export class SelectTool implements Tool {
   documentChanged(entities: Record<string, Entity>): void {
     const mode = this.mode;
     if (mode.k === 'drag' && mode.ids.some((id) => !(id in entities))) this.cancel();
+    if (mode.k === 'grip-drag' && !(mode.id in entities)) this.cancel();
+    const vertex = this.host.vertex();
+    if (vertex) {
+      const path = entities[vertex.id] ? pathOfEntity(entities[vertex.id], vertex.which) : null;
+      if (!path || vertex.index >= path.v.length) this.host.selectVertex(null);
+    }
+  }
+
+  selectionChanged(): void {
+    const vertex = this.host.vertex();
+    if (vertex && (this.host.selection().size !== 1 || !this.host.selection().has(vertex.id))) this.host.selectVertex(null);
   }
 
   excluded(): ReadonlySet<string> {
     const mode = this.mode;
     if (mode.k === 'drag' && !mode.copy) return new Set(mode.ids);
+    if (mode.k === 'grip-drag') return new Set([mode.id, ...mode.joined.map((j) => j.id)]);
     return new Set();
   }
 
@@ -176,7 +244,10 @@ export class SelectTool implements Tool {
     if (mode.k === 'marquee') return mode.end[0] >= mode.start[0] ? 'Window: what lies fully inside' : 'Crossing: what the box touches';
     if (mode.k === 'rotate') return !mode.pivot ? 'Rotate: click the pivot' : !mode.reference ? 'Click a reference point' : 'Click the new direction · Ctrl: keep a copy';
     if (mode.k === 'mirror') return !mode.a ? 'Mirror: click the first point of the axis' : 'Click the second point · Ctrl: keep a copy';
+    if (mode.k === 'grip-drag') return mode.grip.kind === 'vertex' ? (mode.joined.length ? `Release to move the corner (${mode.joined.length} joined end${mode.joined.length === 1 ? '' : 's'} follow) · Alt: detach` : 'Release to move the corner') : mode.alt ? 'Release to add a corner here' : 'Release to curve the segment through here · Alt: add a corner instead';
+    if (this.host.vertex()) return 'Corner selected · drag to move · F: round · C: chamfer · Delete: remove · Escape: back';
     const n = this.host.selection().size;
+    if (n === 1) return '1 selected · drag to move (Ctrl: copy) · drag a grip to reshape · click a corner to edit it · R: rotate · Shift+M: mirror · Delete';
     if (n) return `${n} selected · drag to move (Ctrl: copy) · arrows: nudge · R: rotate · Shift+M: mirror · Delete`;
     return 'Click to select · Shift: add · drag: window (→) or crossing (←) · W: draw walls';
   }
@@ -185,10 +256,17 @@ export class SelectTool implements Tool {
 
   draw(ctx: CanvasRenderingContext2D, frame: RenderFrame): void {
     const mode = this.mode;
-    const preview = this.previewTransform();
+    const preview = this.previewEntities();
     const selection = this.host.selection();
-    if (preview) this.drawPreview(ctx, frame, [...selection], preview.xf, preview.copy);
-    else drawSelection(ctx, frame, selection);
+    if (preview) this.drawPreview(ctx, frame, preview.entities, preview.copy);
+    else {
+      drawSelection(ctx, frame, selection);
+      const single = this.singleSelected();
+      if (single) {
+        const vertex = this.host.vertex();
+        drawGrips(ctx, frame, gripsOf(single), vertex && vertex.id === single.id ? vertex : null);
+      }
+    }
     if (mode.k === 'marquee') {
       const box = boxOf(mode.start, mode.end);
       ctx.strokeStyle = frame.theme.selection;
@@ -208,7 +286,7 @@ export class SelectTool implements Tool {
       ctx.beginPath();
       ctx.arc(mode.pivot[0], mode.pivot[1], r, 0, Math.PI * 2);
       ctx.stroke();
-      const to = mode.reference && mode.cursor ? mode.cursor : mode.cursor;
+      const to = mode.cursor;
       if (to) {
         ctx.setLineDash([4 / frame.camera.scale, 4 / frame.camera.scale]);
         ctx.beginPath();
@@ -234,32 +312,70 @@ export class SelectTool implements Tool {
     }
   }
 
-  private previewTransform(): { xf: Transform; copy: boolean } | null {
+  /** The entities as the current gesture would leave them, for the preview. */
+  private previewEntities(): { entities: Entity[]; copy: boolean } | null {
     const mode = this.mode;
-    if (mode.k === 'drag') return { xf: { translate: mode.delta }, copy: mode.copy };
-    if (mode.k === 'rotate' && mode.pivot && mode.reference && mode.cursor) return { xf: { rotate: { angle: this.rotationAngle(mode.pivot, mode.reference, mode.cursor), pivot: mode.pivot } }, copy: mode.copy };
-    if (mode.k === 'mirror' && mode.a && mode.cursor && distance(mode.a, mode.cursor) > 1e-6) return { xf: { mirror: { a: mode.a, b: mode.cursor } }, copy: mode.copy };
+    const entities = this.host.entities();
+    let xf: Transform | null = null;
+    let copy = false;
+    if (mode.k === 'drag') {
+      xf = { translate: mode.delta };
+      copy = mode.copy;
+    } else if (mode.k === 'rotate' && mode.pivot && mode.reference && mode.cursor) {
+      xf = { rotate: { angle: this.rotationAngle(mode.pivot, mode.reference, mode.cursor), pivot: mode.pivot } };
+      copy = mode.copy;
+    } else if (mode.k === 'mirror' && mode.a && mode.cursor && distance(mode.a, mode.cursor) > 1e-6) {
+      xf = { mirror: { a: mode.a, b: mode.cursor } };
+      copy = mode.copy;
+    }
+    if (xf) {
+      const moved: Entity[] = [];
+      for (const id of this.host.selection()) {
+        const e = entities[id];
+        if (e && e.type !== 'opening') moved.push(transformEntity(e, xf));
+      }
+      return { entities: moved, copy };
+    }
+    if (mode.k === 'grip-drag') return { entities: this.gripResult(mode, mode.cursor), copy: false };
     return null;
   }
 
-  /** The transformed selection drawn over the plan: walls joined with the rest, other entities as they would be. */
-  private drawPreview(ctx: CanvasRenderingContext2D, frame: RenderFrame, ids: string[], xf: Transform, copy: boolean): void {
+  /** The entities a grip drag ending at `to` produces: the edited one, and the walls whose ends follow. */
+  private gripResult(mode: Extract<Mode, { k: 'grip-drag' }>, to: Vec2): Entity[] {
     const entities = this.host.entities();
-    const moved: Entity[] = [];
-    for (const id of ids) {
-      const e = entities[id];
-      if (e && e.type !== 'opening') moved.push(transformEntity(e, xf));
+    const entity = entities[mode.id];
+    if (!entity) return [];
+    const path = pathOfEntity(entity, mode.grip.which);
+    if (!path) return [];
+    const out: Entity[] = [];
+    try {
+      if (mode.grip.kind === 'vertex') {
+        out.push(withPath(entity, mode.grip.which, moveVertex(path, mode.grip.index, to)));
+        for (const j of mode.joined) {
+          const other = entities[j.id];
+          if (other?.type === 'wall') out.push(withPath(other, 'outer', moveVertex(other.path, j.index, to)));
+        }
+      } else if (mode.alt) out.push(withPath(entity, mode.grip.which, insertVertex(path, mode.grip.index, to)));
+      else out.push(withPath(entity, mode.grip.which, setSegment(path, mode.grip.index, { k: 'arc', through: to })));
+    } catch {
+      return [entity];
     }
+    return out;
+  }
+
+  /** The transformed selection drawn over the plan: walls joined with the rest, other entities as they would be. */
+  private drawPreview(ctx: CanvasRenderingContext2D, frame: RenderFrame, moved: Entity[], copy: boolean): void {
+    const entities = this.host.entities();
+    const movedIds = new Set(moved.map((e) => e.id));
     const walls = moved.filter((e): e is Extract<Entity, { type: 'wall' }> => e.type === 'wall');
     if (walls.length) {
       // Join the moving walls with the others: their bodies, plus the corner fills at the junctions they take part in.
-      const still = Object.values(entities).filter((e): e is Extract<Entity, { type: 'wall' }> => e.type === 'wall' && (copy || !ids.includes(e.id)));
+      const still = Object.values(entities).filter((e): e is Extract<Entity, { type: 'wall' }> => e.type === 'wall' && (copy || !movedIds.has(e.id)));
       const all = [...still, ...walls];
-      const movingIds = new Set(walls.map((w) => w.id));
-      const nodes = junctionNodes(wallEnds(all)).filter((node) => node.some((end) => movingIds.has(end.id)));
+      const nodes = junctionNodes(wallEnds(all)).filter((node) => node.some((end) => movedIds.has(end.id)));
       const patches = junctionPatches(nodes, new Map(all.map((w) => [w.id, w])));
       const bodies = walls.map((w) => wallBody(w).polygons);
-      const base = copy ? (frame.walls?.joined ?? []) : (this.host.walls(movingIds)?.joined ?? []);
+      const base = copy ? (frame.walls?.joined ?? []) : (this.host.walls(movedIds)?.joined ?? []);
       const joined = joinWalls([base, ...bodies], patches);
       ctx.fillStyle = withAlpha(frame.theme.wall, 0.7);
       ctx.strokeStyle = frame.theme.wallLine;
@@ -283,7 +399,57 @@ export class SelectTool implements Tool {
     return Math.round(deg * 1000) / 1000;
   }
 
+  private singleSelected(): Entity | null {
+    const selection = this.host.selection();
+    if (selection.size !== 1) return null;
+    return this.host.entities()[[...selection][0]] ?? null;
+  }
+
+  /** The ends of other open walls that sit on this vertex. */
+  private joinedEnds(id: string, grip: Grip): JoinedEnd[] {
+    const entities = this.host.entities();
+    const entity = entities[id];
+    if (!entity || entity.type !== 'wall' || grip.which !== 'outer') return [];
+    const out: JoinedEnd[] = [];
+    for (const other of Object.values(entities)) {
+      if (other.id === id || other.type !== 'wall' || other.path.closed) continue;
+      for (const index of [0, other.path.v.length - 1]) if (distance(other.path.v[index].p, grip.at) <= JOIN_TOLERANCE) out.push({ id: other.id, index });
+    }
+    return out;
+  }
+
   // ---------- commands ----------
+
+  private stale() {
+    return { baseSeq: this.host.seq(), epoch: this.host.epoch() };
+  }
+
+  private pathEdit(id: string, command: string, input: Record<string, unknown>): Promise<unknown> {
+    return this.host.invoke(command, { id, ...input, ...this.stale() });
+  }
+
+  private commitGrip(mode: Extract<Mode, { k: 'grip-drag' }>, to: Vec2): void {
+    const { grip, id } = mode;
+    if (grip.kind === 'vertex') {
+      if (!mode.joined.length) {
+        void this.pathEdit(id, 'plan.path.vertex.move', { which: grip.which, index: grip.index, to });
+        return;
+      }
+      const steps = [{ id, which: grip.which, index: grip.index }, ...mode.joined.map((j) => ({ id: j.id, which: 'outer' as const, index: j.index }))].map((s) => ({ command: 'plan.path.vertex.move', input: { ...s, to, ...this.stale() } }));
+      void this.host.invoke('plan.apply', { label: 'Move corner', steps });
+      return;
+    }
+    if (mode.alt) void this.pathEdit(id, 'plan.path.vertex.insert', { which: grip.which, index: grip.index, at: to });
+    else void this.pathEdit(id, 'plan.path.segment.set', { which: grip.which, index: grip.index, segment: { k: 'arc', through: to } });
+  }
+
+  private toggleCorner(vertex: VertexRef, kind: 'fillet' | 'chamfer'): void {
+    const entity = this.host.entities()[vertex.id];
+    const path = entity ? pathOfEntity(entity, vertex.which) : null;
+    const current = path?.v[vertex.index]?.c;
+    const corner = current?.k === kind ? null : kind === 'fillet' ? { k: 'fillet', r: DEFAULT_FILLET } : { k: 'chamfer', d1: DEFAULT_CHAMFER };
+    void this.pathEdit(vertex.id, 'plan.path.corner.set', { which: vertex.which, index: vertex.index, corner });
+  }
 
   private transform(ids: string[], xf: Transform, copy: boolean): Promise<unknown> {
     return this.host.invoke('plan.transform', { ids, ...xf, copy }).then((result) => {

@@ -1,6 +1,7 @@
 import { defaultConfig, deriveLevels, emptyBox, type Box, type Entity, type Layer, type LevelWalls, type ProjectDoc, type UnitSettings, type Vec2 } from '@studio/core';
-import { defaultCamera, fitBox, panBy, sameCamera, screenToWorld, zoomAt, type Camera, type Size } from './camera';
+import { defaultCamera, fitBox, panBy, sameCamera, screenToWorld, worldToScreen, zoomAt, type Camera, type Size } from './camera';
 import { LevelGeometryCache } from './geometry-cache';
+import { sameVertex, type VertexRef } from './grips';
 import { hitTest, marqueeSelect, type Hit } from './hit';
 import { renderPlan, worldSpace, type RenderFrame, type RenderStats } from './render';
 import { createLevelScene, sceneBox, syncLevelScene, type LevelScene } from './scene';
@@ -25,6 +26,8 @@ export interface EditorCallbacks {
   onLevelStep?(direction: 1 | -1): void;
   onToolChange?(tool: ToolId, hint: string): void;
   onSelectionChange?(ids: string[]): void;
+  /** A vertex picked for editing (a grip clicked), or none. */
+  onVertexSelect?(vertex: VertexRef | null): void;
   /** A right click: the host shows a menu for the selection (the hit entity is selected first). */
   onContextMenu?(event: MouseEvent, ids: string[]): void;
 }
@@ -57,6 +60,9 @@ export class Plan2dEditor {
   private readonly tools: Record<ToolId, Tool>;
   private activeTool: Tool;
   private selected = new Set<string>();
+  private vertexRef: VertexRef | null = null;
+  private seqValue = 0;
+  private epochValue = 1;
   clipboard: Clipboard | null = null;
   showGrid = true;
   lastStats: RenderStats = { drawn: 0, ms: 0 };
@@ -67,12 +73,17 @@ export class Plan2dEditor {
       invoke: (id, input) => this.callbacks.invoke?.(id, input) ?? Promise.resolve(undefined),
       levelId: () => this.levelId,
       entities: () => this.entities(),
+      seq: () => this.seqValue,
+      epoch: () => this.epochValue,
       options: () => this.toolOptions,
       scale: () => this.cameraValue.scale,
+      toScreen: (p) => worldToScreen(this.cameraValue, this.size, p),
       invalidate: () => this.invalidate(),
       finish: () => this.setTool('select'),
       selection: () => this.selected,
       select: (ids, mode) => this.select(ids, mode),
+      vertex: () => this.vertexRef,
+      selectVertex: (v) => this.selectVertex(v),
       hit: (p) => this.hit(p),
       marquee: (box, mode) => (this.levelScene ? marqueeSelect(this.levelScene, box, mode, this.hitOptions()) : []),
       walls: (exclude) => this.levelWalls(exclude),
@@ -102,6 +113,10 @@ export class Plan2dEditor {
 
   get selection(): ReadonlySet<string> {
     return this.selected;
+  }
+
+  get vertex(): VertexRef | null {
+    return this.vertexRef;
   }
 
   // ---------- host feed ----------
@@ -161,8 +176,11 @@ export class Plan2dEditor {
     this.invalidate();
   }
 
-  setDocument(doc: ProjectDoc | undefined): void {
+  /** The mirror's document with its change number and epoch (sent with edits addressed by index). */
+  setDocument(doc: ProjectDoc | undefined, seq = 0, epoch = 1): void {
     this.doc = doc;
+    this.seqValue = seq;
+    this.epochValue = epoch;
     this.sync();
     const entities = this.entities();
     this.activeTool.documentChanged?.(entities);
@@ -215,6 +233,15 @@ export class Plan2dEditor {
     if (same) return;
     this.selected = next;
     this.callbacks.onSelectionChange?.([...next]);
+    this.activeTool.selectionChanged?.();
+    this.callbacks.onToolChange?.(this.activeTool.id, this.activeTool.hint());
+    this.invalidate();
+  }
+
+  selectVertex(vertex: VertexRef | null): void {
+    if (sameVertex(vertex, this.vertexRef)) return;
+    this.vertexRef = vertex;
+    this.callbacks.onVertexSelect?.(vertex);
     this.callbacks.onToolChange?.(this.activeTool.id, this.activeTool.hint());
     this.invalidate();
   }
@@ -362,7 +389,7 @@ export class Plan2dEditor {
   }
 
   private toolPointer(e: PointerEvent, screen: Vec2): ToolPointer {
-    return { world: this.screenToWorld(screen), screen, button: e.button, shift: e.shiftKey, ctrl: e.ctrlKey || e.metaKey, alt: e.altKey };
+    return { world: this.screenToWorld(screen), screen, button: e.button, shift: e.shiftKey, ctrl: e.ctrlKey || e.metaKey, alt: e.altKey, clicks: Math.max(1, e.detail) };
   }
 
   private announceTool(): void {
@@ -424,6 +451,7 @@ export class Plan2dEditor {
     if (e.key === 'Escape') {
       if (this.activeTool.busy) this.activeTool.cancel();
       else if (this.activeTool.id !== 'select') this.setTool('select');
+      else if (this.vertexRef) this.selectVertex(null);
       else this.select([]);
       this.announceTool();
       e.preventDefault();
