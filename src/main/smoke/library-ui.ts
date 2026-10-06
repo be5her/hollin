@@ -89,8 +89,8 @@ export async function smokeLibraryUi(smoke: Smoke, houseId: string): Promise<voi
   await smoke.click('[data-testid=tab][data-type="shell.home"]');
   await smoke.rightClick(cardSelector('Office Block'));
   await smoke.click('[data-testid=project-menu-rename]');
-  await answerPrompt(smoke, 'Office Block 2');
-  smoke.check('renaming from the card menu works', await smoke.waitFor(cardSelector('Office Block 2')));
+  const answered = await answerPrompt(smoke, 'Office Block 2');
+  smoke.check('renaming from the card menu works', await smoke.waitFor(cardSelector('Office Block 2')), { answered, cards: await smoke.js('[...document.querySelectorAll("[data-testid=project-card]")].map((c) => c.dataset.name)'), menu: await smoke.js('!!document.querySelector("[data-testid=context-menu]")'), dialog: await smoke.js('document.querySelector("x-dialog-host")?.textContent?.slice(0, 200) ?? null') });
 
   await smoke.click(`[data-testid=tab][data-title="UI Villa Renamed"]`);
   await smoke.click(`${visibleTab} [data-testid=project-trash]`);

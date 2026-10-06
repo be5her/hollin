@@ -128,6 +128,8 @@ export class PlanView {
   /** The project thumbnail: the ground floor, drawn 1.5 s after the last change (or when the tab is left). */
   private thumbnailTimer: ReturnType<typeof setTimeout> | undefined;
   private thumbnailDirty = false;
+  /** The change number first seen: opening a project writes nothing, only a change does. */
+  private thumbnailSeq: number | undefined;
   /** The document the thumbnail is drawn from: the last one seen, never read back (reading a closed project's document would reopen it). */
   private thumbnailDoc: ProjectDoc | undefined;
   private readonly editor = new Plan2dEditor({
@@ -205,10 +207,16 @@ export class PlanView {
       if (c) this.editor.setToolOptions(this.toolOptions(c));
     });
     effect(() => {
-      // Every change schedules a fresh thumbnail of the ground floor, 1.5 s after the last one.
+      // Every change (not the opening itself) schedules a fresh thumbnail of the ground floor, 1.5 s after the last one.
       const state = this.docs.read(this.projectId());
       if (!state?.doc) return;
       this.thumbnailDoc = state.doc;
+      if (this.thumbnailSeq === undefined) {
+        this.thumbnailSeq = state.seq;
+        return;
+      }
+      if (state.seq === this.thumbnailSeq) return;
+      this.thumbnailSeq = state.seq;
       this.thumbnailDirty = true;
       clearTimeout(this.thumbnailTimer);
       this.thumbnailTimer = setTimeout(() => this.writeThumbnail(), 1500);
