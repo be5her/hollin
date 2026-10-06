@@ -60,5 +60,14 @@ describe('path edits', () => {
     expect(grown.boundary.k === 'region' && grown.boundary.region.holes[0].v[2].p).toEqual([1800, 1800]);
     const label: Entity = { id: 'lbl_0000000000000001', type: 'label', levelId: lv, layerId: layer, text: 'x', at: [0, 0], size: 250, rotation: 0 };
     expect(pathOfEntity(label)).toBeNull();
+    const shape: Entity = { id: 'shp_0000000000000001', type: 'shape', levelId: lv, layerId: layer, path: rectPath(0, 0, 3000, 2000), filled: true };
+    expect(pathOfEntity(shape)).toBe(shape.path);
+    expect(pathOfEntity(shape, { hole: 0 })).toBeNull();
+    const chamfered = withPath(shape, 'outer', setCorner(shape.path, 1, { k: 'chamfer', d1: 200 })) as typeof shape;
+    expect(chamfered.path.v[1].c).toEqual({ k: 'chamfer', d1: 200 });
+    expect(withPath(shape, { hole: 0 }, rectPath(0, 0, 1, 1))).toBe(shape);
+    const divider: Entity = { id: 'sep_0000000000000001', type: 'separator', levelId: lv, layerId: layer, path: { closed: false, v: [{ p: [0, 0] }, { p: [0, 3000] }] } };
+    expect(pathOfEntity(divider)).toBe(divider.path);
+    expect((withPath(divider, 'outer', moveVertex(divider.path, 1, [100, 3000])) as typeof divider).path.v[1].p).toEqual([100, 3000]);
   });
 });

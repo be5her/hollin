@@ -1,4 +1,4 @@
-import { DEG, add, columnPolygon, distance, formatArea, formatLength, normalize, openingFrame, openingMisfits, perp, resolvePath, scale as vscale, sub, type Entity, type EntityType, type Layer, type LevelGeometry, type LevelWalls, type Path, type Region, type UnitSettings, type Vec2 } from '@studio/core';
+import { DEG, add, columnPolygon, distance, flatten, formatArea, formatLength, normalize, openingFrame, openingMisfits, perp, polygonCentroid, resolvePath, scale as vscale, sub, type Entity, type EntityType, type Layer, type LevelGeometry, type LevelWalls, type Path, type Region, type UnitSettings, type Vec2 } from '@studio/core';
 import { visibleBox, worldToScreen, type Camera, type Size } from './camera';
 import { tracePath, tracePolygon, traceRegion, traceSegments } from './draw';
 import { entityBox, searchScene, type LevelScene, type SceneItem } from './scene';
@@ -146,7 +146,7 @@ export interface RenderStats {
 }
 
 /** Back to front. */
-const DRAW_ORDER: Record<EntityType, number> = { slab: 0, room: 1, void: 2, shaft: 2, separator: 2, wall: 3, column: 4, opening: 5, fixture: 6, point: 6, item: 6, light: 6, dimension: 7, label: 8 };
+const DRAW_ORDER: Record<EntityType, number> = { slab: 0, room: 1, void: 2, shaft: 2, separator: 2, shape: 2, wall: 3, column: 4, opening: 5, fixture: 6, point: 6, item: 6, light: 6, dimension: 7, label: 8 };
 
 export interface TextOp {
   text: string;
@@ -328,7 +328,14 @@ export function drawGrips(ctx: CanvasRenderingContext2D, frame: RenderFrame, gri
     ctx.beginPath();
     if (g.kind === 'vertex') ctx.rect(Math.round(x) - 4, Math.round(y) - 4, 8, 8);
     else if (g.kind === 'mid') ctx.arc(x, y, 3.5, 0, Math.PI * 2);
-    else {
+    else if (g.kind === 'corner') {
+      ctx.fillStyle = frame.theme.selection;
+      ctx.moveTo(x, y - 4);
+      ctx.lineTo(x + 4, y);
+      ctx.lineTo(x, y + 4);
+      ctx.lineTo(x - 4, y);
+      ctx.closePath();
+    } else {
       ctx.moveTo(x, y - 5);
       ctx.lineTo(x + 5, y);
       ctx.lineTo(x, y + 5);
@@ -352,15 +359,16 @@ export function drawSelection(ctx: CanvasRenderingContext2D, frame: RenderFrame,
     const item = frame.scene.items.get(id);
     if (!item) continue;
     ctx.beginPath();
-    if (traceOutline(ctx, item, frame)) {
-      ctx.fill('nonzero');
+    const traced = traceOutline(ctx, item, frame);
+    if (traced) {
+      if (traced !== 'open') ctx.fill('nonzero');
       ctx.stroke();
     }
   }
 }
 
-/** Traces an entity's outline; false when it has none worth drawing (its box is used instead). */
-function traceOutline(ctx: CanvasRenderingContext2D, item: SceneItem, frame: RenderFrame): boolean {
+/** Traces an entity's outline; false when it has none worth drawing (its box is used instead), 'open' for a line that must not be filled. */
+function traceOutline(ctx: CanvasRenderingContext2D, item: SceneItem, frame: RenderFrame): boolean | 'open' {
   const e = item.entity;
   switch (e.type) {
     case 'wall': {
@@ -394,7 +402,10 @@ function traceOutline(ctx: CanvasRenderingContext2D, item: SceneItem, frame: Ren
     }
     case 'separator':
       tracePath(ctx, e.path);
-      return true;
+      return 'open';
+    case 'shape':
+      tracePath(ctx, e.path);
+      return e.path.closed ? true : 'open';
     case 'dimension': {
       const u = normalize(sub(e.to, e.from));
       const n = perp(u);
@@ -485,6 +496,11 @@ function drawUnderlay(ctx: CanvasRenderingContext2D, frame: RenderFrame, scene: 
     } else if ((e.type === 'room' || e.type === 'slab') && regionOf(e)) {
       ctx.beginPath();
       traceRegion(ctx, regionOf(e)!);
+      ctx.lineWidth = px(frame, 1);
+      ctx.stroke();
+    } else if (e.type === 'shape' || e.type === 'separator') {
+      ctx.beginPath();
+      tracePath(ctx, e.path);
       ctx.lineWidth = px(frame, 1);
       ctx.stroke();
     }
@@ -612,6 +628,20 @@ function drawEntity(ctx: CanvasRenderingContext2D, item: SceneItem, frame: Rende
       ctx.setLineDash([px(frame, 8), px(frame, 4)]);
       if (p) ctx.stroke(p);
       ctx.setLineDash([]);
+      return;
+    }
+    case 'shape': {
+      const p = pathOf(item, e.path);
+      if (!p) return;
+      if (e.path.closed && e.filled) {
+        ctx.fillStyle = withAlpha(theme.muted, 0.16);
+        ctx.fill(p, 'evenodd');
+      }
+      ctx.strokeStyle = theme.wallLine;
+      ctx.lineWidth = px(frame, 1);
+      ctx.lineJoin = 'round';
+      ctx.stroke(p);
+      if (e.name && e.path.closed) texts.push({ text: e.name, at: polygonCentroid(flatten(e.path, 1)), screenPx: 11, color: theme.muted, align: 'center', baseline: 'middle' });
       return;
     }
     case 'fixture':

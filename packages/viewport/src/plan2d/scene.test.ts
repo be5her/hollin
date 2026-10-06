@@ -65,9 +65,13 @@ describe('level scene', () => {
       { id: 'lbl_0000000000000001', type: 'label', ...base, text: 'Hello', at: [0, 0], size: 250, rotation: 0 },
       { id: 'itm_0000000000000001', type: 'item', ...base, asset: 'chair', at: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], materials: {} },
       { id: 'lgt_0000000000000001', type: 'light', ...base, kind: 'point', at: [0, 0, 2000], color: '#ffffff', intensity: 800 },
+      { id: 'shp_0000000000000001', type: 'shape', ...base, path: { closed: true, v: [{ p: [1000, 0], s: { k: 'arc', bulge: 1 } }, { p: [-1000, 0], s: { k: 'arc', bulge: 1 } }] }, filled: true },
+      { id: 'sep_0000000000000001', type: 'separator', ...base, path: { closed: false, v: [{ p: [0, 0] }, { p: [0, 3000] }] } },
     ];
     const record = Object.fromEntries(entities.map((e) => [e.id, e]));
     for (const e of entities) expect(Number.isFinite(entityBox(e, record).minX), e.type).toBe(true);
+    // A circle's box comes from its arcs, not only its two vertices.
+    expect(entityBox(entities[entities.length - 2], record).maxY).toBeCloseTo(1001, 6);
     const auto: Entity = { id: 'slb_0000000000000002', type: 'slab', ...base, source: { k: 'auto' } };
     expect(Number.isFinite(entityBox(auto, record).minX)).toBe(false);
     const scene = createLevelScene(lv);

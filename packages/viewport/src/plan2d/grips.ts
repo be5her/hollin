@@ -1,8 +1,8 @@
-import { add, distance, openingFrame, pathOfEntity, rawSegments, scale, segmentPoint, type Entity, type Vec2, type WhichPath } from '@studio/core';
+import { add, cornerFrame, cornerGripPoint, distance, openingFrame, pathOfEntity, rawSegments, scale, segmentPoint, type Entity, type Vec2, type WhichPath } from '@studio/core';
 
-/** A handle on a selected entity: a vertex of its path, or the middle of a segment. */
+/** A handle on a selected entity: a vertex of its path, the middle of a segment, a corner's size, a door's hinge or swing side. */
 export interface Grip {
-  kind: 'vertex' | 'mid' | 'hinge' | 'side';
+  kind: 'vertex' | 'mid' | 'corner' | 'hinge' | 'side';
   which: WhichPath;
   index: number;
   at: Vec2;
@@ -15,7 +15,7 @@ export interface VertexRef {
   index: number;
 }
 
-/** The grips of an entity: every vertex and segment middle of its outline (and of a region's holes); a door's hinge and swing side. */
+/** The grips of an entity: every vertex and segment middle of its outline (and of a region's holes), a grip on each rounded or chamfered corner; a door's hinge and swing side. */
 export function gripsOf(entity: Entity, entities?: Record<string, Entity>): Grip[] {
   const grips: Grip[] = [];
   if (entity.type === 'opening') {
@@ -38,6 +38,11 @@ export function gripsOf(entity: Entity, entities?: Record<string, Entity>): Grip
     if (!path) continue;
     path.v.forEach((v, index) => grips.push({ kind: 'vertex', which, index, at: v.p }));
     rawSegments(path).forEach((s, index) => grips.push({ kind: 'mid', which, index, at: segmentPoint(s, 0.5) }));
+    path.v.forEach((v, index) => {
+      if (!v.c) return;
+      const frame = cornerFrame(path, index);
+      if (frame) grips.push({ kind: 'corner', which, index, at: cornerGripPoint(frame, v.c) });
+    });
   }
   return grips;
 }

@@ -1,14 +1,14 @@
 import { Component, computed, inject, input, linkedSignal, untracked } from '@angular/core';
 import { FormField, form } from '@angular/forms/signals';
-import { arcGeometry, bulgeOf, distance, findEntity, formatArea, pathLength, pathOfEntity, type Entity, type Path, type Vec2 } from '@studio/core';
-import { AngleInput, EmptyState, HostBridge, Input, LengthInput, ProjectDocs, Select, Toasts, Units } from '@studio/ui';
+import { arcGeometry, bulgeOf, distance, findEntity, formatArea, pathLength, pathOfEntity, signedArea, type Entity, type Path, type Vec2 } from '@studio/core';
+import { AngleInput, Checkbox, EmptyState, HostBridge, Input, LengthInput, ProjectDocs, Select, Toasts, Units } from '@studio/ui';
 import { PlanGeometry } from './plan-geometry';
 import { PlanSelection } from './plan-selection';
 
 type Wall = Extract<Entity, { type: 'wall' }>;
 type Opening = Extract<Entity, { type: 'opening' }>;
 
-const TYPE_NAMES: Record<Entity['type'], string> = { wall: 'Wall', opening: 'Opening', column: 'Column', slab: 'Slab', void: 'Void', shaft: 'Shaft', room: 'Room', separator: 'Room divider', fixture: 'Fixture', point: 'Service point', dimension: 'Dimension', label: 'Label', item: 'Item', light: 'Light' };
+const TYPE_NAMES: Record<Entity['type'], string> = { wall: 'Wall', opening: 'Opening', column: 'Column', slab: 'Slab', void: 'Void', shaft: 'Shaft', room: 'Room', separator: 'Room divider', shape: 'Shape', fixture: 'Fixture', point: 'Service point', dimension: 'Dimension', label: 'Label', item: 'Item', light: 'Light' };
 
 interface Draft {
   name: string;
@@ -29,6 +29,7 @@ interface Draft {
   d: string;
   r: string;
   offset: string;
+  filled: boolean;
 }
 
 interface VertexDraft {
@@ -51,7 +52,7 @@ interface VertexDraft {
  */
 @Component({
   selector: 'x-properties-panel',
-  imports: [AngleInput, EmptyState, FormField, Input, LengthInput, Select],
+  imports: [AngleInput, Checkbox, EmptyState, FormField, Input, LengthInput, Select],
   templateUrl: './properties-panel.html',
   host: { class: 'flex flex-col', 'data-testid': 'properties-panel' },
 })
@@ -100,12 +101,19 @@ export class PropertiesPanel {
     const e = this.subject();
     return e?.type === 'wall' ? this.units.length(pathLength(e.path)) : '';
   });
+  /** A closed shape's area and perimeter; an open shape's or a divider's length. */
+  protected readonly outlineInfo = computed(() => {
+    const e = this.subject();
+    if (!e || (e.type !== 'shape' && e.type !== 'separator')) return null;
+    if (e.type === 'shape' && e.path.closed) return { area: formatArea(Math.abs(signedArea(e.path)), this.units.settings()), perimeter: this.units.length(pathLength(e.path)), length: '' };
+    return { area: '', perimeter: '', length: this.units.length(pathLength(e.path)) };
+  });
 
   protected readonly draft = linkedSignal<Entity | null, Draft>({
     source: this.subject,
     computation: (e) => {
       const len = (mm: number | null | undefined) => (mm === null || mm === undefined ? '' : this.units.length(mm));
-      const base: Draft = { name: e?.name ?? '', thickness: '', height: '', alignment: 'center', kind: 'door', width: '', sill: '', along: '', hinge: 'start', side: 'left', number: '', text: '', size: '', rotation: '', w: '', d: '', r: '', offset: '' };
+      const base: Draft = { name: e?.name ?? '', thickness: '', height: '', alignment: 'center', kind: 'door', width: '', sill: '', along: '', hinge: 'start', side: 'left', number: '', text: '', size: '', rotation: '', w: '', d: '', r: '', offset: '', filled: true };
       if (!e) return base;
       switch (e.type) {
         case 'wall':
@@ -122,6 +130,8 @@ export class PropertiesPanel {
           return { ...base, thickness: len(e.thickness) };
         case 'dimension':
           return { ...base, offset: len(e.offset) };
+        case 'shape':
+          return { ...base, filled: e.filled };
         case 'fixture':
         case 'point':
           return { ...base, rotation: this.units.angle(e.rotation) };

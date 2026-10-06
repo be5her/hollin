@@ -405,6 +405,36 @@ export const planModule = defineModule({
       },
     }),
     defineCommand({
+      id: 'plan.shape.add',
+      title: 'Add a shape',
+      description:
+        'Draws a free shape on a level: any outline (a terrace, a pool, a counter, a sketch), from `points` (a point\'s `bulge` makes its segment an arc; `closed`, true by default, joins the last point back to the first) or from a full `path` with corners. A closed shape is filled unless `filled` is false. Shapes go on any layer, the first interior layer by default. Returns its id. Use plan_room_add, or plan_entity_add with a slab or void, for outlines that mean something to the building.',
+      scope: 'project',
+      batchable: true,
+      input: z.object({
+        levelId,
+        layerId: layerId.optional(),
+        points: z.array(WallPointSchema).min(2).optional(),
+        closed: z.boolean().default(true),
+        path: PathSchema.optional(),
+        filled: z.boolean().default(true),
+        name: z.string().trim().min(1).max(200).optional(),
+      }),
+      handler: async (input, ctx) => {
+        const path: Path | null = input.path ?? (input.points ? { closed: input.closed, v: input.points.map((c): Vertex => (c.bulge ? { p: c.p, s: { k: 'arc', bulge: c.bulge } } : { p: c.p })) } : null);
+        if (!path) throw new StudioError('INVALID_INPUT', 'Give `points` or a `path`');
+        if (path.closed && path.v.length < 3 && !path.v.some((v) => v.s?.k === 'arc')) throw new StudioError('INVALID_INPUT', 'A closed shape needs at least three points, or arcs');
+        const n = path.closed ? path.v.length : path.v.length - 1;
+        for (let i = 0; i < n; i++) if (distance(path.v[i].p, path.v[(i + 1) % path.v.length].p) < 1) throw new StudioError('INVALID_INPUT', 'Two consecutive points are at the same place');
+        const { result } = await editProject(ctx, 'Add shape', (tx) => {
+          const { ops, id } = addEntityOps(tx.doc, { levelId: input.levelId, layerId: input.layerId, entity: { type: 'shape', path, filled: input.filled, ...(input.name ? { name: input.name } : {}) } });
+          tx.apply(ops);
+          return id;
+        });
+        return { id: result };
+      },
+    }),
+    defineCommand({
       id: 'plan.transform',
       title: 'Move, rotate, mirror or copy entities',
       description:
@@ -474,7 +504,7 @@ export const planModule = defineModule({
       id: 'plan.entity.add',
       title: 'Add an entity',
       description:
-        'Adds an entity to a level: wall (path, thickness), opening (door or window in a wall, `along` its path), column, slab, void, shaft, room, separator (a room divider line where there is no wall), fixture, point (electrical or plumbing), dimension, label, item (furniture) or light. Without `layerId` it goes on the first layer of the right kind. Coordinates in mm, y up; paths are vertices with optional arc (bulge) or Bézier segments and fillet/chamfer corners. Returns its id.',
+        'Adds an entity to a level: wall (path, thickness), opening (door or window in a wall, `along` its path), column, slab, void, shaft, room, separator (a room divider line where there is no wall), shape (any outline, filled when closed), fixture, point (electrical or plumbing), dimension, label, item (furniture) or light. Without `layerId` it goes on the first layer of the right kind. Coordinates in mm, y up; paths are vertices with optional arc (bulge) or Bézier segments and fillet/chamfer corners. Returns its id.',
       scope: 'project',
       batchable: true,
       input: z.object({ levelId, layerId: layerId.optional(), entity: NewEntitySchema }),
@@ -507,7 +537,7 @@ export const planModule = defineModule({
     defineCommand({
       id: 'plan.path.vertex.move',
       title: 'Move a corner',
-      description: "Moves vertex `index` of an entity's path (a wall's path, or a region's outline or hole) to a point. Returns the entity.",
+      description: "Moves vertex `index` of an entity's path (a wall's, shape's or divider's path, or a region's outline or hole) to a point. Returns the entity.",
       scope: 'project',
       batchable: true,
       input: z.object({ ...PathEdit, to: Point }),

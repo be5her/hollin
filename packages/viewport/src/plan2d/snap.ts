@@ -102,6 +102,10 @@ export class SnapIndex {
           if (region) for (const path of [region.outer, ...region.holes]) addPath(id, resolvePath(path).segs);
           break;
         }
+        case 'separator':
+        case 'shape':
+          addPath(id, resolvePath(e.path).segs);
+          break;
         case 'dimension':
           addPath(id, [{ k: 'line', a: e.from, b: e.to }]);
           break;

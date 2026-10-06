@@ -153,6 +153,30 @@ describe('path edits and conflicts', () => {
     expect(history.undo[0].label).toBe('Remove corner of wall');
   });
 
+  it('adds shapes from points or a path, on any layer, and chamfers their corners', async () => {
+    const ground = doc().building.groundLevelId;
+    const { id } = await run<{ id: string }>('plan.shape.add', { levelId: ground, points: [{ p: [0, 0] }, { p: [3000, 0] }, { p: [3000, 2000] }, { p: [0, 2000] }], name: 'Terrace' });
+    const shape = doc().levelData[ground].entities[id] as { type: string; filled: boolean; name?: string; layerId: string; path: { closed: boolean; v: { c?: unknown }[] } };
+    expect(shape.type).toBe('shape');
+    expect(shape.filled).toBe(true);
+    expect(shape.name).toBe('Terrace');
+    expect(shape.path.closed).toBe(true);
+    expect(doc().layers[shape.layerId].kind).toBe('interior');
+    const chamfered = await run<{ path: { v: { c?: { k: string; d1: number } }[] } }>('plan.path.corner.set', { id, index: 1, corner: { k: 'chamfer', d1: 300 } });
+    expect(chamfered.path.v[1].c).toEqual({ k: 'chamfer', d1: 300 });
+    const structure = Object.values(doc().layers).find((l) => l.levelId === ground && l.kind === 'structure')!;
+    const open = await run<{ id: string }>('plan.shape.add', { levelId: ground, layerId: structure.id, points: [{ p: [0, 0], bulge: 0.5 }, { p: [2000, 0] }], closed: false, filled: false });
+    const line = doc().levelData[ground].entities[open.id] as { filled: boolean; layerId: string; path: { closed: boolean; v: { s?: { k: string } }[] } };
+    expect(line.filled).toBe(false);
+    expect(line.layerId).toBe(structure.id);
+    expect(line.path.closed).toBe(false);
+    expect(line.path.v[0].s?.k).toBe('arc');
+    await expect(run('plan.shape.add', { levelId: ground, points: [{ p: [0, 0] }, { p: [2000, 0] }] })).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+    await expect(run('plan.shape.add', { levelId: ground })).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+    const circle = await run<{ id: string }>('plan.shape.add', { levelId: ground, points: [{ p: [1000, 0], bulge: 1 }, { p: [-1000, 0], bulge: 1 }] });
+    expect((doc().levelData[ground].entities[circle.id] as { path: { v: unknown[] } }).path.v.length).toBe(2);
+  });
+
   it('names the agent whose change made a field edit stale', async () => {
     const ground = doc().building.groundLevelId;
     const { id } = await run<{ id: string }>('plan.wall.add', { levelId: ground, from: [0, 0], to: [3000, 0] });

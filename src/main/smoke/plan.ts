@@ -28,6 +28,11 @@ export async function smokePlan(smoke: Smoke): Promise<{ planId: string }> {
   const arcWall = walls().find((w) => w.id === arc.id)!;
   smoke.check('a wall through a point is an arc', arcWall.path.v[0].s?.k === 'arc' && Math.abs((arcWall.path.v[0].s as { bulge: number }).bulge - 1) < 1e-9);
   await smoke.expectError('a zero-length wall is refused', 'plan.wall.add', { levelId: ground, from: [0, 0], to: [0, 0] }, 'INVALID_INPUT', { projectId });
+  const shape = await run<{ id: string }>('plan.shape.add', { levelId: ground, points: [{ p: [20000, 0] }, { p: [23000, 0], bulge: 0.3 }, { p: [23000, 2000] }, { p: [20000, 2000] }], name: 'Terrace' });
+  const terrace = doc().levelData[ground].entities[shape.id] as Extract<Entity, { type: 'shape' }>;
+  smoke.check('a shape from points is closed, filled and on an interior layer', terrace.type === 'shape' && terrace.path.closed && terrace.filled && terrace.path.v[1].s?.k === 'arc' && doc().layers[terrace.layerId].kind === 'interior' && terrace.name === 'Terrace', terrace);
+  await smoke.expectError('a closed shape needs three points', 'plan.shape.add', { levelId: ground, points: [{ p: [0, 0] }, { p: [1000, 0] }] }, 'INVALID_INPUT', { projectId });
+  await run('edit.undo');
   await smoke.expectError('a wall needs points', 'plan.wall.add', { levelId: ground }, 'INVALID_INPUT', { projectId });
   const label = (await run<{ undo: { label: string }[] }>('edit.history')).undo[0].label;
   smoke.check('the history names the change', label === 'Add wall', label);

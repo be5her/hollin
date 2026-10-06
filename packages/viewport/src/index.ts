@@ -15,3 +15,4 @@ export * from './plan2d/tools/wall';
 export * from './plan2d/tools/opening';
 export * from './plan2d/tools/room';
 export * from './plan2d/tools/separator';
+export * from './plan2d/tools/shape';

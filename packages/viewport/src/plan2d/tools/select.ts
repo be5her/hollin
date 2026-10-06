@@ -1,4 +1,4 @@
-import { DEG, angleOf, distance, fitOpening, formatAngle, insertVertex, joinWalls, junctionNodes, junctionPatches, moveVertex, nearestPoint, parseAngle, pathOfEntity, resolveCoordinate, setSegment, sub, transformEntity, wallBody, wallEnds, withPath, type Box, type Coordinate, type Entity, type Transform, type Vec2 } from '@studio/core';
+import { DEG, angleOf, cornerFrame, cornerFromGrip, distance, fitOpening, formatAngle, insertVertex, joinWalls, junctionNodes, junctionPatches, moveVertex, nearestPoint, parseAngle, pathOfEntity, resolveCoordinate, setCorner, setSegment, sub, transformEntity, wallBody, wallEnds, withPath, type Box, type Coordinate, type Corner, type Entity, type Transform, type Vec2 } from '@studio/core';
 
 type Opening = Extract<Entity, { type: 'opening' }>;
 import { tracePolygon } from '../draw';
@@ -36,7 +36,8 @@ const DEFAULT_CHAMFER = 200;
  * single selected entity shows grips: drag a vertex (wall ends that meet it come along; Alt
  * detaches), drag a segment's middle to curve it through the cursor (Alt inserts a vertex instead),
  * double-click it to straighten, click a vertex to edit it (F and C round or chamfer it, Delete
- * removes it). Every change is one command; drags preview locally and send it on pointer-up.
+ * removes it), drag a corner's grip to size its fillet or chamfer. Every change is one command;
+ * drags preview locally and send it on pointer-up.
  */
 export class SelectTool implements Tool {
   readonly id = 'select';
@@ -253,6 +254,16 @@ export class SelectTool implements Tool {
       this.host.invalidate();
       return true;
     }
+    if (mode.k === 'grip-drag' && mode.grip.kind === 'corner') {
+      if (coord.k !== 'length' || coord.mm <= 0) return false;
+      const entity = this.host.entities()[mode.id];
+      const current = entity ? pathOfEntity(entity, mode.grip.which)?.v[mode.grip.index]?.c : undefined;
+      this.mode = { k: 'idle' };
+      const corner: Corner = current?.k === 'chamfer' ? { k: 'chamfer', d1: coord.mm } : { k: 'fillet', r: coord.mm };
+      void this.pathEdit(mode.id, 'plan.path.corner.set', { which: mode.grip.which, index: mode.grip.index, corner });
+      this.host.invalidate();
+      return true;
+    }
     if (mode.k === 'grip-drag') {
       const entity = this.host.entities()[mode.id];
       const path = entity ? pathOfEntity(entity, mode.grip.which) : null;
@@ -309,10 +320,11 @@ export class SelectTool implements Tool {
     if (mode.k === 'marquee') return mode.end[0] >= mode.start[0] ? 'Window: what lies fully inside' : 'Crossing: what the box touches';
     if (mode.k === 'rotate') return !mode.pivot ? 'Rotate: click the pivot' : !mode.reference ? 'Click a reference point' : 'Click the new direction · Ctrl: keep a copy';
     if (mode.k === 'mirror') return !mode.a ? 'Mirror: click the first point of the axis' : 'Click the second point · Ctrl: keep a copy';
+    if (mode.k === 'grip-drag' && mode.grip.kind === 'corner') return 'Release to size the corner (or type the radius or distance) · onto the vertex: sharp';
     if (mode.k === 'grip-drag') return mode.grip.kind === 'vertex' ? (mode.joined.length ? `Release to move the corner (${mode.joined.length} joined end${mode.joined.length === 1 ? '' : 's'} follow) · Alt: detach` : 'Release to move the corner') : mode.alt ? 'Release to add a corner here' : 'Release to curve the segment through here · Alt: add a corner instead';
     if (this.host.vertex()) return 'Corner selected · drag to move · F: round · C: chamfer · Delete: remove · Escape: back';
     const n = this.host.selection().size;
-    if (n === 1) return '1 selected · drag to move (Ctrl: copy) · drag a grip to reshape · click a corner to edit it · R: rotate · Shift+M: mirror · Delete';
+    if (n === 1) return '1 selected · drag to move (Ctrl: copy) · drag a grip to reshape · click a corner to edit it (F: round · C: chamfer) · R: rotate · Shift+M: mirror · Delete';
     if (n) return `${n} selected · drag to move (Ctrl: copy) · arrows: nudge · R: rotate · Shift+M: mirror · Delete`;
     return 'Click to select · Shift: add · drag: window (→) or crossing (←) · W: draw walls';
   }
@@ -424,6 +436,10 @@ export class SelectTool implements Tool {
           const other = entities[j.id];
           if (other?.type === 'wall') out.push(withPath(other, 'outer', moveVertex(other.path, j.index, to)));
         }
+      } else if (mode.grip.kind === 'corner') {
+        const corner = this.cornerAt(path, mode.grip.index, to);
+        if (corner !== undefined) out.push(withPath(entity, mode.grip.which, setCorner(path, mode.grip.index, corner)));
+        else out.push(entity);
       } else if (mode.alt) out.push(withPath(entity, mode.grip.which, insertVertex(path, mode.grip.index, to)));
       else out.push(withPath(entity, mode.grip.which, setSegment(path, mode.grip.index, { k: 'arc', through: to })));
     } catch {
@@ -467,7 +483,7 @@ export class SelectTool implements Tool {
 
   /** A dragged vertex snaps to everything but its own entity and the walls that follow it; the vertex before it gives the direction. */
   private gripSnap(mode: Extract<Mode, { k: 'grip-drag' }>, e: ToolPointer): Vec2 {
-    if (e.alt) return e.world;
+    if (e.alt || mode.grip.kind === 'corner') return e.world;
     const exclude = new Set([mode.id, ...mode.joined.map((j) => j.id)]);
     let from: Vec2 | undefined;
     if (mode.grip.kind === 'vertex') {
@@ -558,8 +574,23 @@ export class SelectTool implements Tool {
       void this.host.invoke('plan.apply', { label: 'Move corner', steps });
       return;
     }
+    if (grip.kind === 'corner') {
+      const entity = this.host.entities()[id];
+      const path = entity ? pathOfEntity(entity, grip.which) : null;
+      const corner = path ? this.cornerAt(path, grip.index, to) : undefined;
+      if (corner !== undefined) void this.pathEdit(id, 'plan.path.corner.set', { which: grip.which, index: grip.index, corner });
+      return;
+    }
     if (mode.alt) void this.pathEdit(id, 'plan.path.vertex.insert', { which: grip.which, index: grip.index, at: to });
     else void this.pathEdit(id, 'plan.path.segment.set', { which: grip.which, index: grip.index, segment: { k: 'arc', through: to } });
+  }
+
+  /** The corner a grip dragged to `to` means (null: sharp); undefined when the vertex has no sizeable corner. */
+  private cornerAt(path: ReturnType<typeof pathOfEntity> & object, index: number, to: Vec2): Corner | null | undefined {
+    const current = path.v[index]?.c;
+    const frame = cornerFrame(path, index);
+    if (!current || !frame) return undefined;
+    return cornerFromGrip(frame, current, to);
   }
 
   private toggleCorner(vertex: VertexRef, kind: 'fillet' | 'chamfer'): void {
@@ -638,7 +669,7 @@ const boxOf = (a: Vec2, b: Vec2): Box => ({ minX: Math.min(a[0], b[0]), minY: Ma
 
 function extendByEntity(box: Box, e: Entity): Box {
   const points: Vec2[] = [];
-  if (e.type === 'wall') points.push(...e.path.v.map((v) => v.p));
+  if (e.type === 'wall' || e.type === 'separator' || e.type === 'shape') points.push(...e.path.v.map((v) => v.p));
   else if (e.type === 'dimension') points.push(e.from, e.to);
   else if ('at' in e) points.push([e.at[0], e.at[1]]);
   else if (e.type === 'room') points.push(...(e.boundary.k === 'detect' ? [e.boundary.seed] : e.boundary.region.outer.v.map((v) => v.p)));

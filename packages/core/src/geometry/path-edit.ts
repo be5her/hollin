@@ -7,8 +7,8 @@ export type WhichPath = 'outer' | { hole: number };
 
 /** The path an entity is drawn from, or null when it has none (points, labels, openings). */
 export function pathOfEntity(entity: Entity, which: WhichPath = 'outer'): Path | null {
+  if (entity.type === 'wall' || entity.type === 'separator' || entity.type === 'shape') return which === 'outer' ? entity.path : null;
   const region = regionOfEntity(entity);
-  if (entity.type === 'wall') return which === 'outer' ? entity.path : null;
   if (!region) return null;
   return which === 'outer' ? region.outer : (region.holes[which.hole] ?? null);
 }
@@ -31,7 +31,7 @@ function regionOfEntity(entity: Entity) {
 
 /** The entity with one of its paths replaced. */
 export function withPath(entity: Entity, which: WhichPath, path: Path): Entity {
-  if (entity.type === 'wall') return { ...entity, path };
+  if (entity.type === 'wall' || entity.type === 'separator' || entity.type === 'shape') return which === 'outer' ? { ...entity, path } : entity;
   const region = regionOfEntity(entity);
   if (!region) return entity;
   const next = which === 'outer' ? { ...region, outer: path } : { ...region, holes: region.holes.map((h, i) => (i === which.hole ? path : h)) };

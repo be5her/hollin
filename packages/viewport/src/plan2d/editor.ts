@@ -12,6 +12,7 @@ import { DEFAULT_TOOL_OPTIONS, type Clipboard, type Tool, type ToolHost, type To
 import { OpeningTool } from './tools/opening';
 import { RoomTool } from './tools/room';
 import { SeparatorTool } from './tools/separator';
+import { ShapeTool } from './tools/shape';
 import { WallTool } from './tools/wall';
 
 export type UnderlayMode = 'none' | 'below' | 'above';
@@ -114,7 +115,7 @@ export class Plan2dEditor {
         editor.clipboard = value;
       },
     };
-    this.tools = { select: new SelectTool(host), wall: new WallTool(host), door: new OpeningTool(host, 'door'), window: new OpeningTool(host, 'window'), room: new RoomTool(host), separator: new SeparatorTool(host) };
+    this.tools = { select: new SelectTool(host), wall: new WallTool(host), door: new OpeningTool(host, 'door'), window: new OpeningTool(host, 'window'), room: new RoomTool(host), separator: new SeparatorTool(host), shape: new ShapeTool(host, 'polyline'), rectangle: new ShapeTool(host, 'rectangle'), circle: new ShapeTool(host, 'circle') };
     this.activeTool = this.tools.select;
   }
 
@@ -257,6 +258,8 @@ export class Plan2dEditor {
 
   setToolOptions(options: ToolOptions): void {
     this.toolOptions = options;
+    // The hint may say what a tool makes.
+    this.announceTool();
     this.invalidate();
   }
 
@@ -563,6 +566,15 @@ export class Plan2dEditor {
       e.preventDefault();
     } else if (e.key === 's' || e.key === 'S') {
       this.setTool('separator');
+      e.preventDefault();
+    } else if (e.key === 'p' || e.key === 'P') {
+      this.setTool('shape');
+      e.preventDefault();
+    } else if (e.key === 'k' || e.key === 'K') {
+      this.setTool('rectangle');
+      e.preventDefault();
+    } else if (e.key === 'o' || e.key === 'O') {
+      this.setTool('circle');
       e.preventDefault();
     }
   }

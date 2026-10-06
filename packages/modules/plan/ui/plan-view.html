@@ -18,6 +18,16 @@
     <button xIconButton size="sm" label="Room divider (S)" [class.bg-elevated]="tool() === 'separator'" [class.text-fg]="tool() === 'separator'" [attr.aria-pressed]="tool() === 'separator'" (click)="chooseTool('separator')" data-testid="tool-separator">
       <svg [xIcon]="icons.SeparatorVertical" class="size-3.5"></svg>
     </button>
+    <div class="w-px h-5 bg-edge mx-0.5"></div>
+    <button xIconButton size="sm" label="Shape (P)" [class.bg-elevated]="tool() === 'shape'" [class.text-fg]="tool() === 'shape'" [attr.aria-pressed]="tool() === 'shape'" (click)="chooseTool('shape')" data-testid="tool-shape">
+      <svg [xIcon]="icons.Pentagon" class="size-3.5"></svg>
+    </button>
+    <button xIconButton size="sm" label="Rectangle (K)" [class.bg-elevated]="tool() === 'rectangle'" [class.text-fg]="tool() === 'rectangle'" [attr.aria-pressed]="tool() === 'rectangle'" (click)="chooseTool('rectangle')" data-testid="tool-rectangle">
+      <svg [xIcon]="icons.Square" class="size-3.5"></svg>
+    </button>
+    <button xIconButton size="sm" label="Circle (O)" [class.bg-elevated]="tool() === 'circle'" [class.text-fg]="tool() === 'circle'" [attr.aria-pressed]="tool() === 'circle'" (click)="chooseTool('circle')" data-testid="tool-circle">
+      <svg [xIcon]="icons.Circle" class="size-3.5"></svg>
+    </button>
   </div>
   <div class="w-px h-5 bg-edge"></div>
   <label class="text-muted" for="plan-level-select">Level</label>
@@ -115,6 +125,33 @@
       <label class="flex items-center gap-1.5 text-muted">Width <input xInput xLength class="h-7 w-24 font-mono" [formField]="openingForm.windowWidth" (commit)="setOpeningSize('windowWidth', $event)" aria-label="Window width" data-testid="window-width" /></label>
       <label class="flex items-center gap-1.5 text-muted">Height <input xInput xLength class="h-7 w-24 font-mono" [formField]="openingForm.windowHeight" (commit)="setOpeningSize('windowHeight', $event)" aria-label="Window height" /></label>
       <label class="flex items-center gap-1.5 text-muted">Sill <input xInput xLength class="h-7 w-24 font-mono" [formField]="openingForm.windowSill" (commit)="setOpeningSize('windowSill', $event)" aria-label="Window sill" /></label>
+    }
+  </div>
+}
+@if (isShapeTool()) {
+  <div class="flex items-center gap-3 px-3 h-9 border-b border-edge bg-surface shrink-0 text-xs" data-testid="tool-options">
+    <span class="font-medium">{{ tool() === 'shape' ? 'Shape' : tool() === 'rectangle' ? 'Rectangle' : 'Circle' }}</span>
+    <label class="flex items-center gap-1.5 text-muted">
+      Make
+      <select xSelect class="h-7 text-xs" [value]="shapeKind()" (change)="setShapeKind($any($event.target).value)" aria-label="What the outline becomes" data-testid="shape-kind">
+        <option value="shape">a free shape</option>
+        <option value="room">a room</option>
+        <option value="slab">a slab</option>
+        <option value="void">a void</option>
+      </select>
+    </label>
+    @if (shapeKind() === 'shape') {
+      <label class="flex items-center gap-1.5 text-muted">
+        <input xCheckbox type="checkbox" [checked]="shapeFilled()" (change)="setShapeFilled($any($event.target).checked)" data-testid="shape-filled" />
+        Filled
+      </label>
+    }
+    @if (tool() === 'shape') {
+      <span class="text-muted">A: arc · C or the first point: close · Enter: end</span>
+    } @else if (tool() === 'rectangle') {
+      <span class="text-muted">Click two opposite corners, or type @width,height</span>
+    } @else {
+      <span class="text-muted">Click the centre, then a point on the circle, or type the radius</span>
     }
   </div>
 }

@@ -45,6 +45,14 @@ describe('transformEntity', () => {
     expect(changedFields(wall, wall)).toEqual({});
   });
 
+  it('moves a shape and keeps its corners', () => {
+    const shape: Entity = { id: 'shp_0000000000000001', type: 'shape', levelId: lv, layerId: layer, path: { closed: true, v: [{ p: [0, 0] }, { p: [1000, 0], c: { k: 'fillet', r: 100 } }, { p: [1000, 1000] }] }, filled: true };
+    const moved = transformEntity(shape, { translate: [500, 500] }) as typeof shape;
+    expect(moved.path.v.map((v) => v.p)).toEqual([[500, 500], [1500, 500], [1500, 1500]]);
+    expect(moved.path.v[1].c).toEqual({ k: 'fillet', r: 100 });
+    expect(moved.filled).toBe(true);
+  });
+
   it('leaves openings in place but swaps a mirrored swing side', () => {
     const door: Entity = { id: 'opn_0000000000000001', type: 'opening', levelId: lv, layerId: layer, kind: 'door', wallId: wall.id, along: 300, width: 900, height: 2100, sill: 0, swing: { hinge: 'start', side: 'left' } };
     expect(transformEntity(door, { translate: [100, 0] })).toBe(door);

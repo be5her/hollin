@@ -187,6 +187,27 @@
         @case ('dimension') {
           <label><span class="block text-xs font-medium text-muted mb-1">Offset</span><input xInput xLength class="font-mono" [formField]="f.offset" (commit)="setNullable('offset', $event)" /></label>
         }
+        @case ('shape') {
+          @if (e.path.closed) {
+            <label class="flex items-center gap-2 text-xs">
+              <input xCheckbox type="checkbox" [checked]="draft().filled" (change)="set({ filled: $any($event.target).checked })" data-testid="prop-filled" />
+              Filled
+            </label>
+          }
+          @if (outlineInfo(); as info) {
+            @if (info.area) {
+              <div class="text-xs text-muted">Area <span class="font-mono text-fg" data-testid="prop-shape-area">{{ info.area }}</span> · Perimeter <span class="font-mono text-fg">{{ info.perimeter }}</span></div>
+            } @else {
+              <div class="text-xs text-muted">Length <span class="font-mono text-fg" data-testid="prop-shape-length">{{ info.length }}</span></div>
+            }
+          }
+          <div class="text-[11px] text-muted">Click a corner on the plan to round or chamfer it; drag the corner's grip to size it.</div>
+        }
+        @case ('separator') {
+          @if (outlineInfo(); as info) {
+            <div class="text-xs text-muted">Length <span class="font-mono text-fg">{{ info.length }}</span></div>
+          }
+        }
         @case ('fixture') {
           <label><span class="block text-xs font-medium text-muted mb-1">Rotation</span><input xInput xAngle class="font-mono" [formField]="f.rotation" (commit)="set({ rotation: $event })" /></label>
         }

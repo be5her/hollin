@@ -181,6 +181,33 @@ describe('SelectTool', () => {
     expect(host.calls[4]).toMatchObject({ id: 'plan.path.segment.set', input: { segment: { k: 'line' } } });
   });
 
+  it('sizes a chamfer or fillet by dragging its corner grip, or by typing the size', () => {
+    const { host } = harness();
+    const shape: Entity = { id: 'shp_0000000000000001', type: 'shape', levelId: lv, layerId: layer, path: { closed: true, v: [{ p: [7000, 0] }, { p: [9000, 0], c: { k: 'chamfer', d1: 200 } }, { p: [9000, 2000] }, { p: [7000, 2000] }] }, filled: true };
+    host.setEntities({ ...host.entities(), [shape.id]: shape });
+    host.select([shape.id]);
+    const tool = new SelectTool(host);
+    // The chamfer's grip sits 141 mm along the bisector of the corner at (9000, 0): at (8900, 100).
+    tool.pointerDown(at(8900, 100));
+    tool.pointerMove(at(8800, 200));
+    expect(tool.busy).toBe(true);
+    expect(tool.hint()).toContain('corner');
+    tool.pointerUp(at(8800, 200));
+    expect(host.calls[0]).toMatchObject({ id: 'plan.path.corner.set', input: { id: shape.id, index: 1, corner: { k: 'chamfer', d1: 400 }, baseSeq: 7 } });
+    // Pulled back onto the vertex, the corner goes sharp.
+    tool.pointerDown(at(8900, 100));
+    tool.pointerMove(at(9100, -100));
+    tool.pointerUp(at(9100, -100));
+    expect(host.calls[1]).toMatchObject({ id: 'plan.path.corner.set', input: { index: 1, corner: null } });
+    // A length typed during the drag is the size.
+    tool.pointerDown(at(8900, 100));
+    tool.pointerMove(at(8800, 200));
+    expect(tool.acceptsTyped()).toBe(true);
+    expect(tool.typed('350', { k: 'length', mm: 350 }, null)).toBe(true);
+    expect(host.calls[2]).toMatchObject({ id: 'plan.path.corner.set', input: { index: 1, corner: { k: 'chamfer', d1: 350 } } });
+    expect(tool.busy).toBe(false);
+  });
+
   it('copies and pastes as one batch with openings naming their walls', async () => {
     const { host, a, door } = harness();
     const tool = new SelectTool(host);

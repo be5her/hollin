@@ -2,8 +2,8 @@ import { DOCUMENT, Component, DestroyRef, ElementRef, afterNextRender, afterRend
 import { FormField, form } from '@angular/forms/signals';
 import { deriveLevels, type GlobalConfig, type Vec2 } from '@studio/core';
 import { AppState, Checkbox, ContextMenu, HostBridge, Icon, IconButton, Input, LengthInput, ProjectDocs, ProjectView, Select, Toasts, Units, type ContextMenuItem } from '@studio/ui';
-import { DEFAULT_TOOL_OPTIONS, Plan2dEditor, drawingScale, readPlanTheme, type Camera, type SnapResult, type ToolId, type UnderlayMode, type WallOptions } from '@studio/viewport';
-import { Blinds, BrickWall, ChevronDown, DoorOpen, LandPlot, Magnet, Maximize, MousePointer2, SeparatorVertical, ZoomIn, ZoomOut } from 'lucide';
+import { DEFAULT_TOOL_OPTIONS, Plan2dEditor, drawingScale, readPlanTheme, type Camera, type ShapeOptions, type SnapResult, type ToolId, type UnderlayMode, type WallOptions } from '@studio/viewport';
+import { Blinds, BrickWall, ChevronDown, Circle, DoorOpen, LandPlot, Magnet, Maximize, MousePointer2, Pentagon, SeparatorVertical, Square, ZoomIn, ZoomOut } from 'lucide';
 import { PlanGeometry } from './plan-geometry';
 import { PlanSelection } from './plan-selection';
 
@@ -60,7 +60,7 @@ export class PlanView {
   private readonly container = viewChild.required<ElementRef<HTMLDivElement>>('container');
   private readonly dynamicInputEl = viewChild<ElementRef<HTMLInputElement>>('dynamicInput');
 
-  protected readonly icons = { Blinds, BrickWall, ChevronDown, DoorOpen, LandPlot, Magnet, Maximize, MousePointer2, SeparatorVertical, ZoomIn, ZoomOut };
+  protected readonly icons = { Blinds, BrickWall, ChevronDown, Circle, DoorOpen, LandPlot, Magnet, Maximize, MousePointer2, Pentagon, SeparatorVertical, Square, ZoomIn, ZoomOut };
   protected readonly snapKinds = SNAP_KINDS;
   protected readonly doc = computed(() => this.docs.read(this.projectId())?.doc);
   protected readonly levels = computed(() => {
@@ -90,6 +90,10 @@ export class PlanView {
   protected readonly entityCount = signal(0);
   protected readonly frameMs = signal('0');
   protected readonly tool = signal<ToolId>('select');
+  protected readonly isShapeTool = computed(() => this.tool() === 'shape' || this.tool() === 'rectangle' || this.tool() === 'circle');
+  /** What the shape tools make from an outline, and whether a free shape is filled. */
+  protected readonly shapeKind = signal<ShapeOptions['kind']>('shape');
+  protected readonly shapeFilled = signal(true);
   protected readonly hint = signal('');
   protected readonly selection = signal<string[]>([]);
   protected readonly vertexAttr = signal('');
@@ -180,6 +184,13 @@ export class PlanView {
       this.editor.invalidate();
     });
     effect(() => {
+      // The shape tools' options live in the view only.
+      this.shapeKind();
+      this.shapeFilled();
+      const c = untracked(this.editorConfig);
+      if (c) this.editor.setToolOptions(this.toolOptions(c));
+    });
+    effect(() => {
       // A camera stored with the project is restored once; afterwards the editor's own moves are what is stored.
       const stored = this.view.get<Camera | null>(this.projectId(), 'camera', null);
       if (stored && !this.cameraRestored) {
@@ -254,7 +265,17 @@ export class PlanView {
   }
 
   private toolOptions(c: EditorConfig) {
-    return { ...DEFAULT_TOOL_OPTIONS, nudge: c.gridSpacing, wall: this.wallOptions, door: { width: c.doorWidth, height: c.doorHeight }, window: { width: c.windowWidth, height: c.windowHeight, sill: c.windowSill } };
+    return { ...DEFAULT_TOOL_OPTIONS, nudge: c.gridSpacing, wall: this.wallOptions, door: { width: c.doorWidth, height: c.doorHeight }, window: { width: c.windowWidth, height: c.windowHeight, sill: c.windowSill }, shape: { kind: untracked(this.shapeKind), filled: untracked(this.shapeFilled) } };
+  }
+
+  protected setShapeKind(value: string): void {
+    if (value === 'shape' || value === 'room' || value === 'slab' || value === 'void') this.shapeKind.set(value);
+    this.canvas().nativeElement.focus({ preventScroll: true });
+  }
+
+  protected setShapeFilled(checked: boolean): void {
+    this.shapeFilled.set(checked);
+    this.canvas().nativeElement.focus({ preventScroll: true });
   }
 
   /** A door or window size typed in the options bar, in any unit: remembered in the settings. */

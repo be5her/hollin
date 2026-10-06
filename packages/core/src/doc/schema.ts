@@ -163,6 +163,8 @@ export const RoomSchema = z.object({
   boundary: z.discriminatedUnion('k', [z.object({ k: z.literal('detect'), seed: Vec2Schema.describe('A point inside the walls that enclose the room') }), z.object({ k: z.literal('region'), region: RegionSchema })]),
   finish: z.object({ floor: CatalogRef.optional(), walls: CatalogRef.optional(), ceiling: CatalogRef.optional() }).optional(),
 });
+/** Any outline: a terrace, a pool, a counter, a sketch. Open or closed, with every segment kind and corner; filled when closed. */
+export const ShapeSchema = z.object({ ...base, type: z.literal('shape'), path: PathSchema.describe('An open or closed outline: lines, arcs (by bulge) or Béziers, with fillet or chamfer corners'), filled: z.boolean().default(true).describe('A closed shape is filled unless false') });
 /** A room divider where there is no wall: an open line that splits the space on either side into two rooms. */
 export const SeparatorSchema = z.object({ ...base, type: z.literal('separator'), path: PathSchema.describe('An open line between walls') });
 export const FixtureSchema = z.object({ ...base, type: z.literal('fixture'), symbol: CatalogRef, at: Vec2Schema, rotation: Degrees.default(0), size: z.tuple([PositiveMm, PositiveMm]).optional(), mirror: z.boolean().default(false) });
@@ -197,12 +199,12 @@ export const LightSchema = z.object({
   angle: z.number().min(1).max(179).optional().describe('Spot cone angle, degrees'),
 });
 
-export const EntitySchema = z.discriminatedUnion('type', [WallSchema, OpeningSchema, ColumnSchema, SlabSchema, VoidSchema, ShaftSchema, RoomSchema, SeparatorSchema, FixtureSchema, PointSchema, DimensionSchema, LabelSchema, ItemSchema, LightSchema]);
+export const EntitySchema = z.discriminatedUnion('type', [WallSchema, OpeningSchema, ColumnSchema, SlabSchema, VoidSchema, ShaftSchema, RoomSchema, SeparatorSchema, ShapeSchema, FixtureSchema, PointSchema, DimensionSchema, LabelSchema, ItemSchema, LightSchema]);
 export type Entity = z.infer<typeof EntitySchema>;
 export type EntityType = Entity['type'];
 export type EntityOf<T extends EntityType> = Extract<Entity, { type: T }>;
 
-/** Which layer kind each entity type belongs on. Dimensions and labels go on any layer. */
+/** Which layer kind each entity type belongs on. Shapes, dimensions and labels go on any layer. */
 export const ENTITY_LAYER: Record<EntityType, LayerKind | 'any'> = {
   wall: 'structure',
   opening: 'structure',
@@ -212,6 +214,7 @@ export const ENTITY_LAYER: Record<EntityType, LayerKind | 'any'> = {
   shaft: 'structure',
   room: 'interior',
   separator: 'interior',
+  shape: 'any',
   fixture: 'interior',
   point: 'interior',
   dimension: 'any',
@@ -230,6 +233,7 @@ export const ENTITY_PREFIX: Record<EntityType, string> = {
   shaft: 'sft',
   room: 'rom',
   separator: 'sep',
+  shape: 'shp',
   fixture: 'fix',
   point: 'pnt',
   dimension: 'dim',

@@ -19,6 +19,8 @@ const TYPE_NAMES: Record<string, [string, string]> = {
   void: ['void', 'voids'],
   shaft: ['shaft', 'shafts'],
   room: ['room', 'rooms'],
+  separator: ['room divider', 'room dividers'],
+  shape: ['shape', 'shapes'],
   fixture: ['fixture', 'fixtures'],
   point: ['service point', 'service points'],
   dimension: ['dimension', 'dimensions'],

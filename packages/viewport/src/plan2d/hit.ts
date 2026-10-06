@@ -19,7 +19,7 @@ export interface HitOptions {
 }
 
 /** Smaller things first, then what they sit on; rooms and slabs last, so a click inside a room picks a wall or a door before the room. */
-const PRIORITY: Record<EntityType, number> = { opening: 0, dimension: 1, label: 1, column: 2, fixture: 2, point: 2, item: 2, light: 2, separator: 3, wall: 3, void: 5, shaft: 5, room: 6, slab: 7 };
+const PRIORITY: Record<EntityType, number> = { opening: 0, dimension: 1, label: 1, column: 2, fixture: 2, point: 2, item: 2, light: 2, separator: 3, wall: 3, shape: 4, void: 5, shaft: 5, room: 6, slab: 7 };
 
 const GLYPH = 100;
 
@@ -29,6 +29,13 @@ function regionDistance(region: Region, p: Vec2, tolerance: number): number | nu
   if (regionContains(region, p)) return 0;
   const d = Math.min(polygonEdgeDistance(flatten(region.outer, 1), p), ...region.holes.map((h) => polygonEdgeDistance(flatten(h, 1), p)));
   return d <= tolerance ? d : null;
+}
+
+/** The distance to an open polyline (its closing edge does not count). */
+function polylineDistance(pts: readonly Vec2[], p: Vec2, tolerance: number): number | null {
+  let best = Infinity;
+  for (let i = 1; i < pts.length; i++) best = Math.min(best, polygonEdgeDistance([pts[i - 1], pts[i]], p));
+  return best <= tolerance ? best : null;
 }
 
 function polygonsDistance(polys: readonly Polygon[], p: Vec2, tolerance: number): number | null {
@@ -66,14 +73,14 @@ export function entityDistance(item: SceneItem, p: Vec2, scene: LevelScene, opti
       const d = distance(e.boundary.seed, p);
       return d <= tol * 2 ? d : null;
     }
-    case 'separator': {
-      const d = polygonEdgeDistance(flatten(e.path, 1), p);
-      // The flattened line's closing edge must not count: measure the open polyline.
+    case 'separator':
+      return polylineDistance(flatten(e.path, 1), p, tol);
+    case 'shape': {
       const pts = flatten(e.path, 1);
-      let best = Infinity;
-      for (let i = 1; i < pts.length; i++) best = Math.min(best, polygonEdgeDistance([pts[i - 1], pts[i]], p));
-      void d;
-      return best <= tol ? best : null;
+      if (!e.path.closed) return polylineDistance(pts, p, tol);
+      if (e.filled && polygonContains(pts, p)) return 0;
+      const d = polygonEdgeDistance(pts, p);
+      return d <= tol ? d : null;
     }
     case 'fixture':
     case 'point':
