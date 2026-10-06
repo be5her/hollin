@@ -5,6 +5,8 @@ import type { Host } from '../host';
 import { Smoke, freePort } from './harness';
 import { smokeBuilding } from './building';
 import { smokeBuildingUi } from './building-ui';
+import { smokeConnectors } from './connectors';
+import { smokeConnectorsUi } from './connectors-ui';
 import { smokeHost } from './host';
 import { smokeLibrary } from './library';
 import { smokeLibraryUi } from './library-ui';
@@ -35,6 +37,7 @@ export async function runSmoke(host: Host, openWindow: () => BrowserWindow): Pro
     const { towerId } = await smokeBuilding(smoke);
     const { planId } = await smokePlan(smoke);
     await smoke.run('project.close', { id: planId });
+    const { duplexId } = await smokeConnectors(smoke);
 
     smoke.section('renderer');
     await smoke.openWindow(openWindow);
@@ -42,6 +45,7 @@ export async function runSmoke(host: Host, openWindow: () => BrowserWindow): Pro
     await smokeLibraryUi(smoke, houseId);
     await smokeBuildingUi(smoke, towerId);
     await smokePlanUi(smoke, towerId);
+    await smokeConnectorsUi(smoke, duplexId);
     await smokePerf(smoke);
     smoke.check('renderer has no console errors', smoke.consoleErrors.length === 0, smoke.consoleErrors);
   } catch (err) {

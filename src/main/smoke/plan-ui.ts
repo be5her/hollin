@@ -2,27 +2,11 @@ import { promises as fs } from 'node:fs';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import type { Entity } from '@studio/core';
 import { wait, type Smoke } from './harness';
+import { canvas, canvasAttr, readCamera, tab, toScreen, type Camera, type Rect } from './plan-canvas';
 
 type Wall = Extract<Entity, { type: 'wall' }>;
 
-const tab = '[data-tab-type="project.editor"]:not(.hidden)';
-const canvas = `${tab} [data-testid=plan-canvas]`;
-
-type Camera = { x: number; y: number; scale: number };
-type Rect = { x: number; y: number; width: number; height: number };
-
-/** The plan view's camera, mirrored on the canvas as `data-camera="x,y,scale"`. */
-async function readCamera(smoke: Smoke): Promise<Camera | null> {
-  const attr = await smoke.js<string>(`document.querySelector('${canvas}')?.dataset.camera ?? ''`);
-  if (!attr) return null;
-  const [x, y, scale] = attr.split(',').map(Number);
-  return { x, y, scale };
-}
-
-/** World mm to window pixels, the same mapping the renderer uses (y up in the world, down on screen). */
-const toScreen = (rect: Rect, cam: Camera, p: readonly [number, number]) => ({ x: rect.x + (p[0] - cam.x) * cam.scale + rect.width / 2, y: rect.y + (cam.y - p[1]) * cam.scale + rect.height / 2 });
-
-const attr = (smoke: Smoke, name: string) => smoke.js<string | undefined>(`document.querySelector('${canvas}')?.dataset.${name}`);
+const attr = canvasAttr;
 
 /** The plan view driven with real pointer and keyboard input: level switching, underlay, pan and zoom, live agent edits. */
 export async function smokePlanUi(smoke: Smoke, towerId: string): Promise<void> {

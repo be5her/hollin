@@ -1,4 +1,4 @@
-import { defaultConfig, deriveLevels, emptyBox, parseCoordinate, type Box, type Entity, type Layer, type LevelGeometry, type LevelWalls, type ProjectDoc, type UnitSettings, type Vec2 } from '@studio/core';
+import { defaultConfig, deriveLevels, emptyBox, parseCoordinate, type Box, type Entity, type Layer, type LevelGeometry, type LevelWalls, type ProjectDoc, type RuleLimits, type UnitSettings, type Vec2 } from '@studio/core';
 import { defaultCamera, fitBox, panBy, sameCamera, screenToWorld, worldToScreen, zoomAt, type Camera, type Size } from './camera';
 import { LevelGeometryCache } from './geometry-cache';
 import { sameVertex, type VertexRef } from './grips';
@@ -58,6 +58,7 @@ export class Plan2dEditor {
   private dpr = 1;
   private theme: PlanTheme = LIGHT_THEME;
   private units: UnitSettings = defaultConfig().units;
+  private limits: RuleLimits = defaultConfig().rules;
   private doc: ProjectDoc | undefined;
   private levelId: string | null = null;
   private underlayMode: UnderlayMode = 'none';
@@ -207,6 +208,12 @@ export class Plan2dEditor {
     this.invalidate();
   }
 
+  /** The limits connectors are derived with: their risers, the plan cut, the stairwells they cut. */
+  setRuleLimits(limits: RuleLimits): void {
+    this.limits = limits;
+    this.invalidate();
+  }
+
   /** The mirror's document with its change number and epoch (sent with edits addressed by index). */
   setDocument(doc: ProjectDoc | undefined, seq = 0, epoch = 1): void {
     this.doc = doc;
@@ -351,7 +358,7 @@ export class Plan2dEditor {
   /** Everything the active level derives to, from all its walls (hidden ones still enclose). */
   levelGeometry(): LevelGeometry | null {
     const entities = this.doc && this.levelId ? this.doc.levelData[this.levelId]?.entities : undefined;
-    return entities ? this.geometry.level(entities) : null;
+    return entities ? this.geometry.level(entities, this.geometry.cuts(this.doc!, this.levelId!, this.limits)) : null;
   }
 
   hit(p: Vec2): Hit | null {

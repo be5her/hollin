@@ -571,8 +571,16 @@ function drawEntity(ctx: CanvasRenderingContext2D, item: SceneItem, frame: Rende
     case 'slab': {
       const region = regionOf(e);
       if (!region) return;
-      const p = regionPath(item, region);
       ctx.fillStyle = theme.slab;
+      // With stairwells or shafts through this floor, the slab is drawn with them cut out.
+      const cut = frame.geometry?.cuts.length ? frame.geometry.slabRegions.get(e.id) : undefined;
+      if (cut) {
+        ctx.beginPath();
+        for (const poly of cut) tracePolygon(ctx, poly);
+        ctx.fill('nonzero');
+        return;
+      }
+      const p = regionPath(item, region);
       if (p) ctx.fill(p, 'evenodd');
       return;
     }

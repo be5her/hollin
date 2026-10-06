@@ -1,4 +1,4 @@
-import { defaultConfig, type ProjectDoc, type UnitSettings } from '@studio/core';
+import { DEFAULT_RULE_LIMITS, defaultConfig, type ProjectDoc, type RuleLimits, type UnitSettings } from '@studio/core';
 import { fitBox } from './camera';
 import { LevelGeometryCache } from './geometry-cache';
 import { renderPlan, type RenderFrame } from './render';
@@ -15,6 +15,8 @@ export interface SnapshotOptions {
   createCanvas: (width: number, height: number) => HTMLCanvasElement;
   theme?: PlanTheme;
   units?: UnitSettings;
+  /** The rule limits connectors are derived with (the stairwells they cut, the plan cut). */
+  limits?: RuleLimits;
   /** Shared with the plan view, so nothing is derived twice. */
   cache?: LevelGeometryCache;
   showGrid?: boolean;
@@ -52,7 +54,7 @@ export function renderLevelToPng(doc: ProjectDoc, levelId: string, options: Snap
     layers: doc.layers,
     scene,
     walls: cache.walls(entities, hidden),
-    geometry: cache.level(entities),
+    geometry: cache.level(entities, cache.cuts(doc, levelId, options.limits ?? DEFAULT_RULE_LIMITS)),
     underlay: null,
     showGrid: options.showGrid ?? false,
   };

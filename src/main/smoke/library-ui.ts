@@ -9,6 +9,8 @@ const cardSelector = (name: string) => `[data-testid=project-card][data-name="${
 async function rightClickCard(smoke: Smoke, name: string): Promise<boolean> {
   if (!(await smoke.waitFor(cardSelector(name)))) return false;
   await smoke.js("[...document.querySelectorAll('[aria-label=Dismiss]')].forEach((b) => b.click())");
+  // With more projects the card can sit below the fold; a click there would land outside the window.
+  await smoke.js(`document.querySelector(${JSON.stringify(cardSelector(name))}).scrollIntoView({ block: 'center' })`);
   await wait(120);
   return smoke.rightClick(cardSelector(name), { x: 40, y: 40 });
 }

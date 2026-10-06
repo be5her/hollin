@@ -1,6 +1,6 @@
 import { DOCUMENT, Component, DestroyRef, ElementRef, afterNextRender, afterRenderEffect, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
 import { FormField, form } from '@angular/forms/signals';
-import { deriveLevels, type DimensionKind, type GlobalConfig, type ProjectDoc, type Vec2 } from '@studio/core';
+import { DEFAULT_RULE_LIMITS, deriveLevels, type DimensionKind, type GlobalConfig, type ProjectDoc, type Vec2 } from '@studio/core';
 import { AppState, Checkbox, ContextMenu, HostBridge, Icon, IconButton, Input, LengthInput, ProjectDocs, ProjectView, Select, Toasts, Units, type ContextMenuItem } from '@studio/ui';
 import { DEFAULT_TOOL_OPTIONS, LIGHT_THEME, Plan2dEditor, drawingScale, readPlanTheme, renderLevelToPng, type Camera, type ShapeOptions, type SnapResult, type TextRequest, type ToolId, type UnderlayMode, type WallOptions } from '@studio/viewport';
 import { Blinds, BrickWall, ChevronDown, Circle, DoorOpen, LandPlot, Magnet, Maximize, MousePointer2, Pentagon, Ruler, SeparatorVertical, Square, Type, ZoomIn, ZoomOut } from 'lucide';
@@ -72,6 +72,8 @@ export class PlanView {
   protected readonly levelName = computed(() => this.doc()?.levels[this.activeLevelId() ?? '']?.name ?? '');
   protected readonly underlay = computed(() => this.view.get<UnderlayMode>(this.projectId(), 'underlay', 'none'));
   protected readonly editorConfig = computed(() => this.app.config()?.editor);
+  /** The limits connectors are derived with; the same object until the settings change. */
+  private readonly ruleLimits = computed(() => this.app.config()?.rules ?? DEFAULT_RULE_LIMITS, { equal: (a, b) => JSON.stringify(a) === JSON.stringify(b) });
 
   private readonly camera = signal<Camera | null>(null);
   protected readonly cameraAttr = computed(() => {
@@ -177,6 +179,7 @@ export class PlanView {
     });
     effect(() => this.editor.setLevel(this.activeLevelId()));
     effect(() => this.editor.setUnderlay(this.underlay()));
+    effect(() => this.editor.setRuleLimits(this.ruleLimits()));
     effect(() => {
       this.editor.setUnits(this.units.settings());
       this.showWallOptions();
@@ -265,6 +268,7 @@ export class PlanView {
       height: 360,
       theme: LIGHT_THEME,
       units: untracked(this.units.settings),
+      limits: untracked(this.ruleLimits),
       cache: this.planGeometry.cache,
       createCanvas: (width, height) => {
         const c = this.document.createElement('canvas');

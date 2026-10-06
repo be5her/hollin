@@ -12,10 +12,13 @@ import {
   authorFrom,
   bulgeThrough,
   changedFields,
+  connectorCutsLevel,
   defineCommand,
   defineModule,
   deleteEntitiesOps,
+  deriveConnector,
   deriveLevelGeometry,
+  deriveLevels,
   dimensionGeometry,
   distance,
   editProject,
@@ -29,6 +32,7 @@ import {
   newId,
   openingFrame,
   pathOfEntity,
+  polygonArea,
   pruneAnchors,
   remapAnchors,
   remapRefs,
@@ -50,6 +54,7 @@ import {
   type Op,
   type Opening,
   type Path,
+  type Polygon,
   type ProjectApi,
   type Transform,
   type Vec2,
@@ -420,6 +425,34 @@ export const planModule = defineModule({
           const room = entities[g.id] as Extract<Entity, { type: 'room' }>;
           return { id: g.id, name: room.name, number: room.number, enclosed: g.enclosed, shared: g.shared ?? null, area: Math.round(g.area), perimeter: Math.round(g.perimeter), labelAt: g.labelAt, polygon: g.polygon };
         });
+      },
+    }),
+    defineCommand({
+      id: 'plan.slab',
+      title: 'Describe the floor slab of a level',
+      description:
+        "A level's floor slab as derived right now: the automatic slab (the outline of the walls that enclose something) and each drawn slab, with the openings that stairs, ramps, elevators and other connectors passing through its floor cut out. Returns the polygons, the total area in mm², and each opening with the connector that makes it.",
+      scope: 'project',
+      input: z.object({ levelId }),
+      handler: async ({ levelId: lv }, ctx) => {
+        const doc = ctx.project!.doc;
+        const entities = doc.levelData[lv]?.entities;
+        if (!entities) throw new StudioError('NOT_FOUND', `No level ${lv}`);
+        const limits = ctx.host.config.get().rules;
+        const levels = deriveLevels(doc);
+        const level = levels.find((l) => l.id === lv)!;
+        const openings = Object.values(doc.connectors)
+          .filter((c) => connectorCutsLevel(c, level, levels))
+          .map((c) => ({ connectorId: c.id, kind: c.kind, polygons: deriveConnector(c, levels, limits).footprint }));
+        const geometry = deriveLevelGeometry(entities, { cuts: openings.flatMap((o) => o.polygons) });
+        const area = (polys: Polygon[]) => Math.round(polys.reduce((sum, p) => sum + polygonArea(p), 0));
+        const slabs = [...(geometry.autoSlabs.length ? [{ id: geometry.autoSlabs[0].id, source: 'auto' as const, polygons: geometry.slab }] : []), ...[...geometry.slabRegions].map(([id, polygons]) => ({ id, source: 'region' as const, polygons }))];
+        return {
+          levelId: lv,
+          area: slabs.reduce((sum, s) => sum + area(s.polygons), 0),
+          slabs: slabs.map((s) => ({ ...s, area: area(s.polygons) })),
+          openings: openings.map((o) => ({ ...o, area: area(o.polygons) })),
+        };
       },
     }),
     defineCommand({

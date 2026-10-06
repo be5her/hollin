@@ -1,5 +1,5 @@
 import type { Entity, EntityOf } from '../doc/schema';
-import { differencePolygons } from './clip';
+import { differencePolygons, regionPolygons } from './clip';
 import { openingFrame } from './openings';
 import type { Polygon } from './polygon';
 import { autoSlab, cavitiesOf, detectRooms, roomSolids, type Cavity, type RoomGeometry } from './rooms';
@@ -25,8 +25,12 @@ export interface LevelGeometry {
   /** The enclosed spaces (every hole in the solids, at every depth). */
   cavities: Cavity[];
   rooms: Map<string, RoomGeometry>;
-  /** The automatic slab: outlines of the walls that enclose something, holes filled. */
+  /** The automatic slab: outlines of the walls that enclose something, holes filled, with the connector openings cut out. */
   slab: Polygon[];
+  /** Each drawn slab (a region) with the connector openings cut out. */
+  slabRegions: Map<string, Polygon[]>;
+  /** The connector openings cut out of this level's slabs (see `connectorCuts`). */
+  cuts: Polygon[];
   /** The slab entities that follow the walls (they have no outline of their own), with their layers. */
   autoSlabs: { id: string; layerId: string }[];
 }
@@ -38,6 +42,8 @@ export interface DeriveOptions {
   openings?: readonly Opening[];
   /** A memoised body per wall, supplied by a cache; otherwise bodies are computed afresh. */
   bodyOf?: (wall: Wall) => WallBody;
+  /** Openings cut out of the level's slabs: the stairwells and shafts of the connectors passing through its floor (`connectorCuts`). */
+  cuts?: readonly Polygon[];
 }
 
 /** Derives the joined walls of a set of walls. */
@@ -65,21 +71,32 @@ export function deriveWalls(walls: readonly Wall[], options: DeriveOptions = {})
   return { bodies, nodes, patches, joined, cut };
 }
 
-/** Rooms, cavities and the automatic slab from a level's entities and its derived walls. */
-export function deriveRooms(entities: Record<string, Entity>, walls: LevelWalls): Pick<LevelGeometry, 'cavities' | 'rooms' | 'slab' | 'autoSlabs'> {
+/** Rooms, cavities and the slabs from a level's entities and its derived walls, with cuts taken out of the slabs. */
+export function deriveRooms(entities: Record<string, Entity>, walls: LevelWalls, cuts: readonly Polygon[] = []): Pick<LevelGeometry, 'cavities' | 'rooms' | 'slab' | 'slabRegions' | 'cuts' | 'autoSlabs'> {
   const rooms: EntityOf<'room'>[] = [];
   const columns: EntityOf<'column'>[] = [];
   const separators: EntityOf<'separator'>[] = [];
   const autoSlabs: { id: string; layerId: string }[] = [];
+  const slabRegions = new Map<string, Polygon[]>();
   for (const id in entities) {
     const e = entities[id];
     if (e.type === 'room') rooms.push(e);
     else if (e.type === 'column') columns.push(e);
     else if (e.type === 'separator') separators.push(e);
-    else if (e.type === 'slab' && e.source.k === 'auto') autoSlabs.push({ id: e.id, layerId: e.layerId });
+    else if (e.type === 'slab') {
+      if (e.source.k === 'auto') autoSlabs.push({ id: e.id, layerId: e.layerId });
+      else slabRegions.set(e.id, regionPolygons(e.source.region));
+    }
   }
   const cavities = cavitiesOf(roomSolids(walls, columns, separators));
-  return { cavities, rooms: detectRooms(rooms, cavities), slab: autoSlabs.length ? autoSlab(walls) : [], autoSlabs };
+  return cutSlabs({ cavities, rooms: detectRooms(rooms, cavities), slab: autoSlabs.length ? autoSlab(walls) : [], slabRegions, cuts: [], autoSlabs }, cuts);
+}
+
+/** The same slabs with cuts (connector openings) taken out; everything else is shared. */
+export function cutSlabs<T extends Pick<LevelGeometry, 'slab' | 'slabRegions' | 'cuts'>>(geometry: T, cuts: readonly Polygon[]): T {
+  if (!cuts.length) return geometry.cuts.length ? { ...geometry, cuts: [] } : geometry;
+  const cut = (polys: Polygon[]) => (polys.length ? differencePolygons(polys, [...cuts]) : polys);
+  return { ...geometry, slab: cut(geometry.slab), slabRegions: new Map([...geometry.slabRegions].map(([id, polys]) => [id, cut(polys)])), cuts: [...cuts] };
 }
 
 /**
@@ -96,5 +113,5 @@ export function deriveLevelGeometry(entities: Record<string, Entity>, options: D
     else if (e.type === 'opening') openings.push(e);
   }
   const derivedWalls = deriveWalls(walls, { openings, ...options });
-  return { walls: derivedWalls, ...deriveRooms(entities, derivedWalls) };
+  return { walls: derivedWalls, ...deriveRooms(entities, derivedWalls, options.cuts) };
 }
