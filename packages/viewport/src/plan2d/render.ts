@@ -1,4 +1,4 @@
-import { DEG, add, columnPolygon, distance, flatten, formatArea, formatLength, normalize, openingFrame, openingMisfits, perp, polygonCentroid, resolvePath, scale as vscale, sub, type Entity, type EntityType, type Layer, type LevelGeometry, type LevelWalls, type Path, type Region, type UnitSettings, type Vec2 } from '@studio/core';
+import { DEG, add, columnPolygon, dimensionGeometry, dimensionOutline, flatten, formatArea, normalize, openingFrame, openingMisfits, perp, polygonCentroid, resolveDimension, resolvePath, scale as vscale, sub, wallBody, type DimensionGeometry, type Entity, type EntityType, type Layer, type LevelGeometry, type LevelWalls, type Path, type Region, type UnitSettings, type Vec2 } from '@studio/core';
 import { visibleBox, worldToScreen, type Camera, type Size } from './camera';
 import { tracePath, tracePolygon, traceRegion, traceSegments } from './draw';
 import { entityBox, searchScene, type LevelScene, type SceneItem } from './scene';
@@ -407,15 +407,11 @@ function traceOutline(ctx: CanvasRenderingContext2D, item: SceneItem, frame: Ren
       tracePath(ctx, e.path);
       return e.path.closed ? true : 'open';
     case 'dimension': {
-      const u = normalize(sub(e.to, e.from));
-      const n = perp(u);
-      const a = add(e.from, vscale(n, e.offset));
-      const b = add(e.to, vscale(n, e.offset));
-      ctx.moveTo(e.from[0], e.from[1]);
-      ctx.lineTo(a[0], a[1]);
-      ctx.lineTo(b[0], b[1]);
-      ctx.lineTo(e.to[0], e.to[1]);
-      return true;
+      for (const pts of dimensionOutline(dimensionGeometry(e, resolveDimensionIn(e, frame), null))) {
+        ctx.moveTo(pts[0][0], pts[0][1]);
+        for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+      }
+      return 'open';
     }
     default:
       ctx.rect(item.minX, item.minY, item.maxX - item.minX, item.maxY - item.minY);
@@ -682,40 +678,59 @@ function drawOpening(ctx: CanvasRenderingContext2D, item: SceneItem, frame: Rend
   drawOpeningSymbol(ctx, frame, wall, e, misfit ? frame.theme.warning : frame.theme.wallLine, misfit);
 }
 
+/** A dimension's points as they are now: ends tied to a wall or shape follow it. */
+function resolveDimensionIn(e: Extract<Entity, { type: 'dimension' }>, frame: RenderFrame) {
+  return resolveDimension(e, (id) => frame.scene?.items.get(id)?.entity, (w) => frame.walls?.bodies.get(w.id) ?? wallBody(w));
+}
+
 function drawDimension(ctx: CanvasRenderingContext2D, e: Extract<Entity, { type: 'dimension' }>, frame: RenderFrame, texts: TextOp[]): void {
-  const { theme } = frame;
-  const d = distance(e.from, e.to);
-  if (d < 1e-6) return;
-  const u = normalize(sub(e.to, e.from));
-  const n = perp(u);
-  const a = add(e.from, vscale(n, e.offset));
-  const b = add(e.to, vscale(n, e.offset));
-  const over = px(frame, 6) * Math.sign(e.offset || 1);
-  ctx.strokeStyle = theme.dim;
+  drawDimensionGeometry(ctx, frame, dimensionGeometry(e, resolveDimensionIn(e, frame), frame.units, px(frame, 6)), frame.theme.dim, texts);
+}
+
+/**
+ * Draws a dimension's lines, ticks, arc and arrow in a colour, and its text (queued in `texts`, or
+ * drawn at once when null, as tools do). Shared by the plan and the Dimension tool's preview.
+ */
+export function drawDimensionGeometry(ctx: CanvasRenderingContext2D, frame: RenderFrame, g: DimensionGeometry, color: string, texts: TextOp[] | null): void {
+  ctx.strokeStyle = color;
   ctx.lineWidth = px(frame, 0.75);
+  ctx.setLineDash([]);
   ctx.beginPath();
-  ctx.moveTo(a[0], a[1]);
-  ctx.lineTo(b[0], b[1]);
-  for (const [p, q] of [
-    [e.from, a],
-    [e.to, b],
-  ] as const) {
-    const ext = add(q, vscale(n, over));
+  for (const [p, q] of g.lines) {
     ctx.moveTo(p[0], p[1]);
-    ctx.lineTo(ext[0], ext[1]);
+    ctx.lineTo(q[0], q[1]);
   }
-  // Tick marks: short slashes at 45°.
+  if (g.arc) {
+    const { center, radius, start, sweep } = g.arc;
+    ctx.moveTo(center[0] + Math.cos(start) * radius, center[1] + Math.sin(start) * radius);
+    ctx.arc(center[0], center[1], radius, start, start + sweep, sweep < 0);
+  }
+  // Tick marks: short slashes at 45° to the line (or to the arc's radius).
   const tick = px(frame, 4);
-  const slash = normalize(add(u, n));
-  for (const p of [a, b]) {
-    const s0 = sub(p, vscale(slash, tick));
-    const s1 = add(p, vscale(slash, tick));
-    ctx.moveTo(s0[0], s0[1]);
-    ctx.lineTo(s1[0], s1[1]);
+  if (g.ticks.length === 2) {
+    const [a, b] = g.ticks;
+    for (const p of g.ticks) {
+      const dir = g.arc ? normalize(sub(p, g.arc.center)) : normalize(sub(b, a));
+      const slash = normalize(add(dir, perp(dir)));
+      ctx.moveTo(p[0] - slash[0] * tick, p[1] - slash[1] * tick);
+      ctx.lineTo(p[0] + slash[0] * tick, p[1] + slash[1] * tick);
+    }
+  }
+  if (g.arrow) {
+    const head = px(frame, 8);
+    const back = vscale(g.arrow.direction, -head);
+    const side = vscale(perp(g.arrow.direction), head * 0.35);
+    const tip = g.arrow.at;
+    for (const s of [side, vscale(side, -1)]) {
+      ctx.moveTo(tip[0], tip[1]);
+      ctx.lineTo(tip[0] + back[0] + s[0], tip[1] + back[1] + s[1]);
+    }
   }
   ctx.stroke();
-  const mid: Vec2 = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
-  texts.push({ text: formatLength(d, frame.units), at: mid, screenPx: 11, color: theme.dim, align: 'center', baseline: 'bottom', rotation: Math.atan2(u[1], u[0]) / DEG, dy: -3, mono: true });
+  if (!g.text) return;
+  const op: TextOp = { text: g.text, at: g.textAt, screenPx: 11, color, align: 'center', baseline: 'bottom', rotation: g.textAngle, dy: -3, mono: true };
+  if (texts) texts.push(op);
+  else drawScreenText(ctx, frame, op);
 }
 
 function drawTexts(ctx: CanvasRenderingContext2D, frame: RenderFrame, texts: TextOp[]): void {

@@ -26,6 +26,14 @@ describe('snapping', () => {
     expect(snapPoint(idx, [1000, 1500], 100, settings)).toBeNull();
   });
 
+  it('says which wall vertex an endpoint is, on the line or a face, so a dimension can follow it', () => {
+    const { idx, a } = index();
+    expect(snapPoint(idx, [4960, 30], 100, settings)?.anchor).toEqual({ entityId: a.id, vertex: 1, side: 'axis' });
+    expect(snapPoint(idx, [4960, 110], 60, settings)).toMatchObject({ point: [5000, 100], kind: 'endpoint', anchor: { entityId: a.id, vertex: 1, side: 'left' } });
+    expect(snapPoint(idx, [20, -110], 40, settings)).toMatchObject({ point: [0, -100], anchor: { entityId: a.id, vertex: 0, side: 'right' } });
+    expect(snapPoint(idx, [2480, -20], 100, settings)?.anchor).toBeUndefined();
+  });
+
   it('snaps to faces too, and to the nearest point on a line', () => {
     const { idx } = index();
     // The wall's upper face is at y = 100.

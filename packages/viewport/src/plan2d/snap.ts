@@ -3,12 +3,20 @@ import { DEG, add, arcGeometry, columnPolygon, distance, normalize, openingFrame
 
 export type SnapKind = 'endpoint' | 'intersection' | 'midpoint' | 'center' | 'perpendicular' | 'tangent' | 'on' | 'extension' | 'angle' | 'grid';
 
+/** The wall or shape vertex an endpoint snap found, which a dimension's end can follow. */
+export interface SnapAnchor {
+  entityId: string;
+  vertex: number;
+  side: 'axis' | 'left' | 'right';
+}
+
 /** A snapped point, what it snapped to, and guide lines to draw. */
 export interface SnapResult {
   point: Vec2;
   kind: SnapKind;
   label: string;
   guides: { from: Vec2; to: Vec2 }[];
+  anchor?: SnapAnchor;
 }
 
 export interface SnapSettings {
@@ -37,10 +45,20 @@ export interface SnapOptions {
   ortho?: boolean;
 }
 
-/** A segment something can snap to. */
+/** A segment something can snap to; a plain segment of a path also knows which vertices it joins, for anchors. */
 interface SnapSeg extends Box {
   seg: Seg;
   id: string;
+  side?: SnapAnchor['side'];
+  va?: number;
+  vb?: number;
+}
+
+/** How a path's segments map to its vertices: only when no corner added segments. */
+interface PathVertices {
+  side: SnapAnchor['side'];
+  closed: boolean;
+  count: number;
 }
 
 /** A point something can snap to that is not a segment end (column and arc centres). */
@@ -62,23 +80,28 @@ export class SnapIndex {
   build(entities: Record<string, Entity>, walls: LevelWalls | null): void {
     const segs: SnapSeg[] = [];
     const points: SnapPoint[] = [];
-    const addPath = (id: string, segsOf: Seg[]) => {
-      for (const seg of segsOf) {
-        if (seg.k === 'cubic') continue;
-        segs.push({ ...segmentBox(seg), seg, id });
+    const addPath = (id: string, segsOf: Seg[], vertices?: PathVertices) => {
+      const plain = vertices && segsOf.length === (vertices.closed ? vertices.count : vertices.count - 1);
+      segsOf.forEach((seg, i) => {
+        if (seg.k === 'cubic') return;
+        segs.push({ ...segmentBox(seg), seg, id, ...(plain ? { side: vertices.side, va: i, vb: vertices.closed ? (i + 1) % vertices.count : i + 1 } : {}) });
         if (seg.k === 'arc') {
           const c = arcGeometry(seg.a, seg.b, seg.bulge).center;
           points.push({ minX: c[0], minY: c[1], maxX: c[0], maxY: c[1], point: c, id, kind: 'center' });
         }
-      }
+      });
     };
+    const verticesOf = (path: { closed: boolean; v: { c?: unknown }[] }, side: SnapAnchor['side']): PathVertices | undefined => (path.v.some((v) => v.c) ? undefined : { side, closed: path.closed, count: path.v.length });
     for (const id in entities) {
       const e = entities[id];
       switch (e.type) {
         case 'wall': {
-          addPath(id, resolvePath(e.path).segs);
+          addPath(id, resolvePath(e.path).segs, verticesOf(e.path, 'axis'));
           const body = walls?.bodies.get(id);
-          for (const face of [body?.faces.left, body?.faces.right]) if (face) addPath(id, resolvePath(face).segs);
+          for (const [side, face] of [['left', body?.faces.left], ['right', body?.faces.right]] as const) {
+            if (!face) continue;
+            addPath(id, resolvePath(face).segs, face.v.length === e.path.v.length ? verticesOf(face, side) : undefined);
+          }
           break;
         }
         case 'opening': {
@@ -103,8 +126,10 @@ export class SnapIndex {
           break;
         }
         case 'separator':
-        case 'shape':
           addPath(id, resolvePath(e.path).segs);
+          break;
+        case 'shape':
+          addPath(id, resolvePath(e.path).segs, verticesOf(e.path, 'axis'));
           break;
         case 'dimension':
           addPath(id, [{ k: 'line', a: e.from, b: e.to }]);
@@ -159,15 +184,16 @@ export function snapPoint(index: SnapIndex, cursor: Vec2, tolerance: number, set
   }
   if (!settings.enabled) return null;
   const candidates: SnapResult[] = [];
-  const consider = (point: Vec2, kind: SnapKind, guides: SnapResult['guides'] = [], label = LABELS[kind]) => {
-    if (distance(point, cursor) <= tolerance) candidates.push({ point, kind, label, guides });
+  const consider = (point: Vec2, kind: SnapKind, guides: SnapResult['guides'] = [], label = LABELS[kind], anchor?: SnapAnchor) => {
+    if (distance(point, cursor) <= tolerance) candidates.push({ point, kind, label, guides, ...(anchor ? { anchor } : {}) });
   };
+  const anchorOf = (s: SnapSeg, vertex: number | undefined): SnapAnchor | undefined => (s.side && vertex !== undefined ? { entityId: s.id, vertex, side: s.side } : undefined);
   const nearby = index.near(around(cursor, tolerance), exclude);
   for (const s of nearby) {
     const { seg } = s;
     if (settings.endpoint) {
-      consider(seg.a, 'endpoint');
-      consider(seg.b, 'endpoint');
+      consider(seg.a, 'endpoint', [], undefined, anchorOf(s, s.va));
+      consider(seg.b, 'endpoint', [], undefined, anchorOf(s, s.vb));
     }
     if (settings.midpoint) consider(segmentPoint(seg, 0.5), 'midpoint');
     if (from && settings.perpendicular) {

@@ -50,6 +50,7 @@ function harness() {
     walls: () => walls,
     geometry: () => null,
     snap: () => null,
+    requestText: () => {},
     setEntities: (e) => {
       entities = e;
       syncLevelScene(scene, e);

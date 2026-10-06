@@ -3,6 +3,7 @@ import { newId } from '../ids';
 import { DEFAULT_LEVEL_HEIGHT, DEFAULT_SLAB_THICKNESS, LAYER_NAMES, defaultLayers } from './defaults';
 import { deriveLevels, elevationChange } from './derive';
 import type { Op } from './ops';
+import { pruneAnchors, resolveDimension, untiedFields } from '../geometry/dimensions';
 import { remapRefs } from './refs';
 import { CONNECTOR_PREFIX, ENTITY_LAYER, ENTITY_PREFIX, LAYER_KINDS, type Connector, type Entity, type Layer, type LayerKind, type Level, type ProjectDoc } from './schema';
 
@@ -277,15 +278,28 @@ export function updateEntityOps(doc: ProjectDoc, id: string, set: Record<string,
   return [{ t: 'upd', c: 'entity', id, lv: entity.levelId, set, ...(unset.length ? { unset } : {}) }];
 }
 
-/** Deletes entities; openings in a deleted wall go with it. */
+/** Deletes entities; openings in a deleted wall go with it, and dimensions tied to a deleted wall or shape are untied (they keep their points). */
 export function deleteEntitiesOps(doc: ProjectDoc, ids: readonly string[]): Op[] {
   const doomed = new Set<string>();
+  const levels = new Set<string>();
   for (const id of ids) {
     const entity = requireEntity(doc, id);
     doomed.add(entity.id);
+    levels.add(entity.levelId);
     if (entity.type === 'wall') for (const e of Object.values(doc.levelData[entity.levelId].entities)) if (e.type === 'opening' && e.wallId === entity.id) doomed.add(e.id);
   }
-  return [...doomed].map((id) => ({ t: 'del', c: 'entity', id, lv: findEntity(doc, id)!.levelId }) as Op);
+  const ops: Op[] = [];
+  for (const lv of levels) {
+    for (const e of Object.values(doc.levelData[lv].entities)) {
+      if (e.type !== 'dimension' || doomed.has(e.id)) continue;
+      const anchors = pruneAnchors(e, (target) => !doomed.has(target));
+      if (anchors === undefined) continue;
+      const { set, unset } = untiedFields(e, resolveDimension(e, doc.levelData[lv].entities), anchors);
+      ops.push(...updateEntityOps(doc, e.id, set, unset));
+    }
+  }
+  for (const id of doomed) ops.push({ t: 'del', c: 'entity', id, lv: findEntity(doc, id)!.levelId });
+  return ops;
 }
 
 // ---------- connectors ----------

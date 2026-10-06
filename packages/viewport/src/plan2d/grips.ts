@@ -1,4 +1,4 @@
-import { add, cornerFrame, cornerGripPoint, distance, openingFrame, pathOfEntity, rawSegments, scale, segmentPoint, type Entity, type Vec2, type WhichPath } from '@studio/core';
+import { add, cornerFrame, cornerGripPoint, dimensionGeometry, distance, openingFrame, pathOfEntity, rawSegments, resolveDimension, scale, segmentPoint, type Entity, type Vec2, type WhichPath } from '@studio/core';
 
 /** A handle on a selected entity: a vertex of its path, the middle of a segment, a corner's size, a door's hinge or swing side. */
 export interface Grip {
@@ -15,7 +15,7 @@ export interface VertexRef {
   index: number;
 }
 
-/** The grips of an entity: every vertex and segment middle of its outline (and of a region's holes), a grip on each rounded or chamfered corner; a door's hinge and swing side. */
+/** The grips of an entity: every vertex and segment middle of its outline (and of a region's holes), a grip on each rounded or chamfered corner; a door's hinge and swing side; a dimension's points (0: from, 1: to, 2: an angle's corner) and its line. */
 export function gripsOf(entity: Entity, entities?: Record<string, Entity>): Grip[] {
   const grips: Grip[] = [];
   if (entity.type === 'opening') {
@@ -26,6 +26,13 @@ export function gripsOf(entity: Entity, entities?: Record<string, Entity>): Grip
     const side = entity.swing?.side === 'right' ? -1 : 1;
     grips.push({ kind: 'hinge', which: 'outer', index: 0, at: hinge });
     grips.push({ kind: 'side', which: 'outer', index: 1, at: add(hinge, scale(f.normal, side * entity.width * 0.6)) });
+    return grips;
+  }
+  if (entity.type === 'dimension') {
+    const points = resolveDimension(entity, entities ?? {});
+    grips.push({ kind: 'vertex', which: 'outer', index: 0, at: points.from }, { kind: 'vertex', which: 'outer', index: 1, at: points.to });
+    if (entity.kind === 'angular' && points.vertex) grips.push({ kind: 'vertex', which: 'outer', index: 2, at: points.vertex });
+    if (entity.kind !== 'radius') grips.push({ kind: 'mid', which: 'outer', index: 0, at: dimensionGeometry(entity, points, null).textAt });
     return grips;
   }
   const paths: WhichPath[] = ['outer'];

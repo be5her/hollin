@@ -1,5 +1,5 @@
 import RBush from 'rbush';
-import { emptyBox, extendBox, pathBox, pointAt, type Box, type Entity, type EntityType, type Vec2 } from '@studio/core';
+import { emptyBox, extendBox, pathBox, pointAt, resolveDimension, type Box, type Entity, type EntityType, type Vec2 } from '@studio/core';
 
 /** One entity in the spatial index, with its world box and a cache slot for its drawn outline. */
 export interface SceneItem {
@@ -68,8 +68,10 @@ export function entityBox(entity: Entity, entities: Record<string, Entity>): Box
       return around(entity.at, entity.size ? Math.hypot(entity.size[0], entity.size[1]) / 2 : GLYPH);
     case 'point':
       return around(entity.at, GLYPH / 2);
-    case 'dimension':
-      return grow(boxOf([entity.from, entity.to]), Math.abs(entity.offset) + GLYPH * 2);
+    case 'dimension': {
+      const points = resolveDimension(entity, entities);
+      return grow(boxOf([points.from, points.to, ...(points.vertex ? [points.vertex] : [])]), Math.abs(entity.offset) + GLYPH * 2);
+    }
     case 'label':
       return grow(boxOf([entity.at]), Math.max(entity.size, entity.text.length * entity.size * 0.6));
     case 'item':
@@ -102,13 +104,12 @@ export function syncLevelScene(scene: LevelScene, entities: Record<string, Entit
     scene.index.insert(item);
     changed = true;
   }
-  // An opening follows its wall: rebuild it when the wall changed, even though its own object did not.
+  // An opening follows its wall, a tied dimension its wall or shape: rebuild them when that changed, even though their own object did not.
   for (const [id, item] of scene.items) {
-    if (item.type !== 'opening') continue;
-    const wallId = (item.entity as { wallId: string }).wallId;
-    const wall = scene.items.get(wallId);
+    const follows = item.type === 'opening' || (item.type === 'dimension' && Boolean((item.entity as { anchors?: unknown }).anchors));
+    if (!follows) continue;
     const box = entityBox(item.entity, entities);
-    if (wall && item.minX === box.minX && item.minY === box.minY && item.maxX === box.maxX && item.maxY === box.maxY) continue;
+    if (item.minX === box.minX && item.minY === box.minY && item.maxX === box.maxX && item.maxY === box.maxY) continue;
     scene.index.remove(item);
     const fresh: SceneItem = { ...box, id, type: item.type, layerId: item.layerId, entity: item.entity, path2d: null };
     scene.items.set(id, fresh);

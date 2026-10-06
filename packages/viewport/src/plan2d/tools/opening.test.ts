@@ -42,6 +42,7 @@ function harness() {
     walls: () => walls,
     geometry: () => null,
     snap: () => null,
+    requestText: () => {},
   };
   return host;
 }

@@ -342,6 +342,38 @@ describe('layers and spans', () => {
   });
 });
 
+describe('dimension anchors', () => {
+  it('tie a dimension to a wall or shape on its own level, and let go when the target is deleted', () => {
+    let { doc } = building(1, 0);
+    const [ground, l1] = doc.building.stack;
+    const w = addEntityOps(doc, { levelId: ground, entity: { type: 'wall', path: { closed: false, v: [{ p: [0, 0] }, { p: [4000, 0] }] }, thickness: 200 } });
+    doc = commit(doc, w.ops);
+    const door = addEntityOps(doc, { levelId: ground, entity: { type: 'opening', kind: 'door', wallId: w.id, along: 1000, width: 900, height: 2100 } });
+    doc = commit(doc, door.ops);
+    const upstairs = addEntityOps(doc, { levelId: l1, entity: { type: 'wall', path: { closed: false, v: [{ p: [0, 0] }, { p: [4000, 0] }] }, thickness: 200 } });
+    doc = commit(doc, upstairs.ops);
+    const tied = addEntityOps(doc, { levelId: ground, entity: { type: 'dimension', from: [0, 0], to: [4000, 0], anchors: { from: { entityId: w.id, vertex: 0 }, to: { entityId: w.id, vertex: 1, side: 'left' } } } });
+    // The wall moves: the dimension's stored points stay (they are resolved when drawn), until it is untied.
+    doc = commit(doc, updateEntityOps(doc, w.id, { path: { closed: false, v: [{ p: [0, 500] }, { p: [4000, 500] }] } }));
+    doc = commit(doc, tied.ops);
+    const dim = () => doc.levelData[ground].entities[tied.id] as Extract<ProjectDoc['levelData'][string]['entities'][string], { type: 'dimension' }>;
+    expect(dim().kind).toBe('aligned');
+    expect(dim().anchors?.to?.side).toBe('left');
+    expect(() => commit(doc, addEntityOps(doc, { levelId: ground, entity: { type: 'dimension', from: [0, 0], to: [1, 1], anchors: { from: { entityId: door.id, vertex: 0 } } } }).ops)).toThrow(/not a wall or shape on its own level/);
+    expect(() => commit(doc, addEntityOps(doc, { levelId: ground, entity: { type: 'dimension', from: [0, 0], to: [1, 1], anchors: { from: { entityId: upstairs.id, vertex: 0 } } } }).ops)).toThrow(/own level/);
+    expect(() => commit(doc, addEntityOps(doc, { levelId: ground, entity: { type: 'dimension', from: [0, 0], to: [1, 1], anchors: { from: { entityId: 'wal_0000000000000000', vertex: 0 } } } }).ops)).toThrow(/does not exist/);
+    // Deleting the wall unties the dimension in the same change; its points stay.
+    const ops = deleteEntitiesOps(doc, [w.id]);
+    expect(ops.filter((o) => o.t === 'upd').map((o) => o.id)).toEqual([tied.id]);
+    doc = commit(doc, ops);
+    expect(doc.levelData[ground].entities[w.id]).toBeUndefined();
+    expect(dim().anchors).toBeUndefined();
+    // Untied where it was shown: on the moved wall's line and left face.
+    expect(dim().from).toEqual([0, 500]);
+    expect(dim().to).toEqual([4000, 600]);
+  });
+});
+
 describe('references', () => {
   it('declares every field that holds an id', () => {
     let { doc } = building(2, 1);
@@ -351,6 +383,7 @@ describe('references', () => {
     const extras: Op[] = [
       ...addEntityOps(doc, { levelId: ground, entity: { type: 'opening', kind: 'door', wallId: w.id, along: 500, width: 900, height: 2100 } }).ops,
       ...addEntityOps(doc, { levelId: ground, entity: { type: 'shaft', region: { outer: rectPath(0, 0, 2000, 2000) }, span: { topLevelId: l1 } } }).ops,
+      ...addEntityOps(doc, { levelId: ground, entity: { type: 'dimension', from: [0, 0], to: [4000, 0], offset: -500, anchors: { from: { entityId: w.id, vertex: 0, side: 'right' }, to: { entityId: w.id, vertex: 1 } } } }).ops,
       ...addLevelOps(doc, { offsetFrom: { levelId: ground, offset: 1500 } }).ops,
       ...addConnectorOps({ kind: 'elevator', at: [0, 0], shaft: { w: 2000, d: 2000 }, car: { w: 1100, d: 1400 }, stops: [{ levelId: ground }, { levelId: l1 }] }).ops,
       ...addConnectorOps({ kind: 'ramp', bottom: { levelId: ground }, top: { levelId: l1 }, axis: { closed: false, v: [{ p: [0, 0] }, { p: [36000, 0] }] }, width: 1500 }).ops,

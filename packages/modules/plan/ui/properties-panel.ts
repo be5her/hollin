@@ -1,6 +1,6 @@
 import { Component, computed, inject, input, linkedSignal, untracked } from '@angular/core';
 import { FormField, form } from '@angular/forms/signals';
-import { arcGeometry, bulgeOf, distance, findEntity, formatArea, pathLength, pathOfEntity, signedArea, type Entity, type Path, type Vec2 } from '@studio/core';
+import { arcGeometry, bulgeOf, dimensionGeometry, distance, findEntity, formatArea, pathLength, pathOfEntity, resolveDimension, signedArea, type Entity, type Path, type Vec2 } from '@studio/core';
 import { AngleInput, Checkbox, EmptyState, HostBridge, Input, LengthInput, ProjectDocs, Select, Toasts, Units } from '@studio/ui';
 import { PlanGeometry } from './plan-geometry';
 import { PlanSelection } from './plan-selection';
@@ -30,6 +30,7 @@ interface Draft {
   r: string;
   offset: string;
   filled: boolean;
+  dimKind: string;
 }
 
 interface VertexDraft {
@@ -101,6 +102,16 @@ export class PropertiesPanel {
     const e = this.subject();
     return e?.type === 'wall' ? this.units.length(pathLength(e.path)) : '';
   });
+  /** What a dimension reads now, and how many of its ends are tied to a wall or shape. */
+  protected readonly dimensionInfo = computed(() => {
+    const e = this.subject();
+    const doc = this.state()?.doc;
+    if (!e || e.type !== 'dimension' || !doc) return null;
+    const entities = doc.levelData[e.levelId]?.entities ?? {};
+    const g = dimensionGeometry(e, resolveDimension(e, entities, this.geometry.cache.bodyOf), this.units.settings());
+    const ties = (e.anchors?.from ? 1 : 0) + (e.anchors?.to ? 1 : 0);
+    return { text: g.text, ties: ties === 2 ? 'Both ends follow a wall or shape corner.' : ties === 1 ? 'One end follows a wall or shape corner.' : 'Free points: drag an end onto a wall or shape corner to tie it.' };
+  });
   /** A closed shape's area and perimeter; an open shape's or a divider's length. */
   protected readonly outlineInfo = computed(() => {
     const e = this.subject();
@@ -113,7 +124,7 @@ export class PropertiesPanel {
     source: this.subject,
     computation: (e) => {
       const len = (mm: number | null | undefined) => (mm === null || mm === undefined ? '' : this.units.length(mm));
-      const base: Draft = { name: e?.name ?? '', thickness: '', height: '', alignment: 'center', kind: 'door', width: '', sill: '', along: '', hinge: 'start', side: 'left', number: '', text: '', size: '', rotation: '', w: '', d: '', r: '', offset: '', filled: true };
+      const base: Draft = { name: e?.name ?? '', thickness: '', height: '', alignment: 'center', kind: 'door', width: '', sill: '', along: '', hinge: 'start', side: 'left', number: '', text: '', size: '', rotation: '', w: '', d: '', r: '', offset: '', filled: true, dimKind: 'aligned' };
       if (!e) return base;
       switch (e.type) {
         case 'wall':
@@ -129,7 +140,7 @@ export class PropertiesPanel {
         case 'slab':
           return { ...base, thickness: len(e.thickness) };
         case 'dimension':
-          return { ...base, offset: len(e.offset) };
+          return { ...base, offset: len(e.offset), dimKind: e.kind };
         case 'shape':
           return { ...base, filled: e.filled };
         case 'fixture':

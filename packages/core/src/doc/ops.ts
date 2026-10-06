@@ -271,6 +271,14 @@ function checkIntegrity(doc: ProjectDoc, touched: Map<string, { c: Coll; id: str
         const wall = entityById(doc, e.wallId);
         if (wall?.type !== 'wall' || wall.levelId !== e.levelId) fail(`Opening ${e.id} must sit in a wall on its own level`);
       }
+      if (e.type === 'dimension' && e.anchors) {
+        for (const [end, anchor] of Object.entries(e.anchors)) {
+          if (!anchor) continue;
+          const target = entityById(doc, anchor.entityId);
+          if (!target || (target.type !== 'wall' && target.type !== 'shape') || target.levelId !== e.levelId) fail(`Dimension ${e.id} is tied (${end}) to something that is not a wall or shape on its own level`);
+          if (anchor.side !== 'axis' && target?.type !== 'wall') fail(`Dimension ${e.id} is tied (${end}) to a face, which only walls have`);
+        }
+      }
     }
     if (t.c === 'connector') {
       const c = doc.connectors[t.id];

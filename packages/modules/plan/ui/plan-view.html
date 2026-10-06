@@ -28,6 +28,13 @@
     <button xIconButton size="sm" label="Circle (O)" [class.bg-elevated]="tool() === 'circle'" [class.text-fg]="tool() === 'circle'" [attr.aria-pressed]="tool() === 'circle'" (click)="chooseTool('circle')" data-testid="tool-circle">
       <svg [xIcon]="icons.Circle" class="size-3.5"></svg>
     </button>
+    <div class="w-px h-5 bg-edge mx-0.5"></div>
+    <button xIconButton size="sm" label="Dimension (L)" [class.bg-elevated]="tool() === 'dimension'" [class.text-fg]="tool() === 'dimension'" [attr.aria-pressed]="tool() === 'dimension'" (click)="chooseTool('dimension')" data-testid="tool-dimension">
+      <svg [xIcon]="icons.Ruler" class="size-3.5"></svg>
+    </button>
+    <button xIconButton size="sm" label="Label (T)" [class.bg-elevated]="tool() === 'label'" [class.text-fg]="tool() === 'label'" [attr.aria-pressed]="tool() === 'label'" (click)="chooseTool('label')" data-testid="tool-label">
+      <svg [xIcon]="icons.Type" class="size-3.5"></svg>
+    </button>
   </div>
   <div class="w-px h-5 bg-edge"></div>
   <label class="text-muted" for="plan-level-select">Level</label>
@@ -155,6 +162,32 @@
     }
   </div>
 }
+@if (tool() === 'dimension') {
+  <div class="flex items-center gap-3 px-3 h-9 border-b border-edge bg-surface shrink-0 text-xs" data-testid="tool-options">
+    <span class="font-medium">Dimension</span>
+    <label class="flex items-center gap-1.5 text-muted">
+      Kind
+      <select xSelect class="h-7 text-xs" [value]="dimensionKind()" (change)="setDimensionKind($any($event.target).value)" aria-label="Dimension kind" data-testid="dimension-kind">
+        <option value="aligned">aligned</option>
+        <option value="horizontal">horizontal</option>
+        <option value="vertical">vertical</option>
+        <option value="angular">angle</option>
+        <option value="radius">radius</option>
+      </select>
+    </label>
+    <span class="text-muted">A point on a wall or shape corner ties the dimension to it</span>
+  </div>
+}
+@if (tool() === 'label') {
+  <div class="flex items-center gap-3 px-3 h-9 border-b border-edge bg-surface shrink-0 text-xs" data-testid="tool-options">
+    <span class="font-medium">Label</span>
+    <label class="flex items-center gap-1.5 text-muted">
+      Text height
+      <input xInput xLength class="h-7 w-24 font-mono" [formField]="labelForm.size" (commit)="setLabelSize($event)" aria-label="Label text height" data-testid="label-size" />
+    </label>
+    <span class="text-muted">Click where the label goes, type its text, Enter</span>
+  </div>
+}
 <div #container class="relative flex-1 min-h-0 bg-canvas">
   <canvas
     #canvas
@@ -175,12 +208,14 @@
     <input
       #dynamicInput
       xInput
-      class="absolute z-10 h-7 !w-44 font-mono text-xs shadow-md"
+      class="absolute z-10 h-7 !w-52 text-xs shadow-md"
+      [class.font-mono]="d.mode === 'coord'"
       [style.left.px]="d.x"
       [style.top.px]="d.y"
       [value]="d.value"
-      placeholder="3000 · 3000<45 · @dx,dy · x,y"
-      aria-label="Typed length or coordinate"
+      [placeholder]="d.placeholder"
+      [attr.data-mode]="d.mode"
+      [attr.aria-label]="d.mode === 'text' ? d.placeholder : 'Typed length or coordinate'"
       data-testid="dynamic-input"
       (keydown.enter)="commitTyped(); $event.preventDefault()"
       (keydown.escape)="closeTyped(); $event.preventDefault()"

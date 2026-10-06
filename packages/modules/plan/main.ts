@@ -1,4 +1,5 @@
 import {
+  AnchorSchema,
   ENTITY_PREFIX,
   EntitySchema,
   LAYER_KINDS,
@@ -15,6 +16,7 @@ import {
   defineModule,
   deleteEntitiesOps,
   deriveLevelGeometry,
+  dimensionGeometry,
   distance,
   editProject,
   entitiesOnLevel,
@@ -27,7 +29,11 @@ import {
   newId,
   openingFrame,
   pathOfEntity,
+  pruneAnchors,
+  remapAnchors,
   remapRefs,
+  resolveDimension,
+  untiedFields,
   removeLayerOps,
   removeVertex,
   requireEntity,
@@ -38,6 +44,7 @@ import {
   updateEntityOps,
   withPath,
   type CommandContext,
+  type Dimension,
   type EditContext,
   type Entity,
   type Op,
@@ -65,8 +72,11 @@ const Stale = {
 const WhichSchema = z.union([z.literal('outer'), z.object({ hole: z.number().int().min(0) })]).default('outer').describe("Which path: a wall's own path or a region's outline ('outer'), or a region's hole");
 const PathEdit = { id: z.string(), which: WhichSchema, index: z.number().int().min(0), ...Stale };
 
-/** Runs one path edit on an entity as a transaction, with the conflict check inside the edit queue. */
-async function editPath(ctx: CommandContext, input: { id: string; which: WhichPath; baseSeq?: number; epoch?: number }, label: string, change: (path: Path) => Path): Promise<Entity> {
+/**
+ * Runs one path edit on an entity as a transaction, with the conflict check inside the edit queue.
+ * `remap` says where each vertex of the outline went (null: removed), so dimensions tied to it follow.
+ */
+async function editPath(ctx: CommandContext, input: { id: string; which: WhichPath; baseSeq?: number; epoch?: number }, label: string, change: (path: Path) => Path, remap?: (vertex: number) => number | null): Promise<Entity> {
   const type = requireEntity(ctx.project!.doc, input.id).type;
   await editProject(ctx, `${label} of ${type}`, (tx) => {
     assertUnchanged(ctx, input.id, type, input.baseSeq, input.epoch);
@@ -80,7 +90,15 @@ async function editPath(ctx: CommandContext, input: { id: string; which: WhichPa
       throw new StudioError('INVALID_INPUT', (err as Error).message);
     }
     const set = changedFields(entity, withPath(entity, input.which, next));
+    // Dimensions tied to the edited vertices, with the points they show now (before the edit lands).
+    const level = tx.doc.levelData[entity.levelId].entities;
+    const tied = remap && input.which === 'outer' ? Object.values(level).filter((d): d is Dimension => d.type === 'dimension' && Boolean(d.anchors)).map((d) => ({ d, points: resolveDimension(d, level), anchors: remapAnchors(d, input.id, remap) })) : [];
     if (Object.keys(set).length) tx.apply(updateEntityOps(tx.doc, input.id, set));
+    for (const { d, points, anchors } of tied) {
+      if (anchors === undefined) continue;
+      const fields = untiedFields(d, points, anchors);
+      tx.apply(updateEntityOps(tx.doc, d.id, fields.set, fields.unset));
+    }
   });
   return requireEntity(ctx.project!.doc, input.id);
 }
@@ -435,6 +453,54 @@ export const planModule = defineModule({
       },
     }),
     defineCommand({
+      id: 'plan.dimension.add',
+      title: 'Add a dimension',
+      description:
+        "Adds a dimension to a level. `kind`: aligned (the distance between `from` and `to`, the line `offset` mm to their left), horizontal or vertical (the distance along one axis, the line `offset` mm away along the other), angular (the angle at `vertex` between the rays through `from` and `to`, drawn as an arc of radius `offset`) or radius (from the centre `from` to the point `to` on the arc). An end may be tied to a vertex of a wall (its reference line or a face) or of a shape on the same level with `anchors`; it then follows that wall or shape until it is deleted. Returns its id.",
+      scope: 'project',
+      batchable: true,
+      input: z.object({
+        levelId,
+        layerId: layerId.optional(),
+        kind: z.enum(['aligned', 'horizontal', 'vertical', 'angular', 'radius']).default('aligned'),
+        from: Point,
+        to: Point,
+        offset: z.number().default(500),
+        vertex: Point.optional().describe('Angular: the corner'),
+        anchors: z.object({ from: AnchorSchema.optional(), to: AnchorSchema.optional() }).optional(),
+      }),
+      handler: async (input, ctx) => {
+        if (input.kind === 'angular' && !input.vertex) throw new StudioError('INVALID_INPUT', 'An angular dimension needs `vertex`');
+        if (input.kind !== 'angular' && distance(input.from, input.to) < 1) throw new StudioError('INVALID_INPUT', 'The two points are at the same place');
+        const { result } = await editProject(ctx, 'Add dimension', (tx) => {
+          const entity = { type: 'dimension' as const, kind: input.kind, from: input.from, to: input.to, offset: input.offset, ...(input.vertex ? { vertex: input.vertex } : {}), ...(input.anchors && (input.anchors.from || input.anchors.to) ? { anchors: input.anchors } : {}) };
+          const { ops, id } = addEntityOps(tx.doc, { levelId: input.levelId, layerId: input.layerId, entity });
+          tx.apply(ops);
+          return id;
+        });
+        return { id: result };
+      },
+    }),
+    defineCommand({
+      id: 'plan.dimensions',
+      title: 'List dimensions with their values',
+      description: "The dimensions of a level as they read right now: kind, the points as resolved (an end tied to a wall or shape follows it), what each one measures (`value` in mm, or degrees for an angle) and the text it shows in the display units, with its anchors.",
+      scope: 'project',
+      input: z.object({ levelId }),
+      handler: async ({ levelId: lv }, ctx) => {
+        const entities = ctx.project!.doc.levelData[lv]?.entities;
+        if (!entities) throw new StudioError('NOT_FOUND', `No level ${lv}`);
+        const units = ctx.host.config.get().units;
+        return Object.values(entities)
+          .filter((e): e is Dimension => e.type === 'dimension')
+          .map((e) => {
+            const points = resolveDimension(e, entities);
+            const g = dimensionGeometry(e, points, units);
+            return { id: e.id, kind: e.kind, from: points.from, to: points.to, ...(points.vertex ? { vertex: points.vertex } : {}), offset: e.offset, anchors: e.anchors ?? null, value: Math.round(g.value * 1000) / 1000, unit: e.kind === 'angular' ? 'deg' : 'mm', text: g.text };
+          });
+      },
+    }),
+    defineCommand({
       id: 'plan.transform',
       title: 'Move, rotate, mirror or copy entities',
       description:
@@ -469,11 +535,20 @@ export const planModule = defineModule({
               }
               const map = new Map<string, string>();
               for (const e of set.values()) if (e.type !== 'opening' || set.has(e.wallId)) map.set(e.id, newId(ENTITY_PREFIX[e.type]));
+              const copied = new Set(map.values());
               const ops: Op[] = [];
               for (const e of set.values()) {
                 const id = map.get(e.id);
                 if (!id) continue;
-                const moved = transformEntity({ ...remapRefs('entity', e, map), id }, xf);
+                let source = remapRefs('entity', e, map);
+                if (source.type === 'dimension') {
+                  // The copy starts from the points the original shows; ties to what is not copied are dropped.
+                  const points = resolveDimension(e as Dimension, tx.doc.levelData[e.levelId].entities);
+                  const anchors = pruneAnchors(source, (target) => copied.has(target));
+                  const { anchors: _old, ...rest } = { ...source, from: points.from, to: points.to };
+                  source = anchors === undefined ? { ...rest, ...(source.anchors ? { anchors: source.anchors } : {}) } : anchors ? { ...rest, anchors } : rest;
+                }
+                const moved = transformEntity({ ...source, id }, xf);
                 ops.push({ t: 'ins', c: 'entity', id, lv: e.levelId, v: moved });
               }
               tx.apply(ops);
@@ -490,8 +565,17 @@ export const planModule = defineModule({
                 }
                 continue;
               }
-              const set = changedFields(e, transformEntity(e, xf));
-              if (Object.keys(set).length) tx.apply(updateEntityOps(tx.doc, e.id, set));
+              let set: Record<string, unknown>;
+              const unset: string[] = [];
+              if (e.type === 'dimension') {
+                // A dimension moves from the points it shows; moved without what it is tied to, it lets go.
+                const points = resolveDimension(e, tx.doc.levelData[e.levelId].entities);
+                set = changedFields(e, transformEntity({ ...e, from: points.from, to: points.to }, xf));
+                const anchors = pruneAnchors(e, (target) => ids.includes(target));
+                if (anchors) set['anchors'] = anchors;
+                else if (anchors === null) unset.push('anchors');
+              } else set = changedFields(e, transformEntity(e, xf));
+              if (Object.keys(set).length || unset.length) tx.apply(updateEntityOps(tx.doc, e.id, set, unset));
             }
             return ids;
           },
@@ -550,7 +634,7 @@ export const planModule = defineModule({
       scope: 'project',
       batchable: true,
       input: z.object({ ...PathEdit, at: Point }),
-      handler: (input, ctx) => editPath(ctx, input, 'Add corner', (path) => insertVertex(path, input.index, input.at)),
+      handler: (input, ctx) => editPath(ctx, input, 'Add corner', (path) => insertVertex(path, input.index, input.at), (v) => (v > input.index ? v + 1 : v)),
     }),
     defineCommand({
       id: 'plan.path.vertex.remove',
@@ -559,7 +643,7 @@ export const planModule = defineModule({
       scope: 'project',
       batchable: true,
       input: z.object(PathEdit),
-      handler: (input, ctx) => editPath(ctx, input, 'Remove corner', (path) => removeVertex(path, input.index)),
+      handler: (input, ctx) => editPath(ctx, input, 'Remove corner', (path) => removeVertex(path, input.index), (v) => (v === input.index ? null : v > input.index ? v - 1 : v)),
     }),
     defineCommand({
       id: 'plan.path.segment.set',

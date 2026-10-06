@@ -177,7 +177,22 @@ export const PointSchema = z.object({
   height: NonNegativeMm.default(300).describe('Above the floor'),
   rotation: Degrees.default(0),
 });
-export const DimensionSchema = z.object({ ...base, type: z.literal('dimension'), from: Vec2Schema, to: Vec2Schema, offset: Mm.default(500) });
+/** A dimension's end tied to a vertex of a wall (its reference line or a face) or of a shape on the same level, so it follows. */
+export const AnchorSchema = z.object({
+  entityId: IdSchema.describe('A wall or shape on the same level'),
+  vertex: z.number().int().min(0).describe('The index of the vertex on its path'),
+  side: z.enum(['axis', 'left', 'right']).default('axis').describe("A wall's reference line, or its left or right face (looking along the line); shapes only have their line"),
+});
+export const DimensionSchema = z.object({
+  ...base,
+  type: z.literal('dimension'),
+  kind: z.enum(['aligned', 'horizontal', 'vertical', 'angular', 'radius']).default('aligned').describe('Aligned with the two points; horizontal or vertical between them; the angle at `vertex` between the rays through them; the radius from `from` (the centre) to `to`'),
+  from: Vec2Schema,
+  to: Vec2Schema,
+  offset: Mm.default(500).describe('How far the dimension line sits from the points (aligned: to their left; horizontal/vertical: along the other axis; angular: the arc radius)'),
+  vertex: Vec2Schema.optional().describe('Angular: the corner the two rays start from'),
+  anchors: z.object({ from: AnchorSchema.optional(), to: AnchorSchema.optional() }).optional().describe('Ends tied to wall or shape vertices follow them when the wall or shape changes'),
+});
 export const LabelSchema = z.object({ ...base, type: z.literal('label'), text: z.string().min(1).max(500), at: Vec2Schema, size: PositiveMm.default(250).describe('Text height in mm'), rotation: Degrees.default(0) });
 export const ItemSchema = z.object({
   ...base,

@@ -177,6 +177,62 @@ describe('path edits and conflicts', () => {
     expect((doc().levelData[ground].entities[circle.id] as { path: { v: unknown[] } }).path.v.length).toBe(2);
   });
 
+  it('ties dimensions to walls, follows their vertices, and lets go when the wall is deleted or the dimension moved alone', async () => {
+    const ground = doc().building.groundLevelId;
+    const wall = await run<{ id: string }>('plan.wall.add', { levelId: ground, points: [{ p: [0, 0] }, { p: [5000, 0] }, { p: [5000, 4000] }], single: true });
+    const dim = await run<{ id: string }>('plan.dimension.add', { levelId: ground, from: [0, 0], to: [5000, 0], offset: -600, anchors: { from: { entityId: wall.id, vertex: 0 }, to: { entityId: wall.id, vertex: 1 } } });
+    type Listed = { id: string; from: number[]; to: number[]; value: number; text: string; anchors: unknown };
+    const listed = async () => (await run<Listed[]>('plan.dimensions', { levelId: ground })).find((d) => d.id === dim.id)!;
+    let d = await listed();
+    expect(d.to).toEqual([5000, 0]);
+    expect(d.value).toBe(5000);
+    expect(d.text).toBe('5000 mm');
+    // The wall's corner moves: the dimension's end follows.
+    await run('plan.path.vertex.move', { id: wall.id, index: 1, to: [6000, 0] });
+    d = await listed();
+    expect(d.to).toEqual([6000, 0]);
+    expect(d.value).toBe(6000);
+    // A vertex inserted before the tied one shifts its index; removing the tied one unties that end.
+    await run('plan.path.vertex.insert', { id: wall.id, index: 0, at: [3000, 0] });
+    d = await listed();
+    expect((d.anchors as { to: { vertex: number } }).to.vertex).toBe(2);
+    expect(d.to).toEqual([6000, 0]);
+    await run('plan.path.vertex.remove', { id: wall.id, index: 2 });
+    d = await listed();
+    expect((d.anchors as { to?: unknown }).to).toBeUndefined();
+    // Untied where it was shown, even though the wall corner is gone.
+    expect(d.to).toEqual([6000, 0]);
+    expect((doc().levelData[ground].entities[dim.id] as unknown as { to: number[] }).to).toEqual([6000, 0]);
+    // Moved with its wall it stays tied; moved alone it lets go.
+    await run('plan.transform', { ids: [wall.id, dim.id], translate: [0, 1000] });
+    d = await listed();
+    expect((d.anchors as { from: unknown }).from).toBeTruthy();
+    expect(d.from).toEqual([0, 1000]);
+    await run('plan.transform', { ids: [dim.id], translate: [0, -1000] });
+    d = await listed();
+    expect(d.anchors).toBeNull();
+    expect(d.from).toEqual([0, 0]);
+    // A copy of a tied dimension with its wall keeps the tie to the copy; alone it is untied.
+    const retied = await run<{ id: string }>('plan.dimension.add', { levelId: ground, from: [0, 1000], to: [3000, 1000], anchors: { from: { entityId: wall.id, vertex: 0 } } });
+    const both = await run<{ ids: string[] }>('plan.transform', { ids: [wall.id, retied.id], translate: [20000, 0], copy: true });
+    const copiedDim = doc().levelData[ground].entities[both.ids[1]] as { anchors?: { from?: { entityId: string } } };
+    expect(copiedDim.anchors?.from?.entityId).toBe(both.ids[0]);
+    const alone = await run<{ ids: string[] }>('plan.transform', { ids: [retied.id], translate: [0, 20000], copy: true });
+    expect((doc().levelData[ground].entities[alone.ids[0]] as { anchors?: unknown }).anchors).toBeUndefined();
+    // Deleting the wall unties what was tied to it, in the same change.
+    await run('plan.entity.delete', { ids: [wall.id] });
+    expect((doc().levelData[ground].entities[retied.id] as { anchors?: unknown }).anchors).toBeUndefined();
+    expect(doc().levelData[ground].entities[retied.id]).toBeTruthy();
+    await run('edit.undo', {});
+    expect((doc().levelData[ground].entities[retied.id] as { anchors?: { from?: unknown } }).anchors?.from).toBeTruthy();
+    await expect(run('plan.dimension.add', { levelId: ground, kind: 'angular', from: [1, 0], to: [0, 1] })).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+    await expect(run('plan.dimension.add', { levelId: ground, from: [0, 0], to: [0, 0] })).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+    const angle = await run<{ id: string }>('plan.dimension.add', { levelId: ground, kind: 'angular', vertex: [0, 0], from: [1000, 0], to: [0, 1000], offset: 400 });
+    const listedAngle = (await run<Listed[]>('plan.dimensions', { levelId: ground })).find((x) => x.id === angle.id)!;
+    expect(listedAngle.value).toBeCloseTo(90, 6);
+    expect(listedAngle.text).toBe('90°');
+  });
+
   it('names the agent whose change made a field edit stale', async () => {
     const ground = doc().building.groundLevelId;
     const { id } = await run<{ id: string }>('plan.wall.add', { levelId: ground, from: [0, 0], to: [3000, 0] });

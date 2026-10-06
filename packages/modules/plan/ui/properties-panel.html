@@ -185,7 +185,23 @@
           <label><span class="block text-xs font-medium text-muted mb-1">Thickness</span><input xInput xLength [allowEmpty]="true" class="font-mono" placeholder="level" [formField]="f.thickness" (commit)="setLength('thickness', $event)" /></label>
         }
         @case ('dimension') {
-          <label><span class="block text-xs font-medium text-muted mb-1">Offset</span><input xInput xLength class="font-mono" [formField]="f.offset" (commit)="setNullable('offset', $event)" /></label>
+          <div class="grid grid-cols-2 gap-2">
+            <label>
+              <span class="block text-xs font-medium text-muted mb-1">Kind</span>
+              <select xSelect class="w-full" [formField]="f.dimKind" (change)="set({ kind: $any($event.target).value })" data-testid="prop-dim-kind">
+                <option value="aligned">Aligned</option>
+                <option value="horizontal">Horizontal</option>
+                <option value="vertical">Vertical</option>
+                <option value="angular">Angle</option>
+                <option value="radius">Radius</option>
+              </select>
+            </label>
+            <label><span class="block text-xs font-medium text-muted mb-1">{{ draft().dimKind === 'angular' ? 'Arc radius' : 'Offset' }}</span><input xInput xLength class="font-mono" [formField]="f.offset" (commit)="setNullable('offset', $event)" data-testid="prop-dim-offset" /></label>
+          </div>
+          @if (dimensionInfo(); as info) {
+            <div class="text-xs text-muted">Reads <span class="font-mono text-fg" data-testid="prop-dim-value">{{ info.text }}</span></div>
+            <div class="text-[11px] text-muted" data-testid="prop-dim-ties">{{ info.ties }}</div>
+          }
         }
         @case ('shape') {
           @if (e.path.closed) {

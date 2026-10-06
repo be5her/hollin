@@ -1,4 +1,4 @@
-import { columnPolygon, distance, flatten, openingFrame, polygonContains, polygonEdgeDistance, regionContains, wallBody, type Box, type Entity, type EntityType, type Layer, type LevelGeometry, type LevelWalls, type Polygon, type Region, type Vec2 } from '@studio/core';
+import { columnPolygon, dimensionGeometry, dimensionOutline, distance, flatten, openingFrame, polygonContains, polygonEdgeDistance, regionContains, resolveDimension, wallBody, type Box, type Entity, type EntityType, type Layer, type LevelGeometry, type LevelWalls, type Polygon, type Region, type Vec2 } from '@studio/core';
 import { searchScene, type LevelScene, type SceneItem } from './scene';
 
 export interface Hit {
@@ -22,8 +22,6 @@ export interface HitOptions {
 const PRIORITY: Record<EntityType, number> = { opening: 0, dimension: 1, label: 1, column: 2, fixture: 2, point: 2, item: 2, light: 2, separator: 3, wall: 3, shape: 4, void: 5, shaft: 5, room: 6, slab: 7 };
 
 const GLYPH = 100;
-
-const segmentDistance = (a: Vec2, b: Vec2, p: Vec2): number => polygonEdgeDistance([a, b], p);
 
 function regionDistance(region: Region, p: Vec2, tolerance: number): number | null {
   if (regionContains(region, p)) return 0;
@@ -90,14 +88,11 @@ export function entityDistance(item: SceneItem, p: Vec2, scene: LevelScene, opti
       return d <= Math.max(tol, GLYPH) ? d : null;
     }
     case 'dimension': {
-      const dx = e.to[0] - e.from[0];
-      const dy = e.to[1] - e.from[1];
-      const len = Math.hypot(dx, dy) || 1;
-      const n: Vec2 = [(-dy / len) * e.offset, (dx / len) * e.offset];
-      const a: Vec2 = [e.from[0] + n[0], e.from[1] + n[1]];
-      const b: Vec2 = [e.to[0] + n[0], e.to[1] + n[1]];
-      const d = Math.min(segmentDistance(a, b, p), segmentDistance(e.from, a, p), segmentDistance(e.to, b, p));
-      return d <= tol ? d : null;
+      const points = resolveDimension(e, (id) => scene.items.get(id)?.entity, (w) => options.walls?.bodies.get(w.id) ?? wallBody(w));
+      const g = dimensionGeometry(e, points, null);
+      let best = Infinity;
+      for (const pts of dimensionOutline(g)) best = Math.min(best, polylineDistance(pts, p, Infinity) ?? Infinity);
+      return best <= tol ? best : null;
     }
     case 'label': {
       const halfW = Math.max(e.size, e.text.length * e.size * 0.3);

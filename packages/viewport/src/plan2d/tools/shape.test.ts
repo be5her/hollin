@@ -29,6 +29,7 @@ function host(options: Partial<ToolOptions['shape']> = {}) {
     walls: () => null,
     geometry: () => null,
     snap: () => null,
+    requestText: () => {},
   };
   return h;
 }

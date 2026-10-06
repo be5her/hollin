@@ -51,6 +51,18 @@ describe('level scene', () => {
     expect(scene.items.get(door.id)!.minX).toBeCloseTo(1350);
   });
 
+  it('moves a tied dimension with its wall', () => {
+    const scene = createLevelScene(lv);
+    const w = wall('wal_000000000000000a', 0);
+    const dim: Entity = { id: 'dim_000000000000000a', type: 'dimension', levelId: lv, layerId: layer, kind: 'aligned', from: [0, 0], to: [0, 5000], offset: -500, anchors: { from: { entityId: w.id, vertex: 0, side: 'axis' }, to: { entityId: w.id, vertex: 1, side: 'axis' } } };
+    syncLevelScene(scene, { [w.id]: w, [dim.id]: dim });
+    expect(scene.items.get(dim.id)!.minX).toBeCloseTo(-1000);
+    const moved = wall(w.id, 2000);
+    expect(syncLevelScene(scene, { [w.id]: moved, [dim.id]: dim })).toBe(true);
+    expect(scene.items.get(dim.id)!.minX).toBeCloseTo(1000);
+    expect(scene.items.get(dim.id)!.entity).toBe(dim);
+  });
+
   it('gives every entity type a finite box except an automatic slab', () => {
     const region = { outer: { closed: true, v: [{ p: [0, 0] as [number, number] }, { p: [1000, 0] as [number, number] }, { p: [1000, 1000] as [number, number] }, { p: [0, 1000] as [number, number] }] }, holes: [] };
     const base = { levelId: lv, layerId: layer };
@@ -61,7 +73,7 @@ describe('level scene', () => {
       { id: 'rom_0000000000000001', type: 'room', ...base, name: 'Hall', boundary: { k: 'detect', seed: [500, 500] } },
       { id: 'fix_0000000000000001', type: 'fixture', ...base, symbol: 'wc', at: [0, 0], rotation: 0, mirror: false },
       { id: 'pnt_0000000000000001', type: 'point', ...base, service: 'electrical', kind: 'socket', at: [0, 0], height: 300, rotation: 0 },
-      { id: 'dim_0000000000000001', type: 'dimension', ...base, from: [0, 0], to: [3000, 0], offset: 500 },
+      { id: 'dim_0000000000000001', type: 'dimension', ...base, kind: 'aligned', from: [0, 0], to: [3000, 0], offset: 500 },
       { id: 'lbl_0000000000000001', type: 'label', ...base, text: 'Hello', at: [0, 0], size: 250, rotation: 0 },
       { id: 'itm_0000000000000001', type: 'item', ...base, asset: 'chair', at: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], materials: {} },
       { id: 'lgt_0000000000000001', type: 'light', ...base, kind: 'point', at: [0, 0, 2000], color: '#ffffff', intensity: 800 },

@@ -1,9 +1,9 @@
 import { DOCUMENT, Component, DestroyRef, ElementRef, afterNextRender, afterRenderEffect, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
 import { FormField, form } from '@angular/forms/signals';
-import { deriveLevels, type GlobalConfig, type Vec2 } from '@studio/core';
+import { deriveLevels, type DimensionKind, type GlobalConfig, type Vec2 } from '@studio/core';
 import { AppState, Checkbox, ContextMenu, HostBridge, Icon, IconButton, Input, LengthInput, ProjectDocs, ProjectView, Select, Toasts, Units, type ContextMenuItem } from '@studio/ui';
-import { DEFAULT_TOOL_OPTIONS, Plan2dEditor, drawingScale, readPlanTheme, type Camera, type ShapeOptions, type SnapResult, type ToolId, type UnderlayMode, type WallOptions } from '@studio/viewport';
-import { Blinds, BrickWall, ChevronDown, Circle, DoorOpen, LandPlot, Magnet, Maximize, MousePointer2, Pentagon, SeparatorVertical, Square, ZoomIn, ZoomOut } from 'lucide';
+import { DEFAULT_TOOL_OPTIONS, Plan2dEditor, drawingScale, readPlanTheme, type Camera, type ShapeOptions, type SnapResult, type TextRequest, type ToolId, type UnderlayMode, type WallOptions } from '@studio/viewport';
+import { Blinds, BrickWall, ChevronDown, Circle, DoorOpen, LandPlot, Magnet, Maximize, MousePointer2, Pentagon, Ruler, SeparatorVertical, Square, Type, ZoomIn, ZoomOut } from 'lucide';
 import { PlanGeometry } from './plan-geometry';
 import { PlanSelection } from './plan-selection';
 
@@ -60,7 +60,7 @@ export class PlanView {
   private readonly container = viewChild.required<ElementRef<HTMLDivElement>>('container');
   private readonly dynamicInputEl = viewChild<ElementRef<HTMLInputElement>>('dynamicInput');
 
-  protected readonly icons = { Blinds, BrickWall, ChevronDown, Circle, DoorOpen, LandPlot, Magnet, Maximize, MousePointer2, Pentagon, SeparatorVertical, Square, ZoomIn, ZoomOut };
+  protected readonly icons = { Blinds, BrickWall, ChevronDown, Circle, DoorOpen, LandPlot, Magnet, Maximize, MousePointer2, Pentagon, Ruler, SeparatorVertical, Square, Type, ZoomIn, ZoomOut };
   protected readonly snapKinds = SNAP_KINDS;
   protected readonly doc = computed(() => this.docs.read(this.projectId())?.doc);
   protected readonly levels = computed(() => {
@@ -94,13 +94,18 @@ export class PlanView {
   /** What the shape tools make from an outline, and whether a free shape is filled. */
   protected readonly shapeKind = signal<ShapeOptions['kind']>('shape');
   protected readonly shapeFilled = signal(true);
+  /** The kind of dimension the Dimension tool draws, and the text height of new labels (mm). */
+  protected readonly dimensionKind = signal<DimensionKind>('aligned');
+  protected readonly labelSize = signal(250);
+  protected readonly labelDraft = signal({ size: '' });
+  protected readonly labelForm = form(this.labelDraft);
   protected readonly hint = signal('');
   protected readonly selection = signal<string[]>([]);
   protected readonly vertexAttr = signal('');
   protected readonly snapLabel = signal('');
   protected readonly snapMenuOpen = signal(false);
-  /** The input that opens at the cursor when a digit is typed while a tool waits for a point. */
-  protected readonly dynamicInput = signal<{ x: number; y: number; value: string } | null>(null);
+  /** The input that opens at the cursor: a coordinate when a digit is typed while a tool waits for a point, or text a tool asked for (a label). */
+  protected readonly dynamicInput = signal<{ x: number; y: number; value: string; mode: 'coord' | 'text'; placeholder: string; commit?: (text: string) => void } | null>(null);
   protected readonly selectionAttr = computed(() => this.selection().join(' '));
   protected readonly selectionLabel = computed(() => {
     const n = this.selection().length;
@@ -154,7 +159,8 @@ export class PlanView {
     },
     onSnap: (snap: SnapResult | null) => this.snapLabel.set(snap?.label ?? ''),
     onContextMenu: (event, ids) => this.menu.open(event, this.menuItems(ids)),
-    onDynamicInput: ({ char, screen }) => this.dynamicInput.set({ x: screen[0] + 14, y: screen[1] + 14, value: char }),
+    onDynamicInput: ({ char, screen }) => this.dynamicInput.set({ x: screen[0] + 14, y: screen[1] + 14, value: char, mode: 'coord', placeholder: '3000 · 3000<45 · @dx,dy · x,y' }),
+    onTextInput: (request: TextRequest) => this.dynamicInput.set({ x: request.screen[0] + 14, y: request.screen[1] + 14, value: '', mode: 'text', placeholder: request.placeholder, commit: request.commit }),
   }, { cache: this.planGeometry.cache });
 
   constructor() {
@@ -168,6 +174,7 @@ export class PlanView {
       this.editor.setUnits(this.units.settings());
       this.showWallOptions();
       this.gridDraft.set({ spacing: this.units.length(untracked(this.editorConfig)?.gridSpacing ?? 100) });
+      this.labelDraft.set({ size: this.units.length(untracked(this.labelSize)) });
     });
     effect(() => {
       // The settings drive snapping, the grid and the wall tool's defaults.
@@ -184,9 +191,11 @@ export class PlanView {
       this.editor.invalidate();
     });
     effect(() => {
-      // The shape tools' options live in the view only.
+      // The shape, dimension and label tools' options live in the view only.
       this.shapeKind();
       this.shapeFilled();
+      this.dimensionKind();
+      this.labelSize();
       const c = untracked(this.editorConfig);
       if (c) this.editor.setToolOptions(this.toolOptions(c));
     });
@@ -265,7 +274,18 @@ export class PlanView {
   }
 
   private toolOptions(c: EditorConfig) {
-    return { ...DEFAULT_TOOL_OPTIONS, nudge: c.gridSpacing, wall: this.wallOptions, door: { width: c.doorWidth, height: c.doorHeight }, window: { width: c.windowWidth, height: c.windowHeight, sill: c.windowSill }, shape: { kind: untracked(this.shapeKind), filled: untracked(this.shapeFilled) } };
+    return { ...DEFAULT_TOOL_OPTIONS, nudge: c.gridSpacing, wall: this.wallOptions, door: { width: c.doorWidth, height: c.doorHeight }, window: { width: c.windowWidth, height: c.windowHeight, sill: c.windowSill }, shape: { kind: untracked(this.shapeKind), filled: untracked(this.shapeFilled) }, dimension: { kind: untracked(this.dimensionKind) }, label: { size: untracked(this.labelSize) } };
+  }
+
+  protected setDimensionKind(value: string): void {
+    if (value === 'aligned' || value === 'horizontal' || value === 'vertical' || value === 'angular' || value === 'radius') this.dimensionKind.set(value);
+    this.canvas().nativeElement.focus({ preventScroll: true });
+  }
+
+  protected setLabelSize(mm: number | null): void {
+    if (mm && mm > 0) this.labelSize.set(mm);
+    this.labelDraft.set({ size: this.units.length(untracked(this.labelSize)) });
+    this.canvas().nativeElement.focus({ preventScroll: true });
   }
 
   protected setShapeKind(value: string): void {
@@ -288,6 +308,12 @@ export class PlanView {
 
   protected commitTyped(): void {
     const value = this.dynamicInputEl()?.nativeElement.value ?? '';
+    const current = untracked(this.dynamicInput);
+    if (current?.mode === 'text') {
+      current.commit?.(value);
+      this.closeTyped();
+      return;
+    }
     if (!value.trim()) {
       this.closeTyped();
       return;

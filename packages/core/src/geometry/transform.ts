@@ -102,7 +102,7 @@ export function transformEntity(entity: Entity, xf: Transform): Entity {
     case 'point':
       return { ...entity, at: m.point(entity.at), rotation: m.angle(entity.rotation) };
     case 'dimension':
-      return { ...entity, from: m.point(entity.from), to: m.point(entity.to), offset: m.flips ? -entity.offset : entity.offset };
+      return { ...entity, from: m.point(entity.from), to: m.point(entity.to), offset: m.flips && entity.kind !== 'angular' && entity.kind !== 'radius' ? -entity.offset : entity.offset, ...(entity.vertex ? { vertex: m.point(entity.vertex) } : {}) };
     case 'label':
       return { ...entity, at: m.point(entity.at), rotation: m.angle(entity.rotation) };
     case 'item': {

@@ -69,8 +69,13 @@ describe('transformEntity', () => {
     const movedItem = transformEntity(item, { translate: [10, 10] }) as typeof item;
     expect(movedItem.at).toEqual([110, 210, 450]);
     expect(movedItem.rotation[2]).toBe(30);
-    const dim: Entity = { id: 'dim_0000000000000001', type: 'dimension', levelId: lv, layerId: layer, from: [0, 0], to: [1000, 0], offset: 500 };
+    const dim: Entity = { id: 'dim_0000000000000001', type: 'dimension', levelId: lv, layerId: layer, kind: 'aligned', from: [0, 0], to: [1000, 0], offset: 500 };
     expect((transformEntity(dim, { mirror: { a: [0, 0], b: [1, 0] } }) as typeof dim).offset).toBe(-500);
+    const angle: Entity = { ...dim, kind: 'angular', vertex: [500, 500], offset: 300 };
+    const shifted = transformEntity(angle, { translate: [10, 0] }) as typeof angle;
+    expect(shifted.vertex).toEqual([510, 500]);
+    expect(shifted.offset).toBe(300);
+    expect((transformEntity(angle, { mirror: { a: [0, 0], b: [1, 0] } }) as typeof angle).offset).toBe(300);
     const room: Entity = { id: 'rom_0000000000000001', type: 'room', levelId: lv, layerId: layer, name: 'Hall', boundary: { k: 'detect', seed: [10, 10] } };
     expect((transformEntity(room, { translate: [5, 5] }) as typeof room).boundary).toEqual({ k: 'detect', seed: [15, 15] });
   });

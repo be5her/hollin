@@ -41,6 +41,10 @@ export function refsOf(coll: Coll, value: unknown): Ref[] {
       push('layerId', 'layer', e.layerId);
       if ('span' in e && e.span) push('span.topLevelId', 'level', e.span.topLevelId);
       if (e.type === 'opening') push('wallId', 'entity', e.wallId);
+      if (e.type === 'dimension' && e.anchors) {
+        if (e.anchors.from) push('anchors.from.entityId', 'entity', e.anchors.from.entityId);
+        if (e.anchors.to) push('anchors.to.entityId', 'entity', e.anchors.to.entityId);
+      }
       break;
     }
     case 'connector': {

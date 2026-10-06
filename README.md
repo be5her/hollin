@@ -11,7 +11,7 @@ Windows, macOS and Linux, built with Electron and Angular.
 | 1. Scaffold: monorepo, command registry, MCP server, host, shell, settings, smoke test, CI | done |
 | 2. Project library: storage, index, Home screen, tabs, autosave, snapshots, trash, packages | done |
 | 3. Document model: building, levels, layers, entities, connectors, transactions, undo, live mirror | done |
-| 4. 2D editor: plan view, walls and joins, snapping, exact input, openings, rooms, shapes, dimensions, thumbnails | in progress (plan view, level switcher and underlay, walls and joins, selection and editing, grips and the inspector, snapping, exact input, openings, rooms and slab, shapes and corners done) |
+| 4. 2D editor: plan view, walls and joins, snapping, exact input, openings, rooms, shapes, dimensions, thumbnails | in progress (plan view, level switcher and underlay, walls and joins, selection and editing, grips and the inspector, snapping, exact input, openings, rooms and slab, shapes and corners, dimensions and labels done; thumbnails next) |
 | 5–9. Vertical circulation, AI tools and assistant, 3D view, decor, export | planned |
 
 ## Development

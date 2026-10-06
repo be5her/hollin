@@ -8,11 +8,13 @@ import { DEFAULT_SNAP_SETTINGS, SnapIndex, snapPoint, type SnapOptions, type Sna
 import { createLevelScene, sceneBox, syncLevelScene, type LevelScene } from './scene';
 import { LIGHT_THEME, type PlanTheme } from './theme';
 import { SelectTool } from './tools/select';
-import { DEFAULT_TOOL_OPTIONS, type Clipboard, type Tool, type ToolHost, type ToolId, type ToolOptions, type ToolPointer } from './tools/tool';
+import { DEFAULT_TOOL_OPTIONS, type Clipboard, type TextRequest, type Tool, type ToolHost, type ToolId, type ToolOptions, type ToolPointer } from './tools/tool';
 import { OpeningTool } from './tools/opening';
 import { RoomTool } from './tools/room';
 import { SeparatorTool } from './tools/separator';
 import { ShapeTool } from './tools/shape';
+import { DimensionTool } from './tools/dimension';
+import { LabelTool } from './tools/label';
 import { WallTool } from './tools/wall';
 
 export type UnderlayMode = 'none' | 'below' | 'above';
@@ -39,6 +41,8 @@ export interface EditorCallbacks {
   onContextMenu?(event: MouseEvent, ids: string[]): void;
   /** A digit (or @ - . +) typed while a tool waits for a point: the host shows an input at the cursor seeded with it. */
   onDynamicInput?(request: { char: string; screen: Vec2 }): void;
+  /** A tool wants a line of text typed at a screen position (a label); the host shows an input there and calls `commit`. */
+  onTextInput?(request: TextRequest): void;
 }
 
 /**
@@ -108,6 +112,7 @@ export class Plan2dEditor {
       walls: (exclude) => this.levelWalls(exclude),
       geometry: () => this.levelGeometry(),
       snap: (p, options) => this.snap(p, options),
+      requestText: (request) => this.callbacks.onTextInput?.(request),
       get clipboard() {
         return editor.clipboard;
       },
@@ -115,7 +120,7 @@ export class Plan2dEditor {
         editor.clipboard = value;
       },
     };
-    this.tools = { select: new SelectTool(host), wall: new WallTool(host), door: new OpeningTool(host, 'door'), window: new OpeningTool(host, 'window'), room: new RoomTool(host), separator: new SeparatorTool(host), shape: new ShapeTool(host, 'polyline'), rectangle: new ShapeTool(host, 'rectangle'), circle: new ShapeTool(host, 'circle') };
+    this.tools = { select: new SelectTool(host), wall: new WallTool(host), door: new OpeningTool(host, 'door'), window: new OpeningTool(host, 'window'), room: new RoomTool(host), separator: new SeparatorTool(host), shape: new ShapeTool(host, 'polyline'), rectangle: new ShapeTool(host, 'rectangle'), circle: new ShapeTool(host, 'circle'), dimension: new DimensionTool(host), label: new LabelTool(host) };
     this.activeTool = this.tools.select;
   }
 
@@ -575,6 +580,12 @@ export class Plan2dEditor {
       e.preventDefault();
     } else if (e.key === 'o' || e.key === 'O') {
       this.setTool('circle');
+      e.preventDefault();
+    } else if (e.key === 'l' || e.key === 'L') {
+      this.setTool('dimension');
+      e.preventDefault();
+    } else if (e.key === 't' || e.key === 'T') {
+      this.setTool('label');
       e.preventDefault();
     }
   }

@@ -1,10 +1,17 @@
-import type { Box, Coordinate, Entity, LevelGeometry, LevelWalls, Vec2 } from '@studio/core';
+import type { Box, Coordinate, DimensionKind, Entity, LevelGeometry, LevelWalls, Vec2 } from '@studio/core';
 import type { VertexRef } from '../grips';
 import type { Hit } from '../hit';
 import type { RenderFrame } from '../render';
 import type { SnapResult } from '../snap';
 
-export type ToolId = 'select' | 'wall' | 'door' | 'window' | 'room' | 'separator' | 'shape' | 'rectangle' | 'circle';
+export type ToolId = 'select' | 'wall' | 'door' | 'window' | 'room' | 'separator' | 'shape' | 'rectangle' | 'circle' | 'dimension' | 'label';
+
+/** A tool asks the host for a line of text typed at a screen position (a label's text). */
+export interface TextRequest {
+  screen: Vec2;
+  placeholder: string;
+  commit(text: string): void;
+}
 
 /** What copy and paste carry: entities as data, and the point they were copied around. */
 export interface Clipboard {
@@ -41,6 +48,8 @@ export interface ToolHost {
   geometry(): LevelGeometry | null;
   /** Snaps a cursor position (null: nothing near). The result is drawn until the next call. */
   snap(p: Vec2, options?: { from?: Vec2; exclude?: ReadonlySet<string>; ortho?: boolean }): SnapResult | null;
+  /** Opens an input at a screen position; `commit` gets what was typed (Enter), nothing on Escape. */
+  requestText(request: TextRequest): void;
   clipboard: Clipboard | null;
 }
 
@@ -63,11 +72,14 @@ export interface ToolOptions {
   door: { width: number; height: number };
   window: { width: number; height: number; sill: number };
   shape: ShapeOptions;
+  dimension: { kind: DimensionKind };
+  /** The text height of new labels, in mm. */
+  label: { size: number };
   /** How far the arrow keys move the selection, in mm. */
   nudge: number;
 }
 
-export const DEFAULT_TOOL_OPTIONS: ToolOptions = { wall: { thickness: 200, height: null, alignment: 'center', single: false }, door: { width: 900, height: 2100 }, window: { width: 1200, height: 1200, sill: 900 }, shape: { kind: 'shape', filled: true }, nudge: 100 };
+export const DEFAULT_TOOL_OPTIONS: ToolOptions = { wall: { thickness: 200, height: null, alignment: 'center', single: false }, door: { width: 900, height: 2100 }, window: { width: 1200, height: 1200, sill: 900 }, shape: { kind: 'shape', filled: true }, dimension: { kind: 'aligned' }, label: { size: 250 }, nudge: 100 };
 
 export interface ToolPointer {
   world: Vec2;
