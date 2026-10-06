@@ -274,6 +274,8 @@ export async function smokePlanUi(smoke: Smoke, towerId: string): Promise<void> 
   await smoke.typeText('30cm');
   await smoke.key('Return');
   smoke.check('a thickness typed in any unit changes the wall', await smoke.until(() => wallById(bottom.id).thickness === 300), wallById(bottom.id).thickness);
+  // The field re-renders with the committed value; typing into it before that lands in the old render.
+  await smoke.until(async () => (await smoke.js<string>(`document.querySelector('${tab} [data-testid=prop-thickness]').value`)) === '300 mm');
   await smoke.clickAt(thickness.x + thickness.width / 2, thickness.y + thickness.height / 2);
   await smoke.key('A', ['control']);
   await smoke.typeText('thick');

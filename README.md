@@ -13,8 +13,9 @@ Windows, macOS and Linux, built with Electron and Angular.
 | 3. Document model: building, levels, layers, entities, connectors, transactions, undo, live mirror | done |
 | 4. 2D editor: plan view, walls and joins, snapping, exact input, openings, rooms, shapes, dimensions, thumbnails | done |
 | 5. Vertical circulation: stairs, ramps and elevators on the plan, slab openings, plan symbols, drawing tools, angle tracking, rule warnings | done |
-| 6. AI tools and the in-app assistant | next |
-| 7–9. 3D view, decor, export | planned |
+| 6. AI tools: `plan.describe`, `view.snapshot`, MCP resources and a prompt, the in-app assistant | done |
+| 7. 3D view: stacked levels, extrusion, cut openings, slabs, connector geometry, cameras | next |
+| 8–9. Decor, export | planned |
 
 ## Development
 
@@ -52,7 +53,7 @@ src/renderer             The Angular app and the shell (its own npm workspace).
 
 ## Architecture
 
-Every feature is a set of **commands** with zod input schemas, registered in one `CommandRegistry`. The UI reaches the host only through commands (`window.studio.invoke(id, input, projectId)`), and the same registry backs the command palette, the MCP server and, later, the in-app assistant, so every feature reaches all of them for free. `execute` checks, in order: unknown id (`UNKNOWN_COMMAND`), missing project (`NO_PROJECT`), input (`INVALID_INPUT`, one "path: message" per issue), then the mutating gate, then runs the handler. Errors cross IPC and MCP as `{ code, message, details? }`.
+Every feature is a set of **commands** with zod input schemas, registered in one `CommandRegistry`. The UI reaches the host only through commands (`window.studio.invoke(id, input, projectId)`), and the same registry backs the command palette, the MCP server and the in-app assistant, so every feature reaches all of them for free. `execute` checks, in order: unknown id (`UNKNOWN_COMMAND`), missing project (`NO_PROJECT`), input (`INVALID_INPUT`, one "path: message" per issue), then the mutating gate, then runs the handler. Errors cross IPC and MCP as `{ code, message, details? }`.
 
 **Mutating** commands (delete, write outside the library, otherwise destructive) are refused to MCP agents until the user allows it in Settings, and the in-app assistant pauses until the user allows or declines the call in the chat. Ordinary design edits are undoable transactions instead.
 
@@ -61,6 +62,8 @@ The **document** of an open project lives in the main process: a building (datum
 Projects live in one **library** folder the app owns (see `packages/modules/library/README.md`): crash-safe saves, autosave, snapshots, a restorable trash and single-file packages.
 
 The host broadcasts typed **events** (`config.changed`, `library.changed`, `project.changed`, `mcp.call`, …) to every window; views follow them, so changes made by an agent show up live.
+
+The **assistant** (`packages/modules/assistant`) is a chat per project in the project tab, run in main against the Claude API with every non-hidden command as a tool; its edits are undoable transactions under its name, destructive calls wait for the user in the chat, and `view.snapshot` lets it see the plan it changed. `plan.describe` gives any agent the design as a reader would describe it: rooms with areas, adjacency and openings, and where each stair or elevator lands.
 
 ### MCP
 
