@@ -33,6 +33,7 @@ export class WallTool implements Tool {
     if (e.button !== 0) return;
     const p = e.world;
     if (!this.chain.length) {
+      this.host.select([]);
       this.chain = [{ p }];
       this.host.invalidate();
       return;

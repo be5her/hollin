@@ -26,3 +26,5 @@ export * from './geometry/clip';
 export * from './geometry/offset';
 export * from './geometry/walls';
 export * from './geometry/level-geometry';
+export * from './geometry/transform';
+export * from './geometry/openings';

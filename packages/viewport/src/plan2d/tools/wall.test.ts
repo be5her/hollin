@@ -7,15 +7,22 @@ function host(options: Partial<ToolOptions['wall']> = {}) {
   const h: ToolHost & { calls: typeof calls; finished: number } = {
     calls,
     finished: 0,
+    clipboard: null,
     invoke: async (id, input) => {
       calls.push({ id, input });
       return {};
     },
     levelId: () => 'lvl_0000000000000001',
-    options: () => ({ wall: { ...DEFAULT_TOOL_OPTIONS.wall, ...options } }),
+    entities: () => ({}),
+    options: () => ({ ...DEFAULT_TOOL_OPTIONS, wall: { ...DEFAULT_TOOL_OPTIONS.wall, ...options } }),
     scale: () => 0.1,
     invalidate: () => {},
     finish: () => h.finished++,
+    selection: () => new Set(),
+    select: () => {},
+    hit: () => null,
+    marquee: () => [],
+    walls: () => null,
   };
   return h;
 }

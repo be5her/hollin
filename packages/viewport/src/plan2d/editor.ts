@@ -1,14 +1,18 @@
-import { defaultConfig, deriveLevels, emptyBox, type Box, type Layer, type LevelWalls, type ProjectDoc, type UnitSettings, type Vec2 } from '@studio/core';
+import { defaultConfig, deriveLevels, emptyBox, type Box, type Entity, type Layer, type LevelWalls, type ProjectDoc, type UnitSettings, type Vec2 } from '@studio/core';
 import { defaultCamera, fitBox, panBy, sameCamera, screenToWorld, zoomAt, type Camera, type Size } from './camera';
 import { LevelGeometryCache } from './geometry-cache';
+import { hitTest, marqueeSelect, type Hit } from './hit';
 import { renderPlan, worldSpace, type RenderFrame, type RenderStats } from './render';
 import { createLevelScene, sceneBox, syncLevelScene, type LevelScene } from './scene';
 import { LIGHT_THEME, type PlanTheme } from './theme';
 import { SelectTool } from './tools/select';
-import { DEFAULT_TOOL_OPTIONS, type Tool, type ToolHost, type ToolId, type ToolOptions, type ToolPointer } from './tools/tool';
+import { DEFAULT_TOOL_OPTIONS, type Clipboard, type Tool, type ToolHost, type ToolId, type ToolOptions, type ToolPointer } from './tools/tool';
 import { WallTool } from './tools/wall';
 
 export type UnderlayMode = 'none' | 'below' | 'above';
+
+/** How far from an outline a click still hits, in CSS pixels. */
+const HIT_PX = 6;
 
 export interface EditorCallbacks {
   /** Runs a command on the open project. The host reports failures to the user. */
@@ -20,13 +24,16 @@ export interface EditorCallbacks {
   /** PageUp (+1) or PageDown (−1) on the canvas: the host switches level. */
   onLevelStep?(direction: 1 | -1): void;
   onToolChange?(tool: ToolId, hint: string): void;
+  onSelectionChange?(ids: string[]): void;
+  /** A right click: the host shows a menu for the selection (the hit entity is selected first). */
+  onContextMenu?(event: MouseEvent, ids: string[]): void;
 }
 
 /**
  * The plan of one level on a canvas: a camera, the level's scene (and the reference level's), the
- * derived geometry (joined walls), the drawing tools, pan and zoom from the mouse and keyboard, and
- * one render per animation frame. Framework-free: the Angular host attaches it to a canvas, feeds
- * it the document and reads it through callbacks.
+ * derived geometry (joined walls), the selection, the tools, pan and zoom from the mouse and
+ * keyboard, and one render per animation frame. Framework-free: the Angular host attaches it to a
+ * canvas, feeds it the document and reads it through callbacks.
  */
 export class Plan2dEditor {
   private canvas: HTMLCanvasElement | null = null;
@@ -49,19 +56,34 @@ export class Plan2dEditor {
   private toolOptions: ToolOptions = DEFAULT_TOOL_OPTIONS;
   private readonly tools: Record<ToolId, Tool>;
   private activeTool: Tool;
+  private selected = new Set<string>();
+  clipboard: Clipboard | null = null;
   showGrid = true;
   lastStats: RenderStats = { drawn: 0, ms: 0 };
 
   constructor(private readonly callbacks: EditorCallbacks = {}) {
+    const editor = this;
     const host: ToolHost = {
       invoke: (id, input) => this.callbacks.invoke?.(id, input) ?? Promise.resolve(undefined),
       levelId: () => this.levelId,
+      entities: () => this.entities(),
       options: () => this.toolOptions,
       scale: () => this.cameraValue.scale,
       invalidate: () => this.invalidate(),
       finish: () => this.setTool('select'),
+      selection: () => this.selected,
+      select: (ids, mode) => this.select(ids, mode),
+      hit: (p) => this.hit(p),
+      marquee: (box, mode) => (this.levelScene ? marqueeSelect(this.levelScene, box, mode, this.hitOptions()) : []),
+      walls: (exclude) => this.levelWalls(exclude),
+      get clipboard() {
+        return editor.clipboard;
+      },
+      set clipboard(value) {
+        editor.clipboard = value;
+      },
     };
-    this.tools = { select: new SelectTool(), wall: new WallTool(host) };
+    this.tools = { select: new SelectTool(host), wall: new WallTool(host) };
     this.activeTool = this.tools.select;
   }
 
@@ -76,6 +98,10 @@ export class Plan2dEditor {
 
   get tool(): ToolId {
     return this.activeTool.id;
+  }
+
+  get selection(): ReadonlySet<string> {
+    return this.selected;
   }
 
   // ---------- host feed ----------
@@ -100,7 +126,7 @@ export class Plan2dEditor {
       this.spaceDown = false;
       this.pan = null;
     });
-    on('contextmenu', (e) => e.preventDefault());
+    on('contextmenu', (e) => this.contextMenu(e));
     this.invalidate();
   }
 
@@ -138,10 +164,18 @@ export class Plan2dEditor {
   setDocument(doc: ProjectDoc | undefined): void {
     this.doc = doc;
     this.sync();
+    const entities = this.entities();
+    this.activeTool.documentChanged?.(entities);
+    // Whatever vanished (an agent's delete, an undo) leaves the selection.
+    const kept = [...this.selected].filter((id) => id in entities);
+    if (kept.length !== this.selected.size) this.select(kept);
   }
 
   setLevel(levelId: string | null): void {
-    if (levelId !== this.levelId) this.activeTool.cancel();
+    if (levelId !== this.levelId) {
+      this.activeTool.cancel();
+      this.select([]);
+    }
     this.levelId = levelId;
     this.sync();
   }
@@ -168,6 +202,20 @@ export class Plan2dEditor {
       this.activeTool = this.tools[id];
     }
     this.callbacks.onToolChange?.(id, this.activeTool.hint());
+    this.invalidate();
+  }
+
+  select(ids: Iterable<string>, mode: 'replace' | 'add' | 'toggle' = 'replace'): void {
+    const next = mode === 'replace' ? new Set<string>() : new Set(this.selected);
+    for (const id of ids) {
+      if (mode === 'toggle' && next.has(id)) next.delete(id);
+      else next.add(id);
+    }
+    const same = next.size === this.selected.size && [...next].every((id) => this.selected.has(id));
+    if (same) return;
+    this.selected = next;
+    this.callbacks.onSelectionChange?.([...next]);
+    this.callbacks.onToolChange?.(this.activeTool.id, this.activeTool.hint());
     this.invalidate();
   }
 
@@ -202,16 +250,25 @@ export class Plan2dEditor {
     return levels[i + (this.underlayMode === 'below' ? -1 : 1)]?.id ?? null;
   }
 
-  /** The joined walls of the active level, leaving out walls on hidden layers. */
-  levelWalls(): LevelWalls | null {
+  /** The active level's entities (empty when none). */
+  entities(): Record<string, Entity> {
+    return (this.doc && this.levelId ? this.doc.levelData[this.levelId]?.entities : undefined) ?? {};
+  }
+
+  /** The joined walls of the active level, leaving out walls on hidden layers and `exclude`. */
+  levelWalls(exclude?: ReadonlySet<string>): LevelWalls | null {
     const entities = this.doc && this.levelId ? this.doc.levelData[this.levelId]?.entities : undefined;
     if (!entities) return null;
-    const hidden = new Set<string>();
+    const out = new Set<string>(exclude ?? []);
     for (const id in entities) {
       const e = entities[id];
-      if (e.type === 'wall' && this.doc!.layers[e.layerId]?.visible === false) hidden.add(id);
+      if (e.type === 'wall' && this.doc!.layers[e.layerId]?.visible === false) out.add(id);
     }
-    return this.geometry.walls(entities, hidden);
+    return this.geometry.walls(entities, out);
+  }
+
+  hit(p: Vec2): Hit | null {
+    return this.levelScene ? hitTest(this.levelScene, p, this.hitOptions()) : null;
   }
 
   invalidate(): void {
@@ -223,6 +280,10 @@ export class Plan2dEditor {
   }
 
   // ---------- internals ----------
+
+  private hitOptions() {
+    return { tolerance: HIT_PX / this.cameraValue.scale, layers: this.layers(), walls: this.levelWalls() };
+  }
 
   private contentBox(): Box | null {
     let box = emptyBox();
@@ -283,7 +344,7 @@ export class Plan2dEditor {
       units: this.units,
       layers: this.layers(),
       scene,
-      walls: this.levelWalls(),
+      walls: this.levelWalls(this.activeTool.excluded?.()),
       underlay: under ? (this.scenes.get(under) ?? null) : null,
       showGrid: this.showGrid,
     };
@@ -295,13 +356,17 @@ export class Plan2dEditor {
     this.callbacks.onFrame?.(this.lastStats);
   }
 
-  private local(e: PointerEvent | WheelEvent): Vec2 {
+  private local(e: MouseEvent): Vec2 {
     const r = this.canvas!.getBoundingClientRect();
     return [e.clientX - r.left, e.clientY - r.top];
   }
 
   private toolPointer(e: PointerEvent, screen: Vec2): ToolPointer {
     return { world: this.screenToWorld(screen), screen, button: e.button, shift: e.shiftKey, ctrl: e.ctrlKey || e.metaKey, alt: e.altKey };
+  }
+
+  private announceTool(): void {
+    this.callbacks.onToolChange?.(this.activeTool.id, this.activeTool.hint());
   }
 
   private pointerDown(e: PointerEvent): void {
@@ -313,8 +378,9 @@ export class Plan2dEditor {
       this.canvas?.setPointerCapture(e.pointerId);
       return;
     }
+    if (e.button === 0) this.canvas?.setPointerCapture(e.pointerId);
     this.activeTool.pointerDown?.(this.toolPointer(e, screen));
-    this.callbacks.onToolChange?.(this.activeTool.id, this.activeTool.hint());
+    this.announceTool();
   }
 
   private pointerMove(e: PointerEvent): void {
@@ -322,17 +388,30 @@ export class Plan2dEditor {
     if (this.pan && e.pointerId === this.pan.pointerId) {
       this.moveCamera(panBy(this.cameraValue, screen[0] - this.pan.x, screen[1] - this.pan.y));
       this.pan = { ...this.pan, x: screen[0], y: screen[1] };
-    } else this.activeTool.pointerMove?.(this.toolPointer(e, screen));
+    } else {
+      const busy = this.activeTool.busy;
+      this.activeTool.pointerMove?.(this.toolPointer(e, screen));
+      if (this.activeTool.busy !== busy) this.announceTool();
+    }
     this.callbacks.onCursor?.(this.screenToWorld(screen));
   }
 
   private pointerUp(e: PointerEvent): void {
+    if (this.canvas?.hasPointerCapture(e.pointerId)) this.canvas.releasePointerCapture(e.pointerId);
     if (this.pan && e.pointerId === this.pan.pointerId) {
       this.pan = null;
-      if (this.canvas?.hasPointerCapture(e.pointerId)) this.canvas.releasePointerCapture(e.pointerId);
       return;
     }
     this.activeTool.pointerUp?.(this.toolPointer(e, this.local(e)));
+    this.announceTool();
+  }
+
+  private contextMenu(e: MouseEvent): void {
+    e.preventDefault();
+    if (this.activeTool.busy) return;
+    const hit = this.hit(this.screenToWorld(this.local(e)));
+    if (hit && !this.selected.has(hit.id)) this.select([hit.id]);
+    this.callbacks.onContextMenu?.(e, [...this.selected]);
   }
 
   private wheel(e: WheelEvent): void {
@@ -342,19 +421,21 @@ export class Plan2dEditor {
   }
 
   private keyDown(e: KeyboardEvent): void {
-    if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.key === 'Escape') {
       if (this.activeTool.busy) this.activeTool.cancel();
-      else this.setTool('select');
-      this.callbacks.onToolChange?.(this.activeTool.id, this.activeTool.hint());
+      else if (this.activeTool.id !== 'select') this.setTool('select');
+      else this.select([]);
+      this.announceTool();
       e.preventDefault();
       return;
     }
+    // The tool first (it may take Ctrl combinations such as Ctrl+C); the shell only sees what is left.
     if (this.activeTool.key?.(e)) {
-      this.callbacks.onToolChange?.(this.activeTool.id, this.activeTool.hint());
+      this.announceTool();
       e.preventDefault();
       return;
     }
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.key === ' ') {
       this.spaceDown = true;
       e.preventDefault();

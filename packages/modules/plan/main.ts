@@ -1,4 +1,5 @@
 import {
+  ENTITY_PREFIX,
   EntitySchema,
   LAYER_KINDS,
   PathSchema,
@@ -7,6 +8,7 @@ import {
   addLayerOps,
   authorFrom,
   bulgeThrough,
+  changedFields,
   defineCommand,
   defineModule,
   deleteEntitiesOps,
@@ -14,14 +16,19 @@ import {
   editProject,
   entitiesOnLevel,
   moveLayerOps,
+  newId,
+  remapRefs,
   removeLayerOps,
   requireEntity,
+  transformEntity,
   updateEntityOps,
   type CommandContext,
   type EditContext,
   type Entity,
+  type Op,
   type Path,
   type ProjectApi,
+  type Transform,
   type Vec2,
   type Vertex,
 } from '@studio/core';
@@ -247,6 +254,63 @@ export const planModule = defineModule({
           }),
         );
         return { id: result[0], ids: result };
+      },
+    }),
+    defineCommand({
+      id: 'plan.transform',
+      title: 'Move, rotate, mirror or copy entities',
+      description:
+        'Moves entities by `translate` [dx, dy], rotates them by `rotate.angle` degrees (counter-clockwise) about `rotate.pivot`, or mirrors them across the line from `mirror.a` to `mirror.b`; several may be combined (mirror, then rotate, then move). With `copy`, the originals stay and transformed copies are made (a wall\'s openings come along; `translate` [0, 0] copies in place). Openings are not moved on their own: they follow their wall. `nudge` merges quick repeated moves into one undo step. Returns the ids of the moved entities, or of the copies.',
+      scope: 'project',
+      batchable: true,
+      input: z.object({
+        ids: z.array(z.string()).min(1),
+        translate: Point.optional(),
+        rotate: z.object({ angle: z.number(), pivot: Point }).optional(),
+        mirror: z.object({ a: Point, b: Point }).optional(),
+        copy: z.boolean().default(false),
+        nudge: z.boolean().default(false),
+      }),
+      handler: async ({ ids, translate, rotate, mirror, copy, nudge }, ctx) => {
+        if (!translate && !rotate && !mirror && !copy) throw new StudioError('INVALID_INPUT', 'Give translate, rotate or mirror (or copy)');
+        const xf: Transform = { ...(translate ? { translate } : {}), ...(rotate ? { rotate } : {}), ...(mirror ? { mirror } : {}) };
+        const doc = ctx.project!.doc;
+        const selected = ids.map((id) => requireEntity(doc, id));
+        const what = selected.length === 1 ? selected[0].type : `${selected.length} items`;
+        const label = copy ? `Copy ${what}` : rotate ? `Rotate ${what}` : mirror ? `Mirror ${what}` : nudge ? `Nudge ${what}` : `Move ${what}`;
+        const { result } = await editProject(
+          ctx,
+          label,
+          (tx) => {
+            if (copy) {
+              // The copied set: what was asked for, plus the openings of any wall in it; an opening without its wall cannot be copied.
+              const set = new Map<string, Entity>(selected.map((e) => [e.id, e]));
+              for (const e of selected) {
+                if (e.type !== 'wall') continue;
+                for (const o of Object.values(tx.doc.levelData[e.levelId].entities)) if (o.type === 'opening' && o.wallId === e.id) set.set(o.id, o);
+              }
+              const map = new Map<string, string>();
+              for (const e of set.values()) if (e.type !== 'opening' || set.has(e.wallId)) map.set(e.id, newId(ENTITY_PREFIX[e.type]));
+              const ops: Op[] = [];
+              for (const e of set.values()) {
+                const id = map.get(e.id);
+                if (!id) continue;
+                const moved = transformEntity({ ...remapRefs('entity', e, map), id }, xf);
+                ops.push({ t: 'ins', c: 'entity', id, lv: e.levelId, v: moved });
+              }
+              tx.apply(ops);
+              return selected.map((e) => map.get(e.id)).filter((id): id is string => Boolean(id));
+            }
+            for (const e of selected) {
+              if (e.type === 'opening') continue;
+              const set = changedFields(e, transformEntity(e, xf));
+              if (Object.keys(set).length) tx.apply(updateEntityOps(tx.doc, e.id, set));
+            }
+            return ids;
+          },
+          nudge && !copy ? { coalesce: `nudge:${[...ids].sort().join(',')}` } : undefined,
+        );
+        return { ids: result };
       },
     }),
     defineCommand({

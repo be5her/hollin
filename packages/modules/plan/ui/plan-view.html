@@ -63,11 +63,13 @@
     [attr.data-entities]="entityCount()"
     [attr.data-frame-ms]="frameMs()"
     [attr.data-tool]="tool()"
+    [attr.data-selection]="selectionAttr()"
   ></canvas>
 </div>
 <div class="flex items-center gap-4 px-3 h-6 border-t border-edge bg-surface shrink-0 text-[11px] text-muted font-mono whitespace-nowrap overflow-hidden" data-testid="plan-footer">
   <span class="min-w-48 shrink-0" data-testid="plan-cursor">{{ cursorLabel() }}</span>
   <span class="truncate">{{ levelName() }}</span>
+  <span class="truncate" data-testid="plan-selection">{{ selectionLabel() }}</span>
   <div class="flex-1"></div>
   <span class="truncate" data-testid="plan-hint">{{ hint() }}</span>
 </div>

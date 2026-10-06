@@ -1,7 +1,7 @@
 import { DOCUMENT, Component, DestroyRef, ElementRef, afterNextRender, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
 import { FormField, form } from '@angular/forms/signals';
 import { deriveLevels, type Vec2 } from '@studio/core';
-import { AppState, Checkbox, HostBridge, Icon, IconButton, Input, ProjectDocs, ProjectView, Select, Toasts, Units } from '@studio/ui';
+import { AppState, Checkbox, ContextMenu, HostBridge, Icon, IconButton, Input, ProjectDocs, ProjectView, Select, Toasts, Units, type ContextMenuItem } from '@studio/ui';
 import { DEFAULT_TOOL_OPTIONS, Plan2dEditor, drawingScale, readPlanTheme, type Camera, type ToolId, type UnderlayMode, type WallOptions } from '@studio/viewport';
 import { BrickWall, Maximize, MousePointer2, ZoomIn, ZoomOut } from 'lucide';
 
@@ -31,6 +31,7 @@ export class PlanView {
   private readonly app = inject(AppState);
   private readonly host = inject(HostBridge);
   private readonly toasts = inject(Toasts);
+  private readonly menu = inject(ContextMenu);
   private readonly document = inject(DOCUMENT);
   private readonly destroyRef = inject(DestroyRef);
   protected readonly units = inject(Units);
@@ -69,6 +70,12 @@ export class PlanView {
   protected readonly frameMs = signal('0');
   protected readonly tool = signal<ToolId>('select');
   protected readonly hint = signal('');
+  protected readonly selection = signal<string[]>([]);
+  protected readonly selectionAttr = computed(() => this.selection().join(' '));
+  protected readonly selectionLabel = computed(() => {
+    const n = this.selection().length;
+    return n === 0 ? '' : n === 1 ? '1 selected' : `${n} selected`;
+  });
 
   /** The wall tool's options, typed in display units. */
   protected readonly wallDraft = signal<WallDraft>({ thickness: '', height: '', alignment: 'center', single: false });
@@ -101,7 +108,33 @@ export class PlanView {
       this.tool.set(tool);
       this.hint.set(hint);
     },
+    onSelectionChange: (ids) => this.selection.set(ids),
+    onContextMenu: (event, ids) => this.menu.open(event, this.menuItems(ids)),
   });
+
+  private menuItems(ids: string[]): ContextMenuItem[] {
+    const projectId = untracked(this.projectId);
+    const run = (id: string, input: unknown) => this.host.invoke(id, input, projectId).catch((err) => this.toasts.error(err));
+    const n = ids.length;
+    const what = n === 1 ? 'item' : `${n} items`;
+    return [
+      {
+        label: `Duplicate ${what}`,
+        shortcut: 'Ctrl+D',
+        disabled: !n,
+        testId: 'menu-duplicate',
+        select: () =>
+          void run('plan.transform', { ids, translate: [100, -100], copy: true }).then((result) => {
+            const copies = (result as { ids?: string[] } | undefined)?.ids;
+            if (copies?.length) this.editor.select(copies);
+          }),
+      },
+      { label: `Delete ${what}`, shortcut: 'Del', danger: true, disabled: !n, testId: 'menu-delete', select: () => void run('plan.entity.delete', { ids }) },
+      'separator',
+      { label: 'Select all', shortcut: 'Ctrl+A', testId: 'menu-select-all', select: () => this.editor.select(Object.keys(this.editor.entities())) },
+      { label: 'Zoom to fit', shortcut: 'Home', select: () => this.editor.zoomToFit() },
+    ];
+  }
 
   constructor() {
     effect(() => this.editor.setDocument(this.doc()));
@@ -169,7 +202,7 @@ export class PlanView {
     else this.wallOptions = { ...this.wallOptions, height };
     this.wallOptions = { ...this.wallOptions, alignment: draft.alignment, single: draft.single };
     this.wallDraft.set({ thickness: this.units.length(this.wallOptions.thickness), height: this.wallOptions.height === null ? '' : this.units.length(this.wallOptions.height), alignment: this.wallOptions.alignment, single: this.wallOptions.single });
-    this.editor.setToolOptions({ wall: this.wallOptions });
+    this.editor.setToolOptions({ ...DEFAULT_TOOL_OPTIONS, wall: this.wallOptions });
   }
 
   protected chooseLevel(levelId: string): void {

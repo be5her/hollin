@@ -1,7 +1,7 @@
-import { DEG, add, distance, formatLength, normalize, perp, pointAt, resolvePath, scale as vscale, sub, type Entity, type EntityType, type Layer, type LevelWalls, type Path, type Region, type UnitSettings, type Vec2 } from '@studio/core';
+import { DEG, add, columnPolygon, distance, formatLength, normalize, openingFrame, perp, resolvePath, scale as vscale, sub, type Entity, type EntityType, type Layer, type LevelWalls, type Path, type Region, type UnitSettings, type Vec2 } from '@studio/core';
 import { visibleBox, worldToScreen, type Camera, type Size } from './camera';
 import { tracePath, tracePolygon, traceRegion, traceSegments } from './draw';
-import { searchScene, type LevelScene, type SceneItem } from './scene';
+import { entityBox, searchScene, type LevelScene, type SceneItem } from './scene';
 import { withAlpha, type PlanTheme } from './theme';
 
 /** Everything one frame needs. The renderer keeps no state of its own. */
@@ -146,6 +146,84 @@ export function drawScreenText(ctx: CanvasRenderingContext2D, frame: RenderFrame
   worldSpace(ctx, frame);
 }
 
+/** An entity that is not (yet) in the scene, e.g. a drag preview: drawn like the real thing, without caching. */
+export function drawEntityPreview(ctx: CanvasRenderingContext2D, entity: Entity, frame: RenderFrame): void {
+  const texts: TextOp[] = [];
+  const box = entityBox(entity, frame.scene ? Object.fromEntries([...frame.scene.items].map(([id, item]) => [id, item.entity])) : {});
+  const item: SceneItem = { ...box, id: entity.id, type: entity.type, layerId: entity.layerId, entity, path2d: null };
+  drawEntity(ctx, item, frame, texts);
+  drawTexts(ctx, frame, texts);
+  worldSpace(ctx, frame);
+}
+
+/** The outline of each selected entity in the selection colour. */
+export function drawSelection(ctx: CanvasRenderingContext2D, frame: RenderFrame, selection: ReadonlySet<string>): void {
+  if (!selection.size || !frame.scene) return;
+  ctx.strokeStyle = frame.theme.selection;
+  ctx.fillStyle = withAlpha(frame.theme.selection, 0.12);
+  ctx.lineWidth = px(frame, 2);
+  ctx.lineJoin = 'round';
+  for (const id of selection) {
+    const item = frame.scene.items.get(id);
+    if (!item) continue;
+    ctx.beginPath();
+    if (traceOutline(ctx, item, frame)) {
+      ctx.fill('nonzero');
+      ctx.stroke();
+    }
+  }
+}
+
+/** Traces an entity's outline; false when it has none worth drawing (its box is used instead). */
+function traceOutline(ctx: CanvasRenderingContext2D, item: SceneItem, frame: RenderFrame): boolean {
+  const e = item.entity;
+  switch (e.type) {
+    case 'wall': {
+      const body = frame.walls?.bodies.get(e.id);
+      for (const poly of body?.polygons ?? []) tracePolygon(ctx, poly);
+      return Boolean(body);
+    }
+    case 'opening': {
+      const wall = frame.scene?.items.get(e.wallId)?.entity;
+      if (!wall || wall.type !== 'wall') return false;
+      tracePolygon(ctx, openingFrame(wall, e).cut);
+      return true;
+    }
+    case 'column':
+      tracePolygon(ctx, columnPolygon(e));
+      return true;
+    case 'slab':
+    case 'void':
+    case 'shaft':
+    case 'room': {
+      const region = regionOf(e);
+      if (region) {
+        traceRegion(ctx, region);
+        return true;
+      }
+      if (e.type === 'room' && e.boundary.k === 'detect') {
+        ctx.arc(e.boundary.seed[0], e.boundary.seed[1], px(frame, 8), 0, Math.PI * 2);
+        return true;
+      }
+      return false;
+    }
+    case 'dimension': {
+      const u = normalize(sub(e.to, e.from));
+      const n = perp(u);
+      const a = add(e.from, vscale(n, e.offset));
+      const b = add(e.to, vscale(n, e.offset));
+      ctx.moveTo(e.from[0], e.from[1]);
+      ctx.lineTo(a[0], a[1]);
+      ctx.lineTo(b[0], b[1]);
+      ctx.lineTo(e.to[0], e.to[1]);
+      return true;
+    }
+    default:
+      ctx.rect(item.minX, item.minY, item.maxX - item.minX, item.maxY - item.minY);
+      return true;
+  }
+}
+
 /** The world transform: mm to device pixels, y up. */
 export function worldSpace(ctx: CanvasRenderingContext2D, frame: RenderFrame): void {
   const { size, dpr, camera } = frame;
@@ -243,13 +321,7 @@ function traceColumn(ctx: CanvasPath, e: Extract<Entity, { type: 'column' }>): v
     traceRegion(ctx, s.region);
     return;
   }
-  const a = e.rotation * DEG;
-  const u: Vec2 = [Math.cos(a), Math.sin(a)];
-  const v = perp(u);
-  const corners = [add(add(e.at, vscale(u, -s.w / 2)), vscale(v, -s.d / 2)), add(add(e.at, vscale(u, s.w / 2)), vscale(v, -s.d / 2)), add(add(e.at, vscale(u, s.w / 2)), vscale(v, s.d / 2)), add(add(e.at, vscale(u, -s.w / 2)), vscale(v, s.d / 2))];
-  ctx.moveTo(corners[0][0], corners[0][1]);
-  for (let i = 1; i < 4; i++) ctx.lineTo(corners[i][0], corners[i][1]);
-  ctx.closePath();
+  tracePolygon(ctx, columnPolygon(e));
 }
 
 function pathOf(item: SceneItem, path: Path): Path2D | null {
@@ -373,19 +445,13 @@ function drawOpening(ctx: CanvasRenderingContext2D, item: SceneItem, frame: Rend
   const wall = frame.scene?.items.get(e.wallId)?.entity;
   if (!wall || wall.type !== 'wall') return;
   const { theme } = frame;
-  const { point: c, tangent: u } = pointAt(wall.path, e.along);
-  const n = perp(u);
-  const t = wall.thickness;
-  const half = e.width / 2;
-  // The cut: the wall body between the jambs, in the background colour, slightly oversized to cover the body stroke.
-  const jambA = add(c, vscale(u, -half));
-  const jambB = add(c, vscale(u, half));
-  const corners = [add(jambA, vscale(n, t / 2 + 0.5)), add(jambB, vscale(n, t / 2 + 0.5)), add(jambB, vscale(n, -t / 2 - 0.5)), add(jambA, vscale(n, -t / 2 - 0.5))];
+  const { jambs, normal: n, cut, across } = openingFrame(wall, e);
+  const [jambA, jambB] = jambs;
+  // The cut: the wall body between the jambs, in the background colour, a hair oversized to cover the body outline.
+  const corners = cut;
   ctx.fillStyle = theme.background;
   ctx.beginPath();
-  ctx.moveTo(corners[0][0], corners[0][1]);
-  for (let i = 1; i < 4; i++) ctx.lineTo(corners[i][0], corners[i][1]);
-  ctx.closePath();
+  tracePolygon(ctx, corners);
   ctx.fill();
   ctx.strokeStyle = theme.wallLine;
   ctx.lineWidth = px(frame, 1);
@@ -396,9 +462,11 @@ function drawOpening(ctx: CanvasRenderingContext2D, item: SceneItem, frame: Rend
   ctx.moveTo(corners[1][0], corners[1][1]);
   ctx.lineTo(corners[2][0], corners[2][1]);
   if (e.kind === 'window') {
-    for (const k of [-0.25, 0.25]) {
-      const a = add(jambA, vscale(n, t * k));
-      const b = add(jambB, vscale(n, t * k));
+    const mid = (across.left + across.right) / 2;
+    const quarter = (across.left - across.right) / 4;
+    for (const k of [mid - quarter, mid + quarter]) {
+      const a = add(jambA, vscale(n, k));
+      const b = add(jambB, vscale(n, k));
       ctx.moveTo(a[0], a[1]);
       ctx.lineTo(b[0], b[1]);
     }

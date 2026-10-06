@@ -163,6 +163,80 @@ export async function smokePlanUi(smoke: Smoke, towerId: string): Promise<void> 
   await smoke.shots('16-plan-walls');
   await smoke.key('Escape');
   smoke.check('Escape leaves the tool', await smoke.until(async () => (await attr(smoke, 'tool')) === 'select'));
+
+  smoke.section('selecting and editing');
+  await wait(100);
+  rect = (await smoke.rect(canvas))!;
+  cam = (await readCamera(smoke))!;
+  const selection = async () => ((await attr(smoke, 'selection')) ?? '').split(' ').filter(Boolean);
+  const bottom = wallsOnGallery().find((w) => w.path.v[0].p[1] === w.path.v[1].p[1] && w.path.v[0].p[1] < -1000)!;
+  const right = wallsOnGallery().find((w) => w.path.v[0].p[0] === w.path.v[1].p[0] && w.path.v[0].p[0] > 1000)!;
+  const arcWall = wallsOnGallery().find((w) => w.path.v[0].s?.k === 'arc')!;
+  await smoke.clickAt(...xy(toScreen(rect, cam, [0, bottom.path.v[0].p[1]])));
+  smoke.check('clicking a wall selects it', await smoke.until(async () => (await selection()).join() === bottom.id), await selection());
+  smoke.check('the footer counts the selection', await smoke.waitFor(`${tab} [data-testid=plan-selection]`, 2000, '1 selected'));
+  await smoke.clickAt(...xy(toScreen(rect, cam, [right.path.v[0].p[0], 0])), { modifiers: ['shift'] });
+  smoke.check('Shift+click adds to the selection', await smoke.until(async () => (await selection()).length === 2));
+  await smoke.clickAt(...xy(toScreen(rect, cam, [-1500, -1000])));
+  smoke.check('clicking empty floor clears it', await smoke.until(async () => (await selection()).length === 0));
+  await smoke.dragAt(toScreen(rect, cam, [-3500, -2500]), toScreen(rect, cam, [3500, 2500]));
+  smoke.check('a window drag selects what lies inside', await smoke.until(async () => (await selection()).length === 5), await selection());
+  // From empty floor (a drag that starts on a selected entity moves it), leftwards across the arc wall only.
+  await smoke.dragAt(toScreen(rect, cam, [500, 600]), toScreen(rect, cam, [-500, -600]));
+  smoke.check('a crossing drag selects what it touches', await smoke.until(async () => (await selection()).join() === arcWall.id), await selection());
+  await smoke.shots('17-plan-selection');
+
+  const arcStart = arcWall.path.v[0].p;
+  const arcMid = toScreen(rect, cam, [0, 1200]);
+  await smoke.dragAt(arcMid, { x: arcMid.x + 50, y: arcMid.y });
+  smoke.check('dragging a selected wall moves it', await smoke.until(() => Math.abs(wallsOnGallery().find((w) => w.id === arcWall.id)!.path.v[0].p[0] - (arcStart[0] + 50 / cam.scale)) < tolerance), wallsOnGallery().find((w) => w.id === arcWall.id)?.path.v[0].p);
+  await smoke.key('Right');
+  await smoke.key('Right');
+  await smoke.key('Right');
+  const nudged = () => wallsOnGallery().find((w) => w.id === arcWall.id)!.path.v[0].p[0];
+  smoke.check('arrow keys nudge the selection', await smoke.until(() => Math.abs(nudged() - (arcStart[0] + 50 / cam.scale + 300)) < tolerance), nudged());
+  const history = await smoke.run<{ undo: { label: string }[] }>('edit.history', {}, { projectId: towerId });
+  smoke.check('quick nudges merge into one undo step', history.undo[0].label === 'Nudge wall' && history.undo[1].label === 'Move wall', history.undo.slice(0, 3).map((h) => h.label));
+  await smoke.key('Delete');
+  smoke.check('Delete removes the selection', await smoke.until(() => wallsOnGallery().length === 4));
+  await smoke.key('Z', ['control']);
+  smoke.check('Ctrl+Z brings it back', await smoke.until(() => wallsOnGallery().length === 5));
+
+  smoke.section('agents and drags');
+  const movedArc = wallsOnGallery().find((w) => w.path.v[0].s?.k === 'arc')!;
+  const grab = toScreen(rect, cam, [(movedArc.path.v[0].p[0] + movedArc.path.v[1].p[0]) / 2, 1200]);
+  await smoke.clickAt(grab.x, grab.y);
+  await smoke.until(async () => (await selection()).join() === movedArc.id);
+  await smoke.mouseMove(grab.x, grab.y);
+  await smoke.mouseDown(grab.x, grab.y);
+  await smoke.mouseMove(grab.x + 40, grab.y, ['leftbuttondown']);
+  await smoke.mouseMove(grab.x + 80, grab.y, ['leftbuttondown']);
+  smoke.check('a drag shows its hint', await smoke.waitFor(`${tab} [data-testid=plan-hint]`, 2000, 'Release'));
+  await smoke.run('plan.entity.delete', { ids: [movedArc.id] }, { projectId: towerId });
+  await smoke.mouseMove(grab.x + 120, grab.y, ['leftbuttondown']);
+  await smoke.mouseUp(grab.x + 120, grab.y);
+  await wait(300);
+  smoke.check('an agent deleting the dragged wall cancels the drag', wallsOnGallery().length === 4 && (await selection()).length === 0 && !(await smoke.text('body'))?.includes('No entity'), { walls: wallsOnGallery().length, selection: await selection() });
+  await smoke.run('edit.undo', {}, { projectId: towerId });
+  await smoke.until(() => wallsOnGallery().length === 5);
+
+  const bottomMid = toScreen(rect, cam, [0, bottom.path.v[0].p[1]]);
+  await smoke.clickAt(bottomMid.x, bottomMid.y, { button: 'right' });
+  smoke.check('right-clicking a wall selects it and opens a menu', (await smoke.waitFor('[data-testid=context-menu]')) && (await selection()).join() === bottom.id);
+  await smoke.click('[data-testid=menu-duplicate]');
+  smoke.check('the menu duplicates it', await smoke.until(() => wallsOnGallery().length === 6));
+  smoke.check('the copy is selected', await smoke.until(async () => (await selection()).length === 1 && (await selection())[0] !== bottom.id));
+  // The menu took the keyboard focus; give it back to the canvas before pressing keys.
+  await smoke.js(`document.querySelector('${canvas}').focus()`);
+  await smoke.key('Delete');
+  smoke.check('Delete removes the copy', await smoke.until(() => wallsOnGallery().length === 5));
+  await smoke.clickAt(...xy(toScreen(rect, cam, [0, bottom.path.v[0].p[1]])));
+  await smoke.key('C', ['control']);
+  await smoke.mouseMove(...xy(toScreen(rect, cam, [0, 1000])));
+  await smoke.key('V', ['control']);
+  smoke.check('Ctrl+C and Ctrl+V paste a copy at the cursor', await smoke.until(() => wallsOnGallery().length === 6 && wallsOnGallery().some((w) => Math.abs(w.path.v[0].p[1] - 1000) < tolerance)), wallsOnGallery().map((w) => w.path.v[0].p));
+  await smoke.key('Delete');
+  await smoke.until(() => wallsOnGallery().length === 5);
 }
 
 const xy = (p: { x: number; y: number }): [number, number] => [p.x, p.y];
