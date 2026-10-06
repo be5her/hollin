@@ -2,6 +2,7 @@ import type { Entity, EntityOf } from '../doc/schema';
 import { differencePolygons } from './clip';
 import { openingFrame } from './openings';
 import type { Polygon } from './polygon';
+import { autoSlab, cavitiesOf, detectRooms, roomSolids, type Cavity, type RoomGeometry } from './rooms';
 import { joinWalls, junctionNodes, junctionPatches, wallBody, wallEnds, type WallBody, type WallEnd } from './walls';
 
 export type Wall = EntityOf<'wall'>;
@@ -18,8 +19,16 @@ export interface LevelWalls {
   cut: Polygon[];
 }
 
+/** Everything a level's entities derive to. */
 export interface LevelGeometry {
   walls: LevelWalls;
+  /** The enclosed spaces (every hole in the solids, at every depth). */
+  cavities: Cavity[];
+  rooms: Map<string, RoomGeometry>;
+  /** The automatic slab: outlines of the walls that enclose something, holes filled. */
+  slab: Polygon[];
+  /** The slab entities that follow the walls (they have no outline of their own), with their layers. */
+  autoSlabs: { id: string; layerId: string }[];
 }
 
 export interface DeriveOptions {
@@ -56,6 +65,23 @@ export function deriveWalls(walls: readonly Wall[], options: DeriveOptions = {})
   return { bodies, nodes, patches, joined, cut };
 }
 
+/** Rooms, cavities and the automatic slab from a level's entities and its derived walls. */
+export function deriveRooms(entities: Record<string, Entity>, walls: LevelWalls): Pick<LevelGeometry, 'cavities' | 'rooms' | 'slab' | 'autoSlabs'> {
+  const rooms: EntityOf<'room'>[] = [];
+  const columns: EntityOf<'column'>[] = [];
+  const separators: EntityOf<'separator'>[] = [];
+  const autoSlabs: { id: string; layerId: string }[] = [];
+  for (const id in entities) {
+    const e = entities[id];
+    if (e.type === 'room') rooms.push(e);
+    else if (e.type === 'column') columns.push(e);
+    else if (e.type === 'separator') separators.push(e);
+    else if (e.type === 'slab' && e.source.k === 'auto') autoSlabs.push({ id: e.id, layerId: e.layerId });
+  }
+  const cavities = cavitiesOf(roomSolids(walls, columns, separators));
+  return { cavities, rooms: detectRooms(rooms, cavities), slab: autoSlabs.length ? autoSlab(walls) : [], autoSlabs };
+}
+
 /**
  * Everything derived from a level's entities, uncached: the caller decides what to memoise (the
  * renderer keys a cache on object identity; main derives afresh because a transaction mutates a
@@ -69,5 +95,6 @@ export function deriveLevelGeometry(entities: Record<string, Entity>, options: D
     if (e.type === 'wall') walls.push(e);
     else if (e.type === 'opening') openings.push(e);
   }
-  return { walls: deriveWalls(walls, { openings, ...options }) };
+  const derivedWalls = deriveWalls(walls, { openings, ...options });
+  return { walls: derivedWalls, ...deriveRooms(entities, derivedWalls) };
 }

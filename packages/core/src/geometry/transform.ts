@@ -94,6 +94,8 @@ export function transformEntity(entity: Entity, xf: Transform): Entity {
       return { ...entity, region: transformRegionBy(entity.region, m) };
     case 'room':
       return { ...entity, boundary: entity.boundary.k === 'detect' ? { k: 'detect', seed: m.point(entity.boundary.seed) } : { k: 'region', region: transformRegionBy(entity.boundary.region, m) } };
+    case 'separator':
+      return { ...entity, path: transformPathBy(entity.path, m) };
     case 'fixture':
       return { ...entity, at: m.point(entity.at), rotation: m.angle(entity.rotation), mirror: m.flips ? !entity.mirror : entity.mirror };
     case 'point':

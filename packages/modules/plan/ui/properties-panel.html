@@ -153,6 +153,15 @@
         @case ('room') {
           <label><span class="block text-xs font-medium text-muted mb-1">Name</span><input xInput [formField]="f.name" (blur)="setName()" (keydown.enter)="$any($event.target).blur()" data-testid="prop-name" /></label>
           <label><span class="block text-xs font-medium text-muted mb-1">Number</span><input xInput [formField]="f.number" placeholder="—" (blur)="setText('number')" (keydown.enter)="$any($event.target).blur()" /></label>
+          @if (roomInfo(); as info) {
+            @if (!info.enclosed) {
+              <div class="text-xs text-warning" data-testid="prop-room-state">Not enclosed: move the seed into a space closed by walls.</div>
+            } @else if (info.shared) {
+              <div class="text-xs text-warning" data-testid="prop-room-state">Shares its space with another room.</div>
+            } @else {
+              <div class="text-xs text-muted">Area <span class="font-mono text-fg" data-testid="prop-area">{{ info.area }}</span> · Perimeter <span class="font-mono text-fg">{{ info.perimeter }}</span></div>
+            }
+          }
         }
         @case ('label') {
           <label><span class="block text-xs font-medium text-muted mb-1">Text</span><input xInput [formField]="f.text" (blur)="setText('text')" (keydown.enter)="$any($event.target).blur()" data-testid="prop-text" /></label>

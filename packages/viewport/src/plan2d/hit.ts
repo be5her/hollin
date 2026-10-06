@@ -1,4 +1,4 @@
-import { columnPolygon, distance, flatten, openingFrame, polygonContains, polygonEdgeDistance, regionContains, wallBody, type Box, type Entity, type EntityType, type Layer, type LevelWalls, type Polygon, type Region, type Vec2 } from '@studio/core';
+import { columnPolygon, distance, flatten, openingFrame, polygonContains, polygonEdgeDistance, regionContains, wallBody, type Box, type Entity, type EntityType, type Layer, type LevelGeometry, type LevelWalls, type Polygon, type Region, type Vec2 } from '@studio/core';
 import { searchScene, type LevelScene, type SceneItem } from './scene';
 
 export interface Hit {
@@ -14,10 +14,12 @@ export interface HitOptions {
   layers: Record<string, Layer>;
   /** The derived walls, so wall bodies need not be recomputed. */
   walls: LevelWalls | null;
+  /** The level's geometry, so a detected room is hit anywhere in its space. */
+  geometry?: LevelGeometry | null;
 }
 
 /** Smaller things first, then what they sit on; rooms and slabs last, so a click inside a room picks a wall or a door before the room. */
-const PRIORITY: Record<EntityType, number> = { opening: 0, dimension: 1, label: 1, column: 2, fixture: 2, point: 2, item: 2, light: 2, wall: 3, void: 5, shaft: 5, room: 6, slab: 7 };
+const PRIORITY: Record<EntityType, number> = { opening: 0, dimension: 1, label: 1, column: 2, fixture: 2, point: 2, item: 2, light: 2, separator: 3, wall: 3, void: 5, shaft: 5, room: 6, slab: 7 };
 
 const GLYPH = 100;
 
@@ -59,8 +61,19 @@ export function entityDistance(item: SceneItem, p: Vec2, scene: LevelScene, opti
       return regionDistance(e.region, p, tol);
     case 'room': {
       if (e.boundary.k === 'region') return regionDistance(e.boundary.region, p, tol);
+      const geometry = options.geometry?.rooms.get(e.id);
+      if (geometry?.polygon && polygonContains(geometry.polygon, p) && !geometry.holes.some((h) => polygonContains(h, p))) return 0;
       const d = distance(e.boundary.seed, p);
       return d <= tol * 2 ? d : null;
+    }
+    case 'separator': {
+      const d = polygonEdgeDistance(flatten(e.path, 1), p);
+      // The flattened line's closing edge must not count: measure the open polyline.
+      const pts = flatten(e.path, 1);
+      let best = Infinity;
+      for (let i = 1; i < pts.length; i++) best = Math.min(best, polygonEdgeDistance([pts[i - 1], pts[i]], p));
+      void d;
+      return best <= tol ? best : null;
     }
     case 'fixture':
     case 'point':

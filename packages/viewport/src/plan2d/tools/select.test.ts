@@ -48,6 +48,7 @@ function harness() {
     hit: (p) => hitTest(scene, p, { tolerance: 50, layers, walls }),
     marquee: (box, mode) => marqueeSelect(scene, box, mode, { tolerance: 50, layers, walls }),
     walls: () => walls,
+    geometry: () => null,
     snap: () => null,
     setEntities: (e) => {
       entities = e;

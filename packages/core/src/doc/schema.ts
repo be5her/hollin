@@ -163,6 +163,8 @@ export const RoomSchema = z.object({
   boundary: z.discriminatedUnion('k', [z.object({ k: z.literal('detect'), seed: Vec2Schema.describe('A point inside the walls that enclose the room') }), z.object({ k: z.literal('region'), region: RegionSchema })]),
   finish: z.object({ floor: CatalogRef.optional(), walls: CatalogRef.optional(), ceiling: CatalogRef.optional() }).optional(),
 });
+/** A room divider where there is no wall: an open line that splits the space on either side into two rooms. */
+export const SeparatorSchema = z.object({ ...base, type: z.literal('separator'), path: PathSchema.describe('An open line between walls') });
 export const FixtureSchema = z.object({ ...base, type: z.literal('fixture'), symbol: CatalogRef, at: Vec2Schema, rotation: Degrees.default(0), size: z.tuple([PositiveMm, PositiveMm]).optional(), mirror: z.boolean().default(false) });
 export const PointSchema = z.object({
   ...base,
@@ -195,7 +197,7 @@ export const LightSchema = z.object({
   angle: z.number().min(1).max(179).optional().describe('Spot cone angle, degrees'),
 });
 
-export const EntitySchema = z.discriminatedUnion('type', [WallSchema, OpeningSchema, ColumnSchema, SlabSchema, VoidSchema, ShaftSchema, RoomSchema, FixtureSchema, PointSchema, DimensionSchema, LabelSchema, ItemSchema, LightSchema]);
+export const EntitySchema = z.discriminatedUnion('type', [WallSchema, OpeningSchema, ColumnSchema, SlabSchema, VoidSchema, ShaftSchema, RoomSchema, SeparatorSchema, FixtureSchema, PointSchema, DimensionSchema, LabelSchema, ItemSchema, LightSchema]);
 export type Entity = z.infer<typeof EntitySchema>;
 export type EntityType = Entity['type'];
 export type EntityOf<T extends EntityType> = Extract<Entity, { type: T }>;
@@ -209,6 +211,7 @@ export const ENTITY_LAYER: Record<EntityType, LayerKind | 'any'> = {
   void: 'structure',
   shaft: 'structure',
   room: 'interior',
+  separator: 'interior',
   fixture: 'interior',
   point: 'interior',
   dimension: 'any',
@@ -226,6 +229,7 @@ export const ENTITY_PREFIX: Record<EntityType, string> = {
   void: 'vod',
   shaft: 'sft',
   room: 'rom',
+  separator: 'sep',
   fixture: 'fix',
   point: 'pnt',
   dimension: 'dim',

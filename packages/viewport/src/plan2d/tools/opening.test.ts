@@ -40,6 +40,7 @@ function harness() {
     hit: (p) => hitTest(scene, p, { tolerance: 60, layers, walls }),
     marquee: () => [],
     walls: () => walls,
+    geometry: () => null,
     snap: () => null,
   };
   return host;

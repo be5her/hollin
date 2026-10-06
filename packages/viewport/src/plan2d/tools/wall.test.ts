@@ -28,6 +28,7 @@ function host(options: Partial<ToolOptions['wall']> = {}) {
     hit: () => null,
     marquee: () => [],
     walls: () => null,
+    geometry: () => null,
     snap: () => null,
   };
   return h;

@@ -1,4 +1,4 @@
-import { defaultConfig, deriveLevels, emptyBox, parseCoordinate, type Box, type Entity, type Layer, type LevelWalls, type ProjectDoc, type UnitSettings, type Vec2 } from '@studio/core';
+import { defaultConfig, deriveLevels, emptyBox, parseCoordinate, type Box, type Entity, type Layer, type LevelGeometry, type LevelWalls, type ProjectDoc, type UnitSettings, type Vec2 } from '@studio/core';
 import { defaultCamera, fitBox, panBy, sameCamera, screenToWorld, worldToScreen, zoomAt, type Camera, type Size } from './camera';
 import { LevelGeometryCache } from './geometry-cache';
 import { sameVertex, type VertexRef } from './grips';
@@ -10,6 +10,8 @@ import { LIGHT_THEME, type PlanTheme } from './theme';
 import { SelectTool } from './tools/select';
 import { DEFAULT_TOOL_OPTIONS, type Clipboard, type Tool, type ToolHost, type ToolId, type ToolOptions, type ToolPointer } from './tools/tool';
 import { OpeningTool } from './tools/opening';
+import { RoomTool } from './tools/room';
+import { SeparatorTool } from './tools/separator';
 import { WallTool } from './tools/wall';
 
 export type UnderlayMode = 'none' | 'below' | 'above';
@@ -55,7 +57,7 @@ export class Plan2dEditor {
   private levelId: string | null = null;
   private underlayMode: UnderlayMode = 'none';
   private readonly scenes = new Map<string, LevelScene>();
-  private readonly geometry = new LevelGeometryCache();
+  private readonly geometry: LevelGeometryCache;
   private readonly snapIndex = new SnapIndex();
   private snapBuiltFor: { entities: Record<string, Entity>; walls: LevelWalls | null } | null = null;
   private snapSettings: SnapSettings = DEFAULT_SNAP_SETTINGS;
@@ -79,7 +81,11 @@ export class Plan2dEditor {
   showGrid = true;
   lastStats: RenderStats = { drawn: 0, ms: 0 };
 
-  constructor(private readonly callbacks: EditorCallbacks = {}) {
+  constructor(
+    private readonly callbacks: EditorCallbacks = {},
+    options: { cache?: LevelGeometryCache } = {},
+  ) {
+    this.geometry = options.cache ?? new LevelGeometryCache();
     const editor = this;
     const host: ToolHost = {
       invoke: (id, input) => this.callbacks.invoke?.(id, input) ?? Promise.resolve(undefined),
@@ -99,6 +105,7 @@ export class Plan2dEditor {
       hit: (p) => this.hit(p),
       marquee: (box, mode) => (this.levelScene ? marqueeSelect(this.levelScene, box, mode, this.hitOptions()) : []),
       walls: (exclude) => this.levelWalls(exclude),
+      geometry: () => this.levelGeometry(),
       snap: (p, options) => this.snap(p, options),
       get clipboard() {
         return editor.clipboard;
@@ -107,7 +114,7 @@ export class Plan2dEditor {
         editor.clipboard = value;
       },
     };
-    this.tools = { select: new SelectTool(host), wall: new WallTool(host), door: new OpeningTool(host, 'door'), window: new OpeningTool(host, 'window') };
+    this.tools = { select: new SelectTool(host), wall: new WallTool(host), door: new OpeningTool(host, 'door'), window: new OpeningTool(host, 'window'), room: new RoomTool(host), separator: new SeparatorTool(host) };
     this.activeTool = this.tools.select;
   }
 
@@ -333,6 +340,12 @@ export class Plan2dEditor {
     return this.geometry.walls(entities, out);
   }
 
+  /** Everything the active level derives to, from all its walls (hidden ones still enclose). */
+  levelGeometry(): LevelGeometry | null {
+    const entities = this.doc && this.levelId ? this.doc.levelData[this.levelId]?.entities : undefined;
+    return entities ? this.geometry.level(entities) : null;
+  }
+
   hit(p: Vec2): Hit | null {
     return this.levelScene ? hitTest(this.levelScene, p, this.hitOptions()) : null;
   }
@@ -357,7 +370,7 @@ export class Plan2dEditor {
   // ---------- internals ----------
 
   private hitOptions() {
-    return { tolerance: HIT_PX / this.cameraValue.scale, layers: this.layers(), walls: this.levelWalls() };
+    return { tolerance: HIT_PX / this.cameraValue.scale, layers: this.layers(), walls: this.levelWalls(), geometry: this.levelGeometry() };
   }
 
   private contentBox(): Box | null {
@@ -420,6 +433,7 @@ export class Plan2dEditor {
       layers: this.layers(),
       scene,
       walls: this.levelWalls(this.activeTool.excluded?.()),
+      geometry: this.levelGeometry(),
       underlay: under ? (this.scenes.get(under) ?? null) : null,
       showGrid: this.showGrid,
     };
@@ -543,6 +557,12 @@ export class Plan2dEditor {
       e.preventDefault();
     } else if (e.key === 'n' || e.key === 'N') {
       this.setTool('window');
+      e.preventDefault();
+    } else if (e.key === 'r' || e.key === 'R') {
+      this.setTool('room');
+      e.preventDefault();
+    } else if (e.key === 's' || e.key === 'S') {
+      this.setTool('separator');
       e.preventDefault();
     }
   }

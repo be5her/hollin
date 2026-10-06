@@ -31,3 +31,4 @@ export * from './geometry/transform';
 export * from './geometry/openings';
 export * from './geometry/path-edit';
 export * from './geometry/intersect';
+export * from './geometry/rooms';

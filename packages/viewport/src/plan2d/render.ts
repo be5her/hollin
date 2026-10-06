@@ -1,4 +1,4 @@
-import { DEG, add, columnPolygon, distance, formatLength, normalize, openingFrame, openingMisfits, perp, resolvePath, scale as vscale, sub, type Entity, type EntityType, type Layer, type LevelWalls, type Path, type Region, type UnitSettings, type Vec2 } from '@studio/core';
+import { DEG, add, columnPolygon, distance, formatArea, formatLength, normalize, openingFrame, openingMisfits, perp, resolvePath, scale as vscale, sub, type Entity, type EntityType, type Layer, type LevelGeometry, type LevelWalls, type Path, type Region, type UnitSettings, type Vec2 } from '@studio/core';
 import { visibleBox, worldToScreen, type Camera, type Size } from './camera';
 import { tracePath, tracePolygon, traceRegion, traceSegments } from './draw';
 import { entityBox, searchScene, type LevelScene, type SceneItem } from './scene';
@@ -15,6 +15,8 @@ export interface RenderFrame {
   scene: LevelScene | null;
   /** The level's walls joined (bodies, junction patches and their union), or null when there are none. */
   walls: LevelWalls | null;
+  /** The whole level's geometry (rooms, cavities, the automatic slab), from every wall. */
+  geometry: LevelGeometry | null;
   /** The reference level, drawn faintly under the plan. */
   underlay: LevelScene | null;
   showGrid: boolean;
@@ -144,7 +146,7 @@ export interface RenderStats {
 }
 
 /** Back to front. */
-const DRAW_ORDER: Record<EntityType, number> = { slab: 0, room: 1, void: 2, shaft: 2, wall: 3, column: 4, opening: 5, fixture: 6, point: 6, item: 6, light: 6, dimension: 7, label: 8 };
+const DRAW_ORDER: Record<EntityType, number> = { slab: 0, room: 1, void: 2, shaft: 2, separator: 2, wall: 3, column: 4, opening: 5, fixture: 6, point: 6, item: 6, light: 6, dimension: 7, label: 8 };
 
 export interface TextOp {
   text: string;
@@ -189,6 +191,12 @@ export function renderPlan(ctx: CanvasRenderingContext2D, frame: RenderFrame): R
   worldSpace(ctx, frame);
   if (frame.underlay) drawUnderlay(ctx, frame, frame.underlay, visible);
   let drawn = 0;
+  if (frame.geometry?.slab.length && frame.geometry.autoSlabs.some((s) => frame.layers[s.layerId]?.visible !== false)) {
+    ctx.fillStyle = frame.theme.slab;
+    ctx.beginPath();
+    for (const poly of frame.geometry.slab) tracePolygon(ctx, poly);
+    ctx.fill('nonzero');
+  }
   if (frame.scene) {
     const items = searchScene(frame.scene, visible).sort((a, b) => DRAW_ORDER[a.type] - DRAW_ORDER[b.type] || (a.id < b.id ? -1 : 1));
     let wallsDrawn = false;
@@ -384,6 +392,9 @@ function traceOutline(ctx: CanvasRenderingContext2D, item: SceneItem, frame: Ren
       }
       return false;
     }
+    case 'separator':
+      tracePath(ctx, e.path);
+      return true;
     case 'dimension': {
       const u = normalize(sub(e.to, e.from));
       const n = perp(u);
@@ -565,27 +576,42 @@ function drawEntity(ctx: CanvasRenderingContext2D, item: SceneItem, frame: Rende
       return;
     }
     case 'room': {
-      if (e.boundary.k === 'region') {
-        const p = regionPath(item, e.boundary.region);
-        if (p) {
-          ctx.fillStyle = withAlpha(theme.room, 0.1);
-          ctx.fill(p, 'evenodd');
-          ctx.strokeStyle = withAlpha(theme.room, 0.6);
-          ctx.lineWidth = px(frame, 1);
-          ctx.stroke(p);
-        }
-        texts.push({ text: e.name, at: [(item.minX + item.maxX) / 2, (item.minY + item.maxY) / 2], screenPx: 12, color: theme.fg, align: 'center', baseline: 'middle' });
-      } else {
-        const seed = e.boundary.seed;
-        ctx.fillStyle = withAlpha(theme.room, 0.25);
-        ctx.strokeStyle = theme.room;
+      const g = frame.geometry?.rooms.get(e.id);
+      if (g?.polygon && g.enclosed) {
+        ctx.fillStyle = withAlpha(theme.room, g.shared ? 0.04 : 0.1);
+        ctx.strokeStyle = withAlpha(theme.room, 0.6);
         ctx.lineWidth = px(frame, 1);
         ctx.beginPath();
-        ctx.arc(seed[0], seed[1], px(frame, 5), 0, Math.PI * 2);
-        ctx.fill();
+        tracePolygon(ctx, g.polygon);
+        for (const h of g.holes) tracePolygon(ctx, h);
+        ctx.fill('evenodd');
         ctx.stroke();
-        texts.push({ text: e.name, at: seed, screenPx: 12, color: theme.fg, align: 'left', baseline: 'middle', dx: 9 });
+        const label = e.number ? `${e.number} ${e.name}` : e.name;
+        texts.push({ text: label, at: g.labelAt, screenPx: 12, color: theme.fg, align: 'center', baseline: 'bottom', dy: -2 });
+        if (g.shared) texts.push({ text: 'shares its space', at: g.labelAt, screenPx: 10, color: theme.warning, align: 'center', baseline: 'top', dy: 3, mono: true });
+        else texts.push({ text: formatArea(g.area, frame.units), at: g.labelAt, screenPx: 11, color: theme.muted, align: 'center', baseline: 'top', dy: 3, mono: true });
+        return;
       }
+      // Not enclosed (or no geometry yet): a badge at the seed.
+      const seed: Vec2 = e.boundary.k === 'detect' ? e.boundary.seed : [(item.minX + item.maxX) / 2, (item.minY + item.maxY) / 2];
+      const color = g && !g.enclosed ? theme.warning : theme.room;
+      ctx.fillStyle = withAlpha(color, 0.25);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = px(frame, 1);
+      ctx.beginPath();
+      ctx.arc(seed[0], seed[1], px(frame, 5), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      texts.push({ text: g && !g.enclosed ? `${e.name} · not enclosed` : e.name, at: seed, screenPx: 12, color: g && !g.enclosed ? theme.warning : theme.fg, align: 'left', baseline: 'middle', dx: 9 });
+      return;
+    }
+    case 'separator': {
+      const p = pathOf(item, e.path);
+      ctx.strokeStyle = theme.muted;
+      ctx.lineWidth = px(frame, 1);
+      ctx.setLineDash([px(frame, 8), px(frame, 4)]);
+      if (p) ctx.stroke(p);
+      ctx.setLineDash([]);
       return;
     }
     case 'fixture':

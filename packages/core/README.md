@@ -16,7 +16,7 @@ The engine. Everything here is pure TypeScript with no Electron, Node I/O or UI 
 | File | What |
 |---|---|
 | `config.ts` | The config schema and `mergeConfig`: sections merged one level deep and normalised field by field, so an old or hand-edited file falls back per field instead of failing. `ConfigPatchSchema` validates patches strictly. `AI_MODELS` lists the assistant's models. The `editor` section holds the 2D editor's snapping, grid and tool defaults. |
-| `units.ts` | `formatLength`/`parseLength` (metric mm/cm/m, imperial feet-inches or inches with fractions) and `formatAngle`/`parseAngle`. Lengths are always stored in millimetres. |
+| `units.ts` | `formatLength`/`parseLength` (metric mm/cm/m, imperial feet-inches or inches with fractions), `formatArea` (m² or ft²) and `formatAngle`/`parseAngle`. Lengths are always stored in millimetres. |
 | `input.ts` | The coordinate grammar typed while drawing (`3000`, `3000<45`, `@1000,500`, `1000,500`, lengths in any unit) and `resolveCoordinate`, which turns one into a point given the last point and the current direction. |
 | `ids.ts` | `newId(prefix)`: prefix + 16 lowercase Crockford base32 characters (80 bits) from `crypto.getRandomValues`. |
 | `branding.ts` | The product names from `branding.json`. |
@@ -62,7 +62,8 @@ The engine. Everything here is pure TypeScript with no Electron, Node I/O or UI 
 | `transform.ts` | `transformEntity`: every entity type moved, rotated about a pivot or mirrored across a line (openings stay on their wall; a mirror swaps a door's swing and flips arcs), and `changedFields` for the resulting update. |
 | `path-edit.ts` | Vertex, segment and corner edits on a path, and `pathOfEntity`/`withPath` to address a wall's path or a region's outline or hole. |
 | `openings.ts` | `openingFrame` (an opening's centre, jambs and cut through its wall's body), `fitOpening` (whether an opening fits between the wall's ends and its other openings, the nearest place that does, the free ranges), `openingMisfits` and `columnPolygon`. |
-| `level-geometry.ts` | `deriveWalls` / `deriveLevelGeometry`: everything a level's entities derive to, uncached. The renderer memoises by object identity (valid there, where the mirror builds a fresh draft per patch); main derives afresh, because a transaction mutates a level's record in place while a batch runs. |
+| `rooms.ts` | Rooms: the solids (joined walls, columns, hair-thin dividers) closed by a millimetre and unioned into a tree; every hole at every depth is a cavity with its islands, net area and perimeter; a detected room resolves to the cavity its seed lies in (not enclosed when none, shared when another room claimed it first), a drawn room to its region; unclaimed cavities for detection (slivers, shafts and voids skipped); the automatic slab (outlines that enclose something). |
+| `level-geometry.ts` | `deriveWalls` / `deriveRooms` / `deriveLevelGeometry`: everything a level's entities derive to (walls joined and cut, cavities, rooms, the slab), uncached. The renderer memoises by object identity (valid there, where the mirror builds a fresh draft per patch); main derives afresh, because a transaction mutates a level's record in place while a batch runs. |
 
 ## Tests
 

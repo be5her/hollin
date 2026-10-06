@@ -1,13 +1,14 @@
 import { Component, computed, inject, input, linkedSignal, untracked } from '@angular/core';
 import { FormField, form } from '@angular/forms/signals';
-import { arcGeometry, bulgeOf, distance, findEntity, pathLength, pathOfEntity, type Entity, type Path, type Vec2 } from '@studio/core';
+import { arcGeometry, bulgeOf, distance, findEntity, formatArea, pathLength, pathOfEntity, type Entity, type Path, type Vec2 } from '@studio/core';
 import { AngleInput, EmptyState, HostBridge, Input, LengthInput, ProjectDocs, Select, Toasts, Units } from '@studio/ui';
+import { PlanGeometry } from './plan-geometry';
 import { PlanSelection } from './plan-selection';
 
 type Wall = Extract<Entity, { type: 'wall' }>;
 type Opening = Extract<Entity, { type: 'opening' }>;
 
-const TYPE_NAMES: Record<Entity['type'], string> = { wall: 'Wall', opening: 'Opening', column: 'Column', slab: 'Slab', void: 'Void', shaft: 'Shaft', room: 'Room', fixture: 'Fixture', point: 'Service point', dimension: 'Dimension', label: 'Label', item: 'Item', light: 'Light' };
+const TYPE_NAMES: Record<Entity['type'], string> = { wall: 'Wall', opening: 'Opening', column: 'Column', slab: 'Slab', void: 'Void', shaft: 'Shaft', room: 'Room', separator: 'Room divider', fixture: 'Fixture', point: 'Service point', dimension: 'Dimension', label: 'Label', item: 'Item', light: 'Light' };
 
 interface Draft {
   name: string;
@@ -59,6 +60,7 @@ export class PropertiesPanel {
   private readonly host = inject(HostBridge);
   private readonly toasts = inject(Toasts);
   private readonly selection = inject(PlanSelection);
+  private readonly geometry = inject(PlanGeometry);
   protected readonly units = inject(Units);
 
   readonly projectId = input.required<string>();
@@ -83,6 +85,17 @@ export class PropertiesPanel {
   });
   /** The first entity, which the form shows; a multi-selection of one type edits them all. */
   protected readonly subject = computed(() => this.entity() ?? (this.sameType() ? this.entities()[0] : null));
+  /** A room's area and perimeter as the walls enclose it now. */
+  protected readonly roomInfo = computed(() => {
+    const e = this.subject();
+    const doc = this.state()?.doc;
+    if (!e || e.type !== 'room' || !doc) return null;
+    const entities = doc.levelData[e.levelId]?.entities;
+    if (!entities) return null;
+    const g = this.geometry.cache.level(entities).rooms.get(e.id);
+    if (!g) return null;
+    return { enclosed: g.enclosed, shared: g.shared ?? null, area: formatArea(g.area, this.units.settings()), perimeter: this.units.length(g.perimeter) };
+  });
   protected readonly wallLength = computed(() => {
     const e = this.subject();
     return e?.type === 'wall' ? this.units.length(pathLength(e.path)) : '';

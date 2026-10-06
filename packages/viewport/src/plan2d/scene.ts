@@ -60,6 +60,8 @@ export function entityBox(entity: Entity, entities: Record<string, Entity>): Box
       return pathBox(entity.region.outer);
     case 'room':
       return entity.boundary.k === 'detect' ? around(entity.boundary.seed, GLYPH * 2) : pathBox(entity.boundary.region.outer);
+    case 'separator':
+      return grow(pathBox(entity.path), 50);
     case 'fixture':
       return around(entity.at, entity.size ? Math.hypot(entity.size[0], entity.size[1]) / 2 : GLYPH);
     case 'point':

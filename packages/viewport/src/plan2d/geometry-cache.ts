@@ -1,4 +1,4 @@
-import { deriveWalls, wallBody, type Entity, type LevelWalls, type Opening, type Wall, type WallBody } from '@studio/core';
+import { deriveRooms, deriveWalls, wallBody, type Entity, type LevelGeometry, type LevelWalls, type Opening, type Wall, type WallBody } from '@studio/core';
 
 /**
  * Derived geometry memoised by object identity. Valid in the renderer only: the mirror builds a
@@ -9,6 +9,7 @@ import { deriveWalls, wallBody, type Entity, type LevelWalls, type Opening, type
 export class LevelGeometryCache {
   private readonly bodies = new WeakMap<Wall, WallBody>();
   private readonly levels = new WeakMap<Record<string, Entity>, Map<string, LevelWalls>>();
+  private readonly whole = new WeakMap<Record<string, Entity>, LevelGeometry>();
 
   readonly bodyOf = (wall: Wall): WallBody => {
     let body = this.bodies.get(wall);
@@ -18,6 +19,17 @@ export class LevelGeometryCache {
     }
     return body;
   };
+
+  /** Everything a level's entities derive to (all walls, hidden or not: hiding is a view choice and rooms stay enclosed). */
+  level(entities: Record<string, Entity>): LevelGeometry {
+    let g = this.whole.get(entities);
+    if (!g) {
+      const walls = this.walls(entities);
+      g = { walls, ...deriveRooms(entities, walls) };
+      this.whole.set(entities, g);
+    }
+    return g;
+  }
 
   /** The joined walls of a level's entities, leaving out `exclude` (hidden layers, a drag preview's walls). */
   walls(entities: Record<string, Entity>, exclude?: ReadonlySet<string>): LevelWalls {

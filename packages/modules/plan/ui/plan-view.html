@@ -12,6 +12,12 @@
     <button xIconButton size="sm" label="Window (N)" [class.bg-elevated]="tool() === 'window'" [class.text-fg]="tool() === 'window'" [attr.aria-pressed]="tool() === 'window'" (click)="chooseTool('window')" data-testid="tool-window">
       <svg [xIcon]="icons.Blinds" class="size-3.5"></svg>
     </button>
+    <button xIconButton size="sm" label="Room (R)" [class.bg-elevated]="tool() === 'room'" [class.text-fg]="tool() === 'room'" [attr.aria-pressed]="tool() === 'room'" (click)="chooseTool('room')" data-testid="tool-room">
+      <svg [xIcon]="icons.LandPlot" class="size-3.5"></svg>
+    </button>
+    <button xIconButton size="sm" label="Room divider (S)" [class.bg-elevated]="tool() === 'separator'" [class.text-fg]="tool() === 'separator'" [attr.aria-pressed]="tool() === 'separator'" (click)="chooseTool('separator')" data-testid="tool-separator">
+      <svg [xIcon]="icons.SeparatorVertical" class="size-3.5"></svg>
+    </button>
   </div>
   <div class="w-px h-5 bg-edge"></div>
   <label class="text-muted" for="plan-level-select">Level</label>

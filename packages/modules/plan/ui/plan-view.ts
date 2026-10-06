@@ -3,7 +3,8 @@ import { FormField, form } from '@angular/forms/signals';
 import { deriveLevels, type GlobalConfig, type Vec2 } from '@studio/core';
 import { AppState, Checkbox, ContextMenu, HostBridge, Icon, IconButton, Input, LengthInput, ProjectDocs, ProjectView, Select, Toasts, Units, type ContextMenuItem } from '@studio/ui';
 import { DEFAULT_TOOL_OPTIONS, Plan2dEditor, drawingScale, readPlanTheme, type Camera, type SnapResult, type ToolId, type UnderlayMode, type WallOptions } from '@studio/viewport';
-import { Blinds, BrickWall, ChevronDown, DoorOpen, Magnet, Maximize, MousePointer2, ZoomIn, ZoomOut } from 'lucide';
+import { Blinds, BrickWall, ChevronDown, DoorOpen, LandPlot, Magnet, Maximize, MousePointer2, SeparatorVertical, ZoomIn, ZoomOut } from 'lucide';
+import { PlanGeometry } from './plan-geometry';
 import { PlanSelection } from './plan-selection';
 
 interface WallDraft {
@@ -48,6 +49,7 @@ export class PlanView {
   private readonly toasts = inject(Toasts);
   private readonly menu = inject(ContextMenu);
   private readonly planSelection = inject(PlanSelection);
+  private readonly planGeometry = inject(PlanGeometry);
   private readonly document = inject(DOCUMENT);
   private readonly destroyRef = inject(DestroyRef);
   protected readonly units = inject(Units);
@@ -58,7 +60,7 @@ export class PlanView {
   private readonly container = viewChild.required<ElementRef<HTMLDivElement>>('container');
   private readonly dynamicInputEl = viewChild<ElementRef<HTMLInputElement>>('dynamicInput');
 
-  protected readonly icons = { Blinds, BrickWall, ChevronDown, DoorOpen, Magnet, Maximize, MousePointer2, ZoomIn, ZoomOut };
+  protected readonly icons = { Blinds, BrickWall, ChevronDown, DoorOpen, LandPlot, Magnet, Maximize, MousePointer2, SeparatorVertical, ZoomIn, ZoomOut };
   protected readonly snapKinds = SNAP_KINDS;
   protected readonly doc = computed(() => this.docs.read(this.projectId())?.doc);
   protected readonly levels = computed(() => {
@@ -149,7 +151,7 @@ export class PlanView {
     onSnap: (snap: SnapResult | null) => this.snapLabel.set(snap?.label ?? ''),
     onContextMenu: (event, ids) => this.menu.open(event, this.menuItems(ids)),
     onDynamicInput: ({ char, screen }) => this.dynamicInput.set({ x: screen[0] + 14, y: screen[1] + 14, value: char }),
-  });
+  }, { cache: this.planGeometry.cache });
 
   constructor() {
     effect(() => {

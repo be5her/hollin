@@ -92,6 +92,16 @@ export function parseLength(text: string, units: UnitSettings): number | null {
   return mm === null || !Number.isFinite(mm) ? null : sign * mm;
 }
 
+const MM2_PER_M2 = 1_000_000;
+const MM2_PER_FT2 = MM_PER_FOOT * MM_PER_FOOT;
+
+/** An area in the user's units: `12.34 m²` or `132.8 ft²`. */
+export function formatArea(mm2: number, units: Pick<UnitSettings, 'system'>): string {
+  if (!Number.isFinite(mm2)) return '—';
+  if (units.system === 'metric') return `${trimNumber(mm2 / MM2_PER_M2, 2)} m²`;
+  return `${trimNumber(mm2 / MM2_PER_FT2, 1)} ft²`;
+}
+
 /** An angle in degrees, e.g. `45°` or `22.5°`. */
 export function formatAngle(degrees: number, units: Pick<UnitSettings, 'precision'>): string {
   if (!Number.isFinite(degrees)) return '—';

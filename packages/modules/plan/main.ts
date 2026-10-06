@@ -3,6 +3,7 @@ import {
   EntitySchema,
   LAYER_KINDS,
   PathSchema,
+  RegionSchema,
   StudioError,
   addEntityOps,
   addLayerOps,
@@ -13,11 +14,13 @@ import {
   defineCommand,
   defineModule,
   deleteEntitiesOps,
+  deriveLevelGeometry,
   distance,
   editProject,
   entitiesOnLevel,
   fitOpening,
   insertVertex,
+  labelPoint,
   moveLayerOps,
   moveVertex,
   nearestPoint,
@@ -31,6 +34,7 @@ import {
   setCorner,
   setSegment,
   transformEntity,
+  unclaimedCavities,
   updateEntityOps,
   withPath,
   type CommandContext,
@@ -114,6 +118,12 @@ const NewEntitySchema = z.discriminatedUnion(
   'type',
   (EntitySchema.options as readonly z.ZodObject<z.ZodRawShape>[]).map((o) => o.omit({ id: true, levelId: true, layerId: true })) as unknown as [z.ZodObject<{ type: z.ZodLiteral<'wall'> }>, ...z.ZodObject<{ type: z.ZodLiteral<Entity['type']> }>[]],
 );
+
+/** "Room N" with the first N no room on the level uses. */
+function nextRoomName(entities: Record<string, Entity>): string {
+  const names = new Set(Object.values(entities).filter((e) => e.type === 'room').map((e) => (e as { name: string }).name.toLowerCase()));
+  for (let n = 1; ; n++) if (!names.has(`room ${n}`)) return `Room ${n}`;
+}
 
 /** Large batches by agents are kept as an automatic snapshot first. */
 const LARGE_BATCH = 20;
@@ -337,6 +347,64 @@ export const planModule = defineModule({
       },
     }),
     defineCommand({
+      id: 'plan.room.add',
+      title: 'Add a room',
+      description: 'Makes a room from a point inside walls (`seed`: the room follows the space the walls and dividers enclose around it) or from a drawn `region`. Without a name it is "Room N". Returns its id.',
+      scope: 'project',
+      batchable: true,
+      input: z.object({ levelId, layerId: layerId.optional(), seed: Point.optional(), region: RegionSchema.optional(), name: z.string().trim().min(1).max(120).optional(), number: z.string().max(20).optional() }),
+      handler: async (input, ctx) => {
+        if (!input.seed && !input.region) throw new StudioError('INVALID_INPUT', 'Give `seed` (a point inside the walls) or `region`');
+        const { result } = await editProject(ctx, 'Add room', (tx) => {
+          const name = input.name ?? nextRoomName(tx.doc.levelData[input.levelId]?.entities ?? {});
+          const entity = { type: 'room' as const, name, ...(input.number ? { number: input.number } : {}), boundary: input.region ? { k: 'region' as const, region: input.region } : { k: 'detect' as const, seed: input.seed! } };
+          const { ops, id } = addEntityOps(tx.doc, { levelId: input.levelId, layerId: input.layerId, entity });
+          tx.apply(ops);
+          return id;
+        });
+        return { id: result };
+      },
+    }),
+    defineCommand({
+      id: 'plan.room.detect',
+      title: 'Detect rooms',
+      description: 'Makes a room for every space on the level that walls and dividers enclose and no room claims yet, named "Room N" in reading order. Spaces under `minArea` mm² (0.5 m² by default) and shafts or voids are skipped. Returns the new ids.',
+      scope: 'project',
+      batchable: true,
+      input: z.object({ levelId, minArea: z.number().min(0).default(500_000) }),
+      handler: async ({ levelId: lv, minArea }, ctx) => {
+        const { result } = await editProject(ctx, 'Detect rooms', (tx) => {
+          const entities = tx.doc.levelData[lv]?.entities ?? {};
+          const geometry = deriveLevelGeometry(entities);
+          const free = unclaimedCavities(geometry.cavities, geometry.rooms, entities, minArea).map((c) => ({ c, at: labelPoint(c.polygon, c.islands) })).sort((p, q) => q.at[1] - p.at[1] || p.at[0] - q.at[0]);
+          const ids: string[] = [];
+          for (const { at } of free) {
+            const { ops, id } = addEntityOps(tx.doc, { levelId: lv, entity: { type: 'room', name: nextRoomName(tx.doc.levelData[lv].entities), boundary: { k: 'detect', seed: at } } });
+            tx.apply(ops);
+            ids.push(id);
+          }
+          return ids;
+        });
+        return { ids: result };
+      },
+    }),
+    defineCommand({
+      id: 'plan.rooms',
+      title: 'List rooms with their areas',
+      description: "The rooms of a level as the walls enclose them right now: name, number, whether the room is enclosed (a detected room whose walls opened is not), whether it shares its space with another room, the net floor area in mm², the perimeter in mm, where its label sits and its outline.",
+      scope: 'project',
+      input: z.object({ levelId }),
+      handler: async ({ levelId: lv }, ctx) => {
+        const entities = ctx.project!.doc.levelData[lv]?.entities;
+        if (!entities) throw new StudioError('NOT_FOUND', `No level ${lv}`);
+        const geometry = deriveLevelGeometry(entities);
+        return [...geometry.rooms.values()].map((g) => {
+          const room = entities[g.id] as Extract<Entity, { type: 'room' }>;
+          return { id: g.id, name: room.name, number: room.number, enclosed: g.enclosed, shared: g.shared ?? null, area: Math.round(g.area), perimeter: Math.round(g.perimeter), labelAt: g.labelAt, polygon: g.polygon };
+        });
+      },
+    }),
+    defineCommand({
       id: 'plan.transform',
       title: 'Move, rotate, mirror or copy entities',
       description:
@@ -406,7 +474,7 @@ export const planModule = defineModule({
       id: 'plan.entity.add',
       title: 'Add an entity',
       description:
-        'Adds an entity to a level: wall (path, thickness), opening (door or window in a wall, `along` its path), column, slab, void, shaft, room, fixture, point (electrical or plumbing), dimension, label, item (furniture) or light. Without `layerId` it goes on the first layer of the right kind. Coordinates in mm, y up; paths are vertices with optional arc (bulge) or Bézier segments and fillet/chamfer corners. Returns its id.',
+        'Adds an entity to a level: wall (path, thickness), opening (door or window in a wall, `along` its path), column, slab, void, shaft, room, separator (a room divider line where there is no wall), fixture, point (electrical or plumbing), dimension, label, item (furniture) or light. Without `layerId` it goes on the first layer of the right kind. Coordinates in mm, y up; paths are vertices with optional arc (bulge) or Bézier segments and fillet/chamfer corners. Returns its id.',
       scope: 'project',
       batchable: true,
       input: z.object({ levelId, layerId: layerId.optional(), entity: NewEntitySchema }),
