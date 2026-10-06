@@ -31,3 +31,6 @@ Plan Studio (a working name; every product name lives in `branding.json`) is a d
 - Signal Forms types a checkbox only when `type="checkbox"` is written in the template, even with `xCheckbox`.
 - `npm run dev` uses a separate data folder (`<name> Dev`); the smoke test uses a temporary one and a private MCP port. Neither touches the real library.
 - On Windows, write multi-line scripts with a file rather than a shell heredoc, and stop processes by PID (`taskkill /pid <pid> /t /f`), never by image name.
+- `packages/viewport` is type-checked by `tsconfig.node.json` (its unit tests run in node, so nothing there may touch `ResizeObserver`, `OffscreenCanvas` or `Path2D` at import time) and compiled into the renderer through its imports.
+- The plan canvas mirrors its state into `data-camera="x,y,scale"`, `data-level`, `data-underlay`, `data-entities` and `data-frame-ms`; the smoke test converts millimetres to window pixels from those and samples pixels with `canvasPixel`. The canvas follows the theme by watching `<html class>`, so the smoke's `setDark` works without going through the app's theme service.
+- In the smoke harness, `typeText` sends `char` events only: a key a canvas must see goes through `key()`, and the first character typed into a just-focused input too. `wheel()` takes the DOM's sign (negative zooms in).

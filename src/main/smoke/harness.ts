@@ -20,6 +20,11 @@ export function freePort(): Promise<number> {
 }
 
 type Rect = { x: number; y: number; width: number; height: number };
+export type Point = { x: number; y: number };
+export type KeyModifier = 'control' | 'shift' | 'alt' | 'meta';
+export type MouseModifier = KeyModifier | 'leftbuttondown' | 'middlebuttondown' | 'rightbuttondown';
+export type MouseButton = 'left' | 'middle' | 'right';
+const HELD: Record<MouseButton, MouseModifier> = { left: 'leftbuttondown', middle: 'middlebuttondown', right: 'rightbuttondown' };
 
 /**
  * The smoke test's toolkit: named checks that never throw, commands through the host, the host's
@@ -152,8 +157,8 @@ export class Smoke {
     return this.js(`(() => { const r = document.querySelector(${JSON.stringify(selector)})?.getBoundingClientRect(); return r ? { x: r.x, y: r.y, width: r.width, height: r.height } : null; })()`);
   }
 
-  /** A real key press through Chromium's input pipeline, e.g. `key('k', ['control'])`. */
-  async key(keyCode: string, modifiers: ('control' | 'shift' | 'alt' | 'meta')[] = []): Promise<void> {
+  /** A real key press through Chromium's input pipeline, e.g. `key('k', ['control'])`. A single character also sends its `char` event, so it lands in a focused input. */
+  async key(keyCode: string, modifiers: KeyModifier[] = []): Promise<void> {
     const wc = this.window.webContents;
     wc.focus();
     wc.sendInputEvent({ type: 'keyDown', keyCode, modifiers });
@@ -162,26 +167,86 @@ export class Smoke {
     await wait(60);
   }
 
-  /** Types text as character events into whatever has focus. */
+  /** Holds a key down (`keyUp` releases it), e.g. Space while dragging the plan. */
+  async keyDown(keyCode: string, modifiers: KeyModifier[] = []): Promise<void> {
+    this.window.webContents.sendInputEvent({ type: 'keyDown', keyCode, modifiers });
+    await wait(30);
+  }
+
+  async keyUp(keyCode: string, modifiers: KeyModifier[] = []): Promise<void> {
+    this.window.webContents.sendInputEvent({ type: 'keyUp', keyCode, modifiers });
+    await wait(30);
+  }
+
+  /** Types text as character events into whatever has focus (no keydown: a canvas listening for keys does not see these). */
   async typeText(text: string): Promise<void> {
     const wc = this.window.webContents;
     for (const ch of text) wc.sendInputEvent({ type: 'char', keyCode: ch });
     await wait(80);
   }
 
-  /** A real left-button drag in a few steps, in window coordinates. */
-  async drag(from: { x: number; y: number }, to: { x: number; y: number }, steps = 8): Promise<void> {
-    const wc = this.window.webContents;
-    wc.sendInputEvent({ type: 'mouseMove', x: Math.round(from.x), y: Math.round(from.y) });
-    wc.sendInputEvent({ type: 'mouseDown', x: Math.round(from.x), y: Math.round(from.y), button: 'left', clickCount: 1 });
-    for (let i = 1; i <= steps; i++) {
-      const x = Math.round(from.x + ((to.x - from.x) * i) / steps);
-      const y = Math.round(from.y + ((to.y - from.y) * i) / steps);
-      wc.sendInputEvent({ type: 'mouseMove', x, y, modifiers: ['leftbuttondown'] });
-      await wait(16);
+  // ---------- real mouse input, in window coordinates (CSS pixels) ----------
+
+  async mouseMove(x: number, y: number, modifiers: MouseModifier[] = []): Promise<void> {
+    this.window.webContents.sendInputEvent({ type: 'mouseMove', x: Math.round(x), y: Math.round(y), modifiers });
+    await wait(16);
+  }
+
+  async mouseDown(x: number, y: number, button: MouseButton = 'left', modifiers: MouseModifier[] = [], clickCount = 1): Promise<void> {
+    this.window.webContents.sendInputEvent({ type: 'mouseDown', x: Math.round(x), y: Math.round(y), button, modifiers, clickCount });
+    await wait(16);
+  }
+
+  async mouseUp(x: number, y: number, button: MouseButton = 'left', modifiers: MouseModifier[] = [], clickCount = 1): Promise<void> {
+    this.window.webContents.sendInputEvent({ type: 'mouseUp', x: Math.round(x), y: Math.round(y), button, modifiers, clickCount });
+    await wait(16);
+  }
+
+  /** A real click at a point: move there, press and release (`clickCount: 2` double-clicks). */
+  async clickAt(x: number, y: number, options: { button?: MouseButton; modifiers?: MouseModifier[]; clickCount?: number } = {}): Promise<void> {
+    const { button = 'left', modifiers = [], clickCount = 1 } = options;
+    await this.mouseMove(x, y, modifiers);
+    for (let i = 1; i <= clickCount; i++) {
+      await this.mouseDown(x, y, button, modifiers, i);
+      await this.mouseUp(x, y, button, modifiers, i);
     }
-    wc.sendInputEvent({ type: 'mouseUp', x: Math.round(to.x), y: Math.round(to.y), button: 'left', clickCount: 1 });
+    await wait(60);
+  }
+
+  /** A real drag with any button, in a few steps, with the button reported as held while moving. */
+  async dragAt(from: Point, to: Point, options: { button?: MouseButton; modifiers?: MouseModifier[]; steps?: number } = {}): Promise<void> {
+    const { button = 'left', modifiers = [], steps = 8 } = options;
+    await this.mouseMove(from.x, from.y, modifiers);
+    await this.mouseDown(from.x, from.y, button, modifiers);
+    const held: MouseModifier[] = [...modifiers, HELD[button]];
+    for (let i = 1; i <= steps; i++) {
+      await this.mouseMove(from.x + ((to.x - from.x) * i) / steps, from.y + ((to.y - from.y) * i) / steps, held);
+    }
+    await this.mouseUp(to.x, to.y, button, modifiers);
     await wait(80);
+  }
+
+  /** A real left-button drag in a few steps, in window coordinates. */
+  drag(from: Point, to: Point, steps = 8): Promise<void> {
+    return this.dragAt(from, to, { steps });
+  }
+
+  /** A wheel tick at a point, with the DOM's sign: a negative `deltaY` is the wheel pushed away (zoom in). */
+  async wheel(x: number, y: number, deltaY: number, modifiers: MouseModifier[] = []): Promise<void> {
+    this.window.webContents.sendInputEvent({ type: 'mouseWheel', x: Math.round(x), y: Math.round(y), deltaX: 0, deltaY: -deltaY, modifiers, canScroll: true });
+    await wait(80);
+  }
+
+  /** The painted colour of a canvas pixel at a window point, as `r,g,b`, after the renderer has drawn a frame. */
+  async canvasPixel(selector: string, x: number, y: number): Promise<string | null> {
+    return this.js(`new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => {
+      const c = document.querySelector(${JSON.stringify(selector)});
+      if (!c) return resolve(null);
+      const r = c.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      const d = c.getContext('2d').getImageData(Math.round((${x} - r.x) * dpr), Math.round((${y} - r.y) * dpr), 1, 1).data;
+      resolve(d[0] + ',' + d[1] + ',' + d[2]);
+    })))`);
   }
 
   /** A real right click at the centre of the element. */

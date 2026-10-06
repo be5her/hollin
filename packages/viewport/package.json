@@ -1,0 +1,13 @@
+{
+  "name": "@studio/viewport",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Framework-free renderers driven by the document: plan2d draws and edits one level on a Canvas 2D; scene3d (three) arrives with milestone 7.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "rbush": "4.0.1"
+  }
+}

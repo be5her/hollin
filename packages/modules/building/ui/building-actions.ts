@@ -20,19 +20,13 @@ export class BuildingActions {
     }
   }
 
-  /** The active level of a project: the stored choice while it exists, else the ground floor. */
+  /** The active level of a project (see `ProjectView.activeLevel`); the plan view follows the same choice. */
   activeLevel(projectId: Signal<string | null>, doc: Signal<ProjectDoc | undefined>): Signal<string | null> {
-    return computed(() => {
-      const id = projectId();
-      const d = doc();
-      if (!id || !d) return null;
-      const stored = this.view.get<string | null>(id, 'activeLevel', null);
-      return stored && d.levels[stored] ? stored : d.building.groundLevelId;
-    });
+    return this.view.activeLevel(projectId, doc);
   }
 
   setActiveLevel(projectId: string, levelId: string): void {
-    this.view.set(projectId, 'activeLevel', levelId);
+    this.view.setActiveLevel(projectId, levelId);
   }
 
   levels(doc: Signal<ProjectDoc | undefined>): Signal<DerivedLevel[]> {

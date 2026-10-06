@@ -11,6 +11,8 @@ export async function smokeBuildingUi(smoke: Smoke, towerId: string): Promise<vo
   await smoke.run('project.open', { id: towerId });
   smoke.check('the project tab shows the levels from top to bottom', await smoke.until(async () => (await smoke.js<string[]>(`[...document.querySelectorAll('${tab} [data-testid=level-row]')].map((r) => r.dataset.name)`)).join() === 'Level 2,Level 1,Gallery,Ground floor,Basement', 8000));
   smoke.check('elevations are shown in display units', (await smoke.js<string>(`document.querySelector('${row('Level 1')} [data-testid=level-elevation]').textContent.trim()`)) === '3600 mm');
+  await smoke.click(`${tab} [data-testid=center-tab-section]`);
+  smoke.check('the main view switches to the section', await smoke.waitFor(`${tab} [data-testid=section-view]`));
   smoke.check('the section draws every level and connector', (await smoke.count(`${tab} [data-testid=section-level]`)) === 5 && (await smoke.count(`${tab} [data-testid=section-connector]`)) === 2);
   smoke.check('the active level lists what it holds', await smoke.waitFor(`${tab} [data-testid=level-contents]`, 3000, '1 wall'));
   await smoke.shots('11-building');

@@ -37,7 +37,14 @@ export class ProjectTab implements TabComponent {
   protected readonly docState = computed(() => this.docs.read(this.projectId()));
   protected readonly loadError = computed(() => this.docs.errors()[this.projectId() ?? '']);
   protected readonly left = computed(() => this.panels.panels().filter((p) => p.side === 'left'));
-  protected readonly center = computed(() => this.panels.panels().filter((p) => p.side === 'center').at(-1) ?? null);
+  protected readonly centers = computed(() => this.panels.panels().filter((p) => p.side === 'center'));
+  /** The main view: the one chosen for this project, else the first registered (the plan). */
+  protected readonly center = computed(() => {
+    const id = this.projectId();
+    const chosen = id ? this.view.get<string | null>(id, 'centerView', null) : null;
+    return this.centers().find((p) => p.id === chosen) ?? this.centers()[0] ?? null;
+  });
+  protected readonly centerId = computed(() => this.center()?.id ?? '');
   protected readonly right = computed(() => this.panels.panels().filter((p) => p.side === 'right'));
   protected readonly rightPanel = computed(() => {
     const id = this.projectId();
@@ -57,6 +64,11 @@ export class ProjectTab implements TabComponent {
   protected chooseRight(id: string): void {
     const projectId = this.projectId();
     if (projectId) this.view.set(projectId, 'rightPanel', id);
+  }
+
+  protected chooseCenter(id: string): void {
+    const projectId = this.projectId();
+    if (projectId) this.view.set(projectId, 'centerView', id);
   }
 
   protected undo(): void {

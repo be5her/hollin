@@ -10,6 +10,7 @@
     "src/preload",
     "packages/core/src",
     "packages/mcp/src",
+    "packages/viewport/src",
     "packages/modules/main.ts",
     "packages/modules/*/main.ts",
     "packages/modules/*/*.test.ts"

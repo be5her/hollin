@@ -45,6 +45,23 @@
         }
       </aside>
       <main class="flex-1 min-w-0 min-h-0 flex flex-col" data-testid="project-center">
+        @if (centers().length > 1) {
+          <div class="flex items-center gap-0.5 px-2 border-b border-edge bg-surface shrink-0" role="tablist" aria-label="Main view">
+            @for (panel of centers(); track panel.id) {
+              <button
+                type="button"
+                role="tab"
+                class="px-2.5 h-8 text-xs font-medium border-b-2 -mb-px"
+                [class]="panel.id === centerId() ? 'border-accent text-fg' : 'border-transparent text-muted hover:text-fg'"
+                [attr.aria-selected]="panel.id === centerId()"
+                [attr.data-testid]="'center-tab-' + panel.id"
+                (click)="chooseCenter(panel.id)"
+              >
+                {{ panel.title }}
+              </button>
+            }
+          </div>
+        }
         @if (center(); as panel) {
           <ng-container *ngComponentOutlet="panel.component; inputs: { projectId: p.id }" />
         }

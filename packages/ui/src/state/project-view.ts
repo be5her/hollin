@@ -1,4 +1,5 @@
-import { Service, inject, signal, untracked, type Type } from '@angular/core';
+import { Service, computed, inject, signal, untracked, type Signal, type Type } from '@angular/core';
+import type { ProjectDoc } from '@studio/core';
 import { HostBridge } from '../host/host-bridge';
 
 /** A panel a module adds to the project tab. Its component gets a `projectId` input. */
@@ -56,5 +57,20 @@ export class ProjectView {
         if (state) void this.host.invoke('project.ui.set', { state }, projectId).catch(() => {});
       }, 400),
     );
+  }
+
+  /** The active level of a project: the stored choice while it exists, else the ground floor. Shared by every panel that follows the level. */
+  activeLevel(projectId: Signal<string | null>, doc: Signal<ProjectDoc | undefined>): Signal<string | null> {
+    return computed(() => {
+      const id = projectId();
+      const d = doc();
+      if (!id || !d) return null;
+      const stored = this.get<string | null>(id, 'activeLevel', null);
+      return stored && d.levels[stored] ? stored : d.building.groundLevelId;
+    });
+  }
+
+  setActiveLevel(projectId: string, levelId: string): void {
+    this.set(projectId, 'activeLevel', levelId);
   }
 }

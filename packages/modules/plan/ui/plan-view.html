@@ -1,0 +1,38 @@
+<div class="flex items-center gap-2 px-2 h-9 border-b border-edge bg-surface shrink-0 text-xs" data-testid="plan-toolbar">
+  <label class="text-muted" for="plan-level-select">Level</label>
+  <select xSelect id="plan-level-select" class="h-7 text-xs max-w-56" (change)="chooseLevel($any($event.target).value)" data-testid="plan-level" aria-label="Level">
+    @for (level of levelsTopDown(); track level.id) {
+      <option [value]="level.id" [selected]="level.id === activeLevelId()">{{ level.name }} · {{ units.length(level.elevation) }}</option>
+    }
+  </select>
+  <select xSelect class="h-7 text-xs" (change)="chooseUnderlay($any($event.target).value)" data-testid="plan-underlay" aria-label="Reference level">
+    <option value="none" [selected]="underlay() === 'none'">No reference</option>
+    <option value="below" [selected]="underlay() === 'below'">Level below</option>
+    <option value="above" [selected]="underlay() === 'above'">Level above</option>
+  </select>
+  <div class="flex-1"></div>
+  <button xIconButton size="sm" label="Zoom out" (click)="zoom(1 / 1.25)" data-testid="plan-zoom-out"><svg [xIcon]="icons.ZoomOut" class="size-3.5"></svg></button>
+  <span class="tabular-nums text-muted w-14 text-center font-mono" data-testid="plan-zoom">{{ zoomLabel() }}</span>
+  <button xIconButton size="sm" label="Zoom in" (click)="zoom(1.25)" data-testid="plan-zoom-in"><svg [xIcon]="icons.ZoomIn" class="size-3.5"></svg></button>
+  <button xIconButton size="sm" label="Zoom to fit (Home)" (click)="fit()" data-testid="plan-zoom-fit"><svg [xIcon]="icons.Maximize" class="size-3.5"></svg></button>
+</div>
+<div #container class="relative flex-1 min-h-0 bg-canvas">
+  <canvas
+    #canvas
+    class="absolute inset-0 w-full h-full outline-none touch-none"
+    tabindex="0"
+    aria-label="Plan of the active level"
+    data-testid="plan-canvas"
+    [attr.data-camera]="cameraAttr()"
+    [attr.data-level]="activeLevelId()"
+    [attr.data-underlay]="underlay()"
+    [attr.data-entities]="entityCount()"
+    [attr.data-frame-ms]="frameMs()"
+  ></canvas>
+</div>
+<div class="flex items-center gap-4 px-3 h-6 border-t border-edge bg-surface shrink-0 text-[11px] text-muted font-mono whitespace-nowrap overflow-hidden" data-testid="plan-footer">
+  <span class="min-w-48 shrink-0" data-testid="plan-cursor">{{ cursorLabel() }}</span>
+  <span class="truncate">{{ levelName() }}</span>
+  <div class="flex-1"></div>
+  <span class="truncate">Middle-drag or Space+drag to pan · wheel to zoom · Home to fit · PageUp/PageDown to change level</span>
+</div>

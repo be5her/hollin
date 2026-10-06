@@ -9,6 +9,7 @@ import { smokeHost } from './host';
 import { smokeLibrary } from './library';
 import { smokeLibraryUi } from './library-ui';
 import { smokeMcp } from './mcp';
+import { smokePlanUi } from './plan-ui';
 import { smokeShell } from './shell';
 
 /**
@@ -36,6 +37,7 @@ export async function runSmoke(host: Host, openWindow: () => BrowserWindow): Pro
     await smokeShell(smoke);
     await smokeLibraryUi(smoke, houseId);
     await smokeBuildingUi(smoke, towerId);
+    await smokePlanUi(smoke, towerId);
     smoke.check('renderer has no console errors', smoke.consoleErrors.length === 0, smoke.consoleErrors);
   } catch (err) {
     smoke.check(`unexpected error: ${(err as Error).stack ?? String(err)}`, false);

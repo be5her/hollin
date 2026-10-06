@@ -61,7 +61,7 @@
           "options": {
             "port": 4210,
             "prebundle": {
-              "exclude": ["@studio/core", "@studio/ui", "@studio/modules"]
+              "exclude": ["@studio/core", "@studio/ui", "@studio/modules", "@studio/viewport"]
             }
           },
           "configurations": {

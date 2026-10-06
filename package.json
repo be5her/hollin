@@ -34,6 +34,7 @@
   "devDependencies": {
     "@modelcontextprotocol/client": "^2.3.1",
     "@types/node": "^24.19.1",
+    "@types/rbush": "^4.0.0",
     "electron": "^44.5.1",
     "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",

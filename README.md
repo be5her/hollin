@@ -11,7 +11,7 @@ Windows, macOS and Linux, built with Electron and Angular.
 | 1. Scaffold: monorepo, command registry, MCP server, host, shell, settings, smoke test, CI | done |
 | 2. Project library: storage, index, Home screen, tabs, autosave, snapshots, trash, packages | done |
 | 3. Document model: building, levels, layers, entities, connectors, transactions, undo, live mirror | done |
-| 4. 2D editor | next |
+| 4. 2D editor: plan view, walls and joins, snapping, exact input, openings, rooms, shapes, dimensions, thumbnails | in progress (plan view, level switcher and underlay done) |
 | 5–9. Vertical circulation, AI tools and assistant, 3D view, decor, export | planned |
 
 ## Development
@@ -40,6 +40,8 @@ packages/core/src/node   Node-only storage: atomic writes, config and secret sto
 packages/mcp             Turns the command registry into a stateless Streamable HTTP MCP server.
 packages/ui              The renderer side of the host contract: HostBridge, invokeResource, state services,
                          shared controls and overlays.
+packages/viewport        Framework-free renderers driven by the document: plan2d (Canvas 2D). Imported by the
+                         renderer only.
 packages/modules/<name>  One folder per feature: main.ts (commands), ui/ (Angular), README.md.
 src/main                 Electron main: the host, IPC, the window, the smoke test.
 src/preload              The only bridge between renderer and main.
@@ -74,4 +76,5 @@ The host broadcasts typed **events** (`config.changed`, `library.changed`, `proj
 | @modelcontextprotocol/server, @modelcontextprotocol/node | The MCP server (SDK v2: the stable line; v1 only gets fixes until early 2027). |
 | @modelcontextprotocol/client (dev) | Unit tests and the smoke test talk to the server with the SDK's own client. |
 | fflate | Project packages (zip) without native modules. |
+| rbush (+ `@types/rbush`) | The plan's R-tree: culling what is drawn and hit-testing candidates. |
 | vitest, typescript | Tests and type checking (TypeScript 6.0 pinned for the Angular compiler, 7 elsewhere). |
