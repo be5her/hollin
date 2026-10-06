@@ -1,7 +1,7 @@
 import { NgComponentOutlet } from '@angular/common';
 import { Component, computed, inject, input, linkedSignal, untracked } from '@angular/core';
 import { FormField, form, required } from '@angular/forms/signals';
-import { Button, EmptyState, HostBridge, Icon, IconButton, OpenProjects, ProjectDocs, ProjectPanels, ProjectView, Toasts, UiActions, relativeTime, type Tab, type TabComponent } from '@studio/ui';
+import { Badge, Button, EmptyState, HostBridge, Icon, IconButton, OpenProjects, ProjectDocs, ProjectPanels, ProjectView, Toasts, UiActions, relativeTime, type Tab, type TabComponent } from '@studio/ui';
 import { Copy, Download, Redo2, Save, Trash2, Undo2 } from 'lucide';
 import { LibraryActions } from './library-actions';
 
@@ -12,7 +12,7 @@ import { LibraryActions } from './library-actions';
  */
 @Component({
   selector: 'x-project-tab',
-  imports: [Button, EmptyState, FormField, Icon, IconButton, NgComponentOutlet],
+  imports: [Badge, Button, EmptyState, FormField, Icon, IconButton, NgComponentOutlet],
   templateUrl: './project-tab.html',
   host: { class: 'flex flex-col h-full min-h-0', 'data-testid': 'project-tab' },
 })

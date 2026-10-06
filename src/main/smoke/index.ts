@@ -14,6 +14,7 @@ import { smokeMcp } from './mcp';
 import { smokePerf } from './perf';
 import { smokePlan } from './plan';
 import { smokePlanUi } from './plan-ui';
+import { smokeRulesUi } from './rules-ui';
 import { smokeShell } from './shell';
 import { smokeTrackingUi } from './tracking-ui';
 
@@ -48,6 +49,7 @@ export async function runSmoke(host: Host, openWindow: () => BrowserWindow): Pro
     await smokePlanUi(smoke, towerId);
     await smokeTrackingUi(smoke);
     await smokeConnectorsUi(smoke, duplexId);
+    await smokeRulesUi(smoke, duplexId);
     await smokePerf(smoke);
     smoke.check('renderer has no console errors', smoke.consoleErrors.length === 0, smoke.consoleErrors);
   } catch (err) {

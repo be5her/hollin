@@ -1,12 +1,12 @@
 import { defaultConfig, deriveLevels, emptyBox, entitiesOnLevel, parseCoordinate, type Box, type DerivedLevel, type Entity, type Layer, type LevelGeometry, type LevelWalls, type ProjectDoc, type RuleLimits, type UnitSettings, type Vec2 } from '@studio/core';
-import { defaultCamera, fitBox, panBy, sameCamera, screenToWorld, worldToScreen, zoomAt, type Camera, type Size } from './camera';
+import { defaultCamera, fitBox, panBy, sameCamera, screenToWorld, visibleBox, worldToScreen, zoomAt, type Camera, type Size } from './camera';
 import { planConnectors, type PlanConnector } from './connectors';
 import { LevelGeometryCache } from './geometry-cache';
 import { sameVertex, type VertexRef } from './grips';
 import { hitTest, marqueeSelect, type Hit } from './hit';
 import { drawSnap, renderPlan, worldSpace, type RenderFrame, type RenderStats } from './render';
 import { DEFAULT_SNAP_SETTINGS, SnapIndex, snapPoint, type SnapOptions, type SnapResult, type SnapSettings } from './snap';
-import { createLevelScene, sceneBox, syncLevelScene, type LevelScene } from './scene';
+import { createLevelScene, entityBox, sceneBox, syncLevelScene, type LevelScene } from './scene';
 import { LIGHT_THEME, type PlanTheme } from './theme';
 import { SelectTool } from './tools/select';
 import { DEFAULT_TOOL_OPTIONS, type Clipboard, type TextRequest, type Tool, type ToolHost, type ToolId, type ToolOptions, type ToolPointer } from './tools/tool';
@@ -339,6 +339,25 @@ export class Plan2dEditor {
     }
     this.fitted = true;
     this.moveCamera(fitBox(box, this.size));
+  }
+
+  /** Pans, and zooms out if it must, so the selection is in view; it never zooms in. */
+  revealSelection(): void {
+    const entities = this.entities();
+    const connectors = this.connectorMap();
+    let box = emptyBox();
+    for (const id of this.selected) {
+      const e = entities[id];
+      const b = e ? entityBox(e, entities) : connectors.get(id)?.box;
+      if (!b) continue;
+      box = { minX: Math.min(box.minX, b.minX), minY: Math.min(box.minY, b.minY), maxX: Math.max(box.maxX, b.maxX), maxY: Math.max(box.maxY, b.maxY) };
+    }
+    if (!Number.isFinite(box.minX)) return;
+    const visible = visibleBox(this.cameraValue, this.size);
+    if (box.minX >= visible.minX && box.maxX <= visible.maxX && box.minY >= visible.minY && box.maxY <= visible.maxY) return;
+    const fit = fitBox(box, this.size, 96);
+    this.fitted = true;
+    this.moveCamera({ x: fit.x, y: fit.y, scale: Math.min(fit.scale, this.cameraValue.scale) });
   }
 
   screenToWorld(screen: Vec2): Vec2 {

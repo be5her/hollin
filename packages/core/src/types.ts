@@ -155,6 +155,8 @@ export interface HostApi {
   };
   /** Broadcast an event to every window. */
   emit<E extends HostEventName>(event: E, payload: HostEvents[E]): void;
+  /** Listen to the host's events in main (a module's watcher); returns the function that stops listening. */
+  on<E extends HostEventName>(event: E, listener: (payload: HostEvents[E]) => void): () => void;
   /**
    * Ask the user in the UI whether the in-app assistant may run a mutating command.
    * Absent until the assistant exists; mutating assistant calls are refused meanwhile.
@@ -256,6 +258,8 @@ export interface HostEvents {
   'project.changed': { projectId: string; kind: 'opened' | 'closed' | 'save' | 'updated' | 'snapshots' | 'replaced'; focus?: boolean; save?: SaveStatus };
   /** An open project's document changed; the renderer's mirror applies `ops` (or refetches on a new epoch or a gap in `seq`). */
   'doc.patched': DocPatch & { projectId: string };
+  /** A project's warnings changed (see `rules.check`); `count` is the new total. */
+  'rules.changed': { projectId: string; count: number };
 }
 
 export type HostEventName = keyof HostEvents;

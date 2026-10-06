@@ -93,6 +93,7 @@ export class Host {
       execute: (id, input, ctx) => this.registry.execute(id, input, ctx),
       meta: (id) => this.registry.meta(id),
       emit: (event, payload) => this.emit(event, payload),
+      on: (event, listener) => this.onEvent((message) => void (message.event === event && listener(message.payload as never))),
     };
     this.registry.registerModule({ id: 'host', commands: hostCommands(this) });
     for (const mod of [...mainModules, ...(opts.extraModules ?? [])]) this.registry.registerModule(mod);

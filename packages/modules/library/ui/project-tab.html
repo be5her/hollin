@@ -79,6 +79,12 @@
               (click)="chooseRight(panel.id)"
             >
               {{ panel.title }}
+              @if (panel.badge) {
+                @let count = panel.badge(p.id)();
+                @if (count) {
+                  <span xBadge class="ml-1" [attr.data-testid]="'right-badge-' + panel.id">{{ count }}</span>
+                }
+              }
             </button>
           }
         </div>

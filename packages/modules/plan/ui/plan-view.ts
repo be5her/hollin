@@ -198,6 +198,16 @@ export class PlanView {
       this.editor.setDocument(state?.doc, state?.seq ?? 0, state?.epoch ?? 1);
     });
     effect(() => this.editor.setLevel(this.activeLevelId()));
+    effect(() => {
+      // A selection asked for from outside (a warning clicked): once the level matches, select it and bring it into view.
+      const request = this.planSelection.requested(this.projectId())();
+      if (!request || request.levelId !== this.activeLevelId()) return;
+      untracked(() => {
+        this.editor.select(request.ids);
+        this.editor.revealSelection();
+        this.planSelection.clearRequest(this.projectId(), request.n);
+      });
+    });
     effect(() => this.editor.setUnderlay(this.underlay()));
     effect(() => this.editor.setRuleLimits(this.ruleLimits()));
     effect(() => {

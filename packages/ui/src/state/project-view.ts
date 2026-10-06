@@ -10,6 +10,8 @@ export interface ProjectPanel {
   side: 'left' | 'right' | 'center';
   order: number;
   component: Type<unknown>;
+  /** A count shown on the panel's tab when it is not zero (the Warnings panel). */
+  badge?: (projectId: string) => Signal<number>;
 }
 
 /** The panels of the project tab, contributed by modules (levels and layers, history, details…). */

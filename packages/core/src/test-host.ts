@@ -29,6 +29,7 @@ export function testHost(options: { config?: ConfigPatch; confirm?: (request: Mu
     delete: async (name) => void values.delete(name),
   };
   const events: HostEventMessage[] = [];
+  const listeners = new Set<(message: HostEventMessage) => void>();
   return {
     version: 'test',
     platform: 'test',
@@ -40,7 +41,16 @@ export function testHost(options: { config?: ConfigPatch; confirm?: (request: Mu
     projects: noProjects,
     execute: () => Promise.reject(new StudioError('INTERNAL', 'The test host runs no other commands')),
     meta: () => undefined,
-    emit: (event, payload) => void events.push({ event, payload } as HostEventMessage),
+    emit: (event, payload) => {
+      const message = { event, payload } as HostEventMessage;
+      events.push(message);
+      for (const listener of [...listeners]) listener(message);
+    },
+    on: (event, listener) => {
+      const wrapped = (message: HostEventMessage) => void (message.event === event && listener(message.payload as never));
+      listeners.add(wrapped);
+      return () => void listeners.delete(wrapped);
+    },
     confirmMutation: options.confirm ? async (request) => options.confirm!(request) : undefined,
     events,
   };
