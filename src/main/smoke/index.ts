@@ -3,6 +3,7 @@ import path from 'node:path';
 import type { BrowserWindow } from 'electron';
 import type { Host } from '../host';
 import { Smoke, freePort } from './harness';
+import { smokeAssistantUi } from './assistant-ui';
 import { smokeBuilding } from './building';
 import { smokeBuildingUi } from './building-ui';
 import { smokeConnectors } from './connectors';
@@ -52,6 +53,7 @@ export async function runSmoke(host: Host, openWindow: () => BrowserWindow): Pro
     await smokeConnectorsUi(smoke, duplexId);
     await smokeRulesUi(smoke, duplexId);
     await smokeSnapshotUi(smoke, duplexId);
+    await smokeAssistantUi(smoke, duplexId);
     await smokePerf(smoke);
     smoke.check('renderer has no console errors', smoke.consoleErrors.length === 0, smoke.consoleErrors);
   } catch (err) {

@@ -1,0 +1,83 @@
+@if (status.value() && !status.value()!.keySet) {
+  <x-empty-state title="Add your Claude API key" hint="The assistant designs with you inside the app, using the Claude API with your own key. The key stays encrypted on this computer." data-testid="assistant-empty">
+    <button xButton variant="primary" size="sm" [icon]="icons.KeyRound" (click)="openSettings()" data-testid="assistant-open-settings">Open Settings</button>
+  </x-empty-state>
+} @else {
+  <div class="flex items-center gap-2 px-3 py-2 border-b border-edge text-xs">
+    <svg [xIcon]="icons.Sparkles" class="size-3.5 text-accent shrink-0"></svg>
+    <span class="flex-1 truncate text-muted" data-testid="assistant-model">{{ modelLabel() }}</span>
+    @if (running()) {
+      <button xButton size="sm" variant="secondary" [icon]="icons.Square" (click)="stop()" data-testid="assistant-stop">Stop</button>
+    } @else {
+      <button xButton size="sm" variant="ghost" [icon]="icons.Eraser" [disabled]="!chat()?.items?.length" (click)="clear()" data-testid="assistant-clear">Clear</button>
+    }
+  </div>
+
+  <div #log class="flex-1 min-h-0 overflow-y-auto px-3 py-2 flex flex-col gap-2 text-sm" data-testid="assistant-log">
+    @for (item of chat()?.items ?? []; track item.id) {
+      @switch (item.kind) {
+        @case ('user') {
+          <div class="self-end max-w-[85%] rounded-lg bg-accent/10 px-3 py-1.5 whitespace-pre-wrap break-words" data-testid="assistant-item" data-kind="user">{{ item.text }}</div>
+        }
+        @case ('assistant') {
+          <div class="whitespace-pre-wrap break-words" data-testid="assistant-item" data-kind="assistant">{{ item.text }}</div>
+        }
+        @case ('tool') {
+          <div class="flex items-start gap-2 rounded-md border border-edge bg-surface px-2.5 py-1.5 text-xs" data-testid="assistant-tool" [attr.data-command]="item.command" [attr.data-status]="item.status">
+            @if (item.status === 'running') {
+              <svg xSpinner class="size-3.5 mt-0.5 shrink-0 text-accent"></svg>
+            } @else {
+              <svg [xIcon]="toolIcon(item)" class="size-3.5 mt-0.5 shrink-0" [class]="item.status === 'ok' ? 'text-success' : item.status === 'declined' ? 'text-warning' : 'text-danger'"></svg>
+            }
+            <span class="min-w-0 flex-1">
+              <span class="block truncate font-medium">{{ item.title }}</span>
+              @if (item.summary) {
+                <span class="block text-muted break-words">{{ item.summary }}</span>
+              }
+            </span>
+          </div>
+        }
+      }
+    } @empty {
+      <div class="text-xs text-muted px-1 py-6 text-center" data-testid="assistant-intro">Ask for a change ("add a 4 by 5 m bedroom next to the living room") or a question about the design. Every edit the assistant makes is undoable and listed in the History panel.</div>
+    }
+    @if (busy()) {
+      <div class="flex items-center gap-2 text-xs text-muted" data-testid="assistant-busy"><svg xSpinner class="size-3.5 text-accent"></svg>Working…</div>
+    }
+    @if (chat()?.confirm; as confirm) {
+      <div class="rounded-md border border-warning/50 bg-warning/10 px-3 py-2 text-xs flex flex-col gap-2" data-testid="assistant-confirm" [attr.data-command]="confirm.command.id">
+        <div class="flex items-start gap-2">
+          <svg [xIcon]="icons.ShieldAlert" class="size-4 shrink-0 text-warning"></svg>
+          <div class="min-w-0">
+            <div class="font-medium text-fg">The assistant wants to run "{{ confirm.command.title }}"</div>
+            <div class="text-muted">{{ confirm.command.description }}</div>
+          </div>
+        </div>
+        <pre class="max-h-32 overflow-auto rounded bg-surface px-2 py-1 font-mono text-[11px] whitespace-pre-wrap break-all">{{ inputPreview(confirm.input) }}</pre>
+        <div class="flex items-center gap-2">
+          <button xButton size="sm" variant="primary" [icon]="icons.Check" (click)="answer(true)" data-testid="assistant-allow">Allow</button>
+          <button xButton size="sm" variant="secondary" [icon]="icons.X" (click)="answer(false)" data-testid="assistant-decline">Decline</button>
+        </div>
+      </div>
+    }
+    @if (chat()?.error; as error) {
+      <div class="flex items-start gap-2 text-xs text-danger" data-testid="assistant-error"><svg [xIcon]="icons.CircleAlert" class="size-3.5 mt-0.5 shrink-0"></svg><span>{{ error }}</span></div>
+    }
+  </div>
+
+  <form class="flex items-end gap-2 px-3 py-2 border-t border-edge" (submit)="$event.preventDefault(); send()">
+    <textarea
+      #composer
+      rows="2"
+      class="w-full resize-none rounded-md border border-edge bg-surface px-2.5 py-2 text-sm text-fg placeholder:text-muted/70 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/30 disabled:opacity-50"
+      placeholder="Ask the assistant… (Enter sends, Shift+Enter for a new line)"
+      [value]="draft()"
+      (input)="draft.set($any($event.target).value)"
+      (keydown)="onKeydown($event)"
+      [disabled]="running()"
+      aria-label="Message to the assistant"
+      data-testid="assistant-input"
+    ></textarea>
+    <button xButton type="submit" variant="primary" size="sm" [icon]="icons.Send" [disabled]="!canSend()" [loading]="sending()" aria-label="Send" data-testid="assistant-send">Send</button>
+  </form>
+}
