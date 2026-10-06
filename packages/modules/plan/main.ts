@@ -21,6 +21,7 @@ import {
   deleteEntitiesOps,
   deriveConnector,
   deriveLevelGeometry,
+  describeDesign,
   deriveLevels,
   dimensionGeometry,
   distance,
@@ -280,6 +281,15 @@ export const planModule = defineModule({
           .map(({ connector, role }) => ({ type: 'connector' as const, role, ...connector }));
         return [...entities, ...connectors];
       },
+    }),
+    defineCommand({
+      id: 'plan.describe',
+      title: 'Describe the design',
+      description:
+        "The whole design as a reader would describe it, derived right now (all lengths mm, areas mm²): every level bottom to top with its elevation and height, the count of entities by type, its rooms (name, number, net area, perimeter, whether enclosed), each room's openings with the room they lead to (or `outside`), which rooms are adjacent and how (a shared wall, a door, a window, an opening), the connectors landing in each room, and enclosed spaces no room names yet; then the vertical circulation: for each stair, ramp, ladder, escalator or elevator the levels it connects bottom to top with the room it opens into on each, the slabs it cuts and its derived numbers (risers, slope, stops, broken limits). Call it first to understand a project, and after a change to check the result.",
+      scope: 'project',
+      input: z.object({}),
+      handler: async (_input, ctx) => describeDesign(ctx.project!.doc, ctx.host.config.get().rules),
     }),
     defineCommand({
       id: 'plan.layer.add',

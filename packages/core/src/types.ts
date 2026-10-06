@@ -194,6 +194,11 @@ export interface CommandDefinition<S extends AnyZodObject = AnyZodObject, O = un
   hidden?: boolean;
   /** An editing command that can run as a step of `plan.apply` (one transaction for many edits). */
   batchable?: boolean;
+  /**
+   * What the handler returns: JSON (the default), or an image (`ImageResult`: `mimeType`, base64 `data`
+   * and any other fields), which MCP and the assistant pass to the model as image content.
+   */
+  output?: 'json' | 'image';
   handler(input: z.infer<S>, ctx: CommandContext): Promise<O>;
 }
 
@@ -210,6 +215,7 @@ export interface CommandMeta {
   /** True when an empty input is valid, so the palette can run it directly. */
   noInput: boolean;
   batchable: boolean;
+  output: 'json' | 'image';
 }
 
 export interface ModuleMain {

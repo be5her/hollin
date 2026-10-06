@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { localhostHostValidation, localhostOriginValidation, toNodeHandler } from '@modelcontextprotocol/node';
 import { McpServer, createMcpHandler } from '@modelcontextprotocol/server';
-import { StudioError, toErrorPayload, type CommandMeta, type CommandRegistry, type HostApi, type McpCallEntry, type ProjectApi } from '@studio/core';
+import { DESIGN_GUIDELINES, ProjectDocSchema, StudioError, isImageResult, splitImageResult, toErrorPayload, toolNameFor, type CommandMeta, type CommandRegistry, type HostApi, type McpCallEntry, type ProjectApi } from '@studio/core';
 import { z } from 'zod';
 import { SESSION_HEADER, agentLabel, identifyAgent, rpcMessages, type McpAgent } from './agent';
 
@@ -33,9 +33,12 @@ export interface RunningMcpServer {
   close(): Promise<void>;
 }
 
-export function toolNameFor(commandId: string): string {
-  return commandId.replace(/[^A-Za-z0-9_-]/g, '_');
-}
+export { toolNameFor };
+
+/** The document's JSON Schema, served as a resource so agents can read what a project holds. */
+export const DOCUMENT_SCHEMA_URI = 'studio://schema/document';
+export const GUIDELINES_URI = 'studio://guidelines';
+let documentSchema: string | undefined;
 
 /** The tool description: the command's own, plus the project it runs against and whether it is gated. */
 export function toolDescription(meta: CommandMeta): string {
@@ -60,11 +63,50 @@ interface CallScope {
 
 /**
  * A fresh McpServer for one HTTP request. Every non-hidden command becomes a tool whose input schema
- * is the command's zod schema; project-scope tools also take an optional `projectId`.
+ * is the command's zod schema; project-scope tools also take an optional `projectId`. The document
+ * schema and the design guidelines are resources, and `design-house` a prompt to start from.
  */
 export function buildMcpServer(opts: McpServerOptions, scope: CallScope): McpServer {
   const server = new McpServer({ name: opts.name, version: opts.version }, opts.instructions ? { instructions: opts.instructions } : undefined);
   const agent = agentLabel(scope.agent);
+
+  server.registerResource(
+    'document-schema',
+    DOCUMENT_SCHEMA_URI,
+    { title: 'Document schema', description: 'The JSON Schema of a project document: the building, levels, layers, entities and connectors.', mimeType: 'application/schema+json' },
+    async (uri) => {
+      documentSchema ??= JSON.stringify(z.toJSONSchema(ProjectDocSchema, { io: 'input', unrepresentable: 'any' }), null, 2);
+      return { contents: [{ uri: uri.href, mimeType: 'application/schema+json', text: documentSchema }] };
+    },
+  );
+  server.registerResource(
+    'design-guidelines',
+    GUIDELINES_URI,
+    { title: 'Design guidelines', description: 'How the model is organised (millimetres, derived elevations, rooms from walls, connectors as intent) and how to work on a design well.', mimeType: 'text/markdown' },
+    async (uri) => ({ contents: [{ uri: uri.href, mimeType: 'text/markdown', text: DESIGN_GUIDELINES }] }),
+  );
+  server.registerPrompt(
+    'design-house',
+    {
+      title: 'Design a house',
+      description: 'Design a house of N storeys around a central stair in the project open in the app.',
+      argsSchema: z.object({
+        storeys: z.string().optional().describe('How many storeys (default 3)'),
+        footprint: z.string().optional().describe('Footprint in metres, e.g. "12 x 9" (default 12 x 9)'),
+      }),
+    },
+    async ({ storeys, footprint }) => ({
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: `Design a ${storeys?.trim() || '3'}-storey house with a footprint of about ${footprint?.trim() || '12 x 9'} m around a central stair, in the project open in the app. Read the design guidelines resource first, then plan_describe and building_get to see what is there. Add the levels you need, draw each floor's walls as one plan_apply batch with a clear label (exterior walls 250 mm, interior 120 mm), place a door into every room and windows into every habitable room, name every room, add the stair from the ground floor to the top with building_connector_add, and finish by checking rules_check and view_snapshot of every level. Report the rooms and areas per floor when you are done.`,
+          },
+        },
+      ],
+    }),
+  );
 
   for (const meta of opts.registry.list()) {
     if (meta.hidden) continue;
@@ -93,6 +135,10 @@ export function buildMcpServer(opts: McpServerOptions, scope: CallScope): McpSer
           projectId = project?.id;
           const result = await opts.registry.execute(meta.id, input, { caller: 'mcp', agent, host: opts.host, project });
           opts.onCall?.({ tool: meta.id, agent, projectId, ok: true, durationMs: performance.now() - started, at: new Date().toISOString() });
+          if (meta.output === 'image' && isImageResult(result)) {
+            const { image, rest } = splitImageResult(result);
+            return { content: [{ type: 'image' as const, data: image.data, mimeType: image.mimeType }, { type: 'text' as const, text: JSON.stringify(rest, null, 2) }] };
+          }
           return { content: [{ type: 'text' as const, text: JSON.stringify(result ?? null, null, 2) }] };
         } catch (err) {
           const payload = toErrorPayload(err);

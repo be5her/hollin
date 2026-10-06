@@ -4,7 +4,7 @@ import { CommandRegistry, StudioError, defineCommand, testHost, type McpCallEntr
 import { afterEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { agentFromUserAgent, decodeAgentSession, encodeAgentSession, identifyAgent } from './agent';
-import { startMcpServer, toolDescription, toolNameFor, type RunningMcpServer } from './index';
+import { DOCUMENT_SCHEMA_URI, GUIDELINES_URI, startMcpServer, toolDescription, toolNameFor, type RunningMcpServer } from './index';
 
 function freePort(): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -35,6 +35,7 @@ function registry(): CommandRegistry {
       }),
       defineCommand({ id: 'test.wipe', title: 'Wipe', description: 'Deletes data.', scope: 'global', mutating: true, input: z.object({}), handler: async () => 'wiped' }),
       defineCommand({ id: 'test.hidden', title: 'Hidden', description: 'Plumbing.', scope: 'global', hidden: true, input: z.object({}), handler: async () => 'ok' }),
+      defineCommand({ id: 'test.picture', title: 'Picture', description: 'A tiny PNG.', scope: 'global', output: 'image', input: z.object({}), handler: async () => ({ mimeType: 'image/png', data: 'iVBORw0KGgo=', width: 1, height: 1 }) }),
       defineCommand({
         id: 'test.fail',
         title: 'Fail',
@@ -86,7 +87,7 @@ describe('MCP server over HTTP', () => {
 
       const { tools } = await client.listTools();
       const names = tools.map((t) => t.name).sort();
-      expect(names).toEqual(['test_add', 'test_fail', 'test_where', 'test_wipe']);
+      expect(names).toEqual(['test_add', 'test_fail', 'test_picture', 'test_where', 'test_wipe']);
       const wipe = tools.find((t) => t.name === 'test_wipe')!;
       expect(wipe.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: true });
       expect(wipe.description).toContain('Gated');
@@ -127,6 +128,34 @@ describe('MCP server over HTTP', () => {
     await client.connect(new StreamableHTTPClientTransport(new URL(`${url}?project=prj_b`)));
     expect(text(await client.callTool({ name: 'test_wipe', arguments: {} }))).toBe('wiped');
     expect(text(await client.callTool({ name: 'test_where', arguments: {} }))).toMatchObject({ project: 'prj_b' });
+    await client.close();
+  });
+
+  it('returns an image tool result as image content, the other fields as text', async () => {
+    const { url } = await start();
+    const client = new Client({ name: 'test-agent', version: '1' });
+    await client.connect(new StreamableHTTPClientTransport(new URL(url)));
+    const result = (await client.callTool({ name: 'test_picture', arguments: {} })) as { content: { type: string; data?: string; mimeType?: string; text?: string }[] };
+    expect(result.content[0]).toEqual({ type: 'image', data: 'iVBORw0KGgo=', mimeType: 'image/png' });
+    expect(JSON.parse(result.content[1].text!)).toEqual({ width: 1, height: 1 });
+    await client.close();
+  });
+
+  it('serves the document schema and the guidelines as resources, and a prompt to start from', async () => {
+    const { url } = await start();
+    const client = new Client({ name: 'test-agent', version: '1' });
+    await client.connect(new StreamableHTTPClientTransport(new URL(url)));
+    const { resources } = await client.listResources();
+    expect(resources.map((r) => r.uri).sort()).toEqual([GUIDELINES_URI, DOCUMENT_SCHEMA_URI]);
+    const schema = await client.readResource({ uri: DOCUMENT_SCHEMA_URI });
+    const parsed = JSON.parse((schema.contents[0] as { text: string }).text) as { properties: Record<string, unknown> };
+    expect(Object.keys(parsed.properties)).toEqual(expect.arrayContaining(['building', 'levels', 'layers', 'connectors', 'levelData']));
+    const guidelines = await client.readResource({ uri: GUIDELINES_URI });
+    expect((guidelines.contents[0] as { text: string }).text).toContain('millimetres');
+    const { prompts } = await client.listPrompts();
+    expect(prompts.map((p) => p.name)).toEqual(['design-house']);
+    const prompt = await client.getPrompt({ name: 'design-house', arguments: { storeys: '4' } });
+    expect((prompt.messages[0].content as { text: string }).text).toContain('4-storey house');
     await client.close();
   });
 
@@ -177,7 +206,7 @@ describe('agent identity', () => {
 
   it('names tools and describes gating', () => {
     expect(toolNameFor('plan.wall.add')).toBe('plan_wall_add');
-    const base = { id: 'x', module: 'm', title: 'X', description: 'Does x.', scope: 'global', hidden: false, noInput: true, batchable: false } as const;
+    const base = { id: 'x', module: 'm', title: 'X', description: 'Does x.', scope: 'global', hidden: false, noInput: true, batchable: false, output: 'json' } as const;
     expect(toolDescription({ ...base, mutating: false, conditional: false })).toBe('Does x.');
     expect(toolDescription({ ...base, mutating: true, conditional: true })).toMatch(/Read-only calls always work/);
   });

@@ -101,6 +101,7 @@ function toMeta({ module, command }: Registered): CommandMeta {
     hidden: Boolean(command.hidden),
     noInput: command.input.safeParse({}).success,
     batchable: Boolean(command.batchable),
+    output: command.output ?? 'json',
   };
 }
 

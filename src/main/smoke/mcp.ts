@@ -47,6 +47,22 @@ export async function smokeMcp(smoke: Smoke): Promise<void> {
     await client.close();
   }
 
+  {
+    const reader = new Client({ name: 'smoke-reader', version: '1.0' });
+    await reader.connect(new StreamableHTTPClientTransport(new URL(status.url)));
+    const { resources } = await reader.listResources();
+    const uris = resources.map((r) => r.uri).sort();
+    smoke.check('the document schema and the design guidelines are resources', uris.join() === 'studio://guidelines,studio://schema/document', uris);
+    const schema = JSON.parse(((await reader.readResource({ uri: 'studio://schema/document' })).contents[0] as { text: string }).text) as { properties?: Record<string, unknown> };
+    smoke.check('the schema resource describes the document', Boolean(schema.properties?.levelData && schema.properties.connectors));
+    const guidelines = ((await reader.readResource({ uri: 'studio://guidelines' })).contents[0] as { text: string }).text;
+    smoke.check('the guidelines resource says lengths are millimetres', guidelines.includes('millimetres') && guidelines.includes('plan_apply'));
+    const { prompts } = await reader.listPrompts();
+    const prompt = await reader.getPrompt({ name: 'design-house', arguments: { storeys: '3' } });
+    smoke.check('the design-house prompt asks for a 3-storey house with a central stair', prompts.some((p) => p.name === 'design-house') && /3-storey house .* central stair/.test((prompt.messages[0].content as { text: string }).text));
+    await reader.close();
+  }
+
   await smoke.run('config.update', { patch: { mcp: { allowMutations: true } } });
   const client = new Client({ name: 'smoke-agent', version: '2.0' });
   await client.connect(new StreamableHTTPClientTransport(new URL(status.url)));

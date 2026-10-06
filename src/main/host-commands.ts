@@ -1,4 +1,4 @@
-import { BRANDING, ConfigPatchSchema, StudioError, defineCommand, type ConfigPatch } from '@studio/core';
+import { BRANDING, ConfigPatchSchema, StudioError, defineCommand, toolInputSchema, type ConfigPatch } from '@studio/core';
 import { z } from 'zod';
 import type { Host } from './host';
 
@@ -57,7 +57,7 @@ export function hostCommands(host: Host) {
       handler: async ({ id }) => {
         const entry = host.registry.get(id);
         if (!entry) throw new StudioError('NOT_FOUND', `Unknown command "${id}"`);
-        return z.toJSONSchema(entry.command.input, { io: 'input', unrepresentable: 'any' });
+        return toolInputSchema(entry.command.input);
       },
     }),
     defineCommand({

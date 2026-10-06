@@ -64,6 +64,24 @@ export async function smokePlan(smoke: Smoke): Promise<{ planId: string }> {
     }),
   ) as { applied: boolean; ids: Record<string, string> };
   smoke.check('an agent adds a wall and a door in it by name', batch.applied && Object.values(doc().levelData[ground].entities).some((e) => e.type === 'opening' && (e as { wallId: string }).wallId === batch.ids['partition']), batch);
+  const rooms = text(
+    await client.callTool({
+      name: 'plan_apply',
+      arguments: {
+        label: 'Name the rooms',
+        steps: [
+          { command: 'plan.entity.add', input: { levelId: ground, entity: { type: 'room', name: 'Living', boundary: { k: 'detect', seed: [2000, 3000] } } }, as: 'living' },
+          { command: 'plan.entity.add', input: { levelId: ground, entity: { type: 'room', name: 'Kitchen', boundary: { k: 'detect', seed: [7000, 3000] } } }, as: 'kitchen' },
+        ],
+      },
+    }),
+  ) as { ids: Record<string, string> };
+  type Described = { units: string; levels: { id: string; rooms: { id: string; name: string; area: number; adjacent: { roomId: string; via: string[] }[]; openings: { kind: string; to: string }[] }[]; openings: unknown[] }[]; summary: { rooms: number } };
+  const described = text(await client.callTool({ name: 'plan_describe', arguments: {} })) as unknown as Described;
+  const groundLevel = described.levels.find((l) => l.id === ground);
+  const living = groundLevel?.rooms.find((r) => r.id === rooms.ids.living);
+  smoke.check('an agent reads the design: two rooms with their areas', described.units === 'mm' && described.summary.rooms === 2 && living !== undefined && living.area > 20_000_000 && living.area < 30_000_000, described.summary);
+  smoke.check('and that the living room and the kitchen share a wall with a door in it', living?.adjacent.some((a) => a.roomId === rooms.ids.kitchen && a.via.includes('wall') && a.via.includes('door')) === true && living?.openings.some((o) => o.kind === 'door' && o.to === rooms.ids.kitchen) === true, living);
   await client.close();
   return { planId: projectId };
 }

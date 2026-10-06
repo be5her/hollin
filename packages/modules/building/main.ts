@@ -5,10 +5,8 @@ import {
   addConnectorOps,
   addLevelOps,
   assertUnchanged,
-  connectorCutLevels,
   defineCommand,
   defineModule,
-  deriveConnector,
   deriveLevels,
   duplicateLevelOps,
   editProject,
@@ -22,6 +20,7 @@ import {
   type DerivedLevel,
   type ProjectDoc,
   type RuleLimits,
+  connectorNumbers,
   connectorFromIntent,
   isConnectorIntent,
   type ConnectorIntent,
@@ -66,25 +65,6 @@ const ElevatorIntentSchema = z.object({
   name: z.string().max(200).optional(),
 });
 const ConnectorIntentSchema = z.discriminatedUnion('kind', [StairIntentSchema, RampIntentSchema, ElevatorIntentSchema]);
-
-/** A connector's derived numbers, rounded for reading: what it climbs, how, which slabs it cuts and the limits it breaks. */
-export function connectorNumbers(connector: Connector, levels: DerivedLevel[], limits: RuleLimits) {
-  const g = deriveConnector(connector, levels, limits);
-  const r = (v: number) => Math.round(v * 10) / 10;
-  const base = { bottom: g.bottom, top: g.top, rise: g.rise, cuts: connectorCutLevels(connector, levels), broken: g.broken };
-  switch (g.kind) {
-    case 'stair':
-      return { ...base, risers: g.risers, riserHeight: r(g.riserHeight), treadDepth: r(g.treadDepth), walkLength: r(g.walkLength), flights: g.flights.map((f) => ({ risers: f.risers, tread: r(f.tread) })), landings: g.landings.length };
-    case 'ramp':
-      return { ...base, slope: r(g.slope * 10) / 10, maxSlope: g.maxSlope, run: r(g.run), landings: g.landings.length };
-    case 'ladder':
-      return { ...base, run: r(g.run) };
-    case 'escalator':
-      return { ...base, run: r(g.run) };
-    case 'elevator':
-      return { ...base, stops: g.stops.map((s) => ({ levelId: s.levelId, elevation: s.elevation, door: s.side })) };
-  }
-}
 
 /** The building as agents and the UI read it: levels bottom to top with derived elevations, their layers, and the connectors with their derived numbers. */
 export function describeBuilding(doc: ProjectDoc, limits: RuleLimits = DEFAULT_RULE_LIMITS) {
