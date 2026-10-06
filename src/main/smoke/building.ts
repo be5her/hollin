@@ -43,6 +43,14 @@ export async function smokeBuilding(smoke: Smoke): Promise<{ towerId: string }> 
   smoke.check('setting an elevation changes the height of the level below', (await run<Building>('building.get')).levels.find((l) => l.id === l1)?.height === 3400);
   await run('edit.undo');
   smoke.check('undo puts it back', (await run<Building>('building.get')).levels.find((l) => l.id === l2)?.elevation === 6600);
+  await run('building.level.update', { levelId: mezz, hostLevelId: l1 });
+  building = await run<Building>('building.get');
+  smoke.check('a mezzanine moved to another level sits on its floor when its elevation is outside it', building.levels.find((l) => l.id === mezz)?.elevation === 3600 && building.levels.find((l) => l.id === mezz)?.hostLevelId === l1, names(building.levels));
+  await run('edit.undo');
+  await smoke.expectError('a stacked level has no host to change', 'building.level.update', { levelId: l1, hostLevelId: ground }, 'INVALID_INPUT', { projectId });
+  const impact = await run<{ blockedBy: { name: string }[]; connectorsRemoved: { kind: string }[]; stopsDropped: unknown[] }>('building.level.impact', { levelId: l1 });
+  smoke.check('the removal impact lists the stair that goes and the elevator that stops skipping', impact.connectorsRemoved.map((c) => c.kind).join() === 'stair' && impact.stopsDropped.length === 1 && impact.blockedBy.length === 0, impact);
+  smoke.check('a level hosting a mezzanine reports it as blocking', (await run<{ blockedBy: { name: string }[] }>('building.level.impact', { levelId: ground })).blockedBy.map((l) => l.name).join() === 'Gallery');
   void b1;
   void mezz;
 

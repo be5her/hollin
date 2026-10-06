@@ -28,13 +28,35 @@ export interface PromptResult {
 export interface ConfirmOptions {
   title: string;
   message?: string;
+  /** Lines listed under the message (what a removal takes with it, for instance). */
+  details?: string[];
   confirmLabel?: string;
   danger?: boolean;
 }
 
+export interface FormDialogField {
+  key: string;
+  label: string;
+  value: string;
+  /** A select instead of a text input. */
+  options?: { value: string; label: string }[];
+  /** Monospaced input, for lengths. */
+  mono?: boolean;
+  /** An error for this text (shown under the field, and the dialog cannot be confirmed), or null. */
+  validate?(text: string): string | null;
+}
+
+export interface FormDialogOptions {
+  title: string;
+  message?: string;
+  fields: FormDialogField[];
+  confirmLabel?: string;
+}
+
 export type PendingDialog =
   | { kind: 'prompt'; options: PromptOptions; resolve(value: string | null, choice?: string): void }
-  | { kind: 'confirm'; options: ConfirmOptions; resolve(value: boolean): void };
+  | { kind: 'confirm'; options: ConfirmOptions; resolve(value: boolean): void }
+  | { kind: 'form'; options: FormDialogOptions; resolve(value: Record<string, string> | null): void };
 
 /** Prompt and confirm dialogs as promises. The shell's dialog host draws the pending one. */
 @Service()
@@ -65,6 +87,20 @@ export class Dialogs {
         resolve: (value, choice) => {
           this.current.set(null);
           resolve(value === null ? null : { value, choice: choice ?? options.choice.defaultValue });
+        },
+      });
+    });
+  }
+
+  /** A dialog with several fields; resolves with the texts by key, or null when cancelled. */
+  form(options: FormDialogOptions): Promise<Record<string, string> | null> {
+    return new Promise((resolve) => {
+      this.current.set({
+        kind: 'form',
+        options,
+        resolve: (value) => {
+          this.current.set(null);
+          resolve(value);
         },
       });
     });

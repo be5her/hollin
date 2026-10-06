@@ -27,6 +27,18 @@ export class DialogHost {
     return pending?.kind === 'prompt' ? { text: pending.options.defaultValue ?? '', choice: pending.options.choice?.defaultValue ?? '' } : { text: '', choice: '' };
   });
   protected readonly answerForm = form(this.answer);
+  /** The form dialog's texts, one per field, reset for every dialog. */
+  protected readonly values = linkedSignal(() => {
+    const pending = this.pending();
+    return pending?.kind === 'form' ? pending.options.fields.map((f) => f.value) : [];
+  });
+  protected readonly valuesForm = form(this.values);
+  protected readonly errors = computed(() => {
+    const pending = this.pending();
+    if (pending?.kind !== 'form') return [];
+    const values = this.values();
+    return pending.options.fields.map((f, i) => f.validate?.(values[i] ?? '') ?? null);
+  });
   protected readonly hint = computed(() => {
     const pending = this.pending();
     if (pending?.kind !== 'prompt' || !pending.options.choice?.hint) return null;
@@ -34,9 +46,18 @@ export class DialogHost {
     return pending.options.choice.hint(text, choice);
   });
 
+  protected readonly invalid = computed(() => this.errors().some((e) => e));
+
   protected cancel(pending: PendingDialog): void {
-    if (pending.kind === 'prompt') pending.resolve(null);
-    else pending.resolve(false);
+    if (pending.kind === 'confirm') pending.resolve(false);
+    else pending.resolve(null);
+  }
+
+  protected submitForm(event: Event, pending: PendingDialog): void {
+    event.preventDefault();
+    if (pending.kind !== 'form' || this.errors().some((e) => e)) return;
+    const values = this.values();
+    pending.resolve(Object.fromEntries(pending.options.fields.map((f, i) => [f.key, values[i] ?? ''])));
   }
 
   protected submitPrompt(event: Event, pending: PendingDialog): void {

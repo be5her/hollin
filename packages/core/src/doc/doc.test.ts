@@ -7,6 +7,7 @@ import {
   addLevelOps,
   deleteEntitiesOps,
   duplicateLevelOps,
+  levelRemovalImpact,
   moveLayerOps,
   moveLevelOps,
   removeLayerOps,
@@ -134,6 +135,49 @@ describe('levels and elevations', () => {
     expect(noGround.building.groundLevelId).toBe(l2);
     expect(elevations(noGround)).toEqual([['Level 2', 0]]);
     expect(() => removeLevelOps(noGround, l2)).toThrow(/at least one level/);
+  });
+
+  it('re-hosts a mezzanine, keeping its elevation when the new host contains it', () => {
+    let { doc } = building(2, 0);
+    const [ground, l1] = doc.building.stack;
+    const { ops, levelId } = addLevelOps(doc, { name: 'Gallery', offsetFrom: { levelId: ground, offset: 1500 }, height: 1500 });
+    doc = commit(doc, ops);
+    // 1500 is below Level 1 (3000 to 6000), so the gallery lands on Level 1's floor.
+    const moved = commit(doc, updateLevelOps(doc, levelId, { hostLevelId: l1 }));
+    expect(moved.levels[levelId].place).toMatchObject({ k: 'offset', hostLevelId: l1, offset: 0, height: 1500 });
+    expect(deriveLevels(moved).find((l) => l.id === levelId)?.elevation).toBe(3000);
+    // Back to the ground floor at 3000 + 0 = 3000, which is not within the ground floor (0..3000): offset 0.
+    const back = commit(moved, updateLevelOps(moved, levelId, { hostLevelId: ground }));
+    expect(back.levels[levelId].place).toMatchObject({ hostLevelId: ground, offset: 0 });
+    // An elevation inside the new host is kept, and an elevation set together lands on the new host.
+    const tall = commit(doc, updateLevelOps(doc, ground, { height: 6000 }));
+    const kept = commit(tall, updateLevelOps(tall, levelId, { hostLevelId: ground }));
+    expect(kept.levels[levelId].place).toMatchObject({ offset: 1500 });
+    const both = commit(doc, updateLevelOps(doc, levelId, { hostLevelId: l1, elevation: 3600 }));
+    expect(both.levels[levelId].place).toMatchObject({ hostLevelId: l1, offset: 600 });
+    expect(() => updateLevelOps(doc, l1, { hostLevelId: ground })).toThrow(/Only a mezzanine/);
+    expect(() => updateLevelOps(doc, levelId, { hostLevelId: levelId })).toThrow(/stacked level/);
+  });
+
+  it('reports what removing a level would do, matching the ops', () => {
+    let { doc } = building(2, 0);
+    const [ground, l1, l2] = doc.building.stack;
+    const wall = addEntityOps(doc, { levelId: l1, entity: { type: 'wall', path: { closed: false, v: [{ p: [0, 0] }, { p: [4000, 0] }] }, thickness: 200 } });
+    const column = addEntityOps(doc, { levelId: ground, entity: { type: 'column', at: [0, 0], shape: { k: 'rect', w: 300, d: 300 }, span: { topLevelId: l1 } } });
+    doc = commit(doc, [...wall.ops, ...column.ops]);
+    const stair = addConnectorOps({ kind: 'stair', shape: 'straight', bottom: { levelId: ground }, top: { levelId: l1 }, axis: { closed: false, v: [{ p: [0, 0] }, { p: [0, 4000] }] }, width: 1000 });
+    const lift = addConnectorOps({ kind: 'elevator', at: [5000, 5000], shaft: { w: 2000, d: 2000 }, car: { w: 1100, d: 1400 }, stops: [{ levelId: ground }, { levelId: l1 }, { levelId: l2 }] });
+    const short = addConnectorOps({ kind: 'elevator', at: [9000, 5000], shaft: { w: 2000, d: 2000 }, car: { w: 1100, d: 1400 }, stops: [{ levelId: ground }, { levelId: l1 }] });
+    doc = commit(doc, [...stair.ops, ...lift.ops, ...short.ops]);
+    const impact = levelRemovalImpact(doc, l1);
+    expect(impact).toMatchObject({ blockedBy: [], entities: { wall: 1 }, spansCut: 1, last: false });
+    expect(impact.connectorsRemoved.map((c) => c.id).sort()).toEqual([stair.id, short.id].sort());
+    expect(impact.stopsDropped.map((c) => c.id)).toEqual([lift.id]);
+    const ops = removeLevelOps(doc, l1);
+    expect(ops.filter((o) => o.c === 'connector' && o.t === 'del').map((o) => o.id).sort()).toEqual(impact.connectorsRemoved.map((c) => c.id).sort());
+    const gallery = addLevelOps(doc, { name: 'Gallery', offsetFrom: { levelId: l1, offset: 1000 } });
+    doc = commit(doc, gallery.ops);
+    expect(levelRemovalImpact(doc, l1).blockedBy).toEqual([{ id: gallery.levelId, name: 'Gallery' }]);
   });
 
   it('duplicates a level with its layout under new ids, references remapped', () => {

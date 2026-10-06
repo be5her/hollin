@@ -18,7 +18,7 @@ The Angular application: the shell, plus every module's `ui/` folder. It talks t
 - **Status bar:** the project, display units, the MCP server and a theme toggle.
 - **Command palette** (Ctrl+K): UI actions plus every non-hidden command. Commands that need input open a form generated from their JSON schema (fetched with the hidden `command.schema`): text, number, choice and switch fields, with JSON for anything structured.
 - **Project tabs** are composed from panels modules register with `ProjectPanels` (left column, centre view, right column as tabs); each panel gets a `projectId` input. A project's document comes from `ProjectDocs`, the mirror kept up to date by `doc.patched`; view state such as the active level goes through `ProjectView` (stored in the project's `.local/ui.json`). Lengths are shown and parsed with `Units`.
-- **Overlays**, mounted once: toasts (`Toasts`), dialogs (`Dialogs.confirm/prompt`), context menus (`ContextMenu.open`).
+- **Overlays**, mounted once: toasts (`Toasts`), dialogs (`Dialogs.confirm` with an optional list of details, `prompt`, and `form` for several fields with per-field validation), context menus (`ContextMenu.open`).
 - **Startup** (`provideAppInitializer`): config, the command list and MCP status load before the first render; then the shell follows `config.changed` and `mcp.status`.
 
 ## Conventions

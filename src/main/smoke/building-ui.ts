@@ -64,8 +64,86 @@ export async function smokeBuildingUi(smoke: Smoke, towerId: string): Promise<vo
     await smoke.until(async () => (await order()).slice(0, 2).join() === 'Level 2,Level 1');
   }
 
+  await smokeLevelManagement(smoke, towerId);
+
   await smoke.click(`${tab} [data-testid=right-tab-details]`);
   smoke.check('the details panel lists snapshots', await smoke.waitFor(`${tab} [data-testid=snapshot-item][data-name="Full building"]`));
   await smoke.shots('13-details');
   await wait(50);
+}
+
+/** The levels panel's own commands: renaming in place, adding with values, mezzanines moved between levels, removal listing what goes. Everything is undone at the end. */
+async function smokeLevelManagement(smoke: Smoke, towerId: string): Promise<void> {
+  smoke.section('level management');
+  const doc = () => smoke.host.projects.session(towerId)!.doc;
+  const elevationOf = async (name: string) => Number(await smoke.js<string>(`document.querySelector('${row(name)}')?.dataset.elevation`));
+  const undo = () => smoke.click(`${tab} [data-testid=project-undo]`);
+  const menu = async (name: string, item: string) => {
+    await smoke.rightClick(`${row(name)} [data-testid=level-row-name]`);
+    return smoke.click(`[data-testid=${item}]`);
+  };
+  const submitForm = () => smoke.click('x-dialog-host [data-testid=form-dialog-confirm]');
+
+  // Rename in place: a double-click on the name, Enter keeps it, Escape drops it.
+  const name = await smoke.rect(`${row('Level 2')} [data-testid=level-row-name]`);
+  if (name) await smoke.clickAt(name.x + 10, name.y + name.height / 2, { clickCount: 2 });
+  smoke.check('double-clicking a level name edits it in place', await smoke.waitFor(`${tab} [data-testid=level-rename]`));
+  await smoke.fill(`${tab} [data-testid=level-rename]`, 'Roof terrace');
+  await smoke.key('Return');
+  smoke.check('Enter renames the level', await smoke.waitFor(row('Roof terrace')));
+  const renamed = await smoke.rect(row('Roof terrace'));
+  if (renamed) await smoke.clickAt(renamed.x + renamed.width - 20, renamed.y + renamed.height / 2);
+  await smoke.key('F2');
+  await smoke.fill(`${tab} [data-testid=level-rename]`, 'Discarded');
+  await smoke.key('Escape');
+  smoke.check('F2 edits the name and Escape drops the change', (await smoke.gone(`${tab} [data-testid=level-rename]`)) && !(await smoke.count(row('Discarded'))) && (await smoke.count(row('Roof terrace'))) === 1);
+  await undo();
+  smoke.check('the rename is one undo step', await smoke.waitFor(row('Level 2')));
+
+  // A level below the basement, with a typed height.
+  await menu('Basement', 'level-menu-add-below');
+  smoke.check('"Add level below…" asks for name, height and slab', await smoke.waitFor('x-dialog-host [data-testid=form-dialog]', 3000, 'Floor to floor'));
+  await smoke.fill('x-dialog-host [data-testid=dialog-field-name]', 'Parking');
+  await smoke.fill('x-dialog-host [data-testid=dialog-field-height]', 'deep');
+  smoke.check('a height that is not a length cannot be confirmed', (await smoke.waitFor('x-dialog-host', 2000, 'Not a length')) && (await smoke.js<boolean>(`document.querySelector('x-dialog-host [data-testid=form-dialog-confirm]').disabled`)));
+  await smoke.fill('x-dialog-host [data-testid=dialog-field-height]', '2.5m');
+  await submitForm();
+  smoke.check('the new level goes below the basement at its typed height', (await smoke.waitFor(row('Parking'))) && (await elevationOf('Parking')) === -5500, await elevationOf('Parking'));
+  await undo();
+  await smoke.gone(row('Parking'));
+
+  // A mezzanine with an offset, moved to another level and back.
+  const level1 = await elevationOf('Level 1');
+  const level2 = await elevationOf('Level 2');
+  await menu('Level 1', 'level-menu-mezzanine');
+  await smoke.waitFor('x-dialog-host [data-testid=form-dialog]');
+  await smoke.fill('x-dialog-host [data-testid=dialog-field-name]', 'Loft');
+  await smoke.fill('x-dialog-host [data-testid=dialog-field-offset]', '1200');
+  await smoke.fill('x-dialog-host [data-testid=dialog-field-height]', '1800');
+  await submitForm();
+  smoke.check('a mezzanine is added at the typed offset above its level', (await smoke.waitFor(row('Loft'))) && (await elevationOf('Loft')) === level1 + 1200, await elevationOf('Loft'));
+  smoke.check('the section draws it', await smoke.waitFor(`${tab} [data-testid=section-level][data-name="Loft"]`));
+  await smoke.waitFor(`${tab} [data-testid=level-host]`);
+  await smoke.fill(`${tab} [data-testid=level-host]`, doc().building.stack[doc().building.stack.length - 1]);
+  smoke.check('choosing another host in the details moves the mezzanine onto that level', await smoke.until(async () => (await elevationOf('Loft')) === level2), await elevationOf('Loft'));
+  await smoke.shots('13a-mezzanine');
+  await menu('Loft', 'level-menu-rehost');
+  await smoke.waitFor('x-dialog-host [data-testid=dialog-field-host]');
+  const level1Id = Object.values(doc().levels).find((l) => l.name === 'Level 1')!.id;
+  await smoke.fill('x-dialog-host [data-testid=dialog-field-host]', level1Id);
+  await submitForm();
+  smoke.check('"Move to another level…" puts it back on Level 1', await smoke.until(async () => (await elevationOf('Loft')) === level1), await elevationOf('Loft'));
+  for (let i = 0; i < 3; i++) await undo();
+  smoke.check('undo takes the mezzanine away again', await smoke.gone(row('Loft')));
+
+  // Removing a level lists what goes with it; a level hosting a mezzanine says what to move first.
+  await menu('Ground floor', 'level-menu-remove');
+  smoke.check('a level hosting a mezzanine cannot be removed, and says why', await smoke.waitFor('body', 3000, 'Move or remove "Gallery" first'));
+  await menu('Level 1', 'level-menu-remove');
+  smoke.check('removing a level lists the stair that goes and the elevator that stops skipping it', (await smoke.waitFor('x-dialog-host [data-testid=confirm-details]', 3000, 'Removed with it: stair')) && (await smoke.text('x-dialog-host [data-testid=confirm-details]')).includes('No longer stopping here: elevator'));
+  await smoke.shots('13b-remove-level');
+  await smoke.click('x-dialog-host button', 'Remove');
+  smoke.check('confirming removes it with its stair', (await smoke.gone(row('Level 1'))) && Object.values(doc().connectors).every((c) => c.kind !== 'stair'));
+  await undo();
+  smoke.check('undo brings the level and its stair back', (await smoke.waitFor(row('Level 1'))) && Object.values(doc().connectors).some((c) => c.kind === 'stair'));
 }

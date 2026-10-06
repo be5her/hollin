@@ -1,7 +1,7 @@
-import { Component, ElementRef, computed, inject, input, linkedSignal, untracked, viewChild } from '@angular/core';
+import { Component, ElementRef, computed, inject, input, linkedSignal, signal, untracked, viewChild } from '@angular/core';
 import { FormField, form } from '@angular/forms/signals';
 import type { DerivedLevel } from '@studio/core';
-import { ContextMenu, DropMarker, Icon, IconButton, Input, Label, ProjectDocs, SectionHeader, Toasts, Units, dragReorder } from '@studio/ui';
+import { Autofocus, ContextMenu, DropMarker, Icon, IconButton, Input, Label, ProjectDocs, SectionHeader, Select, Toasts, Units, dragReorder } from '@studio/ui';
 import { ArrowDownToLine, Copy, GripVertical, Layers2, Plus } from 'lucide';
 import { BuildingActions } from './building-actions';
 
@@ -15,7 +15,7 @@ interface LevelDraft {
 /** The building's levels from top to bottom, with their elevations; the active level's details below. */
 @Component({
   selector: 'x-levels-panel',
-  imports: [DropMarker, FormField, Icon, IconButton, Input, Label, SectionHeader],
+  imports: [Autofocus, DropMarker, FormField, Icon, IconButton, Input, Label, SectionHeader, Select],
   templateUrl: './levels-panel.html',
   host: { class: 'flex flex-col', 'data-testid': 'levels-panel' },
 })
@@ -47,6 +47,13 @@ export class LevelsPanel {
     }),
   });
   protected readonly draftForm = form(this.draft);
+  /** The stacked levels a mezzanine can be placed from, top to bottom. */
+  protected readonly hosts = computed(() => this.display().filter((l) => l.placement === 'stack'));
+
+  /** The level whose name is being edited in its row, and the text. */
+  protected readonly renaming = signal<string | null>(null);
+  protected readonly renameDraft = signal({ name: '' });
+  protected readonly renameForm = form(this.renameDraft);
 
   protected readonly reorder = dragReorder(
     'y',
@@ -83,18 +90,46 @@ export class LevelsPanel {
     await this.actions.run(this.projectId(), 'building.level.update', { levelId: level.id, [key]: mm });
   }
 
+  protected startRename(level: DerivedLevel): void {
+    this.renameDraft.set({ name: level.name });
+    this.renaming.set(level.id);
+  }
+
+  /** Enter or leaving the field saves the name; Escape (`cancel`) drops it. */
+  protected async finishRename(level: DerivedLevel, cancel = false): Promise<void> {
+    if (untracked(this.renaming) !== level.id) return;
+    this.renaming.set(null);
+    const name = untracked(this.renameDraft).name.trim();
+    if (!cancel && name && name !== level.name) await this.actions.run(this.projectId(), 'building.level.update', { levelId: level.id, name });
+  }
+
+  protected rowKey(event: KeyboardEvent, level: DerivedLevel): void {
+    if (event.target !== event.currentTarget) return;
+    if (event.key === 'Enter') this.select(level);
+    if (event.key === 'F2') {
+      event.preventDefault();
+      this.startRename(level);
+    }
+  }
+
+  protected setHost(level: DerivedLevel, hostLevelId: string): void {
+    if (hostLevelId && hostLevelId !== level.hostLevelId) void this.actions.setHost(this.projectId(), level.id, hostLevelId);
+  }
+
   protected showMenu(event: MouseEvent, level: DerivedLevel): void {
     const id = this.projectId();
     const stacked = level.placement === 'stack';
     this.menu.open(event, [
-      { label: 'Rename…', select: () => void this.actions.rename(id, level), testId: 'level-menu-rename' },
+      { label: 'Rename', select: () => this.startRename(level), testId: 'level-menu-rename' },
       { label: 'Duplicate', select: () => void this.actions.duplicate(id, level.id), disabled: !stacked, testId: 'level-menu-duplicate' },
-      { label: 'Add level above', select: () => void this.actions.addLevel(id, { above: level.id }), disabled: !stacked, testId: 'level-menu-add-above' },
-      { label: 'Add level below', select: () => void this.actions.addLevel(id, { below: level.id }), disabled: !stacked, testId: 'level-menu-add-below' },
-      { label: 'Add mezzanine…', select: () => void this.addMezzanine(level), disabled: !stacked, testId: 'level-menu-mezzanine' },
+      { label: 'Add level above…', select: () => void this.actions.addLevelWith(id, { above: level.id }, `Add a level above "${level.name}"`), disabled: !stacked, testId: 'level-menu-add-above' },
+      { label: 'Add level below…', select: () => void this.actions.addLevelWith(id, { below: level.id }, `Add a level below "${level.name}"`), disabled: !stacked, testId: 'level-menu-add-below' },
+      stacked
+        ? { label: 'Add mezzanine…', select: () => void this.actions.addMezzanine(id, level), testId: 'level-menu-mezzanine' }
+        : { label: 'Move to another level…', select: () => void this.actions.rehost(id, level), testId: 'level-menu-rehost' },
       { label: 'Make ground floor', select: () => void this.actions.run(id, 'building.level.update', { levelId: level.id, ground: true }), disabled: !stacked || level.isGround, testId: 'level-menu-ground' },
       'separator',
-      { label: 'Remove level', danger: true, select: () => void this.actions.remove(id, level), testId: 'level-menu-remove' },
+      { label: 'Remove level…', danger: true, select: () => void this.actions.remove(id, level), testId: 'level-menu-remove' },
     ]);
   }
 
@@ -106,11 +141,5 @@ export class LevelsPanel {
       { label: 'Level on top', select: () => void this.actions.addLevel(id, 'top'), testId: 'level-add-top' },
       { label: 'Basement below', select: () => void this.actions.addLevel(id, stacked.length ? { below: stacked[0].id } : 'bottom'), testId: 'level-add-basement' },
     ]);
-  }
-
-  private async addMezzanine(host: DerivedLevel): Promise<void> {
-    const offset = Math.round(host.height / 2);
-    const result = await this.actions.run<{ id: string }>(this.projectId(), 'building.level.add', { name: `${host.name} mezzanine`, mezzanineOf: { levelId: host.id, offset }, height: host.height - offset });
-    if (result) this.actions.setActiveLevel(this.projectId(), result.id);
   }
 }

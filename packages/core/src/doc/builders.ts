@@ -94,6 +94,8 @@ export interface UpdateLevelInput {
   elevation?: number;
   /** Makes this stacked level the ground level, keeping every elevation. */
   ground?: boolean;
+  /** Places a mezzanine from another stacked level, keeping its elevation when that lies within the new host (otherwise on the host's floor). */
+  hostLevelId?: string;
 }
 
 export function updateLevelOps(doc: ProjectDoc, levelId: string, input: UpdateLevelInput): Op[] {
@@ -103,6 +105,17 @@ export function updateLevelOps(doc: ProjectDoc, levelId: string, input: UpdateLe
   if (input.name !== undefined) set['name'] = input.name;
   if (input.slabThickness !== undefined) set['slabThickness'] = input.slabThickness;
   if (input.height !== undefined) set['place'] = { ...level.place, height: input.height };
+  if (input.hostLevelId !== undefined && !(level.place.k === 'offset' && level.place.hostLevelId === input.hostLevelId)) {
+    if (level.place.k !== 'offset') fail('INVALID_INPUT', 'Only a mezzanine can change its host; reorder stacked levels instead');
+    requireLevel(doc, input.hostLevelId);
+    if (!doc.building.stack.includes(input.hostLevelId)) fail('INVALID_INPUT', 'A mezzanine must be placed from a stacked level');
+    const derived = deriveLevels(doc);
+    const elevation = derived.find((l) => l.id === levelId)!.elevation;
+    const host = derived.find((l) => l.id === input.hostLevelId)!;
+    const offset = elevation >= host.elevation && elevation < host.top ? elevation - host.elevation : 0;
+    const place = (set['place'] as Level['place'] | undefined) ?? level.place;
+    set['place'] = { ...place, hostLevelId: input.hostLevelId, offset };
+  }
   if (Object.keys(set).length) ops.push({ t: 'upd', c: 'level', id: levelId, set });
   if (input.ground) {
     if (!doc.building.stack.includes(levelId)) fail('INVALID_INPUT', 'Only a stacked level can be the ground level');
@@ -176,6 +189,43 @@ export function removeLevelOps(doc: ProjectDoc, levelId: string): Op[] {
   }
   ops.push({ t: 'del', c: 'level', id: levelId });
   return ops;
+}
+
+/** What removing a level would do, for a confirmation: the same rules as `removeLevelOps`, grouped. */
+export interface LevelRemovalImpact {
+  /** Mezzanines placed from it; while there are any, it cannot be removed. */
+  blockedBy: { id: string; name: string }[];
+  /** Entities on the level, by type. */
+  entities: Partial<Record<Entity['type'], number>>;
+  /** Entities on other levels that reach up to it and become single-level. */
+  spansCut: number;
+  /** Connectors removed with it (they start or end on it, or an elevator left with one stop). */
+  connectorsRemoved: { id: string; kind: Connector['kind']; name: string | null }[];
+  /** Elevators that keep running but no longer stop there. */
+  stopsDropped: { id: string; name: string | null }[];
+  /** True when it is the only level. */
+  last: boolean;
+}
+
+export function levelRemovalImpact(doc: ProjectDoc, levelId: string): LevelRemovalImpact {
+  requireLevel(doc, levelId);
+  const impact: LevelRemovalImpact = { blockedBy: [], entities: {}, spansCut: 0, connectorsRemoved: [], stopsDropped: [], last: doc.building.stack.length === 1 && doc.building.stack[0] === levelId };
+  for (const l of Object.values(doc.levels)) if (l.place.k === 'offset' && l.place.hostLevelId === levelId) impact.blockedBy.push({ id: l.id, name: l.name });
+  for (const e of Object.values(doc.levelData[levelId]?.entities ?? {})) impact.entities[e.type] = (impact.entities[e.type] ?? 0) + 1;
+  for (const [lv, data] of Object.entries(doc.levelData)) {
+    if (lv === levelId) continue;
+    for (const e of Object.values(data.entities)) if ('span' in e && e.span?.topLevelId === levelId) impact.spansCut++;
+  }
+  for (const c of Object.values(doc.connectors)) {
+    const name = c.name ?? null;
+    if (c.kind === 'elevator') {
+      const stops = c.stops.filter((s) => s.levelId !== levelId);
+      if (stops.length === c.stops.length) continue;
+      if (stops.length >= 2) impact.stopsDropped.push({ id: c.id, name });
+      else impact.connectorsRemoved.push({ id: c.id, kind: c.kind, name });
+    } else if (c.bottom.levelId === levelId || c.top.levelId === levelId) impact.connectorsRemoved.push({ id: c.id, kind: c.kind, name });
+  }
+  return impact;
 }
 
 /**

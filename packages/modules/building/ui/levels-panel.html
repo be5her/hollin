@@ -18,13 +18,30 @@
       [attr.data-drag-id]="level.placement === 'stack' ? level.id : null"
       (pointerdown)="level.placement === 'stack' ? reorder.pointerDown($event, level.id) : null"
       (click)="select(level)"
-      (keydown.enter)="select(level)"
+      (keydown)="rowKey($event, level)"
       (contextmenu)="showMenu($event, level)"
     >
       @if (level.placement === 'stack') {
         <svg [xIcon]="icons.GripVertical" class="size-3.5 text-muted/60 group-hover:text-muted shrink-0"></svg>
       }
-      <span class="flex-1 truncate font-medium">{{ level.name }}</span>
+      @if (renaming() === level.id) {
+        <input
+          xInput
+          xAutofocus
+          autofocusSelect
+          class="flex-1 h-6 text-xs"
+          aria-label="Level name"
+          [formField]="renameForm.name"
+          (pointerdown)="$event.stopPropagation()"
+          (click)="$event.stopPropagation()"
+          (keydown.enter)="finishRename(level)"
+          (keydown.escape)="finishRename(level, true)"
+          (blur)="finishRename(level)"
+          data-testid="level-rename"
+        />
+      } @else {
+        <span class="flex-1 truncate font-medium" (dblclick)="startRename(level)" data-testid="level-row-name">{{ level.name }}</span>
+      }
       @if (level.isGround) {
         <span class="text-[10px] text-muted" title="Ground floor">G</span>
       }
@@ -51,6 +68,16 @@
       <label xLabel for="level-slab">Slab</label>
       <input xInput id="level-slab" class="font-mono" [formField]="draftForm.slab" (blur)="save('slab')" (keydown.enter)="$any($event.target).blur()" data-testid="level-slab-input" />
     </div>
+    @if (level.placement === 'offset') {
+      <div class="col-span-2">
+        <label xLabel for="level-host">Placed from</label>
+        <select xSelect id="level-host" [value]="level.hostLevelId ?? ''" (change)="setHost(level, $any($event.target).value)" data-testid="level-host">
+          @for (host of hosts(); track host.id) {
+            <option [value]="host.id" [selected]="host.id === level.hostLevelId">{{ host.name }}</option>
+          }
+        </select>
+      </div>
+    }
     <div class="flex items-end gap-1 justify-end">
       <button xIconButton size="sm" label="Duplicate level" [disabled]="level.placement !== 'stack'" (click)="actions.duplicate(projectId(), level.id)" data-testid="level-duplicate"><svg [xIcon]="icons.Copy" class="size-3.5"></svg></button>
       <button xIconButton size="sm" label="Add a level above" [disabled]="level.placement !== 'stack'" (click)="actions.addLevel(projectId(), { above: level.id })" data-testid="level-add-above"><svg [xIcon]="icons.Layers2" class="size-3.5"></svg></button>

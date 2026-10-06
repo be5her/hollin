@@ -8,6 +8,7 @@ import {
   deriveLevels,
   duplicateLevelOps,
   editProject,
+  levelRemovalImpact,
   moveLevelOps,
   removeConnectorOps,
   removeLevelOps,
@@ -89,7 +90,7 @@ export const buildingModule = defineModule({
       id: 'building.level.update',
       title: 'Change a level',
       description:
-        'Renames a level or changes its height, slab thickness or elevation. Setting an elevation changes what produces it: for the ground floor the whole building moves; above ground the level below gets taller or shorter; a basement changes its own height; a mezzanine its offset. `ground: true` makes it the ground floor, keeping every elevation.',
+        'Renames a level or changes its height, slab thickness or elevation. Setting an elevation changes what produces it: for the ground floor the whole building moves; above ground the level below gets taller or shorter; a basement changes its own height; a mezzanine its offset. `ground: true` makes it the ground floor, keeping every elevation. `hostLevelId` moves a mezzanine to another host.',
       scope: 'project',
       batchable: true,
       input: z.object({
@@ -99,6 +100,7 @@ export const buildingModule = defineModule({
         slabThickness: z.number().min(0).optional(),
         elevation: z.number().optional().describe('mm'),
         ground: z.literal(true).optional(),
+        hostLevelId: levelId.optional().describe('Mezzanines only: the stacked level it is placed from. Keeps its elevation when that lies within the new host, otherwise it sits on the host floor.'),
       }),
       handler: async ({ levelId: id, ...input }, ctx) => {
         const name = ctx.project!.doc.levels[id]?.name ?? id;
@@ -134,6 +136,15 @@ export const buildingModule = defineModule({
         await editProject(ctx, `Move level "${ctx.project!.doc.levels[id]?.name ?? id}"`, (tx) => tx.apply(moveLevelOps(tx.doc, id, index)));
         return deriveLevels(ctx.project!.doc);
       },
+    }),
+    defineCommand({
+      id: 'building.level.impact',
+      title: 'What removing a level would remove',
+      description:
+        'Read-only. What building.level.remove would do to a level: the mezzanines that block it, its entities counted by type, entities on other levels whose span is cut short, connectors removed with it and elevators that lose a stop.',
+      scope: 'project',
+      input: z.object({ levelId }),
+      handler: async ({ levelId: id }, ctx) => levelRemovalImpact(ctx.project!.doc, id),
     }),
     defineCommand({
       id: 'building.level.remove',
