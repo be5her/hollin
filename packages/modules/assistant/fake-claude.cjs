@@ -179,7 +179,8 @@ rl.on('line', (line) => {
   const content = msg.message && msg.message.content;
   const text = typeof content === 'string' ? content : (content || []).filter((b) => b.type === 'text').map((b) => b.text).join('');
   log({ type: 'message', text });
-  if (flags['replay-user-messages']) out(msg);
+  // The real binary marks the echo of a stdin turn with `isReplay: true` (2.1.283).
+  if (flags['replay-user-messages']) out({ ...msg, isReplay: true });
   chain = chain.then(() => answer(text)).catch((err) => {
     process.stderr.write(`fake-claude: ${err.stack || err}\n`);
     out({ type: 'result', subtype: 'error_during_execution', is_error: true, errors: [String(err.message || err)], result: null });

@@ -20,6 +20,18 @@ export const MAX_TURNS = 25;
 export const DISALLOWED_TOOLS = 'Bash,Edit,Write,Read,WebFetch,WebSearch';
 export const MCP_OFF_MESSAGE = 'The assistant with Claude Code works through the MCP server, which is off. Enable it in Settings or with the button in the chat.';
 const STDERR_TAIL = 2000;
+/** When set to a file path, every line Claude Code prints (stdout and stderr) is appended to it: for looking at a conversation that went wrong. Never set in normal use. */
+const LOG_ENV = 'STUDIO_CLAUDE_CODE_LOG';
+
+function debugLog(kind: 'out' | 'err', text: string): void {
+  const file = process.env[LOG_ENV];
+  if (!file) return;
+  try {
+    fs.appendFileSync(file, `${kind} ${text.endsWith('\n') ? text : `${text}\n`}`);
+  } catch {
+    /* a debug aid only */
+  }
+}
 
 /** How to start the resolved binary: directly, or as a Node script through this executable. */
 export interface ClaudeLaunch {
@@ -314,9 +326,14 @@ export class ClaudeCodeProvider {
     proc.stdin!.on('error', () => {});
     proc.on('exit', (code, signal) => this.ended(this.stopped ? null : `Claude Code exited (${signal ?? `code ${code}`})${this.stderrTail.trim() ? `: ${this.stderrTail.trim()}` : ''}`));
     proc.stderr!.on('data', (chunk: Buffer) => {
-      this.stderrTail = (this.stderrTail + chunk.toString('utf8')).slice(-STDERR_TAIL);
+      const text = chunk.toString('utf8');
+      debugLog('err', text);
+      this.stderrTail = (this.stderrTail + text).slice(-STDERR_TAIL);
     });
-    createInterface({ input: proc.stdout! }).on('line', (line) => this.onLine(line));
+    createInterface({ input: proc.stdout! }).on('line', (line) => {
+      debugLog('out', line);
+      this.onLine(line);
+    });
   }
 
   private turnOn(text: string): Promise<TurnEnd> {

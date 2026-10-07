@@ -7,6 +7,7 @@ import { BRANDING, CommandRegistry, defineCommand, newProjectDoc, testHost, type
 import { startMcpServer, type RunningMcpServer } from '@studio/mcp';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
+import { findClaude, probeClaudeCode } from './claude-code';
 import { FakeClaude } from './fake-api';
 import { assistantModule } from './main';
 import { ANTHROPIC_KEY } from '../settings/main';
@@ -464,5 +465,34 @@ describe('assistant with Claude Code', () => {
     const reopened = await t.state();
     expect(reopened.items).toEqual([]);
     expect(reopened.sessionId).toBe('sess-c');
+  });
+
+  it('resolves an npm install\'s .cmd shim to its cli.js and runs that through this executable as Node', async () => {
+    // The layout `npm i -g @anthropic-ai/claude-code` leaves on Windows: a shim next to node_modules.
+    const prefix = path.join(dir, 'npm-prefix');
+    const cli = path.join(prefix, 'node_modules', '@anthropic-ai', 'claude-code', 'cli.js');
+    fs.mkdirSync(path.dirname(cli), { recursive: true });
+    fs.copyFileSync(FAKE_CLAUDE, cli);
+    const shim = path.join(prefix, 'claude.cmd');
+    fs.writeFileSync(shim, '@ECHO off\r\nnode "%~dp0\\node_modules\\@anthropic-ai\\claude-code\\cli.js" %*\r\n');
+    const launch = findClaude(shim);
+    expect(launch).toMatchObject({ file: process.execPath, prefix: [cli], resolved: cli });
+    expect((launch as { env: NodeJS.ProcessEnv }).env['ELECTRON_RUN_AS_NODE']).toBe('1');
+    expect(await probeClaudeCode(shim)).toMatchObject({ found: true, version: '9.9.9', loggedIn: true, resolved: cli });
+    // A shim without its cli.js is reported, not run through a shell.
+    const bare = path.join(dir, 'bare', 'claude.cmd');
+    fs.mkdirSync(path.dirname(bare), { recursive: true });
+    fs.writeFileSync(bare, '@ECHO off\r\n');
+    expect(findClaude(bare)).toMatchObject({ error: expect.stringContaining('shell shim') });
+    // A name without a path is looked up on PATH; the shim is found through PATHEXT, so on Windows only.
+    if (process.platform === 'win32') {
+      const saved = process.env['PATH'];
+      process.env['PATH'] = `${prefix}${path.delimiter}${saved ?? ''}`;
+      try {
+        expect(findClaude('')).toMatchObject({ resolved: cli });
+      } finally {
+        process.env['PATH'] = saved;
+      }
+    }
   });
 });
