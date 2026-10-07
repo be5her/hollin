@@ -1,0 +1,174 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import type { Entity, HistoryInfo, McpCallEntry } from '@studio/core';
+import fakeClaudeSource from '@studio/modules/assistant/fake-claude.cjs?raw';
+import type { Smoke } from './harness';
+import { tab } from './plan-canvas';
+
+type LogEntry = { type: string; pid: number; resume?: string | null; mcpUrl?: string; name?: string; isError?: boolean; result?: { type: string; text?: string }[] };
+
+const alive = (pid: number): boolean => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * The assistant on the Claude Code provider, against the fake binary (`fake-claude.cjs`, written to
+ * the smoke's data folder) whose tool calls go through the app's real MCP server: the provider switched
+ * in Settings, the not-found and not-logged-in empty states, the MCP server turned off in Settings with
+ * the notice and its button in the chat, a plan_apply edit landing as one undoable transaction by
+ * "Assistant (claude-code 9.9.9)", a destructive call waiting until declined then allowed, Stop killing
+ * the process and the next message resuming the stored session with its history, the project closed
+ * and reopened, and the call log with the calls as the assistant. The real Claude Code is never run.
+ */
+export async function smokeAssistantClaudeCode(smoke: Smoke, duplexId: string): Promise<void> {
+  smoke.section('assistant (Claude Code)');
+  const dataDir = smoke.host.api.dataDir!;
+  const fakePath = path.join(dataDir, 'fake-claude.cjs');
+  const scriptFile = path.join(dataDir, 'fake-claude-script.json');
+  const logFile = path.join(dataDir, 'fake-claude-log.jsonl');
+  fs.writeFileSync(fakePath, fakeClaudeSource);
+  process.env.FAKE_CLAUDE_SCRIPT = scriptFile;
+  process.env.FAKE_CLAUDE_LOG = logFile;
+  const writeScript = (script: unknown) => fs.writeFileSync(scriptFile, JSON.stringify(script));
+  const readLog = (): LogEntry[] => (fs.existsSync(logFile) ? fs.readFileSync(logFile, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l) as LogEntry) : []);
+  const starts = () => readLog().filter((e) => e.type === 'start');
+  const doc = () => smoke.host.projects.session(duplexId)!.doc;
+  const ground = doc().building.groundLevelId;
+  const walls = () => Object.values(doc().levelData[ground].entities).filter((e: Entity) => e.type === 'wall').length;
+  const run = <T = unknown>(id: string, input: unknown = {}) => smoke.run<T>(id, input, { projectId: duplexId });
+  const panel = `${tab} [data-testid=assistant-panel]`;
+  const send = async (text: string) => {
+    await smoke.fill(`${panel} [data-testid=assistant-input]`, text);
+    await smoke.click(`${panel} [data-testid=assistant-send]`);
+  };
+  const openSettings = async () => {
+    await smoke.click('[data-testid=activity-settings]');
+    await smoke.waitFor('[data-testid=settings]');
+  };
+  const openAssistant = async () => {
+    await smoke.run('project.open', { id: duplexId });
+    await smoke.click(`${tab} [data-testid=right-tab-assistant]`);
+  };
+
+  try {
+    // Settings: the provider switched in the UI; with a path that leads nowhere, Settings and the panel say so.
+    // The path goes first so the switch never probes a Claude Code the machine may really have.
+    await smoke.run('config.update', { patch: { ai: { claudeCodePath: path.join(dataDir, 'nowhere', 'claude') } } });
+    await openSettings();
+    await smoke.fill('[data-testid=settings-provider]', 'claude-code');
+    smoke.check('the provider choice in Settings is stored', await smoke.until(() => smoke.host.config.get().ai.provider === 'claude-code'));
+    smoke.check('Settings shows the Claude Code command and the usage note', (await smoke.waitFor('[data-testid=settings-claude-code-path]')) && (await smoke.count('[data-testid=settings-claude-code-note]')) === 1);
+    smoke.check('Settings reports a Claude Code that is not found', await smoke.waitFor('[data-testid=settings-claude-code-state]', 5000, 'Not found'));
+    await smoke.js(`document.querySelector('[data-section="ai"]').scrollIntoView({ block: 'start' })`);
+    await smoke.shots('32-settings-claude-code');
+    await openAssistant();
+    smoke.check('the panel says Claude Code was not found', (await smoke.waitFor(`${panel} [data-testid=assistant-empty][data-reason=not-found]`, 5000)) && (await smoke.count(`${panel} [data-testid=assistant-input]`)) === 0);
+
+    // Logged out: the fake says so until the environment changes and the user checks again.
+    process.env.FAKE_CLAUDE_LOGGED_OUT = '1';
+    await smoke.run('config.update', { patch: { ai: { claudeCodePath: fakePath } } });
+    smoke.check('the panel says Claude Code is not logged in', await smoke.waitFor(`${panel} [data-testid=assistant-empty][data-reason=not-logged-in]`, 5000));
+    delete process.env.FAKE_CLAUDE_LOGGED_OUT;
+    await smoke.click(`${panel} [data-testid=assistant-check-again]`);
+    smoke.check('Check again finds it logged in and the chat opens', await smoke.waitFor(`${panel} [data-testid=assistant-input]`, 5000));
+    smoke.check('the header names Claude Code and its version', (await smoke.text(`${panel} [data-testid=assistant-model]`))?.includes('Claude Code 9.9.9') === true, await smoke.text(`${panel} [data-testid=assistant-model]`));
+
+    // The MCP server turned off in Settings: the chat shows the notice, refuses to send, and the button turns the server on as the user's own action.
+    await openSettings();
+    await smoke.click('[data-testid=settings-mcp-enabled]');
+    smoke.check('the MCP server is off after the switch in Settings', await smoke.until(() => !smoke.host.config.get().mcp.enabled && !smoke.host.mcpStatus().running));
+    await openAssistant();
+    smoke.check('the chat shows that the MCP server is off', await smoke.waitFor(`${panel} [data-testid=assistant-mcp-off]`, 5000));
+    await smoke.expectError('sending is refused while the MCP server is off', 'assistant.send', { text: 'hi' }, 'UNAVAILABLE', { projectId: duplexId });
+    smoke.check('and no Claude Code process was started', starts().length === 0);
+    await smoke.shots('31-assistant-mcp-off');
+    await smoke.click(`${panel} [data-testid=assistant-enable-mcp]`);
+    smoke.check('Enable MCP server turns the server on', await smoke.until(() => smoke.host.config.get().mcp.enabled && smoke.host.mcpStatus().running));
+    smoke.check('the notice goes away', await smoke.gone(`${panel} [data-testid=assistant-mcp-off]`, 5000));
+
+    // A design edit through the real MCP server: one undoable transaction attributed to Claude Code.
+    const before = walls();
+    const callsBefore = (await smoke.run<McpCallEntry[]>('mcp.calls')).length;
+    writeScript({
+      sessionId: 'smoke-sess-1',
+      messages: [[{ text: 'Adding the wall.', tools: [{ name: 'plan_apply', input: { label: 'Add a 3 m wall', steps: [{ command: 'plan.wall.add', input: { levelId: ground, from: [3000, 7000], to: [6000, 7000], thickness: 150 } }] } }] }, { text: 'Done: a 3 m wall on the ground floor.' }]],
+    });
+    await send('Add a 3 m wall');
+    smoke.check('the message shows in the chat', await smoke.waitFor(`${panel} [data-testid=assistant-item][data-kind=user]`, 5000, 'Add a 3 m wall'));
+    smoke.check('the reply streams in', await smoke.waitFor(`${panel} [data-testid=assistant-item][data-kind=assistant]`, 10000, 'Done: a 3 m wall'));
+    smoke.check('the tool call is shown done, with the batch label', (await smoke.waitFor(`${panel} [data-testid=assistant-tool][data-command="plan.apply"][data-status=ok]`, 3000)) && (await smoke.text(`${panel} [data-testid=assistant-tool]`))?.includes('Add a 3 m wall') === true);
+    smoke.check('the wall was added', await smoke.until(() => walls() === before + 1));
+    const history = await run<{ undo: HistoryInfo[] }>('edit.history');
+    smoke.check('the history has one entry labelled by the batch, by Assistant (claude-code 9.9.9)', history.undo[0]?.label === 'Add a 3 m wall' && history.undo[0].author.kind === 'assistant' && history.undo[0].author.name === 'claude-code 9.9.9', history.undo[0]);
+    await smoke.click(`${tab} [data-testid=right-tab-history]`);
+    smoke.check('the History panel lists the change under the assistant', await smoke.waitFor(`${tab} [data-testid=history-item][data-label="Add a 3 m wall"]`, 3000, 'Assistant (claude-code 9.9.9)'));
+    await smoke.click(`${tab} [data-testid=right-tab-assistant]`);
+    await run('edit.undo');
+    smoke.check('one undo removes it', await smoke.until(() => walls() === before));
+    const first = starts()[0];
+    smoke.check('the process got the app\'s MCP server with the project and a token', starts().length === 1 && new RegExp(`^${smoke.host.mcpStatus().url}\\?project=${duplexId}&assistant=[A-Za-z0-9_-]{40,}$`).test(first?.mcpUrl ?? ''), first?.mcpUrl);
+    const calls = (await smoke.run<McpCallEntry[]>('mcp.calls')).slice(callsBefore);
+    smoke.check('the MCP server logged the call as the assistant', calls.some((c) => c.tool === 'plan.apply' && c.ok && c.caller === 'assistant' && c.agent === 'claude-code 9.9.9'), calls);
+    smoke.check('the chat is idle again', await smoke.gone(`${panel} [data-testid=assistant-stop]`, 3000));
+    await smoke.shots('30-assistant-claude-code');
+
+    // A destructive call waits for the user, declined then allowed, on the same process.
+    writeScript({ messages: [[{ tools: [{ name: 'smoke_destroy' }] }, { text: 'I left it alone.' }], [{ tools: [{ name: 'smoke_destroy' }] }, { text: 'Wiped.' }]] });
+    await send('Wipe it');
+    smoke.check('a destructive call waits for the user in the chat', await smoke.waitFor(`${panel} [data-testid=assistant-confirm][data-command="smoke.destroy"]`, 5000));
+    await smoke.click(`${panel} [data-testid=assistant-decline]`);
+    smoke.check('and the chat shows the call declined', await smoke.waitFor(`${panel} [data-testid=assistant-tool][data-command="smoke.destroy"][data-status=declined]`, 3000));
+    await smoke.waitFor(`${panel} [data-testid=assistant-item][data-kind=assistant]`, 5000, 'I left it alone.');
+    const declined = readLog().filter((e) => e.type === 'call' && e.name === 'smoke_destroy')[0];
+    smoke.check('the real server told Claude Code the call was declined', declined?.isError === true && (JSON.parse(declined.result![0].text!) as { code: string }).code === 'MUTATION_DECLINED', declined);
+    await send('Really wipe it');
+    smoke.check('the second attempt waits again', await smoke.waitFor(`${panel} [data-testid=assistant-confirm]`, 5000));
+    await smoke.click(`${panel} [data-testid=assistant-allow]`);
+    smoke.check('allowing runs it', await smoke.waitFor(`${panel} [data-testid=assistant-tool][data-command="smoke.destroy"][data-status=ok]`, 5000));
+    await smoke.waitFor(`${panel} [data-testid=assistant-item][data-kind=assistant]`, 5000, 'Wiped.');
+    smoke.check('one process served every message so far', starts().length === 1);
+
+    // Stop kills the process; the next message starts one that resumes the session, with the earlier messages replayed.
+    writeScript({ messages: [[{ tools: [{ name: 'smoke_destroy' }] }]] });
+    await send('Wipe once more');
+    await smoke.waitFor(`${panel} [data-testid=assistant-confirm]`, 5000);
+    await smoke.click(`${panel} [data-testid=assistant-stop]`);
+    smoke.check('Stop kills the Claude Code process', await smoke.until(() => !alive(first.pid)));
+    smoke.check('and the chat is idle, still on its session', (await smoke.gone(`${panel} [data-testid=assistant-stop]`, 3000)) && (await run<{ sessionId: string | null }>('assistant.state')).sessionId === 'smoke-sess-1');
+    writeScript({
+      expectResume: 'smoke-sess-1',
+      replay: [
+        { type: 'user', message: { role: 'user', content: [{ type: 'text', text: 'An earlier question' }] } },
+        { type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: 'An earlier answer' }] } },
+      ],
+      messages: [[{ text: 'Back on the same session.' }]],
+    });
+    await send('Continue');
+    smoke.check('the next message is answered by a fresh process that resumed the session', (await smoke.waitFor(`${panel} [data-testid=assistant-item][data-kind=assistant]`, 10000, 'Back on the same session.')) && starts().length === 2 && starts()[1].resume === 'smoke-sess-1' && starts()[1].mcpUrl !== first.mcpUrl, starts().map((s) => s.resume));
+    const texts = await smoke.js<string[]>(`Array.from(document.querySelectorAll('${panel} [data-testid=assistant-item]')).map((e) => e.textContent.trim())`);
+    smoke.check('the replayed history shows before the new message', texts.indexOf('An earlier answer') > -1 && texts.indexOf('An earlier answer') < texts.indexOf('Continue'), texts);
+
+    // Closed and reopened: the chat continues the stored session.
+    await smoke.run('project.close', { id: duplexId });
+    smoke.check('closing the project kills the process', await smoke.until(() => !alive(starts()[1].pid)));
+    await openAssistant();
+    smoke.check('the reopened chat says it continues the earlier session', await smoke.waitFor(`${panel} [data-testid=assistant-intro][data-resumed=true]`, 5000));
+    writeScript({ expectResume: 'smoke-sess-1', messages: [[{ text: 'Still here.' }]] });
+    await send('Still there?');
+    smoke.check('and its first message resumes it', (await smoke.waitFor(`${panel} [data-testid=assistant-item][data-kind=assistant]`, 10000, 'Still here.')) && starts().length === 3 && starts()[2].resume === 'smoke-sess-1');
+    await smoke.gone(`${panel} [data-testid=assistant-stop]`, 3000);
+    await smoke.click(`${panel} [data-testid=assistant-clear]`);
+    smoke.check('Clear forgets the session', (await smoke.waitFor(`${panel} [data-testid=assistant-intro]:not([data-resumed])`, 3000)) && (await smoke.until(async () => (await run<{ sessionId: string | null }>('assistant.state')).sessionId === null)));
+    smoke.check('and the process with it', await smoke.until(() => !alive(starts()[2].pid)));
+  } finally {
+    delete process.env.FAKE_CLAUDE_SCRIPT;
+    delete process.env.FAKE_CLAUDE_LOG;
+    delete process.env.FAKE_CLAUDE_LOGGED_OUT;
+    await smoke.run('config.update', { patch: { ai: { provider: 'api', claudeCodePath: '' }, mcp: { enabled: true } } });
+  }
+}

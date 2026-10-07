@@ -1,7 +1,24 @@
-@if (status.value() && !status.value()!.keySet) {
-  <x-empty-state title="Add your Claude API key" hint="The assistant designs with you inside the app, using the Claude API with your own key. The key stays encrypted on this computer." data-testid="assistant-empty">
-    <button xButton variant="primary" size="sm" [icon]="icons.KeyRound" (click)="openSettings()" data-testid="assistant-open-settings">Open Settings</button>
-  </x-empty-state>
+@if (emptyReason(); as reason) {
+  @switch (reason) {
+    @case ('key') {
+      <x-empty-state title="Add your Claude API key" hint="The assistant designs with you inside the app, using the Claude API with your own key. The key stays encrypted on this computer." data-testid="assistant-empty" data-reason="key">
+        <button xButton variant="primary" size="sm" [icon]="icons.KeyRound" (click)="openSettings()" data-testid="assistant-open-settings">Open Settings</button>
+      </x-empty-state>
+    }
+    @case ('not-found') {
+      <x-empty-state title="Claude Code not found" [hint]="notFoundHint()" data-testid="assistant-empty" data-reason="not-found">
+        <div class="flex items-center gap-2">
+          <button xButton variant="primary" size="sm" [icon]="icons.KeyRound" (click)="openSettings()" data-testid="assistant-open-settings">Open Settings</button>
+          <button xButton variant="secondary" size="sm" [icon]="icons.RefreshCw" [loading]="checking()" (click)="checkAgain()" data-testid="assistant-check-again">Check again</button>
+        </div>
+      </x-empty-state>
+    }
+    @case ('not-logged-in') {
+      <x-empty-state title="Claude Code is not logged in" hint="Run `claude` in a terminal and log in, then check again. The app never handles your login itself." data-testid="assistant-empty" data-reason="not-logged-in">
+        <button xButton variant="primary" size="sm" [icon]="icons.RefreshCw" [loading]="checking()" (click)="checkAgain()" data-testid="assistant-check-again">Check again</button>
+      </x-empty-state>
+    }
+  }
 } @else {
   <div class="flex items-center gap-2 px-3 py-2 border-b border-edge text-xs">
     <svg [xIcon]="icons.Sparkles" class="size-3.5 text-accent shrink-0"></svg>
@@ -9,7 +26,7 @@
     @if (running()) {
       <button xButton size="sm" variant="secondary" [icon]="icons.Square" (click)="stop()" data-testid="assistant-stop">Stop</button>
     } @else {
-      <button xButton size="sm" variant="ghost" [icon]="icons.Eraser" [disabled]="!chat()?.items?.length" (click)="clear()" data-testid="assistant-clear">Clear</button>
+      <button xButton size="sm" variant="ghost" [icon]="icons.Eraser" [disabled]="!chat()?.items?.length && !chat()?.sessionId" (click)="clear()" data-testid="assistant-clear">Clear</button>
     }
   </div>
 
@@ -39,7 +56,11 @@
         }
       }
     } @empty {
-      <div class="text-xs text-muted px-1 py-6 text-center" data-testid="assistant-intro">Ask for a change ("add a 4 by 5 m bedroom next to the living room") or a question about the design. Every edit the assistant makes is undoable and listed in the History panel.</div>
+      @if (chat()?.sessionId) {
+        <div class="text-xs text-muted px-1 py-6 text-center" data-testid="assistant-intro" data-resumed="true">Continuing the earlier Claude Code session (its messages are not shown). Clear starts a new one.</div>
+      } @else {
+        <div class="text-xs text-muted px-1 py-6 text-center" data-testid="assistant-intro">Ask for a change ("add a 4 by 5 m bedroom next to the living room") or a question about the design. Every edit the assistant makes is undoable and listed in the History panel.</div>
+      }
     }
     @if (busy()) {
       <div class="flex items-center gap-2 text-xs text-muted" data-testid="assistant-busy"><svg xSpinner class="size-3.5 text-accent"></svg>Working…</div>
@@ -64,6 +85,16 @@
       <div class="flex items-start gap-2 text-xs text-danger" data-testid="assistant-error"><svg [xIcon]="icons.CircleAlert" class="size-3.5 mt-0.5 shrink-0"></svg><span>{{ error }}</span></div>
     }
   </div>
+
+  @if (mcpOff()) {
+    <div class="mx-3 mb-2 rounded-md border border-warning/50 bg-warning/10 px-3 py-2 text-xs flex items-start gap-2" data-testid="assistant-mcp-off">
+      <svg [xIcon]="icons.Plug" class="size-4 shrink-0 text-warning"></svg>
+      <div class="min-w-0 flex-1 flex flex-col gap-1.5">
+        <span class="text-fg">The assistant with Claude Code works through the MCP server, which is off.</span>
+        <div><button xButton size="sm" variant="primary" [loading]="enabling()" (click)="enableMcp()" data-testid="assistant-enable-mcp">Enable MCP server</button></div>
+      </div>
+    </div>
+  }
 
   <form class="flex items-end gap-2 px-3 py-2 border-t border-edge" (submit)="$event.preventDefault(); send()">
     <textarea

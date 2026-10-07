@@ -79,13 +79,29 @@
 
   <section data-section="ai">
     <h2 class="text-sm font-semibold mb-1 pb-1 border-b border-edge">Assistant</h2>
-    <p class="text-xs text-muted mb-3">The in-app assistant uses the Claude API with your own API key. The key is stored encrypted on this computer and is never shared with agents or exported.</p>
-    <label xLabel for="settings-model">Model</label>
+    <p class="text-xs text-muted mb-3">The in-app assistant reaches Claude through the Claude API with your own key (the default), or through the Claude Code you have installed and logged in on this computer.</p>
+    <label xLabel for="settings-provider">Provider</label>
+    <select xSelect id="settings-provider" class="w-72" [formField]="settings.provider" data-testid="settings-provider">
+      @for (p of providers; track p.id) {
+        <option [value]="p.id">{{ p.label }}</option>
+      }
+    </select>
+    @if (draft().provider === 'claude-code') {
+      <p class="text-xs text-muted mt-2 max-w-xl" data-testid="settings-claude-code-note">Uses your own Claude Code and its login, on this computer only, and counts against your Claude Code usage limits. The app never reads or stores its credentials; its only tools are this app's commands, through the MCP server, which must be on.</p>
+      <label xLabel class="mt-4" for="settings-claude-code-path">Claude Code command</label>
+      <div class="flex items-center gap-2">
+        <input xInput id="settings-claude-code-path" class="w-96 font-mono" placeholder="claude (on PATH)" [formField]="settings.claudeCodePath" (blur)="saveClaudeCodePath()" (keydown.enter)="saveClaudeCodePath()" data-testid="settings-claude-code-path" />
+        <button xButton size="sm" variant="secondary" class="shrink-0 whitespace-nowrap" [icon]="icons.RefreshCw" [loading]="checking()" (click)="checkClaudeCode()" data-testid="settings-claude-code-check">Check again</button>
+      </div>
+      <p class="text-xs mt-1.5" [class]="assistant.value()?.claudeCode?.found && assistant.value()?.claudeCode?.loggedIn ? 'text-success' : 'text-warning'" data-testid="settings-claude-code-state">{{ claudeCodeState() }}</p>
+    } @else {
+    <label xLabel class="mt-4" for="settings-model">Model</label>
     <select xSelect id="settings-model" class="w-72" [formField]="settings.model" data-testid="settings-model">
       @for (m of models; track m.id) {
         <option [value]="m.id">{{ m.label }} · {{ m.note }}</option>
       }
     </select>
+    <p class="text-xs text-muted mt-2">The key is stored encrypted on this computer and is never shared with agents or exported.</p>
     <label xLabel class="mt-4" for="settings-key">Claude API key</label>
     @if (keyStatus.value()?.set) {
       <div class="flex items-center gap-2" data-testid="settings-key-set">
@@ -100,6 +116,7 @@
         <input xInput id="settings-key" type="password" class="w-96 font-mono" placeholder="sk-ant-…" [formField]="keyForm.key" data-testid="settings-key-input" />
         <button xButton type="submit" variant="primary" [loading]="savingKey()" [disabled]="keyForm().invalid()" data-testid="settings-key-save">Save key</button>
       </form>
+    }
     }
   </section>
 

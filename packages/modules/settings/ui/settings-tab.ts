@@ -1,9 +1,9 @@
 import { NgComponentOutlet, NgTemplateOutlet } from '@angular/common';
 import { Component, ElementRef, afterRenderEffect, computed, effect, inject, input, linkedSignal, signal, untracked } from '@angular/core';
 import { FormField, form, max, min, required } from '@angular/forms/signals';
-import { AI_MODELS, BRANDING, clientSnippets, defaultConfig, type ConfigPatch, type GlobalConfig, type McpCallEntry, type ThemePreference, type UnitSettings } from '@studio/core';
+import { AI_MODELS, AI_PROVIDERS, BRANDING, clientSnippets, defaultConfig, type AiProvider, type AssistantStatus, type ConfigPatch, type GlobalConfig, type McpCallEntry, type ThemePreference, type UnitSettings } from '@studio/core';
 import { AppState, Badge, Button, Checkbox, HostBridge, Icon, Input, Label, Select, SettingsSections, Theme, Toasts, invokeResource, type Tab, type TabComponent } from '@studio/ui';
-import { Copy, KeyRound, Trash2 } from 'lucide';
+import { Copy, KeyRound, RefreshCw, Trash2 } from 'lucide';
 import { UnitsEditor } from './units-editor';
 
 interface Draft {
@@ -13,6 +13,8 @@ interface Draft {
   port: number;
   allowMutations: boolean;
   model: string;
+  provider: AiProvider;
+  claudeCodePath: string;
 }
 
 function toDraft(config: GlobalConfig): Draft {
@@ -23,6 +25,8 @@ function toDraft(config: GlobalConfig): Draft {
     port: config.mcp.port,
     allowMutations: config.mcp.allowMutations,
     model: config.ai.model,
+    provider: config.ai.provider,
+    claudeCodePath: config.ai.claudeCodePath,
   };
 }
 
@@ -57,8 +61,9 @@ export class SettingsTab implements TabComponent {
 
   readonly tab = input.required<Tab>();
 
-  protected readonly icons = { Copy, KeyRound, Trash2 };
+  protected readonly icons = { Copy, KeyRound, RefreshCw, Trash2 };
   protected readonly models = AI_MODELS;
+  protected readonly providers = AI_PROVIDERS;
   protected readonly productName = BRANDING.productName;
   protected readonly config = this.app.config;
   protected readonly mcp = this.app.mcpStatus;
@@ -81,6 +86,16 @@ export class SettingsTab implements TabComponent {
     required(p.key);
   });
   protected readonly keyStatus = invokeResource<{ set: boolean; persistent: boolean }>('ai.key.status', () => ({}), { projectId: null, refreshOnEvents: ['secrets.changed'] });
+  /** For the Claude Code provider: found, which version, logged in. */
+  protected readonly assistant = invokeResource<AssistantStatus>('assistant.status', () => ({}), { projectId: null, refreshOnEvents: ['config.changed', 'mcp.status'] });
+  protected readonly checking = signal(false);
+  protected readonly claudeCodeState = computed(() => {
+    const cc = this.assistant.value()?.claudeCode;
+    if (!cc) return '';
+    if (!cc.found) return `Not found: ${cc.error ?? cc.path}`;
+    const version = cc.version ? `Claude Code ${cc.version}` : 'Claude Code';
+    return cc.loggedIn === false ? `${version}, not logged in: run \`claude\` in a terminal and log in` : cc.loggedIn ? `${version}, logged in` : `${version}${cc.error ? `: ${cc.error}` : ''}`;
+  });
   protected readonly calls = invokeResource<McpCallEntry[]>('mcp.calls', () => ({}), { projectId: null, refreshOnEvents: ['mcp.call'] });
   protected readonly recentCalls = computed(() => [...(this.calls.value() ?? [])].reverse().slice(0, 8));
   protected readonly info = invokeResource<AppInfo>('app.info', () => ({}), { projectId: null });
@@ -99,7 +114,7 @@ export class SettingsTab implements TabComponent {
       if (draft.mcpEnabled !== config.mcp.enabled || draft.allowMutations !== config.mcp.allowMutations) {
         patch.mcp = { enabled: draft.mcpEnabled, allowMutations: draft.allowMutations };
       }
-      if (draft.model !== config.ai.model) patch.ai = { model: draft.model };
+      if (draft.model !== config.ai.model || draft.provider !== config.ai.provider) patch.ai = { model: draft.model, provider: draft.provider };
       if (Object.keys(patch).length) untracked(() => this.save(patch));
     });
 
@@ -133,6 +148,26 @@ export class SettingsTab implements TabComponent {
       return;
     }
     void this.save({ mcp: { port } });
+  }
+
+  /** The Claude Code path applies when the field loses focus, like the port, so a half-typed path is never probed. */
+  protected saveClaudeCodePath(): void {
+    const config = untracked(this.config);
+    const claudeCodePath = untracked(this.draft).claudeCodePath.trim();
+    if (!config || claudeCodePath === config.ai.claudeCodePath) return;
+    void this.save({ ai: { claudeCodePath } });
+  }
+
+  protected async checkClaudeCode(): Promise<void> {
+    this.checking.set(true);
+    try {
+      await this.host.invoke('assistant.status', { refresh: true }, null);
+      this.assistant.reload();
+    } catch (err) {
+      this.toasts.error(err);
+    } finally {
+      this.checking.set(false);
+    }
   }
 
   protected async restartMcp(): Promise<void> {

@@ -1,13 +1,10 @@
 import { Component, ElementRef, afterRenderEffect, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
-import { AI_MODELS, type AssistantEvent, type ChatSnapshot, type TranscriptItem } from '@studio/core';
+import { AI_MODELS, type AssistantEvent, type AssistantStatus, type ChatSnapshot, type TranscriptItem } from '@studio/core';
 import { Button, EmptyState, HostBridge, Icon, Spinner, TabsState, Toasts, injectHostEvent, invokeResource } from '@studio/ui';
-import { Check, CircleAlert, Eraser, KeyRound, Send, ShieldAlert, Sparkles, Square, Wrench, X } from 'lucide';
+import { Check, CircleAlert, Eraser, KeyRound, Plug, RefreshCw, Send, ShieldAlert, Sparkles, Square, Wrench, X } from 'lucide';
 
-interface Status {
-  keySet: boolean;
-  persistent: boolean;
-  model: string;
-}
+/** Why the chat cannot run yet, as the empty state the panel shows instead. */
+type EmptyReason = 'key' | 'not-found' | 'not-logged-in';
 
 /**
  * The chat with the assistant for one project: the transcript (replies streamed, tool calls as
@@ -30,16 +27,34 @@ export class AssistantPanel {
   private readonly log = viewChild<ElementRef<HTMLElement>>('log');
   private readonly composer = viewChild<ElementRef<HTMLTextAreaElement>>('composer');
 
-  protected readonly icons = { Check, CircleAlert, Eraser, KeyRound, Send, ShieldAlert, Sparkles, Square, Wrench, X };
-  protected readonly status = invokeResource<Status>('assistant.status', () => ({}), { projectId: () => null, refreshOnEvents: ['secrets.changed', 'config.changed'] });
+  protected readonly icons = { Check, CircleAlert, Eraser, KeyRound, Plug, RefreshCw, Send, ShieldAlert, Sparkles, Square, Wrench, X };
+  protected readonly status = invokeResource<AssistantStatus>('assistant.status', () => ({}), { projectId: () => null, refreshOnEvents: ['secrets.changed', 'config.changed', 'mcp.status'] });
   protected readonly chat = signal<ChatSnapshot | null>(null);
   protected readonly draft = signal('');
   protected readonly sending = signal(false);
+  protected readonly checking = signal(false);
+  protected readonly enabling = signal(false);
   protected readonly running = computed(() => this.chat()?.status !== 'idle' && this.chat() !== null);
+  /** No key, Claude Code missing, or Claude Code logged out: the panel shows an empty state instead of the chat. */
+  protected readonly emptyReason = computed<EmptyReason | null>(() => {
+    const s = this.status.value();
+    if (!s) return null;
+    if (s.provider === 'api') return s.keySet ? null : 'key';
+    if (!s.claudeCode?.found) return 'not-found';
+    return s.claudeCode.loggedIn === false ? 'not-logged-in' : null;
+  });
+  /** With Claude Code, the chat needs the MCP server, which only the user turns on. */
+  protected readonly mcpOff = computed(() => {
+    const s = this.status.value();
+    return s?.provider === 'claude-code' && !s.mcp.running;
+  });
   protected readonly modelLabel = computed(() => {
-    const id = this.chat()?.model ?? this.status.value()?.model;
+    const s = this.status.value();
+    if (s?.provider === 'claude-code') return `Claude Code${s.claudeCode?.version ? ` ${s.claudeCode.version}` : ''}`;
+    const id = this.chat()?.model ?? s?.model;
     return AI_MODELS.find((m) => m.id === id)?.label ?? id ?? '';
   });
+  protected readonly notFoundHint = computed(() => this.status.value()?.claudeCode?.error ?? 'Install Claude Code, or set its path in Settings.');
   /** True while the model is working and no reply text has started yet, so the panel shows it is busy. */
   protected readonly busy = computed(() => {
     const chat = this.chat();
@@ -83,6 +98,31 @@ export class AssistantPanel {
 
   protected openSettings(): void {
     this.tabs.open({ type: 'settings.main', title: 'Settings', data: { key: 'settings', section: 'ai' } }, { singletonKey: 'settings.main:settings' });
+  }
+
+  /** Probes Claude Code again (after installing it or logging in). */
+  protected async checkAgain(): Promise<void> {
+    this.checking.set(true);
+    try {
+      await this.host.invoke('assistant.status', { refresh: true }, null);
+      this.status.reload();
+    } catch (err) {
+      this.toasts.error(err);
+    } finally {
+      this.checking.set(false);
+    }
+  }
+
+  /** The user's own click: the same config.update Settings runs. The assistant never starts the server by itself. */
+  protected async enableMcp(): Promise<void> {
+    this.enabling.set(true);
+    try {
+      await this.host.invoke('config.update', { patch: { mcp: { enabled: true } } }, null);
+    } catch (err) {
+      this.toasts.error(err);
+    } finally {
+      this.enabling.set(false);
+    }
   }
 
   protected onKeydown(event: KeyboardEvent): void {

@@ -1,4 +1,4 @@
-import { DestroyRef, computed, inject, linkedSignal, resource, untracked, type ResourceSnapshot, type Signal } from '@angular/core';
+import { DestroyRef, computed, effect, inject, linkedSignal, resource, untracked, type ResourceSnapshot, type Signal } from '@angular/core';
 import { toErrorPayload, type ErrorPayload, type HostEventName } from '@studio/core';
 import { AppState } from '../state/app-state';
 import { HostBridge } from './host-bridge';
@@ -54,13 +54,25 @@ export function invokeResource<T>(id: string, input: () => unknown = () => ({}),
     computation: (snapshot, previous) => (snapshot.status === 'error' ? toErrorPayload(snapshot.error) : snapshot.status === 'resolved' ? null : (previous?.value ?? null)),
   });
 
-  const offs = (options.refreshOnEvents ?? []).map((event) => host.on(event, () => untracked(() => ref.reload())));
+  // `resource.reload()` is dropped while the first load is still going; a reload asked then runs once it has settled,
+  // so an event during a slow first load (the assistant probing Claude Code) is never lost.
+  let pending = false;
+  const reload = () => {
+    if (!ref.reload()) pending = untracked(ref.status) === 'loading';
+  };
+  effect(() => {
+    if (ref.status() === 'loading' || !pending) return;
+    pending = false;
+    untracked(() => ref.reload());
+  });
+
+  const offs = (options.refreshOnEvents ?? []).map((event) => host.on(event, () => untracked(reload)));
   inject(DestroyRef).onDestroy(() => offs.forEach((off) => off()));
 
   return {
     value: value.asReadonly(),
     error: error.asReadonly(),
     isLoading: ref.isLoading,
-    reload: () => void ref.reload(),
+    reload,
   };
 }
