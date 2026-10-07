@@ -13,7 +13,7 @@ Windows, macOS and Linux, built with Electron and Angular.
 | 3. Document model: building, levels, layers, entities, connectors, transactions, undo, live mirror | done |
 | 4. 2D editor: plan view, walls and joins, snapping, exact input, openings, rooms, shapes, dimensions, thumbnails | done |
 | 5. Vertical circulation: stairs, ramps and elevators on the plan, slab openings, plan symbols, drawing tools, angle tracking, rule warnings | done |
-| 6. AI tools: `plan.describe`, `view.snapshot`, MCP resources and a prompt, the in-app assistant | done |
+| 6. AI tools: `plan.describe`, `view.snapshot`, MCP resources and a prompt, the in-app assistant (the Claude API, or your own Claude Code) | done |
 | 7. 3D view: stacked levels, extrusion, cut openings, slabs, connector geometry, cameras | next |
 | 8–9. Decor, export | planned |
 
