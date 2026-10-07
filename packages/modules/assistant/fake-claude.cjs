@@ -61,7 +61,7 @@ const mcpUrl = server.url;
 const resume = typeof flags.resume === 'string' ? flags.resume : null;
 let script = readScript();
 
-log({ type: 'start', argv, resume, mcpUrl, serverName, systemPrompt: flags['append-system-prompt'] || '', allowedTools: flags.allowedTools, disallowedTools: flags.disallowedTools, tools: flags.tools, strict: Boolean(flags['strict-mcp-config']), maxTurns: flags['max-turns'], cwd: process.cwd() });
+log({ type: 'start', argv, resume, model: typeof flags.model === 'string' ? flags.model : null, effort: typeof flags.effort === 'string' ? flags.effort : null, mcpUrl, serverName, systemPrompt: flags['append-system-prompt'] || '', allowedTools: flags.allowedTools, disallowedTools: flags.disallowedTools, tools: flags.tools, strict: Boolean(flags['strict-mcp-config']), maxTurns: flags['max-turns'], cwd: process.cwd() });
 
 if (resume && script.failResume) {
   process.stderr.write(`No conversation found with session ID: ${resume}\n`);

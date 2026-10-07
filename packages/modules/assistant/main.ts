@@ -284,6 +284,10 @@ class ApiProvider implements ChatProvider {
 function claudeCodeProvider(host: HostApi, chat: Chat): ClaudeCodeProvider {
   return new ClaudeCodeProvider({
     configuredPath: () => host.config.get().ai.claudeCodePath,
+    modelAndEffort: () => {
+      const ai = host.config.get().ai;
+      return { model: ai.claudeCodeModel, effort: ai.claudeCodeEffort };
+    },
     cwd: path.join(host.dataDir ?? path.join(os.tmpdir(), BRANDING.dataDirName), 'claude-code'),
     serverName: BRANDING.mcpServerName,
     mcpUrl: () => {

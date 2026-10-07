@@ -5,7 +5,7 @@ import fakeClaudeSource from '@studio/modules/assistant/fake-claude.cjs?raw';
 import type { Smoke } from './harness';
 import { tab } from './plan-canvas';
 
-type LogEntry = { type: string; pid: number; resume?: string | null; mcpUrl?: string; name?: string; isError?: boolean; result?: { type: string; text?: string }[] };
+type LogEntry = { type: string; pid: number; resume?: string | null; model?: string | null; effort?: string | null; mcpUrl?: string; name?: string; isError?: boolean; result?: { type: string; text?: string }[] };
 
 const alive = (pid: number): boolean => {
   try {
@@ -166,13 +166,33 @@ export async function smokeAssistantClaudeCode(smoke: Smoke, duplexId: string): 
     smoke.check('and its first message resumes it', (await smoke.waitFor(`${panel} [data-testid=assistant-item][data-kind=assistant]`, 10000, 'Still here.')) && starts().length === 3 && starts()[2].resume === 'smoke-sess-1');
     smoke.check('history the stream replays is not shown twice', (await smoke.count(`${panel} [data-testid=assistant-item]`)) > 0 && !(await smoke.text(`${panel} [data-testid=assistant-log]`))?.includes('Replayed twice'));
     await smoke.gone(`${panel} [data-testid=assistant-stop]`, 3000);
+
+    // The model and effort chosen in Settings reach the next message's process, which continues the session.
+    await openSettings();
+    // Typed and committed with Enter, as a user does; the field saves on Enter or blur, never while typing.
+    // `smoke.click` is a DOM click, which does not focus an input: focus it so Enter reaches it.
+    await smoke.js(`document.querySelector('[data-testid=settings-claude-code-model]').focus()`);
+    await smoke.fill('[data-testid=settings-claude-code-model]', 'opus');
+    await smoke.key('Return');
+    smoke.check('the model is saved when Enter commits it', await smoke.until(() => smoke.host.config.get().ai.claudeCodeModel === 'opus'), smoke.host.config.get().ai.claudeCodeModel);
+    await smoke.fill('[data-testid=settings-claude-code-effort]', 'high');
+    smoke.check('the model and effort chosen in Settings are stored', await smoke.until(() => smoke.host.config.get().ai.claudeCodeModel === 'opus' && smoke.host.config.get().ai.claudeCodeEffort === 'high'), smoke.host.config.get().ai);
+    await smoke.js(`document.querySelector('[data-section="ai"]').scrollIntoView({ block: 'start' })`);
+    await smoke.shots('33-settings-claude-code-model');
+    await openAssistant();
+    smoke.check('the chat header names them', await smoke.waitFor(`${panel} [data-testid=assistant-model]`, 3000, 'Claude Code 9.9.9 · opus · high effort'), await smoke.text(`${panel} [data-testid=assistant-model]`));
+    writeScript({ expectResume: 'smoke-sess-1', messages: [[{ text: 'Now on opus.' }]] });
+    await send('Which model?');
+    smoke.check('the next message starts Claude Code with --model and --effort, on the same session', (await smoke.waitFor(`${panel} [data-testid=assistant-item][data-kind=assistant]`, 10000, 'Now on opus.')) && starts().length === 4 && starts()[3].model === 'opus' && starts()[3].effort === 'high' && starts()[3].resume === 'smoke-sess-1', starts().map((s) => [s.model, s.effort, s.resume]));
+    smoke.check('and the process started without them is gone', await smoke.until(() => !alive(starts()[2].pid)));
+    await smoke.gone(`${panel} [data-testid=assistant-stop]`, 3000);
     await smoke.click(`${panel} [data-testid=assistant-clear]`);
     smoke.check('Clear forgets the session', (await smoke.waitFor(`${panel} [data-testid=assistant-intro]:not([data-resumed])`, 3000)) && (await smoke.until(async () => (await run<{ sessionId: string | null }>('assistant.state')).sessionId === null)));
-    smoke.check('and the process with it', await smoke.until(() => !alive(starts()[2].pid)));
+    smoke.check('and the process with it', await smoke.until(() => !alive(starts()[3].pid)));
   } finally {
     delete process.env.FAKE_CLAUDE_SCRIPT;
     delete process.env.FAKE_CLAUDE_LOG;
     delete process.env.FAKE_CLAUDE_LOGGED_OUT;
-    await smoke.run('config.update', { patch: { ai: { provider: 'api', claudeCodePath: '' }, mcp: { enabled: true } } });
+    await smoke.run('config.update', { patch: { ai: { provider: 'api', claudeCodePath: '', claudeCodeModel: '', claudeCodeEffort: '' }, mcp: { enabled: true } } });
   }
 }

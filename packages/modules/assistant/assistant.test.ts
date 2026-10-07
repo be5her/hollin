@@ -3,7 +3,7 @@ import { createServer } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { BRANDING, CommandRegistry, defineCommand, newProjectDoc, testHost, type AssistantStatus, type ChatSnapshot, type ConfigPatch, type HostEventMessage, type McpStatus, type MutationRequest, type ProjectApi, type ProjectsApi } from '@studio/core';
+import { BRANDING, CommandRegistry, ConfigPatchSchema, defineCommand, newProjectDoc, testHost, type AssistantStatus, type ChatSnapshot, type ConfigPatch, type HostEventMessage, type McpStatus, type MutationRequest, type ProjectApi, type ProjectsApi } from '@studio/core';
 import { startMcpServer, type RunningMcpServer } from '@studio/mcp';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
@@ -251,7 +251,7 @@ function freePort(): Promise<number> {
 
 type FakeTurn = { text?: string; tools?: { name: string; input?: unknown }[]; error?: string };
 type FakeScript = { sessionId?: string; expectResume?: string; failResume?: boolean; replay?: unknown[]; messages: FakeTurn[][] };
-type LogEntry = { type: string; pid: number; resume?: string | null; mcpUrl?: string; systemPrompt?: string; allowedTools?: string; disallowedTools?: string; tools?: string; strict?: boolean; name?: string; isError?: boolean; result?: { type: string; text?: string }[] };
+type LogEntry = { type: string; pid: number; resume?: string | null; model?: string | null; effort?: string | null; mcpUrl?: string; systemPrompt?: string; allowedTools?: string; disallowedTools?: string; tools?: string; strict?: boolean; name?: string; isError?: boolean; result?: { type: string; text?: string }[] };
 
 const alive = (pid: number): boolean => {
   try {
@@ -478,6 +478,38 @@ describe('assistant with Claude Code', () => {
     await t.run('assistant.clear');
     expect(t.ui).toEqual({});
     expect((await t.state()).items).toEqual([]);
+  });
+
+  it('passes the model and effort from Settings, and starts again on the same session when they change', async () => {
+    const t = await setupClaudeCode();
+    writeScript({ sessionId: 'sess-m', messages: [[{ text: 'One.' }], [{ text: 'Two.' }], [{ text: 'Three.' }]] });
+    await t.run('assistant.send', { text: 'First' });
+    await t.idle();
+    expect(readLog().filter((e) => e.type === 'start').map((e) => [e.model, e.effort])).toEqual([[null, null]]);
+
+    await t.host.config.update({ ai: { claudeCodeModel: 'opus', claudeCodeEffort: 'high' } });
+    await t.run('assistant.send', { text: 'Second' });
+    await t.idle();
+    let starts = readLog().filter((e) => e.type === 'start');
+    expect(starts.map((e) => [e.model, e.effort, e.resume])).toEqual([
+      [null, null, null],
+      ['opus', 'high', 'sess-m'],
+    ]);
+    expect(await until(() => !alive(starts[0].pid))).toBe(true);
+
+    // Unchanged settings keep the process.
+    await t.run('assistant.send', { text: 'Third' });
+    const final = await t.idle();
+    starts = readLog().filter((e) => e.type === 'start');
+    expect(starts).toHaveLength(2);
+    expect(final.items.map((i) => (i.kind === 'tool' ? i.name : i.text))).toEqual(['First', 'One.', 'Second', 'Two.', 'Third', 'Three.']);
+  });
+
+  it('refuses a model name that would read as a flag', async () => {
+    const { host } = setup();
+    expect(() => ConfigPatchSchema.parse({ ai: { claudeCodeModel: '--dangerously-skip-permissions' } })).toThrow();
+    expect(ConfigPatchSchema.parse({ ai: { claudeCodeModel: 'claude-opus-5-5[1m]' } })).toEqual({ ai: { claudeCodeModel: 'claude-opus-5-5[1m]' } });
+    expect(host.config.get().ai.claudeCodeEffort).toBe('');
   });
 
   it('stores nothing for the API provider', async () => {

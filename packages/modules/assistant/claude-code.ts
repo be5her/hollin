@@ -134,6 +134,8 @@ export interface ClaudeCodeEvents extends LoopEvents {
 export interface ClaudeCodeOptions {
   /** `config.ai.claudeCodePath` at spawn time. */
   configuredPath(): string;
+  /** `config.ai.claudeCodeModel` / `claudeCodeEffort` at spawn time; empty leaves Claude Code's own default. */
+  modelAndEffort(): { model: string; effort: string };
   /** An empty folder the app owns: no project CLAUDE.md is picked up and every chat's session groups under it. */
   cwd: string;
   /** The MCP server's name as the config names it, the base URL while the server runs (null when off). */
@@ -228,6 +230,12 @@ export class ClaudeCodeProvider {
   private toolNames = new Map<string, string>();
   /** Resolves when the current process has reported its exit, so a killed one is never written to. */
   private exited: Promise<void> = Promise.resolve();
+  /** The model and effort the running process was started with. */
+  private startedWith = '';
+  private settingsKey(): string {
+    const { model, effort } = this.opts.modelAndEffort();
+    return `${model}|${effort}`;
+  }
   /** The MCP base URL the running process was given, so a moved server can be noticed. */
   url: string | null = null;
 
@@ -249,6 +257,8 @@ export class ClaudeCodeProvider {
     try {
       for (let attempt = 0; ; attempt++) {
         const resume = this.opts.sessionId();
+        // The model or effort changed in Settings since this process started: start again on the same session.
+        if (this.proc && !this.stopped && this.startedWith !== this.settingsKey()) this.stop();
         // A process Stop killed may not have reported its exit yet: wait for it rather than write to it.
         if (this.proc && this.stopped) await this.exited;
         if (!this.proc) this.start(resume);
@@ -287,6 +297,8 @@ export class ClaudeCodeProvider {
     const token = this.opts.tokens.issue();
     const url = `${base}?project=${encodeURIComponent(this.opts.projectId)}&assistant=${token}`;
     const name = this.opts.serverName;
+    const { model, effort } = this.opts.modelAndEffort();
+    this.startedWith = `${model}|${effort}`;
     const args = [
       ...launch.prefix,
       '-p',
@@ -302,6 +314,9 @@ export class ClaudeCodeProvider {
       '--allowedTools', `mcp__${name}__*`,
       '--disallowedTools', DISALLOWED_TOOLS,
       '--append-system-prompt', this.opts.systemPrompt(),
+      // Passed on every start, resumes included: a model or effort changed in Settings applies from the next process.
+      ...(model ? ['--model', model] : []),
+      ...(effort ? ['--effort', effort] : []),
       ...(resume ? ['--resume', resume] : []),
     ];
     const proc = spawn(launch.file, args, { cwd: this.opts.cwd, env: launch.env, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });

@@ -1,6 +1,6 @@
 import { Component, ElementRef, afterRenderEffect, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
 import { AI_MODELS, type AssistantEvent, type AssistantStatus, type ChatSnapshot, type TranscriptItem } from '@studio/core';
-import { Button, EmptyState, HostBridge, Icon, Spinner, TabsState, Toasts, injectHostEvent, invokeResource } from '@studio/ui';
+import { AppState, Button, EmptyState, HostBridge, Icon, Spinner, TabsState, Toasts, injectHostEvent, invokeResource } from '@studio/ui';
 import { Check, CircleAlert, Eraser, KeyRound, Plug, RefreshCw, Send, ShieldAlert, Sparkles, Square, Wrench, X } from 'lucide';
 
 /** Why the chat cannot run yet, as the empty state the panel shows instead. */
@@ -19,6 +19,7 @@ type EmptyReason = 'key' | 'not-found' | 'not-logged-in';
 })
 export class AssistantPanel {
   private readonly host = inject(HostBridge);
+  private readonly app = inject(AppState);
   private readonly tabs = inject(TabsState);
   private readonly toasts = inject(Toasts);
 
@@ -50,7 +51,10 @@ export class AssistantPanel {
   });
   protected readonly modelLabel = computed(() => {
     const s = this.status.value();
-    if (s?.provider === 'claude-code') return `Claude Code${s.claudeCode?.version ? ` ${s.claudeCode.version}` : ''}`;
+    if (s?.provider === 'claude-code') {
+      const ai = this.app.config()?.ai;
+      return [`Claude Code${s.claudeCode?.version ? ` ${s.claudeCode.version}` : ''}`, ai?.claudeCodeModel, ai?.claudeCodeEffort && `${ai.claudeCodeEffort} effort`].filter(Boolean).join(' · ');
+    }
     const id = this.chat()?.model ?? s?.model;
     return AI_MODELS.find((m) => m.id === id)?.label ?? id ?? '';
   });

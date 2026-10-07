@@ -94,6 +94,26 @@
         <button xButton size="sm" variant="secondary" class="shrink-0 whitespace-nowrap" [icon]="icons.RefreshCw" [loading]="checking()" (click)="checkClaudeCode()" data-testid="settings-claude-code-check">Check again</button>
       </div>
       <p class="text-xs mt-1.5" [class]="assistant.value()?.claudeCode?.found && assistant.value()?.claudeCode?.loggedIn ? 'text-success' : 'text-warning'" data-testid="settings-claude-code-state">{{ claudeCodeState() }}</p>
+      <div class="flex flex-wrap items-end gap-x-4 gap-y-2 mt-4">
+        <div>
+          <label xLabel for="settings-claude-code-model">Model</label>
+          <input xInput id="settings-claude-code-model" class="w-56 font-mono" list="settings-claude-code-models" placeholder="Claude Code's default" [formField]="settings.claudeCodeModel" (blur)="saveClaudeCodeModel()" (keydown.enter)="saveClaudeCodeModel()" data-testid="settings-claude-code-model" />
+          <datalist id="settings-claude-code-models">
+            @for (m of claudeCodeModels; track m) {
+              <option [value]="m"></option>
+            }
+          </datalist>
+        </div>
+        <div>
+          <label xLabel for="settings-claude-code-effort">Effort</label>
+          <select xSelect id="settings-claude-code-effort" class="w-44" [formField]="settings.claudeCodeEffort" data-testid="settings-claude-code-effort">
+            @for (e of claudeCodeEfforts; track e) {
+              <option [value]="e">{{ e || "Claude Code's default" }}</option>
+            }
+          </select>
+        </div>
+      </div>
+      <p class="text-xs text-muted mt-1.5">An alias (fable, opus, sonnet, haiku) or a full model id. Applies from the next message; the chat continues the same session.</p>
     } @else {
     <label xLabel class="mt-4" for="settings-model">Model</label>
     <select xSelect id="settings-model" class="w-72" [formField]="settings.model" data-testid="settings-model">

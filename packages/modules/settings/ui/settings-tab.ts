@@ -1,7 +1,7 @@
 import { NgComponentOutlet, NgTemplateOutlet } from '@angular/common';
 import { Component, ElementRef, afterRenderEffect, computed, effect, inject, input, linkedSignal, signal, untracked } from '@angular/core';
 import { FormField, form, max, min, required } from '@angular/forms/signals';
-import { AI_MODELS, AI_PROVIDERS, BRANDING, clientSnippets, defaultConfig, type AiProvider, type AssistantStatus, type ConfigPatch, type GlobalConfig, type McpCallEntry, type ThemePreference, type UnitSettings } from '@studio/core';
+import { AI_MODELS, AI_PROVIDERS, BRANDING, CLAUDE_CODE_EFFORTS, CLAUDE_CODE_MODEL_ALIASES, clientSnippets, defaultConfig, type AiProvider, type AssistantStatus, type ClaudeCodeEffort, type ConfigPatch, type GlobalConfig, type McpCallEntry, type ThemePreference, type UnitSettings } from '@studio/core';
 import { AppState, Badge, Button, Checkbox, HostBridge, Icon, Input, Label, Select, SettingsSections, Theme, Toasts, invokeResource, type Tab, type TabComponent } from '@studio/ui';
 import { Copy, KeyRound, RefreshCw, Trash2 } from 'lucide';
 import { UnitsEditor } from './units-editor';
@@ -15,6 +15,8 @@ interface Draft {
   model: string;
   provider: AiProvider;
   claudeCodePath: string;
+  claudeCodeModel: string;
+  claudeCodeEffort: ClaudeCodeEffort;
 }
 
 function toDraft(config: GlobalConfig): Draft {
@@ -27,6 +29,8 @@ function toDraft(config: GlobalConfig): Draft {
     model: config.ai.model,
     provider: config.ai.provider,
     claudeCodePath: config.ai.claudeCodePath,
+    claudeCodeModel: config.ai.claudeCodeModel,
+    claudeCodeEffort: config.ai.claudeCodeEffort,
   };
 }
 
@@ -64,6 +68,8 @@ export class SettingsTab implements TabComponent {
   protected readonly icons = { Copy, KeyRound, RefreshCw, Trash2 };
   protected readonly models = AI_MODELS;
   protected readonly providers = AI_PROVIDERS;
+  protected readonly claudeCodeModels = CLAUDE_CODE_MODEL_ALIASES;
+  protected readonly claudeCodeEfforts = CLAUDE_CODE_EFFORTS;
   protected readonly productName = BRANDING.productName;
   protected readonly config = this.app.config;
   protected readonly mcp = this.app.mcpStatus;
@@ -114,7 +120,9 @@ export class SettingsTab implements TabComponent {
       if (draft.mcpEnabled !== config.mcp.enabled || draft.allowMutations !== config.mcp.allowMutations) {
         patch.mcp = { enabled: draft.mcpEnabled, allowMutations: draft.allowMutations };
       }
-      if (draft.model !== config.ai.model || draft.provider !== config.ai.provider) patch.ai = { model: draft.model, provider: draft.provider };
+      if (draft.model !== config.ai.model || draft.provider !== config.ai.provider || draft.claudeCodeEffort !== config.ai.claudeCodeEffort) {
+        patch.ai = { model: draft.model, provider: draft.provider, claudeCodeEffort: draft.claudeCodeEffort };
+      }
       if (Object.keys(patch).length) untracked(() => this.save(patch));
     });
 
@@ -156,6 +164,14 @@ export class SettingsTab implements TabComponent {
     const claudeCodePath = untracked(this.draft).claudeCodePath.trim();
     if (!config || claudeCodePath === config.ai.claudeCodePath) return;
     void this.save({ ai: { claudeCodePath } });
+  }
+
+  /** The Claude Code model applies when the field loses focus, so a half-typed name is never passed to Claude Code. */
+  protected saveClaudeCodeModel(): void {
+    const config = untracked(this.config);
+    const claudeCodeModel = untracked(this.draft).claudeCodeModel.trim();
+    if (!config || claudeCodeModel === config.ai.claudeCodeModel) return;
+    void this.save({ ai: { claudeCodeModel } });
   }
 
   protected async checkClaudeCode(): Promise<void> {

@@ -18,6 +18,12 @@ export const AI_PROVIDERS = [
 ] as const;
 export type AiProvider = (typeof AI_PROVIDERS)[number]['id'];
 
+/** Model aliases Claude Code accepts for `--model` (a full model id works too); empty means Claude Code's own default. */
+export const CLAUDE_CODE_MODEL_ALIASES = ['fable', 'opus', 'sonnet', 'haiku'] as const;
+/** Effort levels Claude Code accepts for `--effort`; empty means Claude Code's own default. */
+export const CLAUDE_CODE_EFFORTS = ['', 'low', 'medium', 'high', 'xhigh', 'max'] as const;
+export type ClaudeCodeEffort = (typeof CLAUDE_CODE_EFFORTS)[number];
+
 /** The sections of config.json and what each field may hold. */
 const SECTIONS = {
   appearance: z.object({
@@ -45,6 +51,10 @@ const SECTIONS = {
     provider: z.enum(['api', 'claude-code']),
     /** The Claude Code binary for the `claude-code` provider; empty means `claude` on PATH. */
     claudeCodePath: z.string(),
+    /** `--model` for Claude Code: an alias (`opus`) or a full id; empty leaves Claude Code's own default. */
+    claudeCodeModel: z.string().trim().max(100).regex(/^(?:[A-Za-z0-9][A-Za-z0-9._\-[\]]*)?$/, 'A model alias or id: letters and digits first, then letters, digits, dots, dashes, underscores or brackets'),
+    /** `--effort` for Claude Code; empty leaves Claude Code's own default. */
+    claudeCodeEffort: z.enum(CLAUDE_CODE_EFFORTS),
   }),
   library: z.object({
     /** Where the project library lives. Empty means the default folder in the app's data folder. */
@@ -121,7 +131,7 @@ const DEFAULTS: GlobalConfig = {
   appearance: { theme: 'system' },
   units: { system: 'metric', metricUnit: 'mm', imperialStyle: 'ft-in', precision: 0, fraction: 16 },
   mcp: { enabled: true, port: BRANDING.defaultMcpPort, allowMutations: false },
-  ai: { model: DEFAULT_AI_MODEL, provider: 'api', claudeCodePath: '' },
+  ai: { model: DEFAULT_AI_MODEL, provider: 'api', claudeCodePath: '', claudeCodeModel: '', claudeCodeEffort: '' },
   library: { path: '' },
   session: { openProjects: [], activeProjectId: null },
   editor: {
