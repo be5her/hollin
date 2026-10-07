@@ -1,5 +1,5 @@
 import type { z } from 'zod';
-import type { AssistantEvent } from './assistant-types';
+import type { AssistantCaller, AssistantEvent } from './assistant-types';
 import type { ConfigPatch, GlobalConfig } from './config';
 import type { Author, DocPatch, EditContext, HistoryInfo, HistoryState, LastTouched } from './doc/engine';
 import { StudioError } from './errors';
@@ -113,8 +113,9 @@ export interface ProjectsApi {
   reindex(): Promise<{ projects: number }>;
   /** The project a command acts on: the named one (opened if needed), else the one on screen. */
   resolve(hint: string | null): Promise<ProjectApi | undefined>;
-  /** Per-machine view state of a project (active level, panels): never part of the design, snapshots or exports. */
+  /** Per-machine view state of a project (active level, panels, the assistant's session): never part of the design, snapshots or exports. */
   uiState(id: string): Promise<Record<string, unknown>>;
+  /** Merges `state` over the stored record key by key (a key set to `null` is removed), so main and the renderer can each own their keys. */
   setUiState(id: string, state: Record<string, unknown>): Promise<void>;
   /** Keeps an open project as it is in an automatic snapshot, e.g. before a large batch by an agent. */
   autoSnapshot?(id: string, name: string, createdBy: string): Promise<void>;
@@ -168,6 +169,13 @@ export interface HostApi {
    * assistant calls are refused with MUTATION_BLOCKED.
    */
   confirmMutation?(request: MutationRequest): Promise<boolean>;
+  /**
+   * Recognises a Claude Code process the assistant spawned by the token it carries in the MCP URL.
+   * Installed by the assistant module; the MCP server asks it for every `?assistant=` request.
+   */
+  identifyAssistant?(token: string): AssistantCaller | undefined;
+  /** Whether the MCP server runs and where. */
+  mcpStatus(): McpStatus;
 }
 
 export interface CommandContext {
@@ -246,6 +254,8 @@ export interface McpStatus {
 export interface McpCallEntry {
   tool: string;
   agent: string;
+  /** `assistant` for a Claude Code process the assistant spawned, else `mcp`. */
+  caller: Caller;
   projectId?: string;
   ok: boolean;
   /** The error code of a failed call. */

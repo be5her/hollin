@@ -55,7 +55,7 @@ export const editModule = defineModule({
     defineCommand({
       id: 'project.ui.set',
       title: 'Save view state',
-      description: 'Stores per-machine view state of the project.',
+      description: 'Merges per-machine view state of the project over what is stored, key by key (null removes a key).',
       scope: 'project',
       hidden: true,
       input: z.object({ state: z.record(z.string(), z.unknown()) }),

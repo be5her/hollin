@@ -35,7 +35,7 @@ export async function smokeMcp(smoke: Smoke): Promise<void> {
     const before = smoke.events.length;
     const echo = text(await client.callTool({ name: 'smoke_echo', arguments: { text: 'hi' } }));
     smoke.check(`${era}: tool calls run as the MCP caller, attributed to the agent`, echo.text === 'hi' && echo.caller === 'mcp' && echo.agent === `smoke-agent-${mode} 1.0`, echo);
-    smoke.check(`${era}: calls are announced for the call log`, smoke.eventsSince(before, 'mcp.call').some((c) => c.tool === 'smoke.echo' && c.agent === `smoke-agent-${mode} 1.0`));
+    smoke.check(`${era}: calls are announced for the call log`, smoke.eventsSince(before, 'mcp.call').some((c) => c.tool === 'smoke.echo' && c.agent === `smoke-agent-${mode} 1.0` && c.caller === 'mcp'));
 
     const blocked = await client.callTool({ name: 'smoke_destroy', arguments: {} });
     smoke.check(`${era}: mutating tools are refused until allowed`, blocked.isError === true && text(blocked).code === 'MUTATION_BLOCKED', text(blocked));
@@ -69,6 +69,14 @@ export async function smokeMcp(smoke: Smoke): Promise<void> {
   smoke.check('mutating tools run once the user allows them', text(await client.callTool({ name: 'smoke_destroy', arguments: {} })).destroyed === true);
   await client.close();
   await smoke.run('config.update', { patch: { mcp: { allowMutations: false } } });
+
+  // An `assistant` token nobody issued is just another MCP client.
+  const impostor = new Client({ name: 'smoke-impostor', version: '1.0' });
+  await impostor.connect(new StreamableHTTPClientTransport(new URL(`${status.url}?assistant=bogus-token`)));
+  const asImpostor = text(await impostor.callTool({ name: 'smoke_echo', arguments: { text: 'hi' } }));
+  smoke.check('an unknown assistant token stays an ordinary MCP caller', asImpostor.caller === 'mcp' && asImpostor.agent === 'smoke-impostor 1.0', asImpostor);
+  smoke.check('and its mutating calls are still gated by Settings', text(await impostor.callTool({ name: 'smoke_destroy', arguments: {} })).code === 'MUTATION_BLOCKED');
+  await impostor.close();
 
   const calls = await smoke.run<McpCallEntry[]>('mcp.calls');
   smoke.check('the call log keeps the latest calls with their outcome', calls.some((c) => c.tool === 'smoke.destroy' && c.ok) && calls.some((c) => c.error === 'MUTATION_BLOCKED'), calls.length);

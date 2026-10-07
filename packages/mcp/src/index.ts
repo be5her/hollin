@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { localhostHostValidation, localhostOriginValidation, toNodeHandler } from '@modelcontextprotocol/node';
 import { McpServer, createMcpHandler } from '@modelcontextprotocol/server';
-import { DESIGN_GUIDELINES, ProjectDocSchema, StudioError, isImageResult, splitImageResult, toErrorPayload, toolNameFor, type CommandMeta, type CommandRegistry, type HostApi, type McpCallEntry, type ProjectApi } from '@studio/core';
+import { DESIGN_GUIDELINES, ProjectDocSchema, StudioError, isImageResult, splitImageResult, toErrorPayload, toolNameFor, type AssistantCaller, type CommandMeta, type CommandRegistry, type HostApi, type McpCallEntry, type ProjectApi } from '@studio/core';
 import { z } from 'zod';
 import { SESSION_HEADER, agentLabel, identifyAgent, rpcMessages, type McpAgent } from './agent';
 
@@ -25,6 +25,13 @@ export interface McpServerOptions {
    */
   resolveProject(hint: string | null): Promise<ProjectApi | undefined>;
   onCall?(entry: McpCallEntry): void;
+  /**
+   * Recognises a Claude Code process the in-app assistant spawned, by the `assistant` URL parameter
+   * (a per-process token). Its calls run as `caller: 'assistant'` under the returned agent name,
+   * inside `run` (so the chat's confirmation finds them) and against the returned project; the
+   * Settings > MCP mutation switch is not consulted. Unknown tokens stay ordinary MCP callers.
+   */
+  identifyAssistant?(token: string): AssistantCaller | undefined;
 }
 
 export interface RunningMcpServer {
@@ -40,16 +47,13 @@ export const DOCUMENT_SCHEMA_URI = 'studio://schema/document';
 export const GUIDELINES_URI = 'studio://guidelines';
 let documentSchema: string | undefined;
 
-/** The tool description: the command's own, plus the project it runs against and whether it is gated. */
-export function toolDescription(meta: CommandMeta): string {
+/** The tool description: the command's own, plus the project it runs against and whether it is gated (in Settings for MCP agents, in the chat for the assistant's own Claude Code). */
+export function toolDescription(meta: CommandMeta, gate: 'settings' | 'chat' = 'settings'): string {
+  const refused = gate === 'chat' ? 'the user is asked in the chat first and may decline' : 'it is refused unless the user has allowed it in Settings > MCP';
   return [
     meta.description,
     meta.scope === 'project' ? 'Acts on the project open in the app, or the one named by the `projectId` argument.' : '',
-    meta.conditional
-      ? 'Read-only calls always work; calls that delete or overwrite data are refused unless the user has allowed it in Settings > MCP.'
-      : meta.mutating
-        ? 'Gated: deletes or overwrites data, so it is refused unless the user has allowed it in Settings > MCP.'
-        : '',
+    meta.conditional ? `Read-only calls always work; for calls that delete or overwrite data ${refused}.` : meta.mutating ? `Gated: deletes or overwrites data, so ${refused}.` : '',
   ]
     .filter(Boolean)
     .join(' ');
@@ -59,6 +63,8 @@ interface CallScope {
   agent: McpAgent;
   /** The `project` URL parameter. */
   projectHint: string | null;
+  /** Set when the `assistant` URL parameter named a Claude Code process the assistant spawned. */
+  assistant: AssistantCaller | null;
 }
 
 /**
@@ -68,7 +74,9 @@ interface CallScope {
  */
 export function buildMcpServer(opts: McpServerOptions, scope: CallScope): McpServer {
   const server = new McpServer({ name: opts.name, version: opts.version }, opts.instructions ? { instructions: opts.instructions } : undefined);
-  const agent = agentLabel(scope.agent);
+  const agent = scope.assistant?.agent ?? agentLabel(scope.agent);
+  const caller = scope.assistant ? 'assistant' : 'mcp';
+  const wrap = scope.assistant ? scope.assistant.run.bind(scope.assistant) : <T>(fn: () => Promise<T>) => fn();
 
   server.registerResource(
     'document-schema',
@@ -120,7 +128,7 @@ export function buildMcpServer(opts: McpServerOptions, scope: CallScope): McpSer
       toolNameFor(meta.id),
       {
         title: meta.title,
-        description: toolDescription(meta),
+        description: toolDescription(meta, scope.assistant ? 'chat' : 'settings'),
         inputSchema,
         annotations: { title: meta.title, readOnlyHint: !meta.mutating, destructiveHint: meta.mutating, openWorldHint: false },
       },
@@ -130,11 +138,12 @@ export function buildMcpServer(opts: McpServerOptions, scope: CallScope): McpSer
         try {
           const { projectId: chosen, ...rest } = args;
           const input = takesProjectId ? rest : args;
-          const hint = (takesProjectId && typeof chosen === 'string' && chosen) || scope.projectHint;
+          // The assistant's own Claude Code is bound to its chat's project, whatever it asks for.
+          const hint = scope.assistant ? scope.assistant.projectId : (takesProjectId && typeof chosen === 'string' && chosen) || scope.projectHint;
           const project = meta.scope === 'project' ? await opts.resolveProject(hint) : undefined;
           projectId = project?.id;
-          const result = await opts.registry.execute(meta.id, input, { caller: 'mcp', agent, host: opts.host, project });
-          opts.onCall?.({ tool: meta.id, agent, projectId, ok: true, durationMs: performance.now() - started, at: new Date().toISOString() });
+          const result = await wrap(() => opts.registry.execute(meta.id, input, { caller, agent, host: opts.host, project }));
+          opts.onCall?.({ tool: meta.id, agent, caller, projectId, ok: true, durationMs: performance.now() - started, at: new Date().toISOString() });
           if (meta.output === 'image' && isImageResult(result)) {
             const { image, rest } = splitImageResult(result);
             return { content: [{ type: 'image' as const, data: image.data, mimeType: image.mimeType }, { type: 'text' as const, text: JSON.stringify(rest, null, 2) }] };
@@ -143,7 +152,7 @@ export function buildMcpServer(opts: McpServerOptions, scope: CallScope): McpSer
         } catch (err) {
           const payload = toErrorPayload(err);
           if (!(err instanceof StudioError)) console.error(`[mcp] ${meta.id} failed`, err);
-          opts.onCall?.({ tool: meta.id, agent, projectId, ok: false, error: payload.code, durationMs: performance.now() - started, at: new Date().toISOString() });
+          opts.onCall?.({ tool: meta.id, agent, caller, projectId, ok: false, error: payload.code, durationMs: performance.now() - started, at: new Date().toISOString() });
           return { content: [{ type: 'text' as const, text: JSON.stringify(payload, null, 2) }], isError: true };
         }
       },
@@ -201,7 +210,10 @@ export async function startMcpServer(opts: McpServerOptions): Promise<RunningMcp
     const { agent, sessionId } = identifyAgent(req.headers, messages);
     // No session is kept: the id only tells later requests which client this is.
     if (sessionId) res.setHeader(SESSION_HEADER, sessionId);
-    const scope: CallScope = { agent, projectHint: url.searchParams.get('project') };
+    // The token is checked and dropped here: it is never logged or kept on the scope.
+    const token = url.searchParams.get('assistant');
+    const assistant = (token && opts.identifyAssistant?.(token)) || null;
+    const scope: CallScope = { agent, projectHint: url.searchParams.get('project'), assistant };
     // 'auto' answers with plain JSON unless a tool emits progress before its result.
     const handler = createMcpHandler(() => buildMcpServer(opts, scope), { legacy: 'stateless', responseMode: 'auto' });
     res.on('close', () => void handler.close());

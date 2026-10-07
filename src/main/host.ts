@@ -100,6 +100,7 @@ export class Host {
       },
       emit: (event, payload) => this.emit(event, payload),
       on: (event, listener) => this.onEvent((message) => void (message.event === event && listener(message.payload as never))),
+      mcpStatus: () => this.mcpStatus(),
     };
     this.registry.registerModule({ id: 'host', commands: hostCommands(this) });
     for (const mod of [...mainModules, ...(opts.extraModules ?? [])]) this.registry.registerModule(mod);
@@ -202,6 +203,7 @@ export class Host {
         version: this.opts.version,
         instructions: `${BRANDING.productName} is a desktop app for designing buildings, floor plans and interiors. Lengths are in millimetres. Project tools act on the project open in the app unless you pass projectId.`,
         resolveProject: (hint) => this.resolveProject(hint),
+        identifyAssistant: (token) => this.api.identifyAssistant?.(token),
         onCall: (entry) => {
           this.calls.push(entry);
           if (this.calls.length > MAX_CALLS) this.calls.splice(0, this.calls.length - MAX_CALLS);

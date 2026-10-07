@@ -11,6 +11,13 @@ export const AI_MODELS = [
 
 export const DEFAULT_AI_MODEL: string = AI_MODELS[0].id;
 
+/** How the in-app assistant reaches Claude: the API with the user's key (the default, and the only path supported for anyone but the user), or the user's own installed, logged-in Claude Code driven as a subprocess. */
+export const AI_PROVIDERS = [
+  { id: 'api', label: 'Claude API, with your key' },
+  { id: 'claude-code', label: 'Claude Code, your local install' },
+] as const;
+export type AiProvider = (typeof AI_PROVIDERS)[number]['id'];
+
 /** The sections of config.json and what each field may hold. */
 const SECTIONS = {
   appearance: z.object({
@@ -35,6 +42,9 @@ const SECTIONS = {
   ai: z.object({
     /** Any model id is accepted, so a newer model can be typed in before the list knows it. */
     model: z.string().min(1),
+    provider: z.enum(['api', 'claude-code']),
+    /** The Claude Code binary for the `claude-code` provider; empty means `claude` on PATH. */
+    claudeCodePath: z.string(),
   }),
   library: z.object({
     /** Where the project library lives. Empty means the default folder in the app's data folder. */
@@ -111,7 +121,7 @@ const DEFAULTS: GlobalConfig = {
   appearance: { theme: 'system' },
   units: { system: 'metric', metricUnit: 'mm', imperialStyle: 'ft-in', precision: 0, fraction: 16 },
   mcp: { enabled: true, port: BRANDING.defaultMcpPort, allowMutations: false },
-  ai: { model: DEFAULT_AI_MODEL },
+  ai: { model: DEFAULT_AI_MODEL, provider: 'api', claudeCodePath: '' },
   library: { path: '' },
   session: { openProjects: [], activeProjectId: null },
   editor: {

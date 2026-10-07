@@ -456,9 +456,18 @@ export class ProjectService implements ProjectsApi {
     return (await readJsonFile<Record<string, unknown>>(this.uiFile(id)).catch(() => undefined)) ?? {};
   }
 
+  /** Merges `state` over the stored record key by key (`null` removes a key): the renderer owns the view keys, main the assistant's session. */
   async setUiState(id: string, state: Record<string, unknown>): Promise<void> {
     this.library.require(id, { trashed: false });
-    await this.edits.run(`ui:${id}`, () => writeJsonAtomic(this.uiFile(id), state, { fsync: false }));
+    await this.edits.run(`ui:${id}`, async () => {
+      const stored = (await readJsonFile<Record<string, unknown>>(this.uiFile(id)).catch(() => undefined)) ?? {};
+      const merged: Record<string, unknown> = { ...stored };
+      for (const [key, value] of Object.entries(state)) {
+        if (value === null || value === undefined) delete merged[key];
+        else merged[key] = value;
+      }
+      await writeJsonAtomic(this.uiFile(id), merged, { fsync: false });
+    });
   }
 
   async resolve(hint: string | null): Promise<ProjectApi | undefined> {

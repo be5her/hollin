@@ -1,3 +1,4 @@
+import type { AiProvider } from './config';
 import type { CommandMeta } from './types';
 
 /*
@@ -27,9 +28,47 @@ export interface ChatSnapshot {
   error: string | null;
   items: TranscriptItem[];
   confirm: PendingConfirmation | null;
-  /** The model the chat runs against (`config.ai.model`). */
+  /** The model the chat runs against (`config.ai.model`), or the Claude Code label. */
   model: string;
+  provider: AiProvider;
+  /** The Claude Code session this chat continues (stored in the project's view state), if any. */
+  sessionId: string | null;
 }
 
 /** What `assistant.event` carries: the whole chat after a structural change, or one text delta while a reply streams. */
 export type AssistantEvent = { type: 'changed'; state: ChatSnapshot } | { type: 'text'; id: string; delta: string };
+
+/** What the assistant module found out about the user's Claude Code install (`claude --version`, `claude auth status`). */
+export interface ClaudeCodeStatus {
+  /** The configured path, or `claude` for the PATH lookup. */
+  path: string;
+  /** The binary resolved on disk, when found. */
+  resolved?: string;
+  found: boolean;
+  version?: string;
+  /** Null until known: `claude auth status` could not say. */
+  loggedIn: boolean | null;
+  error?: string;
+}
+
+/** What `assistant.status` returns: enough for the panel's empty states and the Settings section. */
+export interface AssistantStatus {
+  provider: AiProvider;
+  model: string;
+  keySet: boolean;
+  persistent: boolean;
+  mcp: { running: boolean; url: string };
+  /** Only for the `claude-code` provider. */
+  claudeCode: ClaudeCodeStatus | null;
+}
+
+/**
+ * How the MCP server recognises a Claude Code process the assistant spawned: the per-process token in
+ * the URL maps to the chat, whose calls then run as `caller: 'assistant'` under `agent`, inside `run`
+ * (so the chat's confirmation finds them), against `projectId`.
+ */
+export interface AssistantCaller {
+  agent: string;
+  projectId: string;
+  run<T>(fn: () => Promise<T>): Promise<T>;
+}

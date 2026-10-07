@@ -1,6 +1,6 @@
 import { createServer } from 'node:net';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
-import { CommandRegistry, StudioError, defineCommand, testHost, type McpCallEntry, type ProjectApi } from '@studio/core';
+import { CommandRegistry, StudioError, defineCommand, testHost, type AssistantCaller, type McpCallEntry, type ProjectApi } from '@studio/core';
 import { afterEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { agentFromUserAgent, decodeAgentSession, encodeAgentSession, identifyAgent } from './agent';
@@ -60,7 +60,7 @@ describe('MCP server over HTTP', () => {
     running = undefined;
   });
 
-  async function start(config: Parameters<typeof testHost>[0] = {}) {
+  async function start(config: Parameters<typeof testHost>[0] = {}, identifyAssistant?: (token: string) => AssistantCaller | undefined) {
     const calls: McpCallEntry[] = [];
     const port = await freePort();
     running = await startMcpServer({
@@ -75,9 +75,64 @@ describe('MCP server over HTTP', () => {
         return projects[hint];
       },
       onCall: (entry) => calls.push(entry),
+      identifyAssistant,
     });
     return { url: running.url, port, calls };
   }
+
+  it('runs a recognised assistant token as the assistant: its agent, its project, its confirmation, inside its wrapper', async () => {
+    let depth = 0;
+    const asked: { command: string; caller: string; insideRun: boolean }[] = [];
+    const { url, calls } = await start(
+      {
+        confirm: (request) => {
+          asked.push({ command: request.command.id, caller: request.caller, insideRun: depth === 1 });
+          return asked.length > 1;
+        },
+      },
+      (token) =>
+        token === 'secret-1'
+          ? {
+              agent: 'claude-code 9.9.9',
+              projectId: 'prj_b',
+              run: async (fn) => {
+                depth++;
+                try {
+                  return await fn();
+                } finally {
+                  depth--;
+                }
+              },
+            }
+          : undefined,
+    );
+    const client = new Client({ name: 'claude-code', version: '9.9.9' });
+    await client.connect(new StreamableHTTPClientTransport(new URL(`${url}?assistant=secret-1`)));
+    const { tools } = await client.listTools();
+    expect(tools.find((t) => t.name === 'test_wipe')!.description).toContain('asked in the chat');
+    expect(text(await client.callTool({ name: 'test_where', arguments: { projectId: 'prj_a' } }))).toEqual({ project: 'prj_b', agent: 'claude-code 9.9.9', caller: 'assistant' });
+    const declined = await client.callTool({ name: 'test_wipe', arguments: {} });
+    expect(declined.isError).toBe(true);
+    expect(text(declined)).toMatchObject({ code: 'MUTATION_DECLINED' });
+    expect(text(await client.callTool({ name: 'test_wipe', arguments: {} }))).toBe('wiped');
+    expect(asked).toEqual([
+      { command: 'test.wipe', caller: 'assistant', insideRun: true },
+      { command: 'test.wipe', caller: 'assistant', insideRun: true },
+    ]);
+    expect(calls.map((c) => [c.tool, c.ok, c.caller, c.agent])).toEqual([
+      ['test.where', true, 'assistant', 'claude-code 9.9.9'],
+      ['test.wipe', false, 'assistant', 'claude-code 9.9.9'],
+      ['test.wipe', true, 'assistant', 'claude-code 9.9.9'],
+    ]);
+    await client.close();
+
+    const impostor = new Client({ name: 'someone', version: '1' });
+    await impostor.connect(new StreamableHTTPClientTransport(new URL(`${url}?assistant=wrong`)));
+    expect(text(await impostor.callTool({ name: 'test_where', arguments: {} }))).toEqual({ project: 'prj_a', agent: 'someone 1', caller: 'mcp' });
+    expect(text(await impostor.callTool({ name: 'test_wipe', arguments: {} }))).toMatchObject({ code: 'MUTATION_BLOCKED' });
+    expect(calls[calls.length - 1]).toMatchObject({ tool: 'test.wipe', caller: 'mcp', agent: 'someone 1' });
+    await impostor.close();
+  });
 
   for (const mode of ['legacy', 'auto'] as const) {
     it(`serves a ${mode === 'legacy' ? '2025' : '2026'} client: tools, results, errors, attribution`, async () => {

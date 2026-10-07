@@ -2,7 +2,7 @@ import { defaultConfig, mergeConfig, type ConfigPatch, type GlobalConfig } from 
 import { StudioError } from './errors';
 import type { CommandRegistry } from './registry';
 import { toolInputSchema } from './tools';
-import type { CommandContext, HostApi, HostEventMessage, MutationRequest, ProjectsApi, SecretsApi } from './types';
+import type { CommandContext, HostApi, HostEventMessage, McpStatus, MutationRequest, ProjectsApi, SecretsApi } from './types';
 
 /** A projects API with no library: there is never a current project, and everything else fails. */
 const noProjects = new Proxy({} as ProjectsApi, {
@@ -19,8 +19,8 @@ const noProjects = new Proxy({} as ProjectsApi, {
   },
 });
 
-/** An in-memory host for unit tests: config, secrets and the events that were emitted. With `registry`, `execute` and the command listing run against it. */
-export function testHost(options: { config?: ConfigPatch; confirm?: (request: MutationRequest) => boolean; registry?: CommandRegistry; projects?: ProjectsApi } = {}): HostApi & { events: HostEventMessage[] } {
+/** An in-memory host for unit tests: config, secrets and the events that were emitted. With `registry`, `execute` and the command listing run against it; `mcp` is what `mcpStatus` answers (a stopped server by default). */
+export function testHost(options: { config?: ConfigPatch; confirm?: (request: MutationRequest) => boolean; registry?: CommandRegistry; projects?: ProjectsApi; mcp?: () => McpStatus } = {}): HostApi & { events: HostEventMessage[] } {
   let config: GlobalConfig = mergeConfig(defaultConfig(), options.config ?? {});
   const values = new Map<string, string>();
   const secrets: SecretsApi = {
@@ -59,6 +59,7 @@ export function testHost(options: { config?: ConfigPatch; confirm?: (request: Mu
       return () => void listeners.delete(wrapped);
     },
     confirmMutation: options.confirm ? async (request) => options.confirm!(request) : undefined,
+    mcpStatus: () => options.mcp?.() ?? { running: false, port: config.mcp.port, url: `http://127.0.0.1:${config.mcp.port}/mcp` },
     events,
   };
 }

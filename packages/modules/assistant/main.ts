@@ -53,7 +53,8 @@ const running = new AsyncLocalStorage<Chat>();
 const now = () => new Date().toISOString();
 
 function snapshot(chat: Chat, host: HostApi): ChatSnapshot {
-  return { projectId: chat.projectId, status: chat.status, error: chat.error, items: chat.items, confirm: chat.confirm ? { id: chat.confirm.id, command: chat.confirm.command, input: chat.confirm.input } : null, model: host.config.get().ai.model };
+  const ai = host.config.get().ai;
+  return { projectId: chat.projectId, status: chat.status, error: chat.error, items: chat.items, confirm: chat.confirm ? { id: chat.confirm.id, command: chat.confirm.command, input: chat.confirm.input } : null, model: ai.model, provider: ai.provider, sessionId: null };
 }
 
 function emit(host: HostApi, chat: Chat, event: AssistantEvent): void {

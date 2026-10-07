@@ -36,6 +36,8 @@ export class ProjectView {
   private readonly state = signal<Record<string, Record<string, unknown>>>({});
   private readonly loaded = new Set<string>();
   private readonly timers = new Map<string, ReturnType<typeof setTimeout>>();
+  /** The keys changed since the last flush: only those are sent, since main merges and owns keys of its own (the assistant's session). */
+  private readonly pending = new Map<string, Set<string>>();
 
   get<T>(projectId: string, key: string, fallback: T): T {
     if (!this.loaded.has(projectId)) {
@@ -51,12 +53,19 @@ export class ProjectView {
 
   set(projectId: string, key: string, value: unknown): void {
     this.state.update((all) => ({ ...all, [projectId]: { ...(all[projectId] ?? {}), [key]: value } }));
+    let keys = this.pending.get(projectId);
+    if (!keys) this.pending.set(projectId, (keys = new Set()));
+    keys.add(key);
     clearTimeout(this.timers.get(projectId));
     this.timers.set(
       projectId,
       setTimeout(() => {
         const state = untracked(this.state)[projectId];
-        if (state) void this.host.invoke('project.ui.set', { state }, projectId).catch(() => {});
+        const changed = this.pending.get(projectId);
+        this.pending.delete(projectId);
+        if (!state || !changed?.size) return;
+        const patch = Object.fromEntries([...changed].map((k) => [k, state[k] ?? null]));
+        void this.host.invoke('project.ui.set', { state: patch }, projectId).catch(() => {});
       }, 400),
     );
   }

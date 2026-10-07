@@ -63,7 +63,7 @@
           <div class="flex items-center gap-3 px-2.5 py-1.5">
             <span class="size-1.5 rounded-full shrink-0" [class]="call.ok ? 'bg-success' : 'bg-danger'"></span>
             <span class="font-mono">{{ call.tool }}</span>
-            <span class="text-muted truncate">via MCP: {{ call.agent }}</span>
+            <span class="text-muted truncate">{{ call.caller === 'assistant' ? 'Assistant' : 'via MCP' }}: {{ call.agent }}</span>
             @if (call.error) {
               <span xBadge>{{ call.error }}</span>
             }
