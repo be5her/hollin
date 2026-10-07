@@ -43,6 +43,9 @@ export async function smokeAssistantClaudeCode(smoke: Smoke, duplexId: string): 
   const run = <T = unknown>(id: string, input: unknown = {}) => smoke.run<T>(id, input, { projectId: duplexId });
   const panel = `${tab} [data-testid=assistant-panel]`;
   const send = async (text: string) => {
+    // The reply's last words show before the run ends and Send is enabled again: wait for idle, or the click is lost.
+    await smoke.until(async () => (await run<{ status: string }>('assistant.state')).status === 'idle');
+    await smoke.gone(`${panel} [data-testid=assistant-stop]`, 3000);
     await smoke.fill(`${panel} [data-testid=assistant-input]`, text);
     await smoke.click(`${panel} [data-testid=assistant-send]`);
   };
@@ -157,10 +160,11 @@ export async function smokeAssistantClaudeCode(smoke: Smoke, duplexId: string): 
     await smoke.run('project.close', { id: duplexId });
     smoke.check('closing the project kills the process', await smoke.until(() => !alive(starts()[1].pid)));
     await openAssistant();
-    smoke.check('the reopened chat says it continues the earlier session', await smoke.waitFor(`${panel} [data-testid=assistant-intro][data-resumed=true]`, 5000));
-    writeScript({ expectResume: 'smoke-sess-1', messages: [[{ text: 'Still here.' }]] });
+    smoke.check('the reopened chat shows the earlier messages again', (await smoke.waitFor(`${panel} [data-testid=assistant-item][data-kind=assistant]`, 5000, 'Back on the same session.')) && (await smoke.count(`${panel} [data-testid=assistant-item][data-kind=user]`)) >= 4);
+    writeScript({ expectResume: 'smoke-sess-1', replay: [{ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: 'Replayed twice if this shows' }] } }], messages: [[{ text: 'Still here.' }]] });
     await send('Still there?');
     smoke.check('and its first message resumes it', (await smoke.waitFor(`${panel} [data-testid=assistant-item][data-kind=assistant]`, 10000, 'Still here.')) && starts().length === 3 && starts()[2].resume === 'smoke-sess-1');
+    smoke.check('history the stream replays is not shown twice', (await smoke.count(`${panel} [data-testid=assistant-item]`)) > 0 && !(await smoke.text(`${panel} [data-testid=assistant-log]`))?.includes('Replayed twice'));
     await smoke.gone(`${panel} [data-testid=assistant-stop]`, 3000);
     await smoke.click(`${panel} [data-testid=assistant-clear]`);
     smoke.check('Clear forgets the session', (await smoke.waitFor(`${panel} [data-testid=assistant-intro]:not([data-resumed])`, 3000)) && (await smoke.until(async () => (await run<{ sessionId: string | null }>('assistant.state')).sessionId === null)));

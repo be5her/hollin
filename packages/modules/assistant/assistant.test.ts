@@ -354,7 +354,9 @@ describe('assistant with Claude Code', () => {
 
     expect(final.error).toBeNull();
     expect(final.sessionId).toBe('sess-1');
-    expect(t.ui).toEqual({ assistant: { provider: 'claude-code', sessionId: 'sess-1' } });
+    // The session and the transcript are stored in the view state, so a reopen or a restart continues the chat.
+    expect(t.ui).toMatchObject({ assistant: { provider: 'claude-code', sessionId: 'sess-1' } });
+    expect((t.ui['assistant'] as { items: unknown[] }).items).toEqual(final.items);
     expect(calls).toEqual([{ id: 'test.add', input: { length: 3000 }, caller: 'assistant', agent: 'claude-code 9.9.9', project: t.project.id }]);
     expect(final.items.map((i) => i.kind)).toEqual(['user', 'assistant', 'tool', 'assistant']);
     expect(final.items[2]).toMatchObject({ kind: 'tool', name: 'test_add', command: 'test.add', title: 'Add', status: 'ok' });
@@ -439,7 +441,7 @@ describe('assistant with Claude Code', () => {
     const fresh = await t.idle();
     expect(fresh.error).toBeNull();
     expect(fresh.sessionId).toBe('sess-new');
-    expect(t.ui).toEqual({ assistant: { provider: 'claude-code', sessionId: 'sess-new' } });
+    expect(t.ui).toMatchObject({ assistant: { provider: 'claude-code', sessionId: 'sess-new' } });
     const later = readLog().filter((e) => e.type === 'start').slice(2);
     expect(later.map((e) => e.resume)).toEqual(['sess-r', null]);
     const tail = fresh.items.slice(-3).map((i) => (i.kind === 'tool' ? i.name : i.text));
@@ -452,19 +454,40 @@ describe('assistant with Claude Code', () => {
     expect((await t.state()).sessionId).toBeNull();
   });
 
-  it('closing the project kills the process and reopening it loads the stored session', async () => {
+  it('closing the project kills the process; reopening it restores the session and the transcript, and replayed history is then ignored', async () => {
     const t = await setupClaudeCode();
     writeScript({ sessionId: 'sess-c', messages: [[{ text: 'Hi.' }]] });
     await t.run('assistant.send', { text: 'Hi' });
-    await t.idle();
+    const before = await t.idle();
     const start = readLog().find((e) => e.type === 'start')!;
     expect(alive(start.pid)).toBe(true);
     await assistantModule.onProjectClose!(t.project, t.host);
     expect(await until(() => !alive(start.pid))).toBe(true);
     await assistantModule.onProjectOpen!(t.project, t.host);
     const reopened = await t.state();
-    expect(reopened.items).toEqual([]);
+    expect(reopened.items).toEqual(before.items);
     expect(reopened.sessionId).toBe('sess-c');
+
+    writeScript({ expectResume: 'sess-c', replay: [{ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: 'Replayed twice if this shows' }] } }], messages: [[{ text: 'Still here.' }]] });
+    await t.run('assistant.send', { text: 'Still there?' });
+    const resumed = await t.idle();
+    const texts = resumed.items.map((i) => (i.kind === 'tool' ? i.name : i.text));
+    expect(texts).toEqual(['Hi', 'Hi.', 'Still there?', 'Still here.']);
+    expect((t.ui['assistant'] as { items: unknown[] }).items).toHaveLength(4);
+
+    await t.run('assistant.clear');
+    expect(t.ui).toEqual({});
+    expect((await t.state()).items).toEqual([]);
+  });
+
+  it('stores nothing for the API provider', async () => {
+    const { run, host, idle, ui } = setup();
+    await assistantModule.onStart!(host);
+    await host.secrets.set(ANTHROPIC_KEY, 'sk-test-key');
+    fake.script({ text: 'Hello.' });
+    await run('assistant.send', { text: 'Hi' });
+    await idle();
+    expect(ui).toEqual({});
   });
 
   it('resolves an npm install\'s .cmd shim to its cli.js and runs that through this executable as Node', async () => {

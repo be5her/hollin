@@ -67,7 +67,13 @@ export async function smokePlanUi(smoke: Smoke, towerId: string): Promise<void> 
   await smoke.keyUp('Space');
   const back = (await readCamera(smoke))!;
   smoke.check('Space with a left drag pans too', Math.abs(back.x - out.x) < 1 && Math.abs(back.y - out.y) < 1, { out, back });
-  smoke.check('the footer shows the cursor position in display units', await smoke.waitFor(`${tab} [data-testid=plan-cursor]`, 2000, 'mm'));
+  // The footer follows pointer moves; one landing after the pan has ended is what shows it, so move until it does.
+  let cursorShown = false;
+  for (let i = 0; i < 10 && !cursorShown; i++) {
+    await smoke.mouseMove(centre.x - 100 + (i % 2) * 3, centre.y - 50);
+    cursorShown = await smoke.waitFor(`${tab} [data-testid=plan-cursor]`, 300, 'mm');
+  }
+  smoke.check('the footer shows the cursor position in display units', cursorShown);
   smoke.check('the camera is stored with the project', await smoke.until(async () => Boolean((await smoke.run<{ camera?: Camera }>('project.ui.get', {}, { projectId: towerId })).camera), 3000));
 
   await smoke.key('PageUp');

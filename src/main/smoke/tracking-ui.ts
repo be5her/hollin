@@ -37,6 +37,17 @@ export async function smokeTrackingUi(smoke: Smoke): Promise<void> {
   await wait(100);
   const v = await view(smoke);
   const snapText = () => smoke.text(`${tab} [data-testid=plan-snap]`);
+  /** Moves the pointer until the footer shows `text`: under load a single synthetic move can land before the canvas has tracked it, so it is repeated (a pixel aside and back) rather than waited for once. */
+  const moveUntil = async (x: number, y: number, text: string): Promise<boolean> => {
+    for (let i = 0; i < 12; i++) {
+      await smoke.mouseMove(x + (i % 2), y);
+      if (await smoke.waitFor(`${tab} [data-testid=plan-snap]`, 400, text)) {
+        if (i % 2) await smoke.mouseMove(x, y);
+        return true;
+      }
+    }
+    return false;
+  };
   let known = new Set(walls().map((w) => w.id));
   const remember = () => (known = new Set(walls().map((w) => w.id)));
   const newWall = () => walls().find((w) => !known.has(w.id));
@@ -65,8 +76,7 @@ export async function smokeTrackingUi(smoke: Smoke): Promise<void> {
   const last = newWall()!.path.v[1].p;
   remember();
   const nextCursor = v.at(polar(last, 88, 1500));
-  await smoke.mouseMove(nextCursor.x, nextCursor.y);
-  await smoke.waitFor(`${tab} [data-testid=plan-snap]`, 2000, '90°');
+  smoke.check('the run goes on tracked at 90°', await moveUntil(nextCursor.x, nextCursor.y, '90°'), await snapText());
   await smoke.key('1');
   await smoke.typeText('200');
   await smoke.key('Return');
@@ -77,12 +87,10 @@ export async function smokeTrackingUi(smoke: Smoke): Promise<void> {
 
   // From the end of the diagonal wall, the cursor at about 126° from it: perpendicular to the wall is 127°, and no step is nearer.
   const e = v.at(diagonalEnd);
-  await smoke.mouseMove(e.x, e.y);
-  smoke.check('the start snaps to the end of the diagonal wall', await smoke.waitFor(`${tab} [data-testid=plan-snap]`, 2000, 'Endpoint'), await snapText());
+  smoke.check('the start snaps to the end of the diagonal wall', await moveUntil(e.x, e.y, 'Endpoint'), await snapText());
   await smoke.clickAt(e.x, e.y);
   const perpendicular = v.at(polar(diagonalEnd, 126, 2000));
-  await smoke.mouseMove(perpendicular.x, perpendicular.y);
-  smoke.check('the footer says the direction is perpendicular to the wall', await smoke.waitFor(`${tab} [data-testid=plan-snap]`, 2000, 'Perpendicular to wall'), await snapText());
+  smoke.check('the footer says the direction is perpendicular to the wall', await moveUntil(perpendicular.x, perpendicular.y, 'Perpendicular to wall'), await snapText());
   await smoke.shots('24-tracking');
   await smoke.clickAt(perpendicular.x, perpendicular.y);
   const perpendicularWall = () => {

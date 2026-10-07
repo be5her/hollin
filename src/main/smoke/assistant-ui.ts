@@ -22,6 +22,9 @@ export async function smokeAssistantUi(smoke: Smoke, duplexId: string): Promise<
   const run = <T = unknown>(id: string, input: unknown = {}) => smoke.run<T>(id, input, { projectId: duplexId });
   const panel = `${tab} [data-testid=assistant-panel]`;
   const send = async (text: string) => {
+    // The reply's last words show before the run ends and Send is enabled again: wait for idle, or the click is lost.
+    await smoke.until(async () => (await run<{ status: string }>('assistant.state')).status === 'idle');
+    await smoke.gone(`${panel} [data-testid=assistant-stop]`, 3000);
     await smoke.fill(`${panel} [data-testid=assistant-input]`, text);
     await smoke.click(`${panel} [data-testid=assistant-send]`);
   };

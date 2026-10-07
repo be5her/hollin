@@ -64,6 +64,8 @@ interface Chat {
   provider: ChatProvider | null;
   /** The Claude Code session this chat continues, loaded from the project's view state. */
   sessionId: string | null;
+  /** True when the transcript came from the view state: history the stream replays is then already shown. */
+  restored: boolean;
 }
 
 const chats = new Map<string, Chat>();
@@ -99,7 +101,7 @@ const changed = (host: HostApi, chat: Chat) => emit(host, chat, { type: 'changed
 function chatFor(project: ProjectApi): Chat {
   let chat = chats.get(project.id);
   if (!chat) {
-    chat = { projectId: project.id, project, items: [], status: 'idle', error: null, run: null, confirm: null, provider: null, sessionId: null };
+    chat = { projectId: project.id, project, items: [], status: 'idle', error: null, run: null, confirm: null, provider: null, sessionId: null, restored: false };
     chats.set(project.id, chat);
   }
   chat.project = project;
@@ -309,17 +311,49 @@ function providerFor(host: HostApi, chat: Chat): ChatProvider {
   return chat.provider;
 }
 
-/** Stores or forgets the Claude Code session in the project's view state (this machine only; never the design, snapshots or exports). */
+/** How much of a chat is kept across restarts: the last items, tool inputs cut, so `.local/ui.json` stays small. */
+const MAX_STORED_ITEMS = 200;
+const MAX_STORED_INPUT = 2000;
+
+interface StoredChat {
+  provider: 'claude-code';
+  sessionId: string | null;
+  items: TranscriptItem[];
+}
+
+function storedItems(items: TranscriptItem[]): TranscriptItem[] {
+  return items.slice(-MAX_STORED_ITEMS).map((item) => {
+    if (item.kind !== 'tool') return item;
+    const text = JSON.stringify(item.input) ?? '';
+    return text.length > MAX_STORED_INPUT ? { ...item, input: `${text.slice(0, MAX_STORED_INPUT)}…` } : item;
+  });
+}
+
+/**
+ * Stores the Claude Code chat (its session id and transcript) in the project's view state, this machine
+ * only, never the design, snapshots or exports; nothing when there is nothing to continue. The API
+ * provider's chat is not stored: its conversation is the API history, images included.
+ */
+function storeChat(host: HostApi, chat: Chat): void {
+  if (host.config.get().ai.provider !== 'claude-code') return;
+  const value: StoredChat | null = chat.sessionId || chat.items.length ? { provider: 'claude-code', sessionId: chat.sessionId, items: storedItems(chat.items) } : null;
+  host.projects.setUiState(chat.projectId, { [UI_KEY]: value }).catch((err) => console.warn('[assistant] could not store the chat', err));
+}
+
 function rememberSession(host: HostApi, chat: Chat, sessionId: string | null): void {
   if (chat.sessionId === sessionId) return;
   chat.sessionId = sessionId;
-  host.projects.setUiState(chat.projectId, { [UI_KEY]: sessionId ? { provider: 'claude-code', sessionId } : null }).catch((err) => console.warn('[assistant] could not store the session id', err));
+  storeChat(host, chat);
 }
 
-async function loadSession(host: HostApi, chat: Chat): Promise<void> {
+const isItem = (value: unknown): value is TranscriptItem => typeof value === 'object' && value !== null && typeof (value as { kind?: unknown }).kind === 'string' && typeof (value as { id?: unknown }).id === 'string';
+
+async function loadChat(host: HostApi, chat: Chat): Promise<void> {
   try {
-    const stored = (await host.projects.uiState(chat.projectId))[UI_KEY] as { sessionId?: unknown } | undefined;
+    const stored = (await host.projects.uiState(chat.projectId))[UI_KEY] as Partial<StoredChat> | undefined;
     chat.sessionId = typeof stored?.sessionId === 'string' ? stored.sessionId : null;
+    chat.items = Array.isArray(stored?.items) ? stored.items.filter(isItem) : [];
+    chat.restored = chat.items.length > 0;
   } catch {
     chat.sessionId = null;
   }
@@ -392,6 +426,8 @@ async function run(host: HostApi, chat: Chat, text: string): Promise<void> {
       changed(host, chat);
     },
     history: (items) => {
+      // A transcript loaded from the view state already holds what the stream would replay.
+      if (chat.restored) return;
       const at = chat.items.indexOf(userItem);
       chat.items.splice(at < 0 ? chat.items.length : at, 0, ...items.map((i) => historyItem(i, byName)));
       changed(host, chat);
@@ -415,6 +451,7 @@ async function run(host: HostApi, chat: Chat, text: string): Promise<void> {
     chat.run = null;
     chat.status = 'idle';
     changed(host, chat);
+    storeChat(host, chat);
   }
 }
 
@@ -445,14 +482,15 @@ export const assistantModule = defineModule({
   },
   onProjectOpen: async (project, host) => {
     const chat = chatFor(project);
-    await loadSession(host, chat);
+    await loadChat(host, chat);
     changed(host, chat);
   },
-  onProjectClose: (project) => {
+  onProjectClose: (project, host) => {
     const chat = chats.get(project.id);
     if (!chat) return;
     cancel(chat);
     dropProvider(chat);
+    storeChat(host, chat);
     chats.delete(project.id);
   },
   commands: [
@@ -513,9 +551,11 @@ export const assistantModule = defineModule({
         const chat = chatFor(ctx.project!);
         if (chat.run) throw new StudioError('CONFLICT', 'Stop the assistant first.');
         dropProvider(chat);
-        rememberSession(ctx.host, chat, null);
         chat.items = [];
         chat.error = null;
+        chat.sessionId = null;
+        chat.restored = false;
+        storeChat(ctx.host, chat);
         changed(ctx.host, chat);
         return { cleared: true };
       },
