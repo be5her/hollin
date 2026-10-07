@@ -63,7 +63,7 @@ Projects live in one **library** folder the app owns (see `packages/modules/libr
 
 The host broadcasts typed **events** (`config.changed`, `library.changed`, `project.changed`, `mcp.call`, …) to every window; views follow them, so changes made by an agent show up live.
 
-The **assistant** (`packages/modules/assistant`) is a chat per project in the project tab, run in main against the Claude API with every non-hidden command as a tool; its edits are undoable transactions under its name, destructive calls wait for the user in the chat, and `view.snapshot` lets it see the plan it changed. `plan.describe` gives any agent the design as a reader would describe it: rooms with areas, adjacency and openings, and where each stair or elevator lands.
+The **assistant** (`packages/modules/assistant`) is a chat per project in the project tab, run in main with every non-hidden command as a tool; its edits are undoable transactions under its name, destructive calls wait for the user in the chat, and `view.snapshot` lets it see the plan it changed. Two providers: the Claude API with the user's own key (the default, and the only path supported for anyone but the user), or the user's own installed, logged-in Claude Code driven as a subprocess whose tools come over the app's MCP server (personal use on the user's machine; it consumes their Claude Code usage limits, and the app never touches its credentials: see the module README's Compliance section). `plan.describe` gives any agent the design as a reader would describe it: rooms with areas, adjacency and openings, and where each stair or elevator lands.
 
 ### MCP
 
