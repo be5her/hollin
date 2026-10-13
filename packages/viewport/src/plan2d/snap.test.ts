@@ -86,11 +86,10 @@ describe('snapping', () => {
 describe('angle tracking', () => {
   const from: Vec2 = [0, 1500];
 
-  it('snaps a direction near a main angle to it exactly, within a pixel tolerance at any zoom', () => {
+  it('snaps a direction near a main angle to it exactly, within a few degrees or a pixel tolerance', () => {
     const { idx } = index();
-    // 10 px at scale 1 is 10 mm: 88° is 70 mm off the 90° ray at 2 m, too far; at scale 0.05 the tolerance is 200 mm.
-    expect(snapPoint(idx, at(from, 88, 2000), 10, settings, { from })).toBeNull();
-    const tracked = snapPoint(idx, at(from, 88, 2000), 200, settings, { from })!;
+    // 88° is 70 mm off the 90° ray at 2 m: more than a 10 mm tolerance, but within the 3° window.
+    const tracked = snapPoint(idx, at(from, 88, 2000), 10, settings, { from })!;
     expect(tracked.kind).toBe('angle');
     expect(tracked.point[0]).toBe(0);
     expect(tracked.point[1]).toBeCloseTo(1500 + 2000 * Math.cos(2 * DEG), 6);
@@ -103,6 +102,25 @@ describe('angle tracking', () => {
     expect(snapPoint(idx, at(from, 80, 2000), 100, settings, { from })).toBeNull();
     // Too close to the start to have a direction.
     expect(snapPoint(idx, at(from, 88, 50), 100, settings, { from })).toBeNull();
+  });
+
+  it('holds as well far from the start as near it, by angle, and by the pixel tolerance near the start', () => {
+    const { idx } = index();
+    // 20 m away, 2° off is 700 mm sideways, far beyond a 10 mm tolerance: still tracked; 4° off is not.
+    expect(snapPoint(idx, at(from, 92, 20000), 10, settings, { from })).toMatchObject({ kind: 'angle', label: '90°' });
+    expect(snapPoint(idx, at(from, 94, 20000), 10, settings, { from })).toBeNull();
+    // Near the start the pixel tolerance is the wider one: 300 mm away, 6° off is 31 mm sideways, within 60 mm.
+    expect(snapPoint(idx, at(from, 96, 300), 60, settings, { from })).toMatchObject({ kind: 'angle', label: '90°' });
+  });
+
+  it('narrows the window to a quarter of a fine step, so the directions between steps stay free', () => {
+    const { idx } = index();
+    // A 5° step: the window is 1.25°. 17° is 2° from 15°: free with that step, tracked with 15° steps.
+    expect(snapPoint(idx, at(from, 17, 20000), 10, { ...settings, angleStep: 5 }, { from })).toBeNull();
+    expect(snapPoint(idx, at(from, 16, 20000), 10, { ...settings, angleStep: 5 }, { from })?.label).toBe('15°');
+    expect(snapPoint(idx, at(from, 17, 20000), 10, { ...settings, angleStep: 15 }, { from })?.label).toBe('15°');
+    // A reference direction is held within the same window.
+    expect(snapPoint(idx, at(from, 129, 20000), 10, settings, { from, relativeTo: [{ direction: unit(37), name: 'previous' }] })?.label).toBe('Perpendicular to previous');
   });
 
   it('offers the configured step and always the main angles', () => {

@@ -5,7 +5,7 @@ import { canvas, canvasAttr, tab, view } from './plan-canvas';
 type Wall = Extract<Entity, { type: 'wall' }>;
 const DEG = Math.PI / 180;
 
-/** Angle tracking with real input: a wall drawn near vertical lands exactly vertical, one off a diagonal wall lands perpendicular to it, a typed length runs along the tracked ray, and Alt draws free. */
+/** Angle tracking with real input: a wall drawn near vertical lands exactly vertical, one off a diagonal wall lands perpendicular to it, a typed length runs along the tracked ray, Alt draws free, and far from the start a few degrees off still tracks. */
 export async function smokeTrackingUi(smoke: Smoke): Promise<void> {
   smoke.section('angle tracking');
   const { id: projectId } = await smoke.run<ProjectSummary>('project.create', { name: 'Tracking', open: false });
@@ -116,6 +116,24 @@ export async function smokeTrackingUi(smoke: Smoke): Promise<void> {
   smoke.check('Alt suspends tracking', (await snapText()) === '', await snapText());
   await smoke.clickAt(freeEnd.x, freeEnd.y, { modifiers: ['alt'] });
   smoke.check('and the wall lands at the free angle', (await smoke.until(() => Boolean(newWall()))) && Math.abs(newWall()!.path.v[1].p[0] - newWall()!.path.v[0].p[0] - 2000 * Math.cos(88 * DEG)) < 2 / v.cam.scale, newWall()?.path.v);
+  await smoke.key('Escape');
+  await smoke.until(async () => (await canvasAttr(smoke, 'tool')) === 'wall');
+  remember();
+
+  // Far from the start the angle counts, not the pixels: 2.5° off vertical, the cursor about 15 px beside the ray (the pixel tolerance is under 10), is still held on it; 5° off every step is free.
+  const far: [number, number] = [3500, -2700];
+  const farLength = 15 / v.cam.scale / Math.sin(2.5 * DEG);
+  const fs0 = v.at(far);
+  await smoke.clickAt(fs0.x, fs0.y);
+  const farNear = v.at(polar(far, 87.5, farLength));
+  const farFree = v.at(polar(far, 85, farLength));
+  smoke.check('the far cursor is well beyond the pixel tolerance of the ray', Math.abs(farNear.x - fs0.x) > 11, { start: fs0, cursor: farNear });
+  smoke.check('far from the start, a direction 2.5° off vertical is tracked to 90°', await moveUntil(farNear.x, farNear.y, '90°'), await snapText());
+  await smoke.mouseMove(farFree.x, farFree.y);
+  smoke.check('and one 5° off every step is free', await smoke.until(async () => (await snapText()) === '', 2000), await snapText());
+  smoke.check('back near vertical, it is tracked again', await moveUntil(farNear.x, farNear.y, '90°'), await snapText());
+  await smoke.clickAt(farNear.x, farNear.y);
+  smoke.check('the far wall lands exactly vertical', (await smoke.until(() => Boolean(newWall()))) && Math.abs(newWall()!.path.v[1].p[0] - newWall()!.path.v[0].p[0]) < 1e-6 && newWall()!.path.v[1].p[1] > newWall()!.path.v[0].p[1] + farLength * 0.9, newWall()?.path.v);
   await smoke.key('Escape');
   await smoke.key('Escape');
   await smoke.run('project.close', { id: projectId });

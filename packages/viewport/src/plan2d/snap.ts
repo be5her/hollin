@@ -198,6 +198,9 @@ function unitAt(degrees: number): Vec2 {
 
 const norm360 = (degrees: number) => ((degrees % 360) + 360) % 360;
 
+/** How far off a tracked direction, in degrees, the cursor is still held on it, however far it is from the start. */
+export const TRACK_DEGREES = 3;
+
 interface Tracked {
   point: Vec2;
   direction: Vec2;
@@ -209,8 +212,11 @@ interface Tracked {
 /**
  * Polar tracking: among the directions offered (multiples of `step`, every 45° when `main`, and the
  * parallels and perpendiculars of each reference), the ray from `from` nearest to the cursor, as
- * long as the cursor is within `tolerance` of it and further than that from the start. A
- * relative direction that coincides with an absolute one keeps the angle as its label.
+ * long as the cursor is within `tolerance` of it or within `TRACK_DEGREES` of its direction (a
+ * quarter of the step when that is less, so the free directions between steps stay reachable), and
+ * further than `tolerance` from the start. The angular window keeps tracking as easy to catch far
+ * from the start as near it. A relative direction that coincides with an absolute one keeps the
+ * angle as its label.
  */
 export function trackDirection(from: Vec2, cursor: Vec2, tolerance: number, step: number | null, references: readonly TrackReference[], main = true): Tracked | null {
   const d = sub(cursor, from);
@@ -240,7 +246,8 @@ export function trackDirection(from: Vec2, cursor: Vec2, tolerance: number, step
   const along = dot(d, direction);
   if (along <= 0) return null;
   const point = add(from, scale(direction, along));
-  if (distance(point, cursor) > tolerance) return null;
+  const window = step && step > 0 ? Math.min(TRACK_DEGREES, step / 4) : TRACK_DEGREES;
+  if (distance(point, cursor) > tolerance && bestDeviation > window + 1e-9) return null;
   return { point, direction, angle: best.angle, label: best.label ?? formatAngle(best.angle, { precision: 1 }), length: along };
 }
 
