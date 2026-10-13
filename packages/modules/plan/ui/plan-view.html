@@ -70,6 +70,9 @@
       <button xIconButton size="sm" [label]="c.snap ? 'Snapping on (Alt: suspend)' : 'Snapping off'" [class.bg-elevated]="c.snap" [class.text-fg]="c.snap" [attr.aria-pressed]="c.snap" (click)="toggleSnap()" data-testid="snap-toggle">
         <svg [xIcon]="icons.Magnet" class="size-3.5"></svg>
       </button>
+      <button xIconButton size="sm" [label]="angleTrackingLabel(c)" [class.bg-elevated]="c.snapAngle" [class.text-fg]="c.snapAngle" [class.opacity-50]="c.snapAngle && !c.snap" [attr.aria-pressed]="c.snapAngle" (click)="toggleAngleTracking()" data-testid="snap-angle-toggle">
+        <svg [xIcon]="icons.DraftingCompass" class="size-3.5"></svg>
+      </button>
       <button xIconButton size="sm" label="Snapping and grid…" [attr.aria-expanded]="snapMenuOpen()" (click)="snapMenuOpen.set(!snapMenuOpen())" data-testid="snap-menu-button">
         <svg [xIcon]="icons.ChevronDown" class="size-3"></svg>
       </button>

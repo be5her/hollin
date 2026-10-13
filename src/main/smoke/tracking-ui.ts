@@ -5,7 +5,7 @@ import { canvas, canvasAttr, tab, view } from './plan-canvas';
 type Wall = Extract<Entity, { type: 'wall' }>;
 const DEG = Math.PI / 180;
 
-/** Angle tracking with real input: a wall drawn near vertical lands exactly vertical, one off a diagonal wall lands perpendicular to it, a typed length runs along the tracked ray, Alt draws free, and far from the start a few degrees off still tracks. */
+/** Angle tracking with real input: a wall drawn near vertical lands exactly vertical, one off a diagonal wall lands perpendicular to it, a typed length runs along the tracked ray, Alt draws free, far from the start a few degrees off still tracks, and the toolbar switch turns it off and on. */
 export async function smokeTrackingUi(smoke: Smoke): Promise<void> {
   smoke.section('angle tracking');
   const { id: projectId } = await smoke.run<ProjectSummary>('project.create', { name: 'Tracking', open: false });
@@ -134,6 +134,34 @@ export async function smokeTrackingUi(smoke: Smoke): Promise<void> {
   smoke.check('back near vertical, it is tracked again', await moveUntil(farNear.x, farNear.y, '90°'), await snapText());
   await smoke.clickAt(farNear.x, farNear.y);
   smoke.check('the far wall lands exactly vertical', (await smoke.until(() => Boolean(newWall()))) && Math.abs(newWall()!.path.v[1].p[0] - newWall()!.path.v[0].p[0]) < 1e-6 && newWall()!.path.v[1].p[1] > newWall()!.path.v[0].p[1] + farLength * 0.9, newWall()?.path.v);
+  await smoke.key('Escape');
+  await smoke.until(async () => (await canvasAttr(smoke, 'tool')) === 'wall');
+  remember();
+
+  // The switch next to the magnet turns tracking off and on, and the setting is kept.
+  const toggle = `${tab} [data-testid=snap-angle-toggle]`;
+  const snapAngle = async () => (await smoke.run<{ editor: { snapAngle: boolean } }>('config.get')).editor.snapAngle;
+  const pressed = () => smoke.js<string | null>(`document.querySelector('${toggle}').getAttribute('aria-pressed')`);
+  smoke.check('the tracking switch shows tracking on', (await pressed()) === 'true', await pressed());
+  await smoke.click(toggle);
+  smoke.check('the tracking switch turns tracking off, and the setting is kept', (await smoke.until(async () => (await snapAngle()) === false)) && (await smoke.until(async () => (await pressed()) === 'false')));
+  const offStart: [number, number] = [0, -2500];
+  const o = v.at(offStart);
+  await smoke.clickAt(o.x, o.y);
+  const offEnd = v.at(polar(offStart, 88, 1200));
+  await smoke.clickAt(offEnd.x, offEnd.y);
+  smoke.check('with tracking off, the near-vertical wall lands at the free angle', (await smoke.until(() => Boolean(newWall()))) && Math.abs(newWall()!.path.v[1].p[0] - newWall()!.path.v[0].p[0] - 1200 * Math.cos(88 * DEG)) < 2 / v.cam.scale, newWall()?.path.v);
+  await smoke.key('Escape');
+  await smoke.until(async () => (await canvasAttr(smoke, 'tool')) === 'wall');
+  remember();
+  await smoke.click(toggle);
+  smoke.check('the switch turns tracking back on', (await smoke.until(async () => (await snapAngle()) === true)) && (await smoke.until(async () => (await pressed()) === 'true')));
+  const onStart: [number, number] = [800, -2500];
+  const on = v.at(onStart);
+  await smoke.clickAt(on.x, on.y);
+  const onEnd = v.at(polar(onStart, 88, 1700));
+  smoke.check('and the same gesture is tracked to 90° again', await moveUntil(onEnd.x, onEnd.y, '90°'), await snapText());
+  await smoke.shots('34-tracking-switch');
   await smoke.key('Escape');
   await smoke.key('Escape');
   await smoke.run('project.close', { id: projectId });

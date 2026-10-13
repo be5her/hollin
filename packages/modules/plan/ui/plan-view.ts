@@ -3,7 +3,7 @@ import { FormField, form } from '@angular/forms/signals';
 import { DEFAULT_RULE_LIMITS, deriveLevels, type DimensionKind, type GlobalConfig, type ProjectDoc, type Vec2, parseAngle } from '@studio/core';
 import { AppState, Checkbox, ContextMenu, HostBridge, Icon, IconButton, Input, LengthInput, ProjectDocs, ProjectView, Select, Toasts, Units, type ContextMenuItem } from '@studio/ui';
 import { DEFAULT_TOOL_OPTIONS, LIGHT_THEME, Plan2dEditor, drawingScale, readPlanTheme, renderLevelToPng, type Camera, type ShapeOptions, type SnapResult, type StairShape, type TextRequest, type ToolId, type UnderlayMode, type WallOptions } from '@studio/viewport';
-import { ArrowBigUp, Blinds, BrickWall, ChevronDown, ChevronsUp, Circle, CircleDot, DoorOpen, Footprints, LandPlot, Magnet, Maximize, MousePointer2, Pentagon, Ruler, SeparatorVertical, Square, TrendingUp, Type, ZoomIn, ZoomOut } from 'lucide';
+import { ArrowBigUp, Blinds, BrickWall, ChevronDown, ChevronsUp, Circle, CircleDot, DoorOpen, DraftingCompass, Footprints, LandPlot, Magnet, Maximize, MousePointer2, Pentagon, Ruler, SeparatorVertical, Square, TrendingUp, Type, ZoomIn, ZoomOut } from 'lucide';
 import { PlanGeometry } from './plan-geometry';
 import { PlanSelection } from './plan-selection';
 
@@ -60,7 +60,7 @@ export class PlanView {
   private readonly container = viewChild.required<ElementRef<HTMLDivElement>>('container');
   private readonly dynamicInputEl = viewChild<ElementRef<HTMLInputElement>>('dynamicInput');
 
-  protected readonly icons = { ArrowBigUp, Blinds, BrickWall, ChevronDown, ChevronsUp, Circle, CircleDot, DoorOpen, Footprints, LandPlot, Magnet, Maximize, MousePointer2, Pentagon, Ruler, SeparatorVertical, Square, TrendingUp, Type, ZoomIn, ZoomOut };
+  protected readonly icons = { ArrowBigUp, Blinds, BrickWall, ChevronDown, ChevronsUp, Circle, CircleDot, DoorOpen, DraftingCompass, Footprints, LandPlot, Magnet, Maximize, MousePointer2, Pentagon, Ruler, SeparatorVertical, Square, TrendingUp, Type, ZoomIn, ZoomOut };
   protected readonly snapKinds = SNAP_KINDS;
   protected readonly doc = computed(() => this.docs.read(this.projectId())?.doc);
   protected readonly levels = computed(() => {
@@ -510,6 +510,15 @@ export class PlanView {
 
   protected toggleSnap(): void {
     void this.updateEditorConfig({ snap: !(untracked(this.editorConfig)?.snap ?? true) });
+  }
+
+  protected toggleAngleTracking(): void {
+    void this.updateEditorConfig({ snapAngle: !(untracked(this.editorConfig)?.snapAngle ?? true) });
+  }
+
+  protected angleTrackingLabel(c: EditorConfig): string {
+    if (!c.snapAngle) return 'Angle tracking off';
+    return c.snap ? `Angle tracking on, every ${c.angleStep}° (Shift: 45° steps)` : 'Angle tracking on, but snapping is off';
   }
 
   protected setEditorFlag(key: keyof EditorConfig, value: boolean): void {
