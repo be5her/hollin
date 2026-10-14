@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { CommandRegistry, testHost, type CommandContext, type HostApi, type Warning } from '@studio/core';
 import { ProjectService } from '@studio/core/node';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mainModules } from '../main';
 import { rulesModule } from './main';
 
@@ -12,6 +12,8 @@ let service: ProjectService;
 let registry: CommandRegistry;
 let host: HostApi & { events: { event: string; payload: unknown }[] };
 let projectId: string;
+/** How long the modules before rules take to close a project: the hooks run one after another, after the project has left the open list. */
+let closeDelayMs = 0;
 
 beforeEach(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), 'studio-rules-'));
@@ -32,7 +34,10 @@ beforeEach(async () => {
     rememberLibrary: async () => {},
     session: { debounceMs: 20, maxWaitMs: 100 },
     onProjectOpen: (project) => rulesModule.onProjectOpen?.(project, host),
-    onProjectClose: (project) => rulesModule.onProjectClose?.(project, host),
+    onProjectClose: async (project) => {
+      if (closeDelayMs) await new Promise((resolve) => setTimeout(resolve, closeDelayMs));
+      await rulesModule.onProjectClose?.(project, host);
+    },
   });
   Object.defineProperty(host, 'projects', { value: service });
   await rulesModule.onStart?.(host);
@@ -42,6 +47,8 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  closeDelayMs = 0;
+  vi.restoreAllMocks();
   await rulesModule.onStop?.(host);
   await service.stop();
   await fs.rm(root, { recursive: true, force: true });
@@ -79,6 +86,19 @@ describe('rules.check and the watcher', () => {
     await settle();
     expect(changes().at(-1)).toEqual({ projectId, count: 1 });
     expect((await run<Result>('rules.check')).warnings.map((w) => w.rule)).toEqual(['opening-uncovered']);
+  });
+
+  it('lets a project go quietly when it closes before a pending check runs', async () => {
+    const ground = service.session(projectId)!.doc.building.groundLevelId;
+    const warn = vi.spyOn(console, 'warn');
+    const announced = changes().length;
+    await run('plan.wall.add', { levelId: ground, from: [0, 0], to: [3000, 0] });
+    // The check is due 250 ms after the change; the other modules' close hooks are still running then.
+    closeDelayMs = 400;
+    await service.close(projectId);
+    await settle();
+    expect(warn.mock.calls.filter((c) => String(c[0]).startsWith('[rules]'))).toEqual([]);
+    expect(changes().length).toBe(announced);
   });
 
   it('follows a level height change and the limits in the settings', async () => {

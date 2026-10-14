@@ -111,6 +111,11 @@ export class RulesWatcher {
     w.timer = setTimeout(() => {
       w.timer = null;
       if (!this.watched.has(w.project.id)) return;
+      // A project leaves the open list before the modules' close hooks run one by one, so a check due in between finds it gone: let it go.
+      if (!this.host.projects.openProjects().some((p) => p.id === w.project.id)) {
+        this.watched.delete(w.project.id);
+        return;
+      }
       try {
         const list = this.warnings(w.project);
         const fingerprint = list.map((x) => `${x.id}|${x.message}`).join('\n');
