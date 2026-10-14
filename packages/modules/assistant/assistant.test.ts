@@ -269,7 +269,8 @@ const until = async (test: () => boolean | Promise<boolean>, tries = 200): Promi
   return test();
 };
 
-describe('assistant with Claude Code', () => {
+// These tests start and kill real processes (Node running the fake): one alone takes up to about 4 s, past vitest's 5 s default once the whole suite runs alongside. Their own waits stay bounded at 5 s each.
+describe('assistant with Claude Code', { timeout: 30_000 }, () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'studio-fake-claude-'));
   const scriptFile = path.join(dir, 'script.json');
   const logFile = path.join(dir, 'log.jsonl');
