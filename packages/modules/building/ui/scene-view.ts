@@ -1,8 +1,9 @@
 import { DOCUMENT, Component, DestroyRef, ElementRef, afterNextRender, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
 import { DEFAULT_RULE_LIMITS, deriveLevels } from '@studio/core';
 import { AppState, Button, EmptyState, Icon, IconButton, ProjectDocs, ProjectView, Select, Units } from '@studio/ui';
-import { Scene3dView, parseOrbit, readSceneTheme, type Orbit, type OrbitPreset, type Scene3dFrame, type SceneMode } from '@studio/viewport';
-import { Maximize } from 'lucide';
+import { Scene3dView, parseOrbit, readSceneTheme, type Orbit, type OrbitPreset, type Scene3dFrame, type SceneLighting, type SceneMode } from '@studio/viewport';
+import { Maximize, Moon, Sun } from 'lucide';
+import { PlanSelection } from '../../plan/ui/plan-selection';
 import { BuildingActions } from './building-actions';
 
 /** What the 3D view keeps in the project's view state (`view3d`). */
@@ -10,6 +11,7 @@ interface View3dState {
   orbit?: Orbit;
   mode?: SceneMode;
   explode?: number;
+  lighting?: SceneLighting;
 }
 
 const PRESETS: { id: OrbitPreset; label: string; title: string }[] = [
@@ -45,6 +47,7 @@ export class SceneView {
   private readonly view = inject(ProjectView);
   private readonly app = inject(AppState);
   private readonly actions = inject(BuildingActions);
+  private readonly planSelection = inject(PlanSelection);
   private readonly document = inject(DOCUMENT);
   private readonly destroyRef = inject(DestroyRef);
   protected readonly units = inject(Units);
@@ -54,7 +57,7 @@ export class SceneView {
   private readonly canvas = viewChild.required<ElementRef<HTMLCanvasElement>>('canvas');
   private readonly container = viewChild.required<ElementRef<HTMLDivElement>>('container');
 
-  protected readonly icons = { Maximize };
+  protected readonly icons = { Maximize, Moon, Sun };
   protected readonly presets = PRESETS;
   protected readonly modes = MODES;
   protected readonly doc = computed(() => this.docs.read(this.projectId())?.doc);
@@ -71,6 +74,8 @@ export class SceneView {
     return m === 'isolate' || m === 'cutaway' ? m : 'all';
   });
   protected readonly explode = computed(() => Math.min(1, Math.max(0, Number(this.stored()?.explode) || 0)));
+  protected readonly lighting = computed<SceneLighting>(() => (this.stored()?.lighting === 'night' ? 'night' : 'day'));
+  protected readonly lightsOn = computed(() => this.frame()?.lightsOn ?? 0);
 
   /** Why there is no 3D view (no WebGL), or null. */
   protected readonly unavailable = signal<string | null>(null);
@@ -117,6 +122,11 @@ export class SceneView {
       untracked(() => this.scene?.setDisplay(display));
     });
     effect(() => {
+      const lighting = this.lighting();
+      if (!this.mounted()) return;
+      untracked(() => this.scene?.setLighting(lighting));
+    });
+    effect(() => {
       const doc = this.doc();
       const limits = this.limits();
       if (!this.mounted() || !doc) return;
@@ -139,6 +149,10 @@ export class SceneView {
     this.storeState({ mode });
   }
 
+  protected chooseLighting(lighting: SceneLighting): void {
+    this.storeState({ lighting });
+  }
+
   protected chooseLevel(levelId: string): void {
     this.actions.setActiveLevel(untracked(this.projectId), levelId);
   }
@@ -157,7 +171,10 @@ export class SceneView {
           onFrame: (frame) => this.frame.set(frame),
           onOrbit: (orbit) => this.storeOrbit(orbit),
           onPick: (hit) => {
-            if (hit) this.chooseLevel(hit.levelId);
+            if (!hit) return;
+            this.chooseLevel(hit.levelId);
+            // Furniture is selected on the plan too, as a warning's target is.
+            if (hit.kind === 'item') this.planSelection.request(untracked(this.projectId), { levelId: hit.levelId, ids: hit.ids });
           },
         },
         readSceneTheme(this.document.documentElement),

@@ -3,7 +3,7 @@ import { FormField, form } from '@angular/forms/signals';
 import { DEFAULT_RULE_LIMITS, deriveLevels, type DimensionKind, type GlobalConfig, type ProjectDoc, type Vec2, parseAngle } from '@studio/core';
 import { AppState, Checkbox, ContextMenu, HostBridge, Icon, IconButton, Input, LengthInput, ProjectDocs, ProjectView, Select, Toasts, Units, type ContextMenuItem } from '@studio/ui';
 import { DEFAULT_TOOL_OPTIONS, LIGHT_THEME, Plan2dEditor, drawingScale, readPlanTheme, renderLevelToPng, type Camera, type ShapeOptions, type SnapResult, type StairShape, type TextRequest, type ToolId, type UnderlayMode, type WallOptions } from '@studio/viewport';
-import { ArrowBigUp, Blinds, BrickWall, ChevronDown, ChevronsUp, Circle, CircleDot, DoorOpen, DraftingCompass, Footprints, LandPlot, Magnet, Maximize, MousePointer2, Pentagon, Ruler, SeparatorVertical, Sofa, Square, TrendingUp, Type, ZoomIn, ZoomOut } from 'lucide';
+import { ArrowBigUp, Blinds, BrickWall, ChevronDown, ChevronsUp, Circle, CircleDot, DoorOpen, DraftingCompass, Footprints, LandPlot, Lightbulb, Magnet, Maximize, MousePointer2, Pentagon, Ruler, SeparatorVertical, Sofa, Square, TrendingUp, Type, ZoomIn, ZoomOut } from 'lucide';
 import { PlanGeometry } from './plan-geometry';
 import { PlanSelection } from './plan-selection';
 import { PlanTools, type ItemArm } from './plan-tools';
@@ -62,7 +62,7 @@ export class PlanView {
   private readonly container = viewChild.required<ElementRef<HTMLDivElement>>('container');
   private readonly dynamicInputEl = viewChild<ElementRef<HTMLInputElement>>('dynamicInput');
 
-  protected readonly icons = { ArrowBigUp, Blinds, BrickWall, ChevronDown, ChevronsUp, Circle, CircleDot, DoorOpen, DraftingCompass, Footprints, LandPlot, Magnet, Maximize, MousePointer2, Pentagon, Ruler, SeparatorVertical, Sofa, Square, TrendingUp, Type, ZoomIn, ZoomOut };
+  protected readonly icons = { ArrowBigUp, Blinds, BrickWall, ChevronDown, ChevronsUp, Circle, CircleDot, DoorOpen, DraftingCompass, Footprints, LandPlot, Lightbulb, Magnet, Maximize, MousePointer2, Pentagon, Ruler, SeparatorVertical, Sofa, Square, TrendingUp, Type, ZoomIn, ZoomOut };
   protected readonly snapKinds = SNAP_KINDS;
   protected readonly doc = computed(() => this.docs.read(this.projectId())?.doc);
   protected readonly levels = computed(() => {
@@ -117,6 +117,12 @@ export class PlanView {
   /** The model the Item tool places (armed from the Catalog panel), and whether a lamp brings its light. */
   protected readonly itemArm = signal<ItemArm | null>(null);
   protected readonly itemWithLight = signal(true);
+  /** The Light tool's choices: the kind, the height above the floor and the lumens of a new light. */
+  protected readonly lightKind = signal<'point' | 'spot' | 'area'>('point');
+  protected readonly lightHeight = signal(2400);
+  protected readonly lightLumens = signal(800);
+  protected readonly lightDraft = signal({ height: '' });
+  protected readonly lightForm = form(this.lightDraft);
   private armedSeen = 0;
   protected readonly isConnectorTool = computed(() => this.tool() === 'stair' || this.tool() === 'ramp' || this.tool() === 'ladder' || this.tool() === 'elevator');
   /** The levels the options show for a new connector: the chosen ones, else the active level and the stacked level above it. */
@@ -233,6 +239,7 @@ export class PlanView {
       this.showWallOptions();
       this.gridDraft.set({ spacing: this.units.length(untracked(this.editorConfig)?.gridSpacing ?? 100) });
       this.labelDraft.set({ size: this.units.length(untracked(this.labelSize)) });
+      this.lightDraft.set({ height: this.units.length(untracked(this.lightHeight)) });
     });
     effect(() => {
       // The settings drive snapping, the grid and the wall tool's defaults.
@@ -264,6 +271,9 @@ export class PlanView {
       this.columnSpan();
       this.itemArm();
       this.itemWithLight();
+      this.lightKind();
+      this.lightHeight();
+      this.lightLumens();
       const c = untracked(this.editorConfig);
       if (c) this.editor.setToolOptions(this.toolOptions(c));
     });
@@ -387,7 +397,25 @@ export class PlanView {
   }
 
   private toolOptions(c: EditorConfig) {
-    return { ...DEFAULT_TOOL_OPTIONS, nudge: c.gridSpacing, wall: this.wallOptions, door: { width: c.doorWidth, height: c.doorHeight }, window: { width: c.windowWidth, height: c.windowHeight, sill: c.windowSill }, shape: { kind: untracked(this.shapeKind), filled: untracked(this.shapeFilled) }, dimension: { kind: untracked(this.dimensionKind) }, label: { size: untracked(this.labelSize) }, connector: { bottomLevelId: untracked(this.connectorFrom), topLevelId: untracked(this.connectorTo) }, stair: { shape: untracked(this.stairShape), width: c.stairWidth, turn: untracked(this.stairTurn) }, ramp: { width: c.rampWidth }, elevator: { shaft: { w: c.elevatorShaftW, d: c.elevatorShaftD }, car: { w: c.elevatorCarW, d: c.elevatorCarD } }, column: { shape: untracked(this.columnShape), w: c.columnW, d: c.columnD, r: c.columnR, rotation: untracked(this.columnRotation), topLevelId: untracked(this.columnSpan) }, item: this.itemOptions() };
+    return { ...DEFAULT_TOOL_OPTIONS, nudge: c.gridSpacing, wall: this.wallOptions, door: { width: c.doorWidth, height: c.doorHeight }, window: { width: c.windowWidth, height: c.windowHeight, sill: c.windowSill }, shape: { kind: untracked(this.shapeKind), filled: untracked(this.shapeFilled) }, dimension: { kind: untracked(this.dimensionKind) }, label: { size: untracked(this.labelSize) }, connector: { bottomLevelId: untracked(this.connectorFrom), topLevelId: untracked(this.connectorTo) }, stair: { shape: untracked(this.stairShape), width: c.stairWidth, turn: untracked(this.stairTurn) }, ramp: { width: c.rampWidth }, elevator: { shaft: { w: c.elevatorShaftW, d: c.elevatorShaftD }, car: { w: c.elevatorCarW, d: c.elevatorCarD } }, column: { shape: untracked(this.columnShape), w: c.columnW, d: c.columnD, r: c.columnR, rotation: untracked(this.columnRotation), topLevelId: untracked(this.columnSpan) }, item: this.itemOptions(), light: { kind: untracked(this.lightKind), height: untracked(this.lightHeight), intensity: untracked(this.lightLumens) } };
+  }
+
+  protected setLightKind(value: string): void {
+    if (value === 'point' || value === 'spot' || value === 'area') this.lightKind.set(value);
+    this.canvas().nativeElement.focus({ preventScroll: true });
+  }
+
+  protected setLightHeight(mm: number | null): void {
+    if (mm !== null && mm >= 0) this.lightHeight.set(mm);
+    this.lightDraft.set({ height: this.units.length(untracked(this.lightHeight)) });
+    this.canvas().nativeElement.focus({ preventScroll: true });
+  }
+
+  protected setLightLumens(value: string): void {
+    const lumens = Number(value.replace(/lm/i, '').trim());
+    if (Number.isFinite(lumens) && lumens >= 0) this.lightLumens.set(lumens);
+    else this.toasts.notify(`"${value}" is not a number of lumens`, 'error');
+    this.canvas().nativeElement.focus({ preventScroll: true });
   }
 
   private itemOptions() {

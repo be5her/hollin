@@ -12,6 +12,7 @@ export async function decorRoom(smoke: Smoke, name: string): Promise<{ id: strin
   const ground = (smoke.host.projects.session(project.id)!.doc as ProjectDoc).building.groundLevelId;
   const run = <T = unknown>(id: string, input: unknown) => smoke.run<T>(id, input, { projectId: project.id });
   await run('plan.wall.add', { levelId: ground, points: [{ p: [0, 0] }, { p: [6000, 0] }, { p: [6000, 4500] }, { p: [0, 4500] }], closed: true });
+  await run('plan.entity.add', { levelId: ground, entity: { type: 'slab', source: { k: 'auto' } } });
   const room = await run<{ id: string }>('plan.room.add', { levelId: ground, seed: [3000, 2250], name: 'Living' });
   return { id: project.id, ground, roomId: room.id };
 }

@@ -53,6 +53,9 @@ interface ResolvedModel {
   /** The asset to register (and file to copy) when the model is new to the project. */
   register?: Asset;
   elevation?: number;
+  /** A lamp's bulb (model coordinates, mm) and its lumens. */
+  bulb?: readonly [number, number, number];
+  lumens?: number;
 }
 
 /** What a model reference stands for in this project. */
@@ -60,7 +63,7 @@ async function resolveModel(ctx: CommandContext, ref: string): Promise<ResolvedM
   const parsed = parseRef(ref);
   if (parsed?.k === 'builtin') {
     const recipe = builtinRecipe(parsed.id);
-    if (recipe) return { name: recipe.name, size: recipe.size, slots: Object.keys(recipe.slots), ...(recipe.elevation ? { elevation: recipe.elevation } : {}) };
+    if (recipe) return { name: recipe.name, size: recipe.size, slots: Object.keys(recipe.slots), ...(recipe.elevation ? { elevation: recipe.elevation } : {}), ...(recipe.bulb ? { bulb: recipe.bulb, lumens: recipe.lumens } : {}) };
   }
   if (parsed?.k === 'asset') {
     const own = ctx.project!.doc.assets[parsed.file];
@@ -149,10 +152,52 @@ export const decorModule = defineModule({
       },
     }),
     defineCommand({
+      id: 'decor.light.add',
+      title: 'Add a light',
+      description:
+        "Adds a light to a level's decor layer: a `point` light (a bulb, shining all round), a `spot` (aimed at `target` [x, y, z], or straight down, with a cone `angle` in degrees, 60 by default) or an `area` light (a 600 mm panel shining down). `at` is [x, y, height above the floor] in mm; `intensity` is in lumens (800 by default, a household bulb; 1500 a bright ceiling light); `color` is #rrggbb (#ffffff by default; #ffe9c4 is a warm white). Lights show in the 3D view at night. Returns its id.",
+      scope: 'project',
+      batchable: true,
+      input: z.object({
+        levelId,
+        kind: z.enum(['point', 'spot', 'area']).default('point'),
+        at: z.tuple([z.number(), z.number(), z.number()]).describe('[x, y, height above the floor] mm'),
+        color: z.string().regex(/^#[0-9a-f]{6}$/i).optional(),
+        intensity: z.number().min(0).max(1_000_000).optional().describe('Lumens'),
+        target: z.tuple([z.number(), z.number(), z.number()]).optional().describe('A spot: the point it aims at, [x, y, height above the floor] mm'),
+        angle: z.number().min(1).max(179).optional().describe('A spot: its cone, degrees'),
+        layerId: z.string().optional(),
+        name: z.string().trim().min(1).max(200).optional(),
+      }),
+      handler: async (input, ctx) => {
+        const doc = ctx.project!.doc;
+        requireLevel(doc, input.levelId);
+        if (!input.layerId && !Object.values(doc.layers).some((l) => l.levelId === input.levelId && l.kind === 'decor')) {
+          throw new StudioError('INVALID_INPUT', `Level "${doc.levels[input.levelId].name}" has no decor layer for lights; add one with plan_layer_add`);
+        }
+        if (input.kind !== 'spot' && (input.target || input.angle)) throw new StudioError('INVALID_INPUT', 'Only a spot takes `target` and `angle`');
+        const { result } = await editProject(ctx, `Add ${input.kind} light`, (tx) => {
+          const entity = {
+            type: 'light' as const,
+            kind: input.kind,
+            at: input.at,
+            ...(input.color ? { color: input.color } : {}),
+            ...(input.intensity !== undefined ? { intensity: input.intensity } : {}),
+            ...(input.kind === 'spot' ? { angle: input.angle ?? 60, ...(input.target ? { target: input.target } : {}) } : {}),
+            ...(input.name ? { name: input.name } : {}),
+          };
+          const added = addEntityOps(tx.doc, { levelId: input.levelId, layerId: input.layerId, entity });
+          tx.apply(added.ops);
+          return added.id;
+        });
+        return { id: result };
+      },
+    }),
+    defineCommand({
       id: 'decor.item.place',
       title: 'Place a furniture item',
       description:
-        "Places a model from the catalog (`ref`, from catalog_search) on a level's decor layer, its bottom centre at `at` [x, y] mm and `height` mm above the floor (the model's usual height by default: 0, or e.g. 1450 for a wall cabinet), turned `rotation` degrees counter-clockwise on the plan (0: its front faces south, −y). Give `size` [width, depth, height] in mm, or `scale`, to resize it (its own size by default), and `materials` to repaint slots. A library model is copied into the project the first time it is used. Returns the item's id.",
+        "Places a model from the catalog (`ref`, from catalog_search) on a level's decor layer, its bottom centre at `at` [x, y] mm and `height` mm above the floor (the model's usual height by default: 0, or e.g. 1450 for a wall cabinet), turned `rotation` degrees counter-clockwise on the plan (0: its front faces south, −y). Give `size` [width, depth, height] in mm, or `scale`, to resize it (its own size by default), and `materials` to repaint slots. A lamp (catalog entries with `lamp`) placed `withLight` also gets a point light at its bulb, with its lumens. A library model is copied into the project the first time it is used. Returns the item's id (and `lightId`).",
       scope: 'project',
       batchable: true,
       input: z.object({
@@ -166,6 +211,7 @@ export const decorModule = defineModule({
         materials: z.record(z.string(), z.string().min(1).max(200)).optional().describe('Material per slot (builtin:<id> or paint:#rrggbb)'),
         layerId: z.string().optional(),
         name: z.string().trim().min(1).max(200).optional(),
+        withLight: z.boolean().default(false).describe("A lamp: add its light at the bulb"),
       }),
       handler: async (input, ctx) => {
         if (input.size && input.scale) throw new StudioError('INVALID_INPUT', 'Give `size` or `scale`, not both');
@@ -193,10 +239,25 @@ export const decorModule = defineModule({
             ...(input.name ? { name: input.name } : {}),
           };
           const added = addEntityOps(tx.doc, { levelId: input.levelId, layerId: input.layerId, entity });
-          tx.apply([...ops, ...added.ops]);
-          return added.id;
+          ops.push(...added.ops);
+          let lightId: string | undefined;
+          if (input.withLight) {
+            if (!model.bulb) throw new StudioError('INVALID_INPUT', `${model.name} is not a lamp; only lamps can be placed with their light`);
+            // The bulb, scaled and turned with the lamp.
+            const r = (input.rotation * Math.PI) / 180;
+            const [bx, by, bz] = [model.bulb[0] * scale[0], model.bulb[1] * scale[1], model.bulb[2] * scale[2]];
+            const light = addEntityOps(tx.doc, {
+              levelId: input.levelId,
+              layerId: added.ops[0].t === 'ins' ? (added.ops[0].v as { layerId: string }).layerId : undefined,
+              entity: { type: 'light', kind: 'point', name: `${input.name ?? model.name} light`, at: [entity.at[0] + bx * Math.cos(r) - by * Math.sin(r), entity.at[1] + bx * Math.sin(r) + by * Math.cos(r), entity.at[2] + bz], intensity: model.lumens ?? 800, color: '#ffe9c4' },
+            });
+            ops.push(...light.ops);
+            lightId = light.id;
+          }
+          tx.apply(ops);
+          return { id: added.id, ...(lightId ? { lightId } : {}) };
         });
-        return { id: result };
+        return result;
       },
     }),
   ],

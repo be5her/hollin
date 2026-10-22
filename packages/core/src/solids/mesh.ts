@@ -114,6 +114,12 @@ export class MeshBuilder {
     return this;
   }
 
+  /** Adds another builder's triangles. */
+  append(other: MeshBuilder): this {
+    for (const v of other.p) this.p.push(v);
+    return this;
+  }
+
   build(): Mesh {
     return { positions: new Float32Array(this.p) };
   }

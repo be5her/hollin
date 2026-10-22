@@ -5,6 +5,7 @@ import { arcGeometry, bulgeOf, connectorPath, dimensionGeometry, distance, findE
 import { AngleInput, Checkbox, EmptyState, HostBridge, Input, LengthInput, ProjectDocs, Select, Toasts, Units } from '@studio/ui';
 import { ConnectorProperties } from './connector-properties';
 import { ItemProperties } from './item-properties';
+import { LightProperties } from './light-properties';
 import { PlanGeometry } from './plan-geometry';
 import { PlanSelection } from './plan-selection';
 
@@ -56,7 +57,7 @@ interface VertexDraft {
  */
 @Component({
   selector: 'x-properties-panel',
-  imports: [AngleInput, Checkbox, ConnectorProperties, EmptyState, FormField, Input, ItemProperties, LengthInput, NgTemplateOutlet, Select],
+  imports: [AngleInput, Checkbox, ConnectorProperties, EmptyState, FormField, Input, ItemProperties, LengthInput, LightProperties, NgTemplateOutlet, Select],
   templateUrl: './properties-panel.html',
   host: { class: 'flex flex-col', 'data-testid': 'properties-panel' },
 })

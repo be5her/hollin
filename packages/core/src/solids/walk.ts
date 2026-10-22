@@ -25,6 +25,8 @@ interface Surface {
 export interface WalkWorld {
   surfaces: Surface[];
   walls: WallBand[];
+  /** Furniture: it stops the walker at the knee, never at the head (a table is walked round, not under). */
+  obstacles: WallBand[];
   cars: { id: string; polygon: Polygon; stops: { levelId: string; elevation: number }[] }[];
   /** The ground outside the building: the ground level's elevation. */
   ground: number;
@@ -41,9 +43,11 @@ export interface Walker {
 export function walkWorld(solids: BuildingSolids, levels: readonly DerivedLevel[]): WalkWorld {
   const surfaces: Surface[] = [];
   const walls: WallBand[] = [];
+  const obstacles: WallBand[] = [];
   for (const level of solids.levels) {
     if (level.floor.length) surfaces.push({ polygons: level.floor, plane: [level.elevation, 0, 0] });
     walls.push(...level.bands.filter((b) => b.footprint.length));
+    obstacles.push(...level.obstacles);
   }
   const cars: WalkWorld['cars'] = [];
   for (const c of solids.connectors) {
@@ -51,7 +55,7 @@ export function walkWorld(solids: BuildingSolids, levels: readonly DerivedLevel[
     if (c.car) cars.push({ id: c.id, polygon: c.car.polygon, stops: c.car.stops });
   }
   const ground = levels.find((l) => l.isGround)?.elevation ?? 0;
-  return { surfaces, walls, cars, ground, levels };
+  return { surfaces, walls, obstacles, cars, ground, levels };
 }
 
 const inside = (polygons: readonly Polygon[], p: Vec2) => polygons.reduce((n, poly) => (polygonContains(poly, p) ? n + 1 : n), 0) % 2 === 1;
@@ -88,16 +92,15 @@ function edgeDistance(poly: Polygon, p: Vec2): number {
   return best;
 }
 
-/** True when a wall stands within the walker's radius of a point, at knee or head height above feet at `z`. */
+/** True when a wall stands within the walker's radius of a point at knee or head height above feet at `z`, or furniture at the knee. */
 export function blocked(world: WalkWorld, p: Vec2, z: number): boolean {
+  const near = (band: WallBand) => inside(band.footprint, p) || band.footprint.some((poly) => edgeDistance(poly, p) < WALKER_RADIUS);
   for (const probe of PROBES) {
     const h = z + probe;
-    for (const band of world.walls) {
-      if (h < band.z0 || h >= band.z1) continue;
-      if (inside(band.footprint, p)) return true;
-      for (const poly of band.footprint) if (edgeDistance(poly, p) < WALKER_RADIUS) return true;
-    }
+    for (const band of world.walls) if (h >= band.z0 && h < band.z1 && near(band)) return true;
   }
+  const knee = z + PROBES[0];
+  for (const item of world.obstacles) if (knee >= item.z0 && knee < item.z1 && near(item)) return true;
   return false;
 }
 

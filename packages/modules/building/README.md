@@ -11,11 +11,12 @@ The building of a project: its levels (floors, basements, mezzanines) and the ve
   - **All**, **Isolate** and **Cutaway** choose the levels shown: every level; the active level alone, with the connectors that start on it; or the active level and every level below it, with its walls, columns and windows cut at the plan cut height (the `rules.stairCutHeight` setting, 1200 mm by default) and caps on the cut, and the stairs, rails, elevator cars and shafts clipped by a plane there. **Explode** spreads the levels apart, up to 4 m between one level and the next; a connector moves with the level it starts from.
   - The active level is the one the plan, the levels panel and the section use: the toolbar's level select, a level clicked in the list or the section, or a click on anything drawn in 3D (without dragging) changes it everywhere.
   - The switch at the right of the Plan | Section | 3D bar shows the plan **side by side** with the chosen view, so walls drawn on the plan can be watched going up in 3D.
+  - **Decor:** furniture and lights are drawn in 3D (see `packages/modules/decor/README.md`); **Day | Night** in the toolbar switches between the sky and sun and the design's own lights (the 16 nearest the camera), kept in the view state; a click on a piece of furniture selects it on the plan. Doors and windows show their frames, leaves (open at 90° on their swing side) and casements from their style.
   - **Walking:** a double click on a floor (a tread, a landing, an elevator car) starts the walk camera there, eyes 1.6 m up, facing away from the orbit camera. W, A, S, D or the arrow keys walk (Shift runs), up stairs and ramps and down stairwells, through doors but not through walls or windows; a drag looks around; PageUp and PageDown ride the elevator you stand in; Escape goes back to the orbit camera where it was. Every level shows, whole and in place, while walking; the footer names the level you are on. The walking rules are core's (`packages/core/src/solids/walk.ts`).
 
 ## Storage
 
-Levels, layers and connectors live in `project.json`; each level's entities in its own level file (see the library README). The active level, the open right panel and the 3D view's camera and display (`view3d`: `orbit` with target, distance, azimuth and elevation; `mode`; `explode`) are view state, stored per machine in `.local/ui.json`.
+Levels, layers and connectors live in `project.json`; each level's entities in its own level file (see the library README). The active level, the open right panel and the 3D view's camera and display (`view3d`: `orbit` with target, distance, azimuth and elevation; `mode`; `explode`; `lighting`, day or night) are view state, stored per machine in `.local/ui.json`.
 
 ## Agents
 

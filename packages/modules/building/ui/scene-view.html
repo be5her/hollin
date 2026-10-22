@@ -31,6 +31,11 @@
       <option [value]="level.id" [selected]="level.id === activeLevelId()">{{ level.name }} · {{ units.length(level.elevation) }}</option>
     }
   </select>
+  <div class="w-px h-5 bg-edge mx-1"></div>
+  <div class="flex items-center shrink-0 gap-0.5" role="radiogroup" aria-label="Lighting">
+    <button xButton size="sm" variant="ghost" role="radio" title="Day: the sky and the sun" [icon]="icons.Sun" [class.bg-elevated]="lighting() === 'day'" [class.text-fg]="lighting() === 'day'" [attr.aria-checked]="lighting() === 'day'" (click)="chooseLighting('day')" data-testid="scene-lighting-day">Day</button>
+    <button xButton size="sm" variant="ghost" role="radio" title="Night: the design's own lights (the 16 nearest)" [icon]="icons.Moon" [class.bg-elevated]="lighting() === 'night'" [class.text-fg]="lighting() === 'night'" [attr.aria-checked]="lighting() === 'night'" (click)="chooseLighting('night')" data-testid="scene-lighting-night">Night</button>
+  </div>
   <label class="flex items-center gap-2 shrink-0 text-muted">
     Explode
     <input type="range" min="0" max="100" class="w-24 accent-accent h-1" [value]="explode() * 100" (input)="setExplode($event)" aria-label="Spread the levels apart" data-testid="scene-explode" />
@@ -57,6 +62,8 @@
     [attr.data-walk]="walkAttr()"
     [attr.data-walk-level]="walk()?.levelId ?? ''"
     [attr.data-frame-ms]="frameMs()"
+    [attr.data-lighting]="lighting()"
+    [attr.data-lights]="lightsOn()"
   ></canvas>
   @if (empty()) {
     <div class="absolute inset-0 grid place-items-center text-sm text-muted pointer-events-none" data-testid="scene-empty">Nothing to show yet: draw walls on the plan.</div>

@@ -4,6 +4,7 @@ import { gripsOf } from '../grips';
 import { hitTest } from '../hit';
 import { createLevelScene, syncLevelScene } from '../scene';
 import { ItemTool } from './item';
+import { LightTool } from './light';
 import { SelectTool } from './select';
 import { DEFAULT_TOOL_OPTIONS, type ToolHost, type ToolOptions, type ToolPointer } from './tool';
 
@@ -89,6 +90,19 @@ describe('ItemTool', () => {
     const { host } = harness({ ref: 'builtin:floor-lamp', name: 'Floor lamp', withLight: true });
     new ItemTool(host).pointerDown(at(500, 500));
     expect(host.calls[0].input).toMatchObject({ ref: 'builtin:floor-lamp', withLight: true });
+  });
+});
+
+describe('LightTool', () => {
+  it('adds a light of the chosen kind at the click, at the height and lumens the options give', () => {
+    const { host } = harness();
+    const options = host.options;
+    host.options = () => ({ ...options(), light: { kind: 'spot', height: 2600, intensity: 1200 } });
+    const tool = new LightTool(host);
+    tool.pointerMove(at(3000, 2000));
+    expect(tool.hint()).toMatch(/spot.*1200 lm.*2600 mm/);
+    tool.pointerDown(at(3000, 2000));
+    expect(host.calls).toEqual([{ id: 'decor.light.add', input: { levelId: lv, kind: 'spot', at: [3000, 2000, 2600], intensity: 1200 } }]);
   });
 });
 

@@ -1,12 +1,15 @@
 import { deriveConnectorsSolids, deriveLevelSolids, deriveLevels, meshBox, type BuildingSolids, type ConnectorSolids, type DerivedLevel, type LevelSolids, type ProjectDoc, type RuleLimits, type SolidKind, type SolidPart, type Vec3 } from '@studio/core';
+import { LevelDecor, type PlacedLight } from './decor';
+import { DecorMaterials } from './materials';
+import { ModelCache } from './models';
 import { BufferAttribute, BufferGeometry, Color, DoubleSide, EdgesGeometry, FrontSide, Group, LineBasicMaterial, LineSegments, Mesh, MeshLambertMaterial, Plane, Vector3 } from 'three';
 import { LIGHT_SCENE_THEME, kindColor, type SceneTheme } from './theme';
 
 /** Kinds drawn with their edges as lines; thin rails would be all edges. */
-const EDGED = new Set<SolidKind>(['wall', 'slab', 'column', 'connector', 'glass', 'car']);
+const EDGED = new Set<SolidKind>(['wall', 'slab', 'column', 'connector', 'glass', 'car', 'frame', 'leaf']);
 /** Faces meeting at more than this angle (degrees) get an edge line. */
 const EDGE_ANGLE = 25;
-const KINDS: SolidKind[] = ['wall', 'slab', 'column', 'glass', 'connector', 'rail', 'car'];
+const KINDS: SolidKind[] = ['wall', 'slab', 'column', 'glass', 'connector', 'rail', 'car', 'frame', 'leaf'];
 /**
  * Kinds the cutaway clips with a plane at the cut: what the solids do not cut themselves (the active
  * level's walls, columns and windows are cut exactly, with caps). Connectors running up from below
@@ -30,10 +33,10 @@ export interface SceneDisplay {
 
 export const DEFAULT_DISPLAY: SceneDisplay = { mode: 'all', levelId: null, explode: 0, cutHeight: 1200 };
 
-/** What a mesh in the scene stands for, for picking. */
+/** What a mesh in the scene stands for, for picking: a solid of some kind, or a furniture item. */
 export interface SceneHit {
   levelId: string;
-  kind: SolidKind;
+  kind: SolidKind | 'item';
   ids: string[];
   /** The connector it belongs to, when it is one. */
   connectorId?: string;
@@ -47,7 +50,10 @@ interface LevelNode {
   solids: Group;
   /** The connectors starting on this level, rebuilt with the connectors. */
   connectors: Group;
+  /** Its furniture and lights, kept in step item by item. */
+  decor: LevelDecor;
   key: readonly unknown[];
+  decorKey: readonly unknown[];
   data: LevelSolids;
 }
 
@@ -75,8 +81,18 @@ export class BuildingScene {
   private readonly clippedEdgeMaterial = new LineBasicMaterial({ color: LIGHT_SCENE_THEME.edge });
   private levelsList: DerivedLevel[] = [];
   private display: SceneDisplay = DEFAULT_DISPLAY;
+  /** The design's materials (frames, leaves, furniture), shared across levels. */
+  readonly decorMaterials = new DecorMaterials();
+  /** Imported models, loaded once; `models.version` changes as they arrive. */
+  readonly models: ModelCache;
+  private modelsVersion = 0;
 
-  constructor(theme: SceneTheme = LIGHT_SCENE_THEME) {
+  /** `onModel` is called when an imported model has arrived, so the caller can update and draw again. */
+  constructor(theme: SceneTheme = LIGHT_SCENE_THEME, onModel: () => void = () => {}) {
+    this.models = new ModelCache(() => {
+      this.modelsVersion++;
+      onModel();
+    });
     for (const kind of KINDS) {
       const glass = kind === 'glass';
       this.materials.set(
@@ -123,6 +139,18 @@ export class BuildingScene {
     const planes = clipAt === null ? [] : [new Plane(new Vector3(0, 0, -1), clipAt * this.root.scale.z)];
     for (const kind of CLIPPED) this.materials.get(kind)!.clippingPlanes = planes;
     this.clippedEdgeMaterial.clippingPlanes = planes;
+    // Furniture above the cut goes with it.
+    this.decorMaterials.setClipping(planes);
+  }
+
+  /** Every light of the design as built, on the levels shown. */
+  lights(): PlacedLight[] {
+    return [...this.nodes.values()].filter((n) => n.group.visible).flatMap((n) => n.decor.lights());
+  }
+
+  /** Resolves once every imported model asked for has arrived (or failed), for a snapshot. */
+  modelsSettled(): Promise<void> {
+    return this.models.settled();
   }
 
   /** Where the cutaway's plane is, mm (world, explode included), or null. */
@@ -179,10 +207,11 @@ export class BuildingScene {
         const group = new Group();
         const solids = new Group();
         const connectors = new Group();
-        group.add(solids, connectors);
+        const decor = new LevelDecor(level.id);
+        group.add(solids, connectors, decor.group);
         group.userData['levelId'] = level.id;
         this.root.add(group);
-        node = { level, group, solids, connectors, key, data };
+        node = { level, group, solids, connectors, decor, key, decorKey: [], data };
         this.nodes.set(level.id, node);
         regrouped = true;
       } else {
@@ -193,8 +222,19 @@ export class BuildingScene {
       }
       for (const part of data.parts) node.solids.add(...this.objects(part, { levelId: level.id, kind: part.kind, ids: part.ids }));
     }
+    // Furniture and lights, item by item: they change far more often than the walls.
+    const project = doc.meta.id;
+    for (const level of levels) {
+      const node = this.nodes.get(level.id)!;
+      const decorKey = [doc.levelData[level.id]?.entities, doc.assets, doc.layers, level.elevation, this.modelsVersion];
+      if (sameKey(node.decorKey, decorKey)) continue;
+      node.decorKey = decorKey;
+      const ctx = { materials: this.decorMaterials, models: this.models, modelUrl: (file: string) => `library://project/${project}/assets/${file}` };
+      if (node.decor.update(doc.levelData[level.id]?.entities ?? {}, doc.assets, doc.layers, level.elevation, ctx)) changed = true;
+    }
     for (const [id, node] of this.nodes) {
       if (seen.has(id)) continue;
+      node.decor.dispose();
       clear(node.group);
       this.root.remove(node.group);
       this.nodes.delete(id);
@@ -231,6 +271,11 @@ export class BuildingScene {
     for (const node of this.nodes.values()) {
       if (!node.group.visible) continue;
       for (const part of node.data.parts) grow(meshBox(part.mesh), node.group.position.z);
+      // Furniture counts too (a tree in the garden).
+      for (const o of node.data.obstacles) {
+        const pts = o.footprint.flat();
+        if (pts.length) grow({ min: [Math.min(...pts.map((p) => p[0])), Math.min(...pts.map((p) => p[1])), o.z0], max: [Math.max(...pts.map((p) => p[0])), Math.max(...pts.map((p) => p[1])), o.z1] }, node.group.position.z);
+      }
     }
     for (const c of this.connectorData) {
       const node = this.nodes.get(c.levelId);
@@ -254,8 +299,10 @@ export class BuildingScene {
   }
 
   dispose(): void {
+    for (const node of this.nodes.values()) node.decor.dispose();
     clear(this.root);
     this.nodes.clear();
+    this.decorMaterials.dispose();
     for (const m of this.materials.values()) m.dispose();
     this.edgeMaterial.dispose();
     this.clippedEdgeMaterial.dispose();
@@ -265,7 +312,7 @@ export class BuildingScene {
     const geometry = new BufferGeometry();
     geometry.setAttribute('position', new BufferAttribute(part.mesh.positions, 3));
     geometry.computeVertexNormals();
-    const mesh = new Mesh(geometry, this.materials.get(part.kind)!);
+    const mesh = new Mesh(geometry, part.material ? this.decorMaterials.get(part.material) : this.materials.get(part.kind)!);
     mesh.userData['hit'] = hit;
     if (part.kind === 'glass') mesh.renderOrder = 1;
     if (!EDGED.has(part.kind)) return [mesh];

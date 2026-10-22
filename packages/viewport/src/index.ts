@@ -21,6 +21,7 @@ export * from './plan2d/tools/shape';
 export * from './plan2d/tools/dimension';
 export * from './plan2d/tools/label';
 export * from './plan2d/tools/item';
+export * from './plan2d/tools/light';
 export * from './scene3d/theme';
 export * from './scene3d/orbit';
 export * from './scene3d/scene';

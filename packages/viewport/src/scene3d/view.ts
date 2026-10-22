@@ -1,5 +1,6 @@
 import { EYE_HEIGHT, floorAt, levelAt, rideElevator, walkRelative, walkWorld, type ProjectDoc, type RuleLimits, type Vec3, type WalkWorld, type Walker } from '@studio/core';
-import { Color, DirectionalLight, HemisphereLight, Matrix4, Mesh, PerspectiveCamera, Raycaster, Scene, Vector2, WebGLRenderer, type Intersection, type Object3D } from 'three';
+import { Color, DirectionalLight, HemisphereLight, Matrix4, Mesh, PerspectiveCamera, Raycaster, Scene, Vector2, Vector3, WebGLRenderer, type Intersection, type Object3D } from 'three';
+import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
 import { FOV, ORBIT_PRESETS, fitOrbit, orbitBy, orbitEye, orbitPan, orbitZoomAt, type Orbit, type OrbitPreset } from './orbit';
 import { BuildingScene, DEFAULT_DISPLAY, type SceneDisplay, type SceneHit } from './scene';
 import { LIGHT_SCENE_THEME, type SceneTheme } from './theme';
@@ -11,6 +12,9 @@ export interface WalkState {
   pitch: number;
   levelId: string | null;
 }
+
+/** Day: the sky and a key light. Night: a dim sky and the design's own lights. */
+export type SceneLighting = 'day' | 'night';
 
 /** What a frame showed, for the component to mirror. */
 export interface Scene3dFrame {
@@ -25,6 +29,9 @@ export interface Scene3dFrame {
   clip: number | null;
   /** The walk camera, while walking. */
   walk: WalkState | null;
+  lighting: SceneLighting;
+  /** How many of the design's lights were on (at night, the nearest ones). */
+  lightsOn: number;
 }
 
 export interface Scene3dCallbacks {
@@ -50,6 +57,12 @@ const MM = 0.001;
  */
 const SKY_LIGHT = 2.9;
 const KEY_LIGHT = 1.15;
+/** At night the sky barely lights anything, and the background is dark whatever the theme. */
+const NIGHT_SKY = 0.12;
+const NIGHT_BACKGROUND = '#0b0e14';
+/** At most this many of the design's lights are on at once (the nearest to the camera), with no shadows, so software GL keeps up. */
+export const MAX_LIGHTS = 16;
+let areaLightsReady = false;
 /** The key light comes from the camera's upper left, so whichever side is in view reads in three tones. */
 const KEY_TURN = 40;
 const KEY_ELEVATION = 35;
@@ -96,6 +109,12 @@ export class Scene3dView {
   private readonly scene = new Scene();
   private readonly camera = new PerspectiveCamera(FOV, 1, 0.05, 5000);
   private readonly key = new DirectionalLight('#ffffff', KEY_LIGHT);
+  private readonly sky = new HemisphereLight('#ffffff', '#8c8a84', SKY_LIGHT);
+  private lighting: SceneLighting = 'day';
+  private background = new Color(LIGHT_SCENE_THEME.background);
+  /** The lights switched on, as a key, so they are switched (and the shaders rebuilt) only when the set changes. */
+  private lightsKey = '';
+  private lightsOn = 0;
   private orbit: Orbit = { target: [0, 0, 0], distance: 20_000, azimuth: ORBIT_PRESETS.iso.azimuth, elevation: ORBIT_PRESETS.iso.elevation };
   private size = { width: 1, height: 1 };
   private pending = 0;
@@ -118,21 +137,41 @@ export class Scene3dView {
     this.renderer = new WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: options.preserveDrawingBuffer ?? false });
     // The cutaway clips the connectors with a plane.
     this.renderer.localClippingEnabled = true;
+    if (!areaLightsReady) {
+      RectAreaLightUniformsLib.init();
+      areaLightsReady = true;
+    }
     this.camera.up.set(0, 0, 1);
-    this.building = new BuildingScene(theme);
+    // An imported model arriving: place it where its items stand.
+    this.building = new BuildingScene(theme, () => {
+      this.rebuild();
+      this.requestRender();
+    });
     this.building.root.scale.setScalar(MM);
     // The sky is above: z is up here, and a hemisphere light takes its up from its position.
-    const sky = new HemisphereLight('#ffffff', '#8c8a84', SKY_LIGHT);
-    sky.position.set(0, 0, 1);
-    this.scene.add(sky, this.key, this.key.target, this.building.root);
+    this.sky.position.set(0, 0, 1);
+    this.scene.add(this.sky, this.key, this.key.target, this.building.root);
     this.setTheme(theme);
     this.detach = this.listen();
   }
 
   setTheme(theme: SceneTheme): void {
     this.building.setTheme(theme);
-    this.scene.background = new Color(theme.background);
+    this.background = new Color(theme.background);
     this.requestRender();
+  }
+
+  /** Day (the sky and a key light) or night (a dim sky, and the nearest `MAX_LIGHTS` of the design's lights). */
+  setLighting(lighting: SceneLighting): void {
+    if (lighting === this.lighting) return;
+    this.lighting = lighting;
+    this.requestRender();
+  }
+
+  /** Waits for every imported model the design shows, then updates the scene with them (for a snapshot). */
+  async modelsReady(): Promise<void> {
+    await this.building.modelsSettled();
+    this.rebuild();
   }
 
   setSize(width: number, height: number, dpr: number): void {
@@ -330,6 +369,7 @@ export class Scene3dView {
     this.camera.updateProjectionMatrix();
     this.camera.lookAt(target[0] * MM, target[1] * MM, target[2] * MM);
     this.camera.updateMatrixWorld();
+    this.applyLighting();
     const a = ((keyAzimuth - KEY_TURN) * Math.PI) / 180;
     const e = (KEY_ELEVATION * Math.PI) / 180;
     this.key.target.position.set(target[0] * MM, target[1] * MM, target[2] * MM);
@@ -344,6 +384,8 @@ export class Scene3dView {
       levels: this.building.levels.filter((l) => this.building.levelGroup(l.id)?.visible).map((l) => l.id),
       clip: this.building.clipHeight(),
       walk: w ? { at: w.walker.at, yaw: w.walker.yaw, pitch: w.pitch, levelId: (this.world && levelAt(this.world, w.walker.at[2])?.id) ?? null } : null,
+      lighting: this.lighting,
+      lightsOn: this.lightsOn,
     });
     // Keep moving while a movement key is held.
     if (w?.keys.size) this.requestRender();
@@ -352,6 +394,31 @@ export class Scene3dView {
   private moved(): void {
     this.requestRender();
     this.callbacks.onOrbit?.(this.orbit);
+  }
+
+  /** Day: the sky and the key light, the design's lights off. Night: a dim sky, a dark background, and the lights nearest the camera on. */
+  private applyLighting(): void {
+    const night = this.lighting === 'night';
+    this.sky.intensity = night ? NIGHT_SKY : SKY_LIGHT;
+    this.key.intensity = night ? 0 : KEY_LIGHT;
+    this.scene.background = night ? new Color(NIGHT_BACKGROUND) : this.background;
+    const lights = this.building.lights();
+    let on: typeof lights = [];
+    if (night) {
+      const eye = this.camera.position;
+      const p = new Vector3();
+      on = lights
+        .map((l) => ({ l, d: l.object.getWorldPosition(p).distanceToSquared(eye) }))
+        .sort((a, b) => a.d - b.d)
+        .slice(0, MAX_LIGHTS)
+        .map((x) => x.l);
+    }
+    const key = on.map((l) => l.id).sort().join(',');
+    this.lightsOn = on.length;
+    if (key === this.lightsKey && lights.every((l) => l.object.visible === on.includes(l))) return;
+    this.lightsKey = key;
+    const set = new Set(on);
+    for (const l of lights) l.object.visible = set.has(l);
   }
 
   /** Starts walking on the floor under a window point, facing away from the camera. */

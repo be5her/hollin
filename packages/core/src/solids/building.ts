@@ -10,15 +10,19 @@ import { add, scale } from '../geometry/vec';
 import type { WallBody } from '../geometry/walls';
 import { deriveConnectorsSolids, type ConnectorSolids } from './connectors';
 import { MeshBuilder, type Mesh } from './mesh';
+import { openingParts } from './openings';
+import { itemFootprint, itemModel, itemSize } from '../decor/items';
 
-/** What a part of the building is made of: the 3D view gives each its own material. Connectors are stairs, ramps and escalators; rails their handrails and ladders; car an elevator's car. */
-export type SolidKind = 'wall' | 'slab' | 'column' | 'glass' | 'connector' | 'rail' | 'car';
+/** What a part of the building is made of: the 3D view gives each its own material. Connectors are stairs, ramps and escalators; rails their handrails and ladders; car an elevator's car; frame and leaf a door's or window's lining, casements and leaf. */
+export type SolidKind = 'wall' | 'slab' | 'column' | 'glass' | 'connector' | 'rail' | 'car' | 'frame' | 'leaf';
 
 /** A mesh of one kind and the entities it was built from (a level's walls are joined into one). */
 export interface SolidPart {
   kind: SolidKind;
   mesh: Mesh;
   ids: string[];
+  /** The material it is drawn in (`builtin:<id>` or `paint:#rrggbb`), when the design says; else its kind's colour. */
+  material?: string;
 }
 
 /** The level's walls over a range of heights where nothing changes: their footprint, openings cut out. */
@@ -40,6 +44,8 @@ export interface LevelSolids {
   bands: WallBand[];
   /** The slabs' top faces at the floor's elevation, connector openings, voids and shafts cut out. */
   floor: Polygon[];
+  /** Furniture as the walker meets it: each item's footprint over the heights it stands in. */
+  obstacles: WallBand[];
 }
 
 export interface SolidsOptions {
@@ -69,7 +75,7 @@ export function deriveLevelSolids(doc: ProjectDoc, levelId: string, options: Sol
   const levels = options.levels ?? deriveLevels(doc);
   const level = levels.find((l) => l.id === levelId);
   const entities = doc.levelData[levelId]?.entities ?? {};
-  if (!level) return { levelId, elevation: 0, ceiling: 0, parts: [], bands: [], floor: [] };
+  if (!level) return { levelId, elevation: 0, ceiling: 0, parts: [], bands: [], floor: [], obstacles: [] };
   const e0 = level.elevation;
   const ceiling = levelCeiling(level, levels);
   const cutAt = options.cutHeight !== undefined ? e0 + options.cutHeight : Infinity;
@@ -77,11 +83,17 @@ export function deriveLevelSolids(doc: ProjectDoc, levelId: string, options: Sol
   const walls: Wall[] = [];
   const openings: EntityOf<'opening'>[] = [];
   const columns: EntityOf<'column'>[] = [];
+  const obstacles: WallBand[] = [];
   for (const id in entities) {
     const e = entities[id];
     if (e.type === 'wall') walls.push(e);
     else if (e.type === 'opening') openings.push(e);
     else if (e.type === 'column' && shown(doc, e)) columns.push(e);
+    else if (e.type === 'item' && shown(doc, e)) {
+      const model = itemModel(e.asset, doc.assets);
+      const z = e0 + e.at[2];
+      obstacles.push({ z0: z, z1: z + itemSize(e, model)[2], footprint: itemFootprint(e, model) });
+    }
   }
   const visible = walls.filter((w) => shown(doc, w));
   const all = deriveWalls(walls, { bodyOf: options.bodyOf });
@@ -91,7 +103,8 @@ export function deriveLevelSolids(doc: ProjectDoc, levelId: string, options: Sol
   const spans = visible
     .map((wall) => {
       const z0 = e0 + wall.baseOffset;
-      return { wall, z0, z1: Math.min(wall.height !== null ? z0 + wall.height : ceiling, cutAt) };
+      const top = wall.height !== null ? z0 + wall.height : ceiling;
+      return { wall, z0, top, z1: Math.min(top, cutAt) };
     })
     .filter((s) => s.z1 > s.z0 + EPS);
   const byWall = new Map(spans.map((s) => [s.wall.id, s]));
@@ -151,7 +164,32 @@ export function deriveLevelSolids(doc: ProjectDoc, levelId: string, options: Sol
     glass.prism([pane], h.z0, h.z1);
     panes.push(h.opening.id);
   }
+  // ---------- doors' and windows' frames and leaves, from their styles ----------
+  const styled = new Map<string, { kind: SolidKind; material: string; builder: MeshBuilder; ids: string[] }>();
+  const into = (kind: SolidKind, material: string, id: string) => {
+    const key = `${kind}|${material}`;
+    let entry = styled.get(key);
+    if (!entry) styled.set(key, (entry = { kind, material, builder: new MeshBuilder(), ids: [] }));
+    if (!entry.ids.includes(id)) entry.ids.push(id);
+    return entry.builder;
+  };
+  for (const o of openings) {
+    const span = byWall.get(o.wallId);
+    if (!span) continue;
+    const z0 = Math.max(span.z0, e0 + o.sill);
+    const z1 = Math.min(span.top, e0 + o.sill + o.height);
+    if (z1 <= z0 + EPS || z0 >= cutAt) continue;
+    const made = openingParts(span.wall, o, z0, z1, cutAt);
+    if (!made) continue;
+    if (!made.frame.empty) into('frame', made.style.slots.frame, o.id).append(made.frame);
+    if (!made.leaf.empty) into('leaf', made.style.slots.leaf ?? made.style.slots.frame, o.id).append(made.leaf);
+    if (!made.glass.empty) {
+      glass.append(made.glass);
+      panes.push(o.id);
+    }
+  }
   if (!glass.empty) parts.push({ kind: 'glass', mesh: glass.build(), ids: panes });
+  for (const s of styled.values()) parts.push({ kind: s.kind, mesh: s.builder.build(), ids: s.ids, material: s.material });
 
   // ---------- columns ----------
   const columnMesh = new MeshBuilder();
@@ -191,7 +229,7 @@ export function deriveLevelSolids(doc: ProjectDoc, levelId: string, options: Sol
   }
   if (!slabMesh.empty) parts.push({ kind: 'slab', mesh: slabMesh.build(), ids: slabIds });
 
-  return { levelId, elevation: e0, ceiling, parts, bands, floor: floor.length > 1 ? unionPolygons(floor) : floor };
+  return { levelId, elevation: e0, ceiling, parts, bands, floor: floor.length > 1 ? unionPolygons(floor) : floor, obstacles };
 }
 
 export interface BuildingSolids {

@@ -37,6 +37,9 @@
     <button xIconButton size="sm" label="Furniture (I): place the model picked in the Catalog panel" [class.bg-elevated]="tool() === 'item'" [class.text-fg]="tool() === 'item'" [attr.aria-pressed]="tool() === 'item'" (click)="chooseTool('item')" data-testid="tool-item">
       <svg [xIcon]="icons.Sofa" class="size-3.5"></svg>
     </button>
+    <button xIconButton size="sm" label="Light (G)" [class.bg-elevated]="tool() === 'light'" [class.text-fg]="tool() === 'light'" [attr.aria-pressed]="tool() === 'light'" (click)="chooseTool('light')" data-testid="tool-light">
+      <svg [xIcon]="icons.Lightbulb" class="size-3.5"></svg>
+    </button>
     <div class="w-px h-5 bg-edge mx-1"></div>
     <button xIconButton size="sm" label="Shape (P)" [class.bg-elevated]="tool() === 'shape'" [class.text-fg]="tool() === 'shape'" [attr.aria-pressed]="tool() === 'shape'" (click)="chooseTool('shape')" data-testid="tool-shape">
       <svg [xIcon]="icons.Pentagon" class="size-3.5"></svg>
@@ -332,6 +335,18 @@
     } @else {
       <span class="text-muted">Pick a model in the Catalog panel (right).</span>
     }
+  </div>
+}
+@if (tool() === 'light') {
+  <div class="flex items-center gap-3 px-3 h-9 border-b border-edge bg-surface shrink-0 text-xs" data-testid="tool-options">
+    <span class="font-medium">Light</span>
+    <select xSelect class="h-7 text-xs" [value]="lightKind()" (change)="setLightKind($any($event.target).value)" aria-label="Kind of light" data-testid="light-tool-kind">
+      <option value="point">Point</option>
+      <option value="spot">Spot (down)</option>
+      <option value="area">Area panel</option>
+    </select>
+    <label class="flex items-center gap-1.5 text-muted">Height <input xInput xLength class="h-7 w-24 font-mono" [formField]="lightForm.height" (commit)="setLightHeight($event)" aria-label="Height above the floor" data-testid="light-tool-height" /></label>
+    <label class="flex items-center gap-1.5 text-muted">Lumens <input xInput class="h-7 w-20 font-mono" [value]="lightLumens()" (change)="setLightLumens($any($event.target).value)" (keydown.enter)="$any($event.target).blur()" aria-label="Lumens" data-testid="light-tool-lumens" /></label>
   </div>
 }
 @if (tool() === 'column') {

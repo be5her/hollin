@@ -5,7 +5,7 @@ import type { Hit } from '../hit';
 import type { RenderFrame } from '../render';
 import type { SnapOptions, SnapResult } from '../snap';
 
-export type ToolId = 'select' | 'wall' | 'door' | 'window' | 'room' | 'separator' | 'shape' | 'rectangle' | 'circle' | 'dimension' | 'label' | 'stair' | 'ramp' | 'ladder' | 'elevator' | 'column' | 'item';
+export type ToolId = 'select' | 'wall' | 'door' | 'window' | 'room' | 'separator' | 'shape' | 'rectangle' | 'circle' | 'dimension' | 'label' | 'stair' | 'ramp' | 'ladder' | 'elevator' | 'column' | 'item' | 'light';
 
 export type StairShape = Extract<Connector, { kind: 'stair' }>['shape'];
 
@@ -104,9 +104,11 @@ export interface ToolOptions {
    * whether a lamp brings its light.
    */
   item: { ref: string | null; name: string; size: Vec3 | null; min?: Vec3; rotation: number; withLight: boolean };
+  /** A new light: its kind, its height above the floor (mm) and its lumens. */
+  light: { kind: 'point' | 'spot' | 'area'; height: number; intensity: number };
 }
 
-export const DEFAULT_TOOL_OPTIONS: ToolOptions = { wall: { thickness: 200, height: null, alignment: 'center', single: false }, door: { width: 900, height: 2100 }, window: { width: 1200, height: 1200, sill: 900 }, shape: { kind: 'shape', filled: true }, dimension: { kind: 'aligned' }, label: { size: 250 }, nudge: 100, connector: { bottomLevelId: null, topLevelId: null }, stair: { shape: 'straight', width: 1000, turn: 'left' }, ramp: { width: 1200 }, elevator: { shaft: { w: 2000, d: 2200 }, car: { w: 1100, d: 1400 } }, column: { shape: 'rect', w: 300, d: 300, r: 150, rotation: 0, topLevelId: null }, item: { ref: null, name: '', size: null, rotation: 0, withLight: false } };
+export const DEFAULT_TOOL_OPTIONS: ToolOptions = { wall: { thickness: 200, height: null, alignment: 'center', single: false }, door: { width: 900, height: 2100 }, window: { width: 1200, height: 1200, sill: 900 }, shape: { kind: 'shape', filled: true }, dimension: { kind: 'aligned' }, label: { size: 250 }, nudge: 100, connector: { bottomLevelId: null, topLevelId: null }, stair: { shape: 'straight', width: 1000, turn: 'left' }, ramp: { width: 1200 }, elevator: { shaft: { w: 2000, d: 2200 }, car: { w: 1100, d: 1400 } }, column: { shape: 'rect', w: 300, d: 300, r: 150, rotation: 0, topLevelId: null }, item: { ref: null, name: '', size: null, rotation: 0, withLight: false }, light: { kind: 'point', height: 2400, intensity: 800 } };
 
 export interface ToolPointer {
   world: Vec2;

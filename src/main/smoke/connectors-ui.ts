@@ -69,10 +69,14 @@ export async function smokeConnectorsUi(smoke: Smoke, duplexId: string): Promise
   smoke.check('a click on the stair selects it', await smoke.until(async () => (await canvasAttr(smoke, 'selection')) === stairId), await canvasAttr(smoke, 'selection'));
   smoke.check('the Properties panel shows the stair with its derived numbers', (await smoke.waitFor(`${tab} [data-testid=properties-title]`, 3000, 'Stair')) && (await smoke.waitFor(`${tab} [data-testid=connector-derived]`, 3000, '16 risers')));
   await smoke.shots('23-stair-selected');
-  // Alt keeps snapping out of the way, so the move is exactly what the pointer did.
+  // The pointer lands on whole pixels, so a drag ends where that pixel maps to: within a pixel of the asked point.
+  const axisPoints = () => (doc().connectors[stairId] as { axis: { v: { p: readonly [number, number] }[] } }).axis.v.map((x) => x.p);
+  const within = (p: readonly [number, number], q: readonly [number, number], tol: number) => Math.abs(p[0] - q[0]) <= tol && Math.abs(p[1] - q[1]) <= tol;
+  const pixel = 1 / v.cam.scale + 0.01;
+  // Alt keeps snapping out of the way, so the move is what the pointer did.
   const moveTo = v.at([3300, 2617]);
   await smoke.dragAt(inside, moveTo, { modifiers: ['alt'] });
-  smoke.check('dragging the stair moves it on the plan', await smoke.until(() => axis() === '3000,1000 3000,4750'), axis());
+  smoke.check('dragging the stair moves it on the plan', await smoke.until(() => within(axisPoints()[0], [3000, 1000], pixel) && within(axisPoints()[1], [3000, 4750], pixel)), axis());
   await smoke.key('Z', ['control']);
   smoke.check('Ctrl+Z puts it back', await smoke.until(() => axis() === '2000,1000 2000,4750'), axis());
   await smoke.clickAt(inside.x, inside.y);
@@ -80,10 +84,6 @@ export async function smokeConnectorsUi(smoke: Smoke, duplexId: string): Promise
   const top = v.at([2000, 4750]);
   const further = v.at([2000, 5250]);
   await smoke.dragAt(top, further, { modifiers: ['alt'] });
-  // The pointer lands on whole pixels, so the top ends where that pixel maps to: within a pixel of the asked point.
-  const axisPoints = () => (doc().connectors[stairId] as { axis: { v: { p: readonly [number, number] }[] } }).axis.v.map((x) => x.p);
-  const within = (p: readonly [number, number], q: readonly [number, number], tol: number) => Math.abs(p[0] - q[0]) <= tol && Math.abs(p[1] - q[1]) <= tol;
-  const pixel = 1 / v.cam.scale + 0.01;
   smoke.check("dragging the top of the stair's walk line lengthens it", await smoke.until(() => within(axisPoints()[1], [2000, 5250], pixel) && within(axisPoints()[0], [2000, 1000], 0.01)), axis());
   smoke.check('and regenerates its treads', await smoke.waitFor(`${tab} [data-testid=connector-derived]`, 3000, '16 risers'));
   await smoke.key('Z', ['control']);
@@ -105,9 +105,9 @@ export async function smokeConnectorsUi(smoke: Smoke, duplexId: string): Promise
   smoke.check('the stair tool shows its options', (await smoke.waitFor(`${tab} [data-testid=tool-options]`)) && (await canvasAttr(smoke, 'tool')) === 'stair');
   await smoke.fill(`${tab} [data-testid=stair-shape]`, 'l');
   smoke.check('the levels default to this floor and the one above', (await smoke.js<string>(`document.querySelector('${tab} [data-testid=connector-from]').value`)) === ground && (await smoke.js<string>(`document.querySelector('${tab} [data-testid=connector-to]').value`)) === upper);
-  // The options bar changed the canvas height: measure again. An L from (4000, 1000) up to its corner and right to (5750, 4000), long enough for 14 treads within the limits; tracking keeps the flights straight.
+  // The options bar changed the canvas height: measure again. An L from (4000, 1000) up to its corner and right to (5850, 4000), long enough for 14 treads within the limits with room to spare (clicks land on whole pixels); tracking keeps the flights straight.
   v = await view(smoke);
-  for (const p of [[4000, 1000], [4000, 4000], [5750, 4000]] as const) await smoke.clickAt(v.at(p).x, v.at(p).y);
+  for (const p of [[4000, 1000], [4000, 4000], [5850, 4000]] as const) await smoke.clickAt(v.at(p).x, v.at(p).y);
   smoke.check('three clicks draw an L stair to the upper floor', (await smoke.until(() => newConnector()?.kind === 'stair')) && newConnector()!.kind === 'stair' && (newConnector() as { shape: string }).shape === 'l' && (newConnector() as { bottom: { levelId: string }; top: { levelId: string } }).top.levelId === upper, newConnector());
   const drawn = newConnector() as { axis: { v: { p: readonly number[] }[] } };
   smoke.check('its corner is where it was clicked, the flights exactly straight', drawn.axis.v.length === 3 && near(drawn.axis.v[1].p, [4000, 4000]) && drawn.axis.v[0].p[0] === drawn.axis.v[1].p[0] && drawn.axis.v[1].p[1] === drawn.axis.v[2].p[1], drawn.axis.v);
