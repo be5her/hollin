@@ -59,12 +59,19 @@ export async function smokePlanUi(smoke: Smoke, towerId: string): Promise<void> 
   const out = (await readCamera(smoke))!;
   smoke.check('zooming out off-centre keeps the point under the cursor still', out.scale < zoomed.scale && out.x !== zoomed.x, { zoomed, out });
   await smoke.dragAt(centre, { x: centre.x + 120, y: centre.y + 60 }, { button: 'middle' });
+  // The canvas mirrors its camera when it draws: the last moves of a drag can show a frame later (the packaged build once read 3/4 of the pan).
+  const pannedTo = (c: { x: number; y: number }) => Math.abs(c.x - (out.x - 120 / out.scale)) < 1 && Math.abs(c.y - (out.y + 60 / out.scale)) < 1;
+  await smoke.until(async () => pannedTo((await readCamera(smoke))!));
   const panned = (await readCamera(smoke))!;
-  smoke.check('a middle-button drag pans the view', Math.abs(panned.x - (out.x - 120 / out.scale)) < 1 && Math.abs(panned.y - (out.y + 60 / out.scale)) < 1, { out, panned });
+  smoke.check('a middle-button drag pans the view', pannedTo(panned), { out, panned });
   await smoke.clickAt(centre.x, centre.y);
   await smoke.keyDown('Space');
   await smoke.dragAt(centre, { x: centre.x - 120, y: centre.y - 60 });
   await smoke.keyUp('Space');
+  await smoke.until(async () => {
+    const c = (await readCamera(smoke))!;
+    return Math.abs(c.x - out.x) < 1 && Math.abs(c.y - out.y) < 1;
+  });
   const back = (await readCamera(smoke))!;
   smoke.check('Space with a left drag pans too', Math.abs(back.x - out.x) < 1 && Math.abs(back.y - out.y) < 1, { out, back });
   // The footer follows pointer moves; one landing after the pan has ended is what shows it, so move until it does.

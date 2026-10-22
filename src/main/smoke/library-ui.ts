@@ -88,6 +88,8 @@ export async function smokeLibraryUi(smoke: Smoke, houseId: string): Promise<voi
   const last = await smoke.rect(tabSelector(before[before.length - 1]));
   if (first && last && before.length >= 2) {
     await smoke.drag({ x: last.x + last.width / 2, y: last.y + last.height / 2 }, { x: first.x + 4, y: first.y + first.height / 2 });
+    // The new order is rendered after the drop's change detection: wait for it (the packaged build once read the old one).
+    await smoke.until(async () => (await order())[0] === before[before.length - 1]);
     const after = await order();
     smoke.check('dragging a tab reorders the tabs', after[0] === before[before.length - 1] && after.length === before.length, { before, after });
     await smoke.shot('09-tab-drag');
