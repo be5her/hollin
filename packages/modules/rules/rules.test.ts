@@ -14,6 +14,8 @@ let host: HostApi & { events: { event: string; payload: unknown }[] };
 let projectId: string;
 /** How long the modules before rules take to close a project: the hooks run one after another, after the project has left the open list. */
 let closeDelayMs = 0;
+/** Runs as the close hooks start, when the project has just left the open list. */
+let onClosing: (() => void) | null = null;
 
 beforeEach(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), 'studio-rules-'));
@@ -35,6 +37,7 @@ beforeEach(async () => {
     session: { debounceMs: 20, maxWaitMs: 100 },
     onProjectOpen: (project) => rulesModule.onProjectOpen?.(project, host),
     onProjectClose: async (project) => {
+      onClosing?.();
       if (closeDelayMs) await new Promise((resolve) => setTimeout(resolve, closeDelayMs));
       await rulesModule.onProjectClose?.(project, host);
     },
@@ -48,6 +51,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   closeDelayMs = 0;
+  onClosing = null;
   vi.restoreAllMocks();
   await rulesModule.onStop?.(host);
   await service.stop();
@@ -92,8 +96,9 @@ describe('rules.check and the watcher', () => {
     const ground = service.session(projectId)!.doc.building.groundLevelId;
     const warn = vi.spyOn(console, 'warn');
     const announced = changes().length;
-    await run('plan.wall.add', { levelId: ground, from: [0, 0], to: [3000, 0] });
-    // The check is due 250 ms after the change; the other modules' close hooks are still running then.
+    // A change announced just as the project left the open list: its check is due 250 ms later, while the other modules' close hooks still run (400 ms).
+    // (Triggered from the close hook itself, so how long saving takes before it cannot move the check ahead of the close.)
+    onClosing = () => host.emit('doc.patched', { projectId, seq: 1, epoch: 'e', tx: { kind: 'edit' }, ops: [{ t: 'ins', c: 'entity', id: 'wal_0000000000000001', lv: ground }] } as never);
     closeDelayMs = 400;
     await service.close(projectId);
     await settle();
