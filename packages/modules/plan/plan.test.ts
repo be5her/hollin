@@ -316,3 +316,37 @@ describe('path edits and conflicts', () => {
     expect((doc().levelData[ground].entities[id] as { thickness: number }).thickness).toBe(150);
   });
 });
+
+describe('view.snapshot', () => {
+  /** Runs the command and answers the window's part: the request it emitted, and what the command returned. */
+  async function snapshot(input: unknown): Promise<{ request: Record<string, unknown>; result: Record<string, unknown> }> {
+    const from = host.events.length;
+    const result = run<Record<string, unknown>>('view.snapshot', input);
+    let request: { id: string } | undefined;
+    for (let i = 0; i < 100 && !request; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      request = host.events.slice(from).find((e) => e.event === 'view.snapshot.request')?.payload as { id: string } | undefined;
+    }
+    await run('view.snapshot.reply', { id: request!.id, png: 'cG5n' });
+    return { request: request as unknown as Record<string, unknown>, result: await result };
+  }
+
+  it('asks the window for the plan of the ground level by default', async () => {
+    const { request, result } = await snapshot({});
+    expect(request).toMatchObject({ projectId, view: 'plan', levelId: doc().building.groundLevelId, width: 800, height: 600 });
+    expect(result).toMatchObject({ mimeType: 'image/png', data: 'cG5n', view: 'plan', levelName: 'Ground floor' });
+  });
+
+  it('asks for the building in 3D from the south-west, above, with every level shown', async () => {
+    const { request, result } = await snapshot({ view: '3d' });
+    expect(request).toMatchObject({ view: '3d', azimuth: 225, elevation: 30, display: 'all', explode: 0, levelId: doc().building.groundLevelId });
+    expect(result).toMatchObject({ view: '3d', data: 'cG5n' });
+    const { request: cut } = await snapshot({ view: '3d', azimuth: 270, elevation: 60, display: 'cutaway', explode: 0.5, width: 400, height: 300 });
+    expect(cut).toMatchObject({ azimuth: 270, elevation: 60, display: 'cutaway', explode: 0.5, width: 400, height: 300 });
+  });
+
+  it('refuses a view from past the poles or an explode beyond 1', async () => {
+    await expect(run('view.snapshot', { view: '3d', elevation: 90 })).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+    await expect(run('view.snapshot', { view: '3d', explode: 2 })).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+  });
+});

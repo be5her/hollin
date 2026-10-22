@@ -238,6 +238,9 @@ export class BuildingScene {
       for (const part of c.parts) grow(meshBox(part.mesh), node.group.position.z);
     }
     if (!Number.isFinite(min[0])) return null;
+    // Nothing shows above the cutaway's plane, so a fit leaves it out.
+    const clip = this.clipHeight();
+    if (clip !== null) max[2] = Math.max(min[2], Math.min(max[2], clip));
     return { min, max };
   }
 

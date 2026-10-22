@@ -24,3 +24,4 @@ export * from './scene3d/theme';
 export * from './scene3d/orbit';
 export * from './scene3d/scene';
 export * from './scene3d/view';
+export * from './scene3d/offscreen';

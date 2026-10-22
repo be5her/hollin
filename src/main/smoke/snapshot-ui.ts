@@ -1,3 +1,5 @@
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import type { Smoke } from './harness';
 
@@ -8,7 +10,8 @@ const isPng = (bytes: Buffer) => bytes.length > 1000 && bytes[0] === 0x89 && byt
 /**
  * `view.snapshot`: main asks the window to draw a level and gets a PNG back, through commands and as
  * image content over MCP; a column spanning up from the ground floor shows on the upper floor's
- * snapshot; a level with nothing drawn is refused.
+ * snapshot; the building in 3D from the default view, from above and cut away, also over MCP; a
+ * level with nothing drawn, and a building with nothing built, is refused.
  */
 export async function smokeSnapshotUi(smoke: Smoke, duplexId: string): Promise<void> {
   smoke.section('snapshots');
@@ -30,6 +33,21 @@ export async function smokeSnapshotUi(smoke: Smoke, duplexId: string): Promise<v
   smoke.check('a column spanning up from the ground floor shows on the upper floor snapshot', isPng(withColumn) && !withColumn.equals(upperPng), { before: upperPng.length, after: withColumn.length, column: column.id });
   await run('edit.undo');
 
+  // The building in 3D: from the default three-quarter view, from above, and cut away at the ground floor.
+  const threeQuarter = await run<Snapshot & { view: string }>('view.snapshot', { view: '3d' });
+  const threeQuarterPng = Buffer.from(threeQuarter.data, 'base64');
+  smoke.check('view.snapshot draws the building in 3D', threeQuarter.view === '3d' && threeQuarter.width === 800 && threeQuarter.height === 600 && isPng(threeQuarterPng), { ...threeQuarter, data: `${threeQuarterPng.length} bytes` });
+  const fromAbove = Buffer.from((await run<Snapshot>('view.snapshot', { view: '3d', azimuth: 270, elevation: 89 })).data, 'base64');
+  smoke.check('seen from above it looks different', isPng(fromAbove) && !fromAbove.equals(threeQuarterPng), { above: fromAbove.length, threeQuarter: threeQuarterPng.length });
+  const cutaway = Buffer.from((await run<Snapshot>('view.snapshot', { view: '3d', display: 'cutaway', levelId: ground })).data, 'base64');
+  smoke.check('and cut away at the ground floor too', isPng(cutaway) && !cutaway.equals(threeQuarterPng), { cutaway: cutaway.length });
+  // Kept with the screenshots, to look at what an agent sees.
+  if (smoke.shotsDir) {
+    await fs.mkdir(smoke.shotsDir, { recursive: true });
+    await fs.writeFile(path.join(smoke.shotsDir, '35-snapshot-3d.png'), threeQuarterPng);
+    await fs.writeFile(path.join(smoke.shotsDir, '35-snapshot-3d-cutaway.png'), cutaway);
+  }
+
   const status = await smoke.run<{ url: string }>('mcp.status');
   const client = new Client({ name: 'smoke-viewer', version: '1.0' });
   await client.connect(new StreamableHTTPClientTransport(new URL(`${status.url}?project=${duplexId}`)));
@@ -37,10 +55,13 @@ export async function smokeSnapshotUi(smoke: Smoke, duplexId: string): Promise<v
   const image = result.content[0];
   const rest = result.content[1]?.text ? (JSON.parse(result.content[1].text) as { levelId: string; width: number }) : undefined;
   smoke.check('an agent gets the snapshot as image content over MCP, the level as text', !result.isError && image?.type === 'image' && image.mimeType === 'image/png' && isPng(Buffer.from(image.data ?? '', 'base64')) && rest?.levelId === upper && rest.width === 800, { types: result.content.map((c) => c.type), rest });
+  const in3d = (await client.callTool({ name: 'view_snapshot', arguments: { view: '3d', elevation: 45 } })) as typeof result;
+  smoke.check('and the building in 3D the same way', !in3d.isError && in3d.content[0]?.type === 'image' && isPng(Buffer.from(in3d.content[0].data ?? '', 'base64')) && (JSON.parse(in3d.content[1]?.text ?? '{}') as { view?: string }).view === '3d', { types: in3d.content.map((c) => c.type) });
   await client.close();
 
   const blank = await smoke.run<{ id: string }>('project.create', { name: 'Blank' });
   await smoke.expectError('a level with nothing drawn has no snapshot', 'view.snapshot', {}, 'NOT_FOUND', { projectId: blank.id });
+  await smoke.expectError('nor has an empty building in 3D', 'view.snapshot', { view: '3d' }, 'NOT_FOUND', { projectId: blank.id });
   await smoke.run('project.close', { id: blank.id });
   await smoke.run('project.trash', { id: blank.id });
 }

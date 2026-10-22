@@ -282,8 +282,12 @@ export interface HostEvents {
   'doc.patched': DocPatch & { projectId: string };
   /** A project's warnings changed (see `rules.check`); `count` is the new total. */
   'rules.changed': { projectId: string; count: number };
-  /** `view.snapshot` asks a window to draw a level; the window answers with the hidden `view.snapshot.reply`. */
-  'view.snapshot.request': { id: string; projectId: string; levelId: string; width: number; height: number };
+  /**
+   * `view.snapshot` asks a window to draw a level's plan, or the building in 3D seen from `azimuth`
+   * and `elevation` (degrees) with a display mode at `levelId` and an explode amount; the window
+   * answers with the hidden `view.snapshot.reply`.
+   */
+  'view.snapshot.request': { id: string; projectId: string; levelId: string; width: number; height: number; view: 'plan' | '3d'; azimuth: number; elevation: number; display: 'all' | 'isolate' | 'cutaway'; explode: number };
   /** The assistant's chat for a project changed: the whole chat after a structural change, or a text delta while a reply streams. */
   'assistant.event': { projectId: string; event: AssistantEvent };
 }

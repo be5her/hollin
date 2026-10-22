@@ -297,17 +297,22 @@ export const planModule = defineModule({
     }),
     defineCommand({
       id: 'view.snapshot',
-      title: 'Snapshot of a level',
+      title: 'Snapshot of a level or the building',
       description:
-        "Draws one level's plan from above (walls joined, openings cut, rooms with their names and areas, stairs and elevators with their symbols, columns, slabs, dimensions and labels) fitted into a PNG and returns it as an image, with the level's id and name and the image size. The ground level unless `levelId` is given. Use it to look at the result of a change. Needs the app window: it fails with UNAVAILABLE when no window can draw, and with NOT_FOUND when nothing is drawn on the level yet.",
+        "Draws a picture fitted into a PNG and returns it as an image, with the level's id and name, the view and the image size. `view: 'plan'` (the default): one level's plan from above (walls joined, openings cut, rooms with their names and areas, stairs and elevators with their symbols, columns, slabs, dimensions and labels). `view: '3d'`: the whole building in 3D (every level at its elevation, walls with the openings cut through and glass in the windows, slabs with their stairwells, columns, stairs, ramps and elevators), seen from `azimuth` (degrees counter-clockwise from east on the plan: 270 looks from the south) and `elevation` (degrees above the horizon), the default a three-quarter view from the south-west; `display` shows every level, the level alone (`isolate`), or the level and those below it with its walls cut at the plan cut height (`cutaway`, to see into its rooms from above); `explode` (0 to 1) spreads the levels apart. `levelId` is the level drawn, or the level isolate and cutaway work on; the ground level by default. Use it to look at the result of a change. Needs the app window: it fails with UNAVAILABLE when no window can draw, and with NOT_FOUND when there is nothing to draw yet.",
       scope: 'project',
       output: 'image',
       input: z.object({
         levelId: levelId.optional().describe('Default: the ground level'),
+        view: z.enum(['plan', '3d']).default('plan').describe('The plan of a level, or the building in 3D'),
         width: z.number().int().min(64).max(2048).default(800).describe('Pixels'),
         height: z.number().int().min(64).max(2048).default(600).describe('Pixels'),
+        azimuth: z.number().min(-360).max(360).default(225).describe('3D: degrees counter-clockwise from east the building is seen from (0 east, 90 north, 180 west, 270 south)'),
+        elevation: z.number().min(-89).max(89).default(30).describe('3D: degrees above the horizon (89 is from straight above)'),
+        display: z.enum(['all', 'isolate', 'cutaway']).default('all').describe('3D: every level, the level alone, or the level and those below it with its walls cut'),
+        explode: z.number().min(0).max(1).default(0).describe('3D: 0 as built, 1 spreads each level 4 m above the one below'),
       }),
-      handler: async ({ levelId: lv, width, height }, ctx) => {
+      handler: async ({ levelId: lv, view, width, height, azimuth, elevation, display, explode }, ctx) => {
         const doc = ctx.project!.doc;
         const level = lv ?? doc.building.groundLevelId;
         if (!doc.levels[level]) throw new StudioError('NOT_FOUND', `No level ${level}`);
@@ -319,9 +324,9 @@ export const planModule = defineModule({
           }, SNAPSHOT_TIMEOUT);
           pendingSnapshots.set(id, { resolve, reject, timer });
         });
-        ctx.host.emit('view.snapshot.request', { id, projectId: ctx.project!.id, levelId: level, width, height });
+        ctx.host.emit('view.snapshot.request', { id, projectId: ctx.project!.id, levelId: level, width, height, view, azimuth, elevation, display, explode });
         const data = await png;
-        return { mimeType: 'image/png', data, levelId: level, levelName: doc.levels[level].name, width, height };
+        return { mimeType: 'image/png', data, view, levelId: level, levelName: doc.levels[level].name, width, height };
       },
     }),
     defineCommand({

@@ -113,8 +113,9 @@ export class Scene3dView {
     private readonly canvas: HTMLCanvasElement,
     private readonly callbacks: Scene3dCallbacks = {},
     theme: SceneTheme = LIGHT_SCENE_THEME,
+    options: { preserveDrawingBuffer?: boolean } = {},
   ) {
-    this.renderer = new WebGLRenderer({ canvas, antialias: true });
+    this.renderer = new WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: options.preserveDrawingBuffer ?? false });
     // The cutaway clips the connectors with a plane.
     this.renderer.localClippingEnabled = true;
     this.camera.up.set(0, 0, 1);
@@ -181,9 +182,13 @@ export class Scene3dView {
 
   /** Shows the whole building, from a preset direction or the current one; `notify` reports it to `onOrbit`. Ends a walk. */
   fit(preset?: OrbitPreset, notify = true): void {
+    this.fitFrom(preset ? ORBIT_PRESETS[preset] : this.orbit, notify);
+  }
+
+  /** Shows the whole building from a direction (degrees, as in `Orbit`). */
+  fitFrom(direction: { azimuth: number; elevation: number }, notify = true): void {
     if (this.walking) this.stopWalk();
     const box = this.building.box();
-    const direction = preset ? ORBIT_PRESETS[preset] : this.orbit;
     if (!box) {
       this.orbit = { ...this.orbit, azimuth: direction.azimuth, elevation: direction.elevation };
     } else {
@@ -225,6 +230,13 @@ export class Scene3dView {
     this.requestRender();
   }
 
+  /** Draws a frame now instead of on the next animation frame (an offscreen render). */
+  renderNow(): void {
+    if (this.pending) cancelAnimationFrame(this.pending);
+    this.pending = 0;
+    this.render();
+  }
+
   requestRender(): void {
     if (this.pending) return;
     this.pending = requestAnimationFrame(() => {
@@ -238,6 +250,8 @@ export class Scene3dView {
     this.detach();
     this.building.dispose();
     this.renderer.dispose();
+    // Free the context now: a page may hold only a few at once, and snapshots make one each.
+    this.renderer.forceContextLoss();
   }
 
   /** The display as shown: walking shows everything in place. */
