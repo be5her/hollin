@@ -65,6 +65,33 @@ export class MeshBuilder {
     return this.sides(polys, z0, z1).cap(polys, z1, true).cap(polys, z0, false);
   }
 
+  /**
+   * A straight bar from a to b at any slope (a handrail, a ladder's rail or rung): its cross-section
+   * spans `width` along `side` and `depth` along `up`, both perpendicular to the bar or close to it.
+   */
+  bar(a: Vec3, b: Vec3, side: Vec3, up: Vec3, width: number, depth: number): this {
+    const at = (p: Vec3, s: number, u: number): Vec3 => [p[0] + side[0] * s * (width / 2) + up[0] * u * (depth / 2), p[1] + side[1] * s * (width / 2) + up[1] * u * (depth / 2), p[2] + side[2] * s * (width / 2) + up[2] * u * (depth / 2)];
+    const [a00, a10, a11, a01] = [at(a, -1, -1), at(a, 1, -1), at(a, 1, 1), at(a, -1, 1)];
+    const [b00, b10, b11, b01] = [at(b, -1, -1), at(b, 1, -1), at(b, 1, 1), at(b, -1, 1)];
+    const faces: Vec3[][] = [
+      [a00, a01, a11, a10],
+      [b00, b10, b11, b01],
+      [a00, a10, b10, b00],
+      [a01, b01, b11, a11],
+      [a00, b00, b01, a01],
+      [a10, a11, b11, b10],
+    ];
+    // Which way round the faces go depends on the handedness of (b − a, side, up): wound one way, and flipped when that encloses a negative volume.
+    const probe = new MeshBuilder();
+    for (const [p, q, r, s] of faces) probe.quad(p, q, r, s);
+    const flip = meshVolume(probe.build(), a) < 0;
+    for (const [p, q, r, s] of faces) {
+      if (flip) this.quad(s, r, q, p);
+      else this.quad(p, q, r, s);
+    }
+    return this;
+  }
+
   build(): Mesh {
     return { positions: new Float32Array(this.p) };
   }

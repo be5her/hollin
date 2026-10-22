@@ -144,7 +144,8 @@ const CORNER = (5 * Math.PI) / 180;
 const HANDRAIL_INSET = 50;
 const RUNG_SPACING = 300;
 const ESCALATOR_ANGLE = (30 * Math.PI) / 180;
-const ESCALATOR_LANDING = 1200;
+/** The flat run at each end of an escalator, mm. */
+export const ESCALATOR_LANDING = 1200;
 const ESCALATOR_STEP = 400;
 const mm = (v: number) => `${Math.round(v * 10) / 10} mm`;
 

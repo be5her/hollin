@@ -1,5 +1,5 @@
 import type { RuleLimits } from '../config';
-import { deriveLevels, entitiesOnLevel, type DerivedLevel } from '../doc/derive';
+import { deriveLevels, entitiesOnLevel, levelCeiling, type DerivedLevel } from '../doc/derive';
 import type { Entity, EntityOf, ProjectDoc } from '../doc/schema';
 import { differencePolygons, regionPolygons, unionPolygons } from '../geometry/clip';
 import { connectorCuts } from '../geometry/connectors';
@@ -8,10 +8,11 @@ import { columnPolygon, openingFrame } from '../geometry/openings';
 import type { Polygon } from '../geometry/polygon';
 import { add, scale } from '../geometry/vec';
 import type { WallBody } from '../geometry/walls';
+import { deriveConnectorsSolids, type ConnectorSolids } from './connectors';
 import { MeshBuilder, type Mesh } from './mesh';
 
-/** What a part of the building is made of: the 3D view gives each its own material. */
-export type SolidKind = 'wall' | 'slab' | 'column' | 'glass';
+/** What a part of the building is made of: the 3D view gives each its own material. Connectors are stairs, ramps and escalators; rails their handrails and ladders; car an elevator's car. */
+export type SolidKind = 'wall' | 'slab' | 'column' | 'glass' | 'connector' | 'rail' | 'car';
 
 /** A mesh of one kind and the entities it was built from (a level's walls are joined into one). */
 export interface SolidPart {
@@ -56,14 +57,6 @@ const GLASS = 12;
 const EPS = 1e-6;
 
 const shown = (doc: ProjectDoc, e: Entity) => doc.layers[e.layerId]?.visible !== false;
-
-/** Where a level's walls of full height end: under the slab of the stacked level on top of it, or at its own top. */
-export function levelCeiling(level: DerivedLevel, levels: readonly DerivedLevel[]): number {
-  if (level.placement !== 'stack') return level.top;
-  const above = levels.find((l) => l.placement === 'stack' && l.stackIndex === level.stackIndex + 1);
-  const ceiling = level.top - (above?.slabThickness ?? 0);
-  return ceiling > level.elevation ? ceiling : level.top;
-}
 
 /**
  * A level in 3D, pure data: its walls extruded band by band (every height where a wall starts or
@@ -204,12 +197,14 @@ export function deriveLevelSolids(doc: ProjectDoc, levelId: string, options: Sol
 export interface BuildingSolids {
   /** Bottom to top. */
   levels: LevelSolids[];
+  connectors: ConnectorSolids[];
 }
 
-/** Every level in 3D (see `deriveLevelSolids`), bottom to top; `cut` cuts one level's walls (the cutaway view). */
+/** Every level in 3D (see `deriveLevelSolids`), bottom to top, and every connector (`deriveConnectorSolids`); `cut` cuts one level's walls (the cutaway view). */
 export function deriveBuildingSolids(doc: ProjectDoc, options: Omit<SolidsOptions, 'cutHeight'> & { cut?: { levelId: string; height: number } }): BuildingSolids {
   const levels = options.levels ?? deriveLevels(doc);
   return {
     levels: levels.map((l) => deriveLevelSolids(doc, l.id, { ...options, levels, cutHeight: options.cut?.levelId === l.id ? options.cut.height : undefined })),
+    connectors: deriveConnectorsSolids(doc, options.limits, levels),
   };
 }

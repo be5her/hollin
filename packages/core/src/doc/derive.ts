@@ -53,6 +53,14 @@ export function deriveLevels(doc: Pick<ProjectDoc, 'building' | 'levels'>): Deri
   return out.sort((a, b) => a.elevation - b.elevation || a.stackIndex - b.stackIndex || (a.placement === 'stack' ? -1 : 1));
 }
 
+/** Where a level's walls of full height end: under the slab of the stacked level on top of it, or at its own top. */
+export function levelCeiling(level: DerivedLevel, levels: readonly DerivedLevel[]): number {
+  if (level.placement !== 'stack') return level.top;
+  const above = levels.find((l) => l.placement === 'stack' && l.stackIndex === level.stackIndex + 1);
+  const ceiling = level.top - (above?.slabThickness ?? 0);
+  return ceiling > level.elevation ? ceiling : level.top;
+}
+
 export function levelElevation(doc: Pick<ProjectDoc, 'building' | 'levels'>, levelId: string): number {
   const found = deriveLevels(doc).find((l) => l.id === levelId);
   if (!found) throw new StudioError('NOT_FOUND', `No level ${levelId}`);
