@@ -1,4 +1,4 @@
-import { ClipType, EndType, FillRule, JoinType, PolyTree64, booleanOpWithPolyTree, inflatePaths, type Path64, type Paths64, type PolyPath64 } from 'clipper2-ts';
+import { ClipType, EndType, FillRule, JoinType, PolyTree64, TriangulateResult, booleanOpWithPolyTree, inflatePaths, triangulate, type Path64, type Paths64, type PolyPath64 } from 'clipper2-ts';
 import { flatten, type Path, type Region } from './path';
 import { orient, type Polygon } from './polygon';
 
@@ -99,6 +99,19 @@ export function inflateLines(lines: Polygon[], delta: number, end: keyof typeof 
 export function closePolygons(polys: Polygon[], delta: number): Polygon[] {
   if (!polys.length) return [];
   return inflatePolygons(inflatePolygons(polys, delta), -delta);
+}
+
+/**
+ * Polygons (outlines counter-clockwise, holes clockwise, as booleans return them) split into
+ * triangles, each counter-clockwise, by Clipper2's constrained Delaunay triangulation. Input that
+ * overlaps or touches itself is unioned first; an empty list when even that cannot be triangulated.
+ */
+export function triangulatePolygons(polys: Polygon[]): Polygon[] {
+  if (!polys.length) return [];
+  let result = triangulate(polys.map(toClip), true);
+  if (result.result !== TriangulateResult.success) result = triangulate(unionPolygons(polys).map(toClip), true);
+  if (result.result !== TriangulateResult.success) return [];
+  return result.solution.map((t) => orient(fromClip(t), true));
 }
 
 /** Clipper's loose output as a clean, oriented set: unions it once more through a tree. */

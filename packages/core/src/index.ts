@@ -38,6 +38,8 @@ export * from './geometry/connectors';
 export * from './geometry/connector-edit';
 export * from './geometry/connector-intent';
 export * from './rules/check';
+export * from './solids/mesh';
+export * from './solids/building';
 export * from './describe/describe';
 export * from './tools';
 export * from './guidelines';
