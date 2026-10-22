@@ -6,8 +6,9 @@ const canvas = `${tab} [data-testid=plan-canvas]`;
 
 /**
  * 5,000 walls on one level: added in three batches, drawn, then panned and zoomed with real input
- * while the plan's frame time is read from the canvas; then built in 3D and orbited and zoomed there. The bounds are loose (CI draws with
- * software GL); the numbers are logged for the eye.
+ * while the plan's frame time is read from the canvas; then built in 3D and orbited and zoomed there.
+ * Then 200 pieces of furniture and 20 lights, orbited in 3D at night with the 16 nearest lights on.
+ * The bounds are loose (CI draws with software GL); the numbers are logged for the eye.
  */
 export async function smokePerf(smoke: Smoke): Promise<void> {
   smoke.section('performance');
@@ -89,4 +90,48 @@ export async function smokePerf(smoke: Smoke): Promise<void> {
   smoke.check(`orbiting and zooming 5,000 walls in 3D stays under 250 ms a frame (mean ${mean3d.toFixed(1)} ms)`, frames3d.every(Number.isFinite) && mean3d < 250, { built, frames3d });
   await smoke.click(`${tab} [data-testid=center-tab-plan]`);
   await smoke.run('project.close', { id: project.id });
+
+  // 200 pieces of furniture and 20 lights in 3D, at night: placed in one batch, drawn, orbited and zoomed.
+  const furnished = await smoke.run<OpenProject>('project.create', { name: 'Furnished stress' });
+  const floor = smoke.host.projects.session(furnished.id)!.doc.building.groundLevelId;
+  const models = ['builtin:sofa-3', 'builtin:armchair', 'builtin:dining-table-6', 'builtin:dining-chair', 'builtin:bed-double', 'builtin:wardrobe', 'builtin:desk', 'builtin:office-chair', 'builtin:bookshelf', 'builtin:planter'];
+  const decor = [
+    { command: 'plan.entity.add', input: { levelId: floor, entity: { type: 'slab', source: { k: 'region', region: { outer: { closed: true, v: [{ p: [-1500, -1500] }, { p: [58500, -1500] }, { p: [58500, 28500] }, { p: [-1500, 28500] }] } } } } } },
+    ...Array.from({ length: 200 }, (_, i) => ({ command: 'decor.item.place', input: { levelId: floor, ref: models[i % models.length], at: [(i % 20) * 3000, Math.floor(i / 20) * 3000], rotation: (i * 30) % 360 } })),
+    ...Array.from({ length: 20 }, (_, i) => ({ command: 'decor.light.add', input: { levelId: floor, at: [(i % 5) * 12000 + 1500, Math.floor(i / 5) * 7000 + 1500, 2400], intensity: 1500 } })),
+  ];
+  const t2 = Date.now();
+  await smoke.run('plan.apply', { label: 'Furnish', steps: decor }, { projectId: furnished.id });
+  const placed = Date.now() - t2;
+  const entities = Object.values(smoke.host.projects.session(furnished.id)!.doc.levelData[floor].entities);
+  smoke.check(`200 items and 20 lights placed in one batch (${placed} ms)`, entities.filter((e) => e.type === 'item').length === 200 && entities.filter((e) => e.type === 'light').length === 20, { placed });
+  await smoke.until(() => smoke.js<boolean>(`!!document.querySelector('${tab} [data-testid=plan-level] option[value="${floor}"]')`));
+  await smoke.click(`${tab} [data-testid=center-tab-3d]`);
+  const t3 = Date.now();
+  smoke.check('the 3D view builds the furniture', await smoke.until(async () => Number(await sceneAttr('meshes')) > 400, 30_000), await sceneAttr('meshes'));
+  const furnishedBuilt = Date.now() - t3;
+  await smoke.click(`${tab} [data-testid=scene-lighting-night]`);
+  smoke.check('at night only the 16 nearest of the 20 lights are on', await smoke.until(async () => (await sceneAttr('lights')) === '16'), await sceneAttr('lights'));
+  await wait(300);
+  const r4 = (await smoke.rect(scene))!;
+  const mid = { x: r4.x + r4.width / 2, y: r4.y + r4.height / 2 };
+  const framesDecor: number[] = [];
+  const sampleDecor = async () => {
+    await wait(80);
+    framesDecor.push(Number(await sceneAttr('frameMs')));
+  };
+  for (let i = 0; i < 3; i++) {
+    await smoke.dragAt(mid, { x: mid.x + 80, y: mid.y + 20 }, { steps: 6 });
+    await sampleDecor();
+  }
+  for (let i = 0; i < 3; i++) {
+    await smoke.wheel(mid.x, mid.y, -240);
+    await sampleDecor();
+  }
+  const meanDecor = framesDecor.reduce((a, b) => a + b, 0) / framesDecor.length;
+  console.log(`200 items and 20 lights in 3D at night: placed in ${placed} ms, built and first drawn in ${furnishedBuilt} ms (${await sceneAttr('meshes')} meshes); ${framesDecor.length} frames while orbiting and zooming: mean ${meanDecor.toFixed(1)} ms, worst ${Math.max(...framesDecor).toFixed(1)} ms`);
+  smoke.check(`orbiting 200 items with 16 lights on stays under 250 ms a frame (mean ${meanDecor.toFixed(1)} ms)`, framesDecor.every(Number.isFinite) && meanDecor < 250, { furnishedBuilt, framesDecor });
+  await smoke.click(`${tab} [data-testid=scene-lighting-day]`);
+  await smoke.click(`${tab} [data-testid=center-tab-plan]`);
+  await smoke.run('project.close', { id: furnished.id });
 }
