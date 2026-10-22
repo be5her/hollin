@@ -48,7 +48,8 @@ export async function smokeDecor(smoke: Smoke): Promise<{ decorId: string; table
   const index = JSON.parse(await fs.readFile(path.join(catalogDir, 'index.json'), 'utf8')) as { models: { file: string; size: number[] }[] };
   smoke.check('the model is stored in the catalog with an index entry', index.models.some((m) => m.file === `${sha}.glb` && m.size.join() === '1200,600,750') && Boolean(await fs.stat(path.join(catalogDir, `${sha}.glb`)).catch(() => null)));
   smoke.check('the import is announced', smoke.eventsSince(from, 'catalog.changed').some((e) => e.reason === 'imported' && e.file === `${sha}.glb`));
-  smoke.check('importing the same model again lists it once', (await smoke.run<Entry>('catalog.import', { path: source })).added === false && (await smoke.run<Entry[]>('catalog.search', {})).length === 1);
+  const library = async (projectId?: string) => (await smoke.run<Entry[]>('catalog.search', { limit: 500 }, projectId ? { projectId } : {})).filter((e) => e.source !== 'builtin');
+  smoke.check('importing the same model again lists it once', (await smoke.run<Entry>('catalog.import', { path: source })).added === false && (await library()).length === 1);
   await fs.writeFile(path.join(dir, 'broken.glb'), bytes.subarray(0, 200));
   await smoke.expectError('a damaged model is refused', 'catalog.import', { path: path.join(dir, 'broken.glb') }, 'INVALID_INPUT');
   await fs.writeFile(path.join(dir, 'chair.fbx'), 'Kaydara FBX Binary');
@@ -59,8 +60,14 @@ export async function smokeDecor(smoke: Smoke): Promise<{ decorId: string; table
   await client.connect(new StreamableHTTPClientTransport(new URL(status.url)));
   const tools = new Set((await client.listTools()).tools.map((t) => t.name));
   smoke.check('the catalog tools are available to agents, the thumbnail plumbing is not', ['catalog_search', 'catalog_get', 'catalog_import', 'catalog_remove', 'decor_item_place'].every((t) => tools.has(t)) && !tools.has('catalog_thumbnail_set'));
-  const found = text(await client.callTool({ name: 'catalog_search', arguments: { query: 'dining table' } })) as Entry[];
-  smoke.check('an agent finds the imported model by name over MCP', found.length === 1 && found[0].ref === imported.ref && found[0].source === 'library', found);
+  const found = text(await client.callTool({ name: 'catalog_search', arguments: { query: 'smoke dining' } })) as Entry[];
+  smoke.check('an agent finds the imported model by name over MCP', found[0]?.ref === imported.ref && found[0].source === 'library', found);
+  const tables = text(await client.callTool({ name: 'catalog_search', arguments: { query: 'dining table' } })) as Entry[];
+  smoke.check('built-in furniture is found next to it, with its size', tables.some((e) => e.ref === 'builtin:dining-table-6' && e.size.join() === '1800,900,750') && tables.some((e) => e.ref === imported.ref), tables.map((e) => e.ref));
+  const woods = text(await client.callTool({ name: 'catalog_search', arguments: { kind: 'material', query: 'parquet' } })) as (Entry & { color: string })[];
+  smoke.check('an agent finds materials by their tags', woods.length === 2 && woods.every((e) => e.ref.startsWith('builtin:') && /^#[0-9a-f]{6}$/.test(e.color)), woods);
+  const styles = text(await client.callTool({ name: 'catalog_search', arguments: { kind: 'style', category: 'door' } })) as Entry[];
+  smoke.check('and door styles by category', styles.map((e) => e.ref).join() === 'builtin:door-flush,builtin:door-panel,builtin:door-glazed', styles);
   smoke.check('a search for something else finds nothing', (text(await client.callTool({ name: 'catalog_search', arguments: { query: 'piano' } })) as Entry[]).length === 0);
   const removal = await client.callTool({ name: 'catalog_remove', arguments: { ref: imported.ref } });
   smoke.check('removing a model is gated for agents', removal.isError === true && (text(removal) as { code: string }).code === 'MUTATION_BLOCKED', text(removal));
@@ -76,6 +83,14 @@ export async function smokeDecor(smoke: Smoke): Promise<{ decorId: string; table
   smoke.check("the project's registry lists the model", doc().assets[`${sha}.glb`]?.size.join() === '1200,600,750', doc().assets);
   const projectDir = host.projects.library.projectDir(project.id);
   smoke.check('the model is copied into the project assets', createHash('sha256').update(await fs.readFile(path.join(projectDir, 'assets', `${sha}.glb`))).digest('hex') === sha);
+  const sofa = await smoke.run<{ id: string }>('decor.item.place', { levelId: ground, ref: 'builtin:sofa-3', at: [3000, 1000], materials: { fabric: 'builtin:fabric-linen' } }, { projectId: project.id });
+  const sofaItem = doc().levelData[ground].entities[sofa.id];
+  smoke.check('a built-in sofa is placed with its slot repainted and nothing to copy', sofaItem?.type === 'item' && sofaItem.asset === 'builtin:sofa-3' && sofaItem.materials.fabric === 'builtin:fabric-linen' && Object.keys(doc().assets).length === 1, sofaItem);
+  const cabinet = await smoke.run<{ id: string }>('decor.item.place', { levelId: ground, ref: 'builtin:wall-cabinet', at: [0, 3000] }, { projectId: project.id });
+  smoke.check('a wall cabinet goes at its usual height', (doc().levelData[ground].entities[cabinet.id] as { at: readonly number[] }).at[2] === 1450);
+  await smoke.expectError('a slot the model does not have is refused', 'decor.item.place', { levelId: ground, ref: 'builtin:sofa-3', at: [0, 0], materials: { glass: 'builtin:glass' } }, 'INVALID_INPUT', { projectId: project.id });
+  await smoke.expectError('a material that does not exist is refused', 'decor.item.place', { levelId: ground, ref: 'builtin:sofa-3', at: [0, 0], materials: { fabric: 'builtin:unobtainium' } }, 'INVALID_INPUT', { projectId: project.id });
+  await smoke.expectError('an unknown built-in is refused', 'decor.item.place', { levelId: ground, ref: 'builtin:spaceship', at: [0, 0] }, 'NOT_FOUND', { projectId: project.id });
   await smoke.expectError('an unknown model is refused', 'decor.item.place', { levelId: ground, ref: `asset:${'0'.repeat(64)}.glb`, at: [0, 0] }, 'NOT_FOUND', { projectId: project.id });
   await smoke.expectError('a reference that is no model is refused', 'plan.entity.add', { levelId: ground, entity: { type: 'item', asset: 'table.glb', at: [0, 0, 0] } }, 'INVALID_INPUT', { projectId: project.id });
 
@@ -84,12 +99,12 @@ export async function smokeDecor(smoke: Smoke): Promise<{ decorId: string; table
   await smoke.run('project.close', { id: project.id });
   // The catalog loses the model; the package still carries it.
   await smoke.run('catalog.remove', { ref: imported.ref });
-  smoke.check('removing a model from the catalog leaves the project its copy', (await smoke.run<Entry[]>('catalog.search', {})).length === 0 && Boolean(await fs.stat(path.join(projectDir, 'assets', `${sha}.glb`)).catch(() => null)));
+  smoke.check('removing a model from the catalog leaves the project its copy', (await library()).length === 0 && Boolean(await fs.stat(path.join(projectDir, 'assets', `${sha}.glb`)).catch(() => null)));
   const copy = await smoke.run<OpenProject>('project.import', { path: file });
   const copyDoc = host.projects.session(copy.id)!.doc as ProjectDoc;
   const copied = await fs.readFile(path.join(host.projects.library.projectDir(copy.id), 'assets', `${sha}.glb`)).catch(() => null);
   smoke.check('a package carries the model: the imported project has the asset intact and registered', Boolean(copied) && createHash('sha256').update(copied!).digest('hex') === sha && Boolean(copyDoc.assets[`${sha}.glb`]) && Object.values(copyDoc.levelData[copyDoc.building.groundLevelId].entities).some((e) => e.type === 'item' && e.asset === imported.ref));
-  const listed = await smoke.run<Entry[]>('catalog.search', {}, { projectId: copy.id });
+  const listed = await library(copy.id);
   smoke.check("the project's own model is offered while the catalog lacks it", listed.length === 1 && listed[0].source === 'project' && listed[0].name === 'Smoke dining table', listed);
   await smoke.run('project.close', { id: copy.id });
 

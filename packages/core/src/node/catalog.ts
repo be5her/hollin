@@ -22,6 +22,7 @@ const ModelSchema = z.object({
   min: Vec3,
   bytes: z.number(),
   triangles: z.number(),
+  slots: z.array(z.string()).default([]),
   importedAt: z.string(),
   thumbnail: z.string().nullable(),
 });
@@ -135,6 +136,7 @@ export class Catalog {
       min: info.min,
       bytes: bytes.length,
       triangles: info.triangles,
+      slots: info.materials,
       importedAt: known?.importedAt ?? new Date().toISOString(),
       thumbnail: thumb ? String(Math.round(thumb.mtimeMs)) : null,
     };
@@ -195,6 +197,7 @@ export class Catalog {
       min: info.min,
       bytes: glb.length,
       triangles: info.triangles,
+      slots: info.materials,
       importedAt: new Date().toISOString(),
       thumbnail: null,
     };

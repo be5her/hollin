@@ -312,6 +312,7 @@ export const AssetSchema = z.object({
   size: Vec3Schema.describe("The model's extent, mm (x, y on the plan, z up)"),
   min: Vec3Schema.describe("The low corner of the extent, mm, in the model's own coordinates"),
   bytes: z.number().int().min(0).optional(),
+  slots: z.array(z.string().max(60)).max(64).optional().describe("The model's material names, which an item can repaint"),
 });
 export type Asset = z.infer<typeof AssetSchema>;
 

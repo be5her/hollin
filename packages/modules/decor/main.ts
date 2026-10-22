@@ -1,78 +1,74 @@
-import { StudioError, addEntityOps, defineCommand, defineModule, editProject, parseRef, requireLevel, type Asset, type CatalogModel, type CommandContext, type Op } from '@studio/core';
+import {
+  StudioError,
+  addEntityOps,
+  builtinEntries,
+  builtinMaterial,
+  builtinRecipe,
+  defineCommand,
+  defineModule,
+  editProject,
+  modelEntry,
+  parseRef,
+  requireLevel,
+  searchCatalog,
+  type Asset,
+  type CatalogEntry,
+  type CommandContext,
+  type Op,
+} from '@studio/core';
 import { z } from 'zod';
 
 const levelId = z.string().describe('Level id, from building_get');
 const Point = z.tuple([z.number(), z.number()]).describe('[x, y] in mm, y up');
 const Size = z.tuple([z.number().positive(), z.number().positive(), z.number().positive()]);
 
-/** One result shape for every kind of catalog entry, built-in or imported. */
-export interface CatalogEntry {
-  ref: string;
-  kind: 'item' | 'material' | 'style';
-  /** Where it comes from: shipped with the app, imported into the library, or only in this project's assets. */
-  source: 'builtin' | 'library' | 'project';
-  name: string;
-  category: string;
-  tags: string[];
-  /** mm, z up: width (x), depth (y), height (z). */
-  size: readonly [number, number, number] | null;
-  /** The material slots a model can be given (built-ins only). */
-  slots: string[];
-  /** A token that changes with the stored thumbnail; null when there is none to fetch. */
-  thumbnail: string | null;
-}
-
 const fold = (text: string) => text.normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase();
 
-function modelEntry(m: CatalogModel): CatalogEntry {
-  return { ref: m.ref, kind: 'item', source: 'library', name: m.name, category: m.category, tags: m.tags, size: m.size, slots: [], thumbnail: m.thumbnail };
-}
-
 function assetEntry(file: string, a: Asset): CatalogEntry {
-  return { ref: `asset:${file}`, kind: 'item', source: 'project', name: a.name, category: a.category, tags: [], size: a.size, slots: [], thumbnail: null };
+  return { ref: `asset:${file}`, kind: 'item', source: 'project', name: a.name, category: a.category, tags: [], size: a.size, slots: a.slots ?? [], thumbnail: null };
 }
 
-/** Every entry an agent or the Catalog panel can pick from: the library's models, and models only the project has. */
+/** Every entry an agent or the Catalog panel can pick from: the built-ins, the library's models, and models only the project has. */
 function allEntries(ctx: CommandContext): CatalogEntry[] {
   const library = ctx.host.projects.catalog.models().map(modelEntry);
   const known = new Set(library.map((e) => e.ref));
   const project = Object.entries(ctx.project?.doc.assets ?? {})
     .filter(([file]) => !known.has(`asset:${file}`))
     .map(([file, a]) => assetEntry(file, a));
-  return [...library, ...project];
+  return [...builtinEntries(), ...library, ...project];
 }
 
-/** Ranks entries against a query: every word must appear in the name, category or tags; name matches first. */
-export function searchEntries(entries: CatalogEntry[], query: string | undefined): CatalogEntry[] {
-  const words = fold(query?.trim() ?? '').split(/\s+/).filter(Boolean);
-  if (!words.length) return entries;
-  const scored = entries
-    .map((e) => {
-      const name = fold(e.name);
-      const rest = fold(`${e.category} ${e.tags.join(' ')}`);
-      let score = 0;
-      for (const w of words) {
-        if (name.startsWith(w)) score += 3;
-        else if (name.includes(w)) score += 2;
-        else if (rest.includes(w)) score += 1;
-        else return null;
-      }
-      return { e, score };
-    })
-    .filter((s): s is { e: CatalogEntry; score: number } => s !== null);
-  return scored.sort((a, b) => b.score - a.score || a.e.name.localeCompare(b.e.name)).map((s) => s.e);
-}
-
-/** What a model reference stands for in this project: its size, and the asset to register (and file to copy) when it is new here. */
-async function resolveModel(ctx: CommandContext, ref: string): Promise<{ name: string; size: readonly [number, number, number]; register?: Asset }> {
+/** Refuses a material that is neither a built-in nor a paint colour. */
+export function checkMaterial(ref: string, where: string): void {
   const parsed = parseRef(ref);
+  if (parsed?.k === 'paint') return;
+  if (parsed?.k === 'builtin' && builtinMaterial(parsed.id)) return;
+  throw new StudioError('INVALID_INPUT', `${where}: ${ref} is not a material; use builtin:<id> from catalog_search with kind "material", or paint:#rrggbb`);
+}
+
+interface ResolvedModel {
+  name: string;
+  size: readonly [number, number, number];
+  slots: string[];
+  /** The asset to register (and file to copy) when the model is new to the project. */
+  register?: Asset;
+  elevation?: number;
+}
+
+/** What a model reference stands for in this project. */
+async function resolveModel(ctx: CommandContext, ref: string): Promise<ResolvedModel> {
+  const parsed = parseRef(ref);
+  if (parsed?.k === 'builtin') {
+    const recipe = builtinRecipe(parsed.id);
+    if (recipe) return { name: recipe.name, size: recipe.size, slots: Object.keys(recipe.slots), ...(recipe.elevation ? { elevation: recipe.elevation } : {}) };
+  }
   if (parsed?.k === 'asset') {
     const own = ctx.project!.doc.assets[parsed.file];
-    if (own) return { name: own.name, size: own.size };
+    if (own) return { name: own.name, size: own.size, slots: own.slots ?? [] };
     const model = ctx.host.projects.catalog.model(parsed.file);
     if (!model) throw new StudioError('NOT_FOUND', `No model ${ref} in the catalog or the project; catalog_search lists them`);
     await ctx.host.projects.catalog.copyToProject(parsed.file, ctx.project!.id);
-    return { name: model.name, size: model.size, register: { id: parsed.file, kind: 'model', name: model.name, category: model.category, size: model.size, min: model.min, bytes: model.bytes } };
+    return { name: model.name, size: model.size, slots: model.slots, register: { id: parsed.file, kind: 'model', name: model.name, category: model.category, size: model.size, min: model.min, bytes: model.bytes, ...(model.slots.length ? { slots: model.slots } : {}) } };
   }
   throw new StudioError('NOT_FOUND', `No model ${ref}; catalog_search lists the models`);
 }
@@ -88,7 +84,7 @@ export const decorModule = defineModule({
       id: 'catalog.search',
       title: 'Search the catalog',
       description:
-        "Searches the catalog of furniture models (kind 'item'). Every word of `query` must appear in an entry's name, category or tags (name matches rank first); `category` keeps one category. Returns entries with `ref` (pass it to decor_item_place), name, category, tags, size [width, depth, height] in mm, material slots, and where it comes from (the library, or only this project).",
+        "Searches the catalog: furniture and other models (kind 'item', the default: built-in ones and models imported into the library, which decor_item_place takes), materials (kind 'material': paints, timber, tiles, stone, carpet, brick, fabrics, metals, glass, for decor_material_set and item slots; any colour is also `paint:#rrggbb`) or door and window styles (kind 'style', for an opening's `style`). `query` ranks by name, then category and tags; `category` keeps one category (items: living, dining, bedroom, kitchen, bathroom, office, lighting, outdoor, imported). Returns entries with `ref`, name, category, tags, size [width, depth, height] in mm (items), material slots, the colour (materials), whether a lamp can bring its light, and where it comes from (builtin, the library, or only this project).",
       scope: 'global',
       input: z.object({
         query: z.string().max(200).optional(),
@@ -98,13 +94,13 @@ export const decorModule = defineModule({
       }),
       handler: async ({ query, kind, category, limit }, ctx) => {
         const entries = allEntries(ctx).filter((e) => e.kind === kind && (!category || fold(e.category) === fold(category)));
-        return searchEntries(entries, query).slice(0, limit);
+        return searchCatalog(entries, query).slice(0, limit);
       },
     }),
     defineCommand({
       id: 'catalog.get',
       title: 'Catalog entry',
-      description: 'One catalog entry by its `ref` (from catalog_search), with its size in mm and material slots.',
+      description: 'One catalog entry by its `ref` (from catalog_search): an item with its size in mm and material slots, a material with its colour, or a style.',
       scope: 'global',
       input: z.object({ ref: z.string().min(1).max(200) }),
       handler: async ({ ref }, ctx) => {
@@ -156,14 +152,14 @@ export const decorModule = defineModule({
       id: 'decor.item.place',
       title: 'Place a furniture item',
       description:
-        "Places a model from the catalog (`ref`, from catalog_search) on a level's decor layer, its bottom centre at `at` [x, y] mm and `height` mm above the floor (0 by default), turned `rotation` degrees counter-clockwise on the plan. Give `size` [width, depth, height] in mm, or `scale`, to resize it (its own size by default). A library model is copied into the project the first time it is used. Returns the item's id.",
+        "Places a model from the catalog (`ref`, from catalog_search) on a level's decor layer, its bottom centre at `at` [x, y] mm and `height` mm above the floor (the model's usual height by default: 0, or e.g. 1450 for a wall cabinet), turned `rotation` degrees counter-clockwise on the plan (0: its front faces south, −y). Give `size` [width, depth, height] in mm, or `scale`, to resize it (its own size by default), and `materials` to repaint slots. A library model is copied into the project the first time it is used. Returns the item's id.",
       scope: 'project',
       batchable: true,
       input: z.object({
         levelId,
         ref: z.string().min(1).max(200),
         at: Point,
-        height: z.number().min(-100_000).max(100_000).default(0).describe('Above the floor, mm'),
+        height: z.number().min(-100_000).max(100_000).optional().describe("Above the floor, mm; the model's usual height by default"),
         rotation: z.number().min(-360).max(360).default(0).describe('Degrees, counter-clockwise on the plan'),
         size: Size.optional().describe('[width, depth, height] mm'),
         scale: Size.optional().describe('Relative to the model'),
@@ -179,6 +175,10 @@ export const decorModule = defineModule({
           throw new StudioError('INVALID_INPUT', `Level "${doc.levels[input.levelId].name}" has no decor layer for furniture; add one with plan_layer_add`);
         }
         const model = await resolveModel(ctx, input.ref);
+        for (const [slot, ref] of Object.entries(input.materials ?? {})) {
+          if (!model.slots.includes(slot)) throw new StudioError('INVALID_INPUT', `${model.name} has no slot "${slot}"; its slots are ${model.slots.join(', ') || 'none'}`);
+          checkMaterial(ref, `materials.${slot}`);
+        }
         const scale = input.scale ?? (input.size ? ([0, 1, 2].map((k) => input.size![k] / Math.max(1e-6, model.size[k])) as [number, number, number]) : [1, 1, 1]);
         const { result } = await editProject(ctx, `Place ${input.name ?? model.name}`, (tx) => {
           const ops: Op[] = [];
@@ -186,7 +186,7 @@ export const decorModule = defineModule({
           const entity = {
             type: 'item' as const,
             asset: input.ref,
-            at: [input.at[0], input.at[1], input.height] as const,
+            at: [input.at[0], input.at[1], input.height ?? model.elevation ?? 0] as const,
             rotation: [0, 0, input.rotation] as const,
             scale,
             materials: input.materials ?? {},

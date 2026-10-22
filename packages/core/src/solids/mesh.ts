@@ -65,6 +65,28 @@ export class MeshBuilder {
     return this.sides(polys, z0, z1).cap(polys, z1, true).cap(polys, z0, false);
   }
 
+  /** A closed box between two corners, its vertical edges rounded by `r` (0: square). */
+  roundedBox(min: Vec3, max: Vec3, r = 0): this {
+    return this.prism([roundedRect(min[0], min[1], max[0], max[1], r)], min[2], max[2]);
+  }
+
+  /** A closed cylinder or cone about a vertical axis: radius r0 at z0, r1 at z1 (either may be 0, not both), `n` sides. */
+  cylinder(c: readonly [number, number], z0: number, z1: number, r0: number, r1: number, n = 20): this {
+    if (z1 <= z0 || (r0 <= 0 && r1 <= 0)) return this;
+    const ring = (r: number, z: number): Vec3[] => Array.from({ length: n }, (_, i) => [c[0] + r * Math.cos((2 * Math.PI * i) / n), c[1] + r * Math.sin((2 * Math.PI * i) / n), z]);
+    const lo = ring(r0, z0);
+    const hi = ring(r1, z1);
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      if (r0 <= 0) this.triangle(lo[i], hi[j], hi[i]);
+      else if (r1 <= 0) this.triangle(lo[i], lo[j], hi[i]);
+      else this.quad(lo[i], lo[j], hi[j], hi[i]);
+    }
+    if (r0 > 0) this.cap([circlePolygon(c, r0, n)], z0, false);
+    if (r1 > 0) this.cap([circlePolygon(c, r1, n)], z1, true);
+    return this;
+  }
+
   /**
    * A straight bar from a to b at any slope (a handrail, a ladder's rail or rung): its cross-section
    * spans `width` along `side` and `depth` along `up`, both perpendicular to the bar or close to it.
@@ -95,6 +117,32 @@ export class MeshBuilder {
   build(): Mesh {
     return { positions: new Float32Array(this.p) };
   }
+}
+
+/** A rectangle with rounded corners (radius clamped to fit), counter-clockwise. */
+export function roundedRect(x0: number, y0: number, x1: number, y1: number, r: number, steps = 4): Polygon {
+  const k = Math.max(0, Math.min(r, (x1 - x0) / 2, (y1 - y0) / 2));
+  if (k <= 0.5)
+    return [
+      [x0, y0],
+      [x1, y0],
+      [x1, y1],
+      [x0, y1],
+    ];
+  const out: Polygon = [];
+  const corners: [number, number, number][] = [
+    [x1 - k, y0 + k, -Math.PI / 2],
+    [x1 - k, y1 - k, 0],
+    [x0 + k, y1 - k, Math.PI / 2],
+    [x0 + k, y0 + k, Math.PI],
+  ];
+  for (const [cx, cy, start] of corners) for (let i = 0; i <= steps; i++) out.push([cx + k * Math.cos(start + (i / steps) * (Math.PI / 2)), cy + k * Math.sin(start + (i / steps) * (Math.PI / 2))]);
+  return out;
+}
+
+/** A circle as a regular polygon, counter-clockwise. */
+export function circlePolygon(c: readonly [number, number], r: number, n = 20): Polygon {
+  return Array.from({ length: n }, (_, i) => [c[0] + r * Math.cos((2 * Math.PI * i) / n), c[1] + r * Math.sin((2 * Math.PI * i) / n)]);
 }
 
 /** The number of triangles in a mesh. */

@@ -63,7 +63,7 @@ export interface GltfJson {
   accessors?: GltfAccessor[];
   bufferViews?: GltfBufferView[];
   buffers?: { byteLength: number; uri?: string }[];
-  materials?: unknown[];
+  materials?: { name?: string }[];
   images?: { uri?: string; bufferView?: number; mimeType?: string }[];
   extensionsUsed?: string[];
   extensionsRequired?: string[];
@@ -77,6 +77,8 @@ export interface ModelInfo {
   size: Vec3;
   meshes: number;
   triangles: number;
+  /** The model's materials by name (`material-<i>` when unnamed): the slots an item can repaint. */
+  materials: string[];
 }
 
 function bad(message: string): never {
@@ -292,7 +294,8 @@ export function inspectGltf(json: GltfJson, bin: Uint8Array | null): ModelInfo {
   const round = (v: number) => Math.round(v * 1000) / 1000;
   const lo: Vec3 = [round(min[0]), round(min[1]), round(min[2])];
   const hi: Vec3 = [round(max[0]), round(max[1]), round(max[2])];
-  return { min: lo, max: hi, size: [round(hi[0] - lo[0]), round(hi[1] - lo[1]), round(hi[2] - lo[2])], meshes, triangles };
+  const materials = (json.materials ?? []).map((m, i) => (typeof m?.name === 'string' && m.name.trim() ? m.name.trim().slice(0, 60) : `material-${i}`));
+  return { min: lo, max: hi, size: [round(hi[0] - lo[0]), round(hi[1] - lo[1]), round(hi[2] - lo[2])], meshes, triangles, materials: [...new Set(materials)] };
 }
 
 /** Reads and measures a GLB file. Throws INVALID_INPUT with the reason when it is damaged or unusable. */
@@ -381,7 +384,7 @@ export function writeGlb(meshes: readonly GlbMesh[], options: { generator?: stri
     return accessors.length - 1;
   };
   const gltfMeshes: GltfJson['meshes'] = [];
-  const materials: unknown[] = [];
+  const materials: { name?: string; pbrMetallicRoughness: unknown }[] = [];
   for (const [i, mesh] of meshes.entries()) {
     const count = mesh.positions.length / 3;
     const min = [Infinity, Infinity, Infinity];
@@ -398,7 +401,7 @@ export function writeGlb(meshes: readonly GlbMesh[], options: { generator?: stri
     const primitive: GltfPrimitive = { attributes, material: i, mode: 4 };
     if (mesh.indices) primitive.indices = add(mesh.indices, 34963, { componentType: 5125, count: mesh.indices.length, type: 'SCALAR' });
     gltfMeshes.push({ ...(mesh.name ? { name: mesh.name } : {}), primitives: [primitive] });
-    materials.push({ pbrMetallicRoughness: { baseColorFactor: [...mesh.color], metallicFactor: mesh.metallic ?? 0, roughnessFactor: mesh.roughness ?? 0.8 } });
+    materials.push({ ...(mesh.name ? { name: mesh.name } : {}), pbrMetallicRoughness: { baseColorFactor: [...mesh.color], metallicFactor: mesh.metallic ?? 0, roughnessFactor: mesh.roughness ?? 0.8 } });
   }
   const bin = new Uint8Array(length);
   let at = 0;
