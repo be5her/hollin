@@ -3,9 +3,10 @@ import { FormField, form } from '@angular/forms/signals';
 import { DEFAULT_RULE_LIMITS, deriveLevels, type DimensionKind, type GlobalConfig, type ProjectDoc, type Vec2, parseAngle } from '@studio/core';
 import { AppState, Checkbox, ContextMenu, HostBridge, Icon, IconButton, Input, LengthInput, ProjectDocs, ProjectView, Select, Toasts, Units, type ContextMenuItem } from '@studio/ui';
 import { DEFAULT_TOOL_OPTIONS, LIGHT_THEME, Plan2dEditor, drawingScale, readPlanTheme, renderLevelToPng, type Camera, type ShapeOptions, type SnapResult, type StairShape, type TextRequest, type ToolId, type UnderlayMode, type WallOptions } from '@studio/viewport';
-import { ArrowBigUp, Blinds, BrickWall, ChevronDown, ChevronsUp, Circle, CircleDot, DoorOpen, DraftingCompass, Footprints, LandPlot, Magnet, Maximize, MousePointer2, Pentagon, Ruler, SeparatorVertical, Square, TrendingUp, Type, ZoomIn, ZoomOut } from 'lucide';
+import { ArrowBigUp, Blinds, BrickWall, ChevronDown, ChevronsUp, Circle, CircleDot, DoorOpen, DraftingCompass, Footprints, LandPlot, Magnet, Maximize, MousePointer2, Pentagon, Ruler, SeparatorVertical, Sofa, Square, TrendingUp, Type, ZoomIn, ZoomOut } from 'lucide';
 import { PlanGeometry } from './plan-geometry';
 import { PlanSelection } from './plan-selection';
+import { PlanTools, type ItemArm } from './plan-tools';
 
 interface WallDraft {
   thickness: string;
@@ -49,6 +50,7 @@ export class PlanView {
   private readonly toasts = inject(Toasts);
   private readonly menu = inject(ContextMenu);
   private readonly planSelection = inject(PlanSelection);
+  private readonly planTools = inject(PlanTools);
   private readonly planGeometry = inject(PlanGeometry);
   private readonly document = inject(DOCUMENT);
   private readonly destroyRef = inject(DestroyRef);
@@ -60,7 +62,7 @@ export class PlanView {
   private readonly container = viewChild.required<ElementRef<HTMLDivElement>>('container');
   private readonly dynamicInputEl = viewChild<ElementRef<HTMLInputElement>>('dynamicInput');
 
-  protected readonly icons = { ArrowBigUp, Blinds, BrickWall, ChevronDown, ChevronsUp, Circle, CircleDot, DoorOpen, DraftingCompass, Footprints, LandPlot, Magnet, Maximize, MousePointer2, Pentagon, Ruler, SeparatorVertical, Square, TrendingUp, Type, ZoomIn, ZoomOut };
+  protected readonly icons = { ArrowBigUp, Blinds, BrickWall, ChevronDown, ChevronsUp, Circle, CircleDot, DoorOpen, DraftingCompass, Footprints, LandPlot, Magnet, Maximize, MousePointer2, Pentagon, Ruler, SeparatorVertical, Sofa, Square, TrendingUp, Type, ZoomIn, ZoomOut };
   protected readonly snapKinds = SNAP_KINDS;
   protected readonly doc = computed(() => this.docs.read(this.projectId())?.doc);
   protected readonly levels = computed(() => {
@@ -112,6 +114,10 @@ export class PlanView {
   protected readonly columnShape = signal<'rect' | 'circle'>('rect');
   protected readonly columnRotation = signal(0);
   protected readonly columnSpan = signal<string | null>(null);
+  /** The model the Item tool places (armed from the Catalog panel), and whether a lamp brings its light. */
+  protected readonly itemArm = signal<ItemArm | null>(null);
+  protected readonly itemWithLight = signal(true);
+  private armedSeen = 0;
   protected readonly isConnectorTool = computed(() => this.tool() === 'stair' || this.tool() === 'ramp' || this.tool() === 'ladder' || this.tool() === 'elevator');
   /** The levels the options show for a new connector: the chosen ones, else the active level and the stacked level above it. */
   protected readonly connectorFromShown = computed(() => this.connectorFrom() ?? this.activeLevelId() ?? '');
@@ -208,6 +214,18 @@ export class PlanView {
         this.planSelection.clearRequest(this.projectId(), request.n);
       });
     });
+    effect(() => {
+      // A model armed in the Catalog panel: the Item tool places it.
+      const armed = this.planTools.armedItem(this.projectId())();
+      if (!armed || armed.n === this.armedSeen) return;
+      this.armedSeen = armed.n;
+      untracked(() => {
+        this.itemArm.set(armed.item);
+        const c = this.editorConfig();
+        if (c) this.editor.setToolOptions(this.toolOptions(c));
+        this.chooseTool('item');
+      });
+    });
     effect(() => this.editor.setUnderlay(this.underlay()));
     effect(() => this.editor.setRuleLimits(this.ruleLimits()));
     effect(() => {
@@ -244,6 +262,8 @@ export class PlanView {
       this.columnShape();
       this.columnRotation();
       this.columnSpan();
+      this.itemArm();
+      this.itemWithLight();
       const c = untracked(this.editorConfig);
       if (c) this.editor.setToolOptions(this.toolOptions(c));
     });
@@ -367,7 +387,17 @@ export class PlanView {
   }
 
   private toolOptions(c: EditorConfig) {
-    return { ...DEFAULT_TOOL_OPTIONS, nudge: c.gridSpacing, wall: this.wallOptions, door: { width: c.doorWidth, height: c.doorHeight }, window: { width: c.windowWidth, height: c.windowHeight, sill: c.windowSill }, shape: { kind: untracked(this.shapeKind), filled: untracked(this.shapeFilled) }, dimension: { kind: untracked(this.dimensionKind) }, label: { size: untracked(this.labelSize) }, connector: { bottomLevelId: untracked(this.connectorFrom), topLevelId: untracked(this.connectorTo) }, stair: { shape: untracked(this.stairShape), width: c.stairWidth, turn: untracked(this.stairTurn) }, ramp: { width: c.rampWidth }, elevator: { shaft: { w: c.elevatorShaftW, d: c.elevatorShaftD }, car: { w: c.elevatorCarW, d: c.elevatorCarD } }, column: { shape: untracked(this.columnShape), w: c.columnW, d: c.columnD, r: c.columnR, rotation: untracked(this.columnRotation), topLevelId: untracked(this.columnSpan) } };
+    return { ...DEFAULT_TOOL_OPTIONS, nudge: c.gridSpacing, wall: this.wallOptions, door: { width: c.doorWidth, height: c.doorHeight }, window: { width: c.windowWidth, height: c.windowHeight, sill: c.windowSill }, shape: { kind: untracked(this.shapeKind), filled: untracked(this.shapeFilled) }, dimension: { kind: untracked(this.dimensionKind) }, label: { size: untracked(this.labelSize) }, connector: { bottomLevelId: untracked(this.connectorFrom), topLevelId: untracked(this.connectorTo) }, stair: { shape: untracked(this.stairShape), width: c.stairWidth, turn: untracked(this.stairTurn) }, ramp: { width: c.rampWidth }, elevator: { shaft: { w: c.elevatorShaftW, d: c.elevatorShaftD }, car: { w: c.elevatorCarW, d: c.elevatorCarD } }, column: { shape: untracked(this.columnShape), w: c.columnW, d: c.columnD, r: c.columnR, rotation: untracked(this.columnRotation), topLevelId: untracked(this.columnSpan) }, item: this.itemOptions() };
+  }
+
+  private itemOptions() {
+    const arm = untracked(this.itemArm);
+    return { ref: arm?.ref ?? null, name: arm?.name ?? '', size: arm?.size ?? null, ...(arm?.min ? { min: arm.min } : {}), rotation: 0, withLight: Boolean(arm?.lamp) && untracked(this.itemWithLight) };
+  }
+
+  protected setItemWithLight(checked: boolean): void {
+    this.itemWithLight.set(checked);
+    this.canvas().nativeElement.focus({ preventScroll: true });
   }
 
   /** The stacked level above a level (a mezzanine's: above its host), or null at the top. */

@@ -1,11 +1,11 @@
-import type { Box, Connector, Coordinate, DerivedLevel, DimensionKind, Entity, LevelGeometry, LevelWalls, RuleLimits, Vec2 } from '@studio/core';
+import type { Asset, Box, Connector, Vec3, Coordinate, DerivedLevel, DimensionKind, Entity, LevelGeometry, LevelWalls, RuleLimits, Vec2 } from '@studio/core';
 import type { PlanConnector } from '../connectors';
 import type { VertexRef } from '../grips';
 import type { Hit } from '../hit';
 import type { RenderFrame } from '../render';
 import type { SnapOptions, SnapResult } from '../snap';
 
-export type ToolId = 'select' | 'wall' | 'door' | 'window' | 'room' | 'separator' | 'shape' | 'rectangle' | 'circle' | 'dimension' | 'label' | 'stair' | 'ramp' | 'ladder' | 'elevator' | 'column';
+export type ToolId = 'select' | 'wall' | 'door' | 'window' | 'room' | 'separator' | 'shape' | 'rectangle' | 'circle' | 'dimension' | 'label' | 'stair' | 'ramp' | 'ladder' | 'elevator' | 'column' | 'item';
 
 export type StairShape = Extract<Connector, { kind: 'stair' }>['shape'];
 
@@ -30,6 +30,8 @@ export interface ToolHost {
   levelId(): string | null;
   /** The active level's entities. */
   entities(): Record<string, Entity>;
+  /** The project's asset registry: what the furniture items' models are. */
+  assets(): Readonly<Record<string, Asset>>;
   /** The stairs, ramps, elevators and other connectors the active level shows, by id. */
   connectors(): ReadonlyMap<string, PlanConnector>;
   /** A connector as a gesture would leave it, derived for the active level (null when it would not show there). */
@@ -96,9 +98,15 @@ export interface ToolOptions {
   elevator: { shaft: { w: number; d: number }; car: { w: number; d: number } };
   /** A new column: rectangular (w × d) or round (r), its rotation, and the level it reaches up to (null: this level only). */
   column: { shape: 'rect' | 'circle'; w: number; d: number; r: number; rotation: number; topLevelId: string | null };
+  /**
+   * The model the Item tool places (armed from the Catalog panel; null: none yet), its name, its
+   * size and low corner when the project does not have it yet (a library model), its turn, and
+   * whether a lamp brings its light.
+   */
+  item: { ref: string | null; name: string; size: Vec3 | null; min?: Vec3; rotation: number; withLight: boolean };
 }
 
-export const DEFAULT_TOOL_OPTIONS: ToolOptions = { wall: { thickness: 200, height: null, alignment: 'center', single: false }, door: { width: 900, height: 2100 }, window: { width: 1200, height: 1200, sill: 900 }, shape: { kind: 'shape', filled: true }, dimension: { kind: 'aligned' }, label: { size: 250 }, nudge: 100, connector: { bottomLevelId: null, topLevelId: null }, stair: { shape: 'straight', width: 1000, turn: 'left' }, ramp: { width: 1200 }, elevator: { shaft: { w: 2000, d: 2200 }, car: { w: 1100, d: 1400 } }, column: { shape: 'rect', w: 300, d: 300, r: 150, rotation: 0, topLevelId: null } };
+export const DEFAULT_TOOL_OPTIONS: ToolOptions = { wall: { thickness: 200, height: null, alignment: 'center', single: false }, door: { width: 900, height: 2100 }, window: { width: 1200, height: 1200, sill: 900 }, shape: { kind: 'shape', filled: true }, dimension: { kind: 'aligned' }, label: { size: 250 }, nudge: 100, connector: { bottomLevelId: null, topLevelId: null }, stair: { shape: 'straight', width: 1000, turn: 'left' }, ramp: { width: 1200 }, elevator: { shaft: { w: 2000, d: 2200 }, car: { w: 1100, d: 1400 } }, column: { shape: 'rect', w: 300, d: 300, r: 150, rotation: 0, topLevelId: null }, item: { ref: null, name: '', size: null, rotation: 0, withLight: false } };
 
 export interface ToolPointer {
   world: Vec2;
@@ -121,6 +129,8 @@ export interface Tool {
   pointerUp?(e: ToolPointer): void;
   /** Returns true when the key was used. */
   key?(e: KeyboardEvent): boolean;
+  /** The wheel over the canvas; true when the tool used it (else it zooms). */
+  wheel?(e: WheelEvent): boolean;
   cancel(): void;
   /** The document changed: a drag whose entity vanished is dropped. */
   documentChanged?(entities: Record<string, Entity>): void;

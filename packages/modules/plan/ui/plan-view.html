@@ -34,6 +34,9 @@
     <button xIconButton size="sm" label="Column (C)" [class.bg-elevated]="tool() === 'column'" [class.text-fg]="tool() === 'column'" [attr.aria-pressed]="tool() === 'column'" (click)="chooseTool('column')" data-testid="tool-column">
       <svg [xIcon]="icons.CircleDot" class="size-3.5"></svg>
     </button>
+    <button xIconButton size="sm" label="Furniture (I): place the model picked in the Catalog panel" [class.bg-elevated]="tool() === 'item'" [class.text-fg]="tool() === 'item'" [attr.aria-pressed]="tool() === 'item'" (click)="chooseTool('item')" data-testid="tool-item">
+      <svg [xIcon]="icons.Sofa" class="size-3.5"></svg>
+    </button>
     <div class="w-px h-5 bg-edge mx-1"></div>
     <button xIconButton size="sm" label="Shape (P)" [class.bg-elevated]="tool() === 'shape'" [class.text-fg]="tool() === 'shape'" [attr.aria-pressed]="tool() === 'shape'" (click)="chooseTool('shape')" data-testid="tool-shape">
       <svg [xIcon]="icons.Pentagon" class="size-3.5"></svg>
@@ -309,6 +312,26 @@
         }
       </select>
     </label>
+  </div>
+}
+@if (tool() === 'item') {
+  <div class="flex items-center gap-3 px-3 h-9 border-b border-edge bg-surface shrink-0 text-xs" data-testid="tool-options">
+    <span class="font-medium">Furniture</span>
+    @if (itemArm(); as arm) {
+      <span class="text-fg" data-testid="item-armed">{{ arm.name }}</span>
+      @if (arm.size) {
+        <span class="text-muted font-mono">{{ units.length(arm.size[0]) }} × {{ units.length(arm.size[1]) }} × {{ units.length(arm.size[2]) }}</span>
+      }
+      @if (arm.lamp) {
+        <label class="flex items-center gap-1.5 text-muted">
+          <input xCheckbox type="checkbox" [checked]="itemWithLight()" (change)="setItemWithLight($any($event.target).checked)" data-testid="item-with-light" />
+          With its light
+        </label>
+      }
+      <span class="text-muted">R: turn 15° · Shift+wheel</span>
+    } @else {
+      <span class="text-muted">Pick a model in the Catalog panel (right).</span>
+    }
   </div>
 }
 @if (tool() === 'column') {

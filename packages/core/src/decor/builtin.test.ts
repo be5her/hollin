@@ -3,7 +3,7 @@ import { polygonArea } from '../geometry/polygon';
 import { meshBox, meshVolume } from '../solids/mesh';
 import { ITEM_CATEGORIES, MATERIALS, OPENING_STYLES, RECIPES, builtinMaterial } from './builtin';
 import { builtinEntries, searchCatalog } from './catalog';
-import { recipeMeshes, recipeOutline } from './recipes';
+import { recipeDetails, recipeMeshes, recipeOutline } from './recipes';
 import { parseRef } from './refs';
 
 describe('the built-in catalog', () => {
@@ -48,6 +48,13 @@ describe('the built-in catalog', () => {
     expect(area).toBeLessThanOrEqual(w * d + 1);
     for (const ref of Object.values(recipe.slots)) expect(builtinMaterial(parseRef(ref)?.k === 'builtin' ? (parseRef(ref) as { id: string }).id : ''), ref).toBeDefined();
     if (recipe.bulb) expect(recipe.lumens).toBeGreaterThan(0);
+  });
+
+  it('shows the parts seen from above in the plan symbol, not what lies under them', () => {
+    const recipe = (id: string) => RECIPES.find((r) => r.id === id)!;
+    // A table's top hides its legs; a sofa shows its base, back, arms and three cushions, not its legs.
+    expect(recipeDetails(recipe('dining-table-6'))).toHaveLength(1);
+    expect(recipeDetails(recipe('sofa-3'))).toHaveLength(7);
   });
 
   it('gives every style and material what it needs', () => {

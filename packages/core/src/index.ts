@@ -51,3 +51,4 @@ export * from './decor/glb';
 export * from './decor/catalog';
 export * from './decor/builtin';
 export * from './decor/recipes';
+export * from './decor/items';

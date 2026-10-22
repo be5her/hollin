@@ -253,6 +253,15 @@ export class SelectTool implements Tool {
       this.host.invalidate();
       return true;
     }
+    if (mode.k === 'grip-drag' && mode.grip.kind === 'rotate') {
+      const degrees = parseAngle(text);
+      const item = this.host.entities()[mode.id];
+      if (degrees === null || item?.type !== 'item') return false;
+      this.mode = { k: 'idle' };
+      void this.host.invoke('plan.entity.update', { id: mode.id, set: { rotation: [item.rotation[0], item.rotation[1], degrees] }, ...this.stale() });
+      this.host.invalidate();
+      return true;
+    }
     if (!coord) return false;
     if (mode.k === 'drag') {
       const direction = cursor ? sub(cursor, mode.start) : undefined;
@@ -330,6 +339,7 @@ export class SelectTool implements Tool {
     if (mode.k === 'marquee') return mode.end[0] >= mode.start[0] ? 'Window: what lies fully inside' : 'Crossing: what the box touches';
     if (mode.k === 'rotate') return !mode.pivot ? 'Rotate: click the pivot' : !mode.reference ? 'Click a reference point' : 'Click the new direction · Ctrl: keep a copy';
     if (mode.k === 'mirror') return !mode.a ? 'Mirror: click the first point of the axis' : 'Click the second point · Ctrl: keep a copy';
+    if (mode.k === 'grip-drag' && mode.grip.kind === 'rotate') return 'Release to turn the item to face here (15° steps hold; Alt: free) · or type an angle';
     if (mode.k === 'grip-drag' && mode.grip.kind === 'corner') return 'Release to size the corner (or type the radius or distance) · onto the vertex: sharp';
     if (mode.k === 'grip-drag' && this.host.entities()[mode.id]?.type === 'dimension') return mode.grip.kind === 'vertex' ? (mode.anchor ? 'Release to tie the point to this corner' : 'Release to move the point (on a wall or shape corner: tie it there)') : 'Release to place the dimension line here';
     if (mode.k === 'grip-drag') return mode.grip.kind === 'vertex' ? (mode.joined.length ? `Release to move the corner (${mode.joined.length} joined end${mode.joined.length === 1 ? '' : 's'} follow) · Alt: detach` : 'Release to move the corner') : mode.alt ? 'Release to add a corner here' : 'Release to curve the segment through here · Alt: add a corner instead';
@@ -473,6 +483,7 @@ export class SelectTool implements Tool {
       const { set } = this.dimensionChange(entity, mode, to);
       return [{ ...entity, ...set } as Entity];
     }
+    if (entity.type === 'item' && mode.grip.kind === 'rotate') return [{ ...entity, rotation: [entity.rotation[0], entity.rotation[1], this.itemTurn(entity, to, mode.alt)] }];
     const path = pathOfEntity(entity, mode.grip.which);
     if (!path) return [];
     const out: Entity[] = [];
@@ -540,7 +551,7 @@ export class SelectTool implements Tool {
 
   /** A dragged vertex snaps to everything but its own entity and the walls that follow it; the vertex before it gives the direction. A dimension's point reports the wall or shape corner it snapped to. */
   private gripSnap(mode: Extract<Mode, { k: 'grip-drag' }>, e: ToolPointer): { point: Vec2; anchor?: SnapAnchor } {
-    if (e.alt || mode.grip.kind === 'corner') return { point: e.world };
+    if (e.alt || mode.grip.kind === 'corner' || mode.grip.kind === 'rotate') return { point: e.world };
     const exclude = new Set([mode.id, ...mode.joined.map((j) => j.id)]);
     let from: Vec2 | undefined;
     let relativeTo: TrackReference[] | undefined;
@@ -619,7 +630,7 @@ export class SelectTool implements Tool {
     if (selection.size !== 1) return null;
     const id = [...selection][0];
     const entity = this.host.entities()[id];
-    if (entity) return { id, grips: gripsOf(entity, this.host.entities()) };
+    if (entity) return { id, grips: gripsOf(entity, this.host.entities(), this.host.assets()) };
     const pc = this.host.connectors().get(id);
     return pc ? { id, grips: gripsOfConnector(pc.connector) } : null;
   }
@@ -663,6 +674,11 @@ export class SelectTool implements Tool {
       void this.host.invoke('plan.entity.update', { id, set, unset, ...this.stale() });
       return;
     }
+    if (entity?.type === 'item' && grip.kind === 'rotate') {
+      const rz = this.itemTurn(entity, to, mode.alt);
+      if (rz !== entity.rotation[2]) void this.host.invoke('plan.entity.update', { id, set: { rotation: [entity.rotation[0], entity.rotation[1], rz] }, ...this.stale() });
+      return;
+    }
     if (grip.kind === 'vertex') {
       if (!mode.joined.length) {
         void this.pathEdit(id, 'plan.path.vertex.move', { which: grip.which, index: grip.index, to });
@@ -680,6 +696,21 @@ export class SelectTool implements Tool {
     }
     if (mode.alt) void this.pathEdit(id, 'plan.path.vertex.insert', { which: grip.which, index: grip.index, at: to });
     else void this.pathEdit(id, 'plan.path.segment.set', { which: grip.which, index: grip.index, segment: { k: 'arc', through: to } });
+  }
+
+  /**
+   * The turn an item's grip dragged to `to` gives it: its front faces the cursor, rounded to a degree
+   * and held on a multiple of 15° within 3° of one (Alt: free).
+   */
+  private itemTurn(item: Extract<Entity, { type: 'item' }>, to: Vec2, free: boolean): number {
+    const toward = sub(to, [item.at[0], item.at[1]]);
+    if (Math.hypot(toward[0], toward[1]) < 1e-6) return item.rotation[2];
+    // The grip sits on the model's −y side: a turn of θ puts it at angle θ − 90°.
+    let degrees = angleOf(toward) / DEG + 90;
+    degrees = ((((degrees + 180) % 360) + 360) % 360) - 180;
+    const step = Math.round(degrees / 15) * 15;
+    if (!free && Math.abs(degrees - step) <= 3) return step === -180 ? 180 : step;
+    return Math.round(degrees);
   }
 
   /** The corner a grip dragged to `to` means (null: sharp); undefined when the vertex has no sizeable corner. */

@@ -9,6 +9,7 @@ import { polygonContains } from '../geometry/polygon';
 import type { RoomGeometry } from '../geometry/rooms';
 import { add, normalize, perp, scale, sub, type Vec2 } from '../geometry/vec';
 import { wallOffsets } from '../geometry/walls';
+import { footprintArea, itemFootprint, itemModel, itemSize } from '../decor/items';
 
 /*
  * The design as an agent reads it: rooms with their areas, which rooms share a wall or a door, and
@@ -42,6 +43,34 @@ export interface RoomDescription {
   adjacent: { roomId: string; via: ('wall' | OpeningKind)[] }[];
   /** The stairs, ramps, elevators and other connectors that start, end or stop in this room. */
   connectors: { id: string; kind: Connector['kind']; role: ConnectorRole }[];
+  /** The furniture standing in the room (by the centre of each item). */
+  furniture: FurnitureDescription[];
+  /** The lights in the room. */
+  lights: LightDescription[];
+}
+
+export interface FurnitureDescription {
+  id: string;
+  /** The item's own name, else its model's. */
+  name: string;
+  /** The model: `builtin:<id>` or `asset:<file>`. */
+  ref: string;
+  /** Where its bottom centre stands, and how high above the floor, mm. */
+  at: [number, number, number];
+  /** Degrees counter-clockwise on the plan; 0 faces south (−y). */
+  rotation: number;
+  /** Width, depth and height as placed, mm. */
+  size: [number, number, number];
+  /** The area it covers on the plan, mm². */
+  footprint: number;
+}
+
+export interface LightDescription {
+  id: string;
+  kind: EntityOf<'light'>['kind'];
+  at: [number, number, number];
+  lumens: number;
+  color: string;
 }
 
 export interface LevelOpeningDescription {
@@ -68,6 +97,8 @@ export interface LevelDescription {
   openings: LevelOpeningDescription[];
   /** Every connector reaching the level, with how it shows there and the room it lands in (null: no room, or it only passes through). */
   connectors: { id: string; kind: Connector['kind']; name: string | null; role: ConnectorRole; roomId: string | null }[];
+  /** Furniture and lights in no room (outside, or in a space no room names). */
+  outside: { furniture: FurnitureDescription[]; lights: LightDescription[] };
 }
 
 export interface CirculationStop {
@@ -244,6 +275,26 @@ export function describeDesign(doc: ProjectDoc, limits: RuleLimits): DesignDescr
       }
     }
 
+    // Furniture and lights, by the room their centre stands in.
+    const furnitureBy = new Map<string | null, FurnitureDescription[]>();
+    const lightsBy = new Map<string | null, LightDescription[]>();
+    const r1 = (v: number) => Math.round(v * 10) / 10;
+    for (const e of entities) {
+      if (e.type === 'item') {
+        const model = itemModel(e.asset, doc.assets);
+        const size = itemSize(e, model);
+        const room = at([e.at[0], e.at[1]]);
+        const list = furnitureBy.get(room) ?? [];
+        list.push({ id: e.id, name: e.name ?? model.name, ref: e.asset, at: [r1(e.at[0]), r1(e.at[1]), r1(e.at[2])], rotation: e.rotation[2], size: [r1(size[0]), r1(size[1]), r1(size[2])], footprint: Math.round(footprintArea(itemFootprint(e, model))) });
+        furnitureBy.set(room, list);
+      } else if (e.type === 'light') {
+        const room = at([e.at[0], e.at[1]]);
+        const list = lightsBy.get(room) ?? [];
+        list.push({ id: e.id, kind: e.kind, at: [r1(e.at[0]), r1(e.at[1]), r1(e.at[2])], lumens: e.intensity, color: e.color });
+        lightsBy.set(room, list);
+      }
+    }
+
     const roomDescriptions = rooms.map((g): RoomDescription => {
       const room = record[g.id] as EntityOf<'room'>;
       return {
@@ -257,6 +308,8 @@ export function describeDesign(doc: ProjectDoc, limits: RuleLimits): DesignDescr
         openings: byRoom.get(g.id) ?? [],
         adjacent: [...(adjacency.get(g.id) ?? new Map<string, Set<'wall' | OpeningKind>>())].map(([roomId, via]) => ({ roomId, via: [...via] })),
         connectors: connectorsByRoom.get(g.id) ?? [],
+        furniture: furnitureBy.get(g.id) ?? [],
+        lights: lightsBy.get(g.id) ?? [],
       };
     });
     const claimed = new Set(rooms.map((r) => r.polygon).filter(Boolean));
@@ -264,7 +317,7 @@ export function describeDesign(doc: ProjectDoc, limits: RuleLimits): DesignDescr
       .filter((c) => !claimed.has(c.polygon) && c.area >= 500_000 && !entities.some((e) => (e.type === 'shaft' || e.type === 'void') && polygonContains(c.polygon, e.region.outer.v[0].p)))
       .map((c) => ({ area: Math.round(c.area), at: c.polygon[0] }));
 
-    return { id: level.id, name: level.name, elevation: level.elevation, height: level.height, isGround: level.isGround, isBasement: level.isBasement, counts, rooms: roomDescriptions, unnamedSpaces, openings, connectors: onLevel };
+    return { id: level.id, name: level.name, elevation: level.elevation, height: level.height, isGround: level.isGround, isBasement: level.isBasement, counts, rooms: roomDescriptions, unnamedSpaces, openings, connectors: onLevel, outside: { furniture: furnitureBy.get(null) ?? [], lights: lightsBy.get(null) ?? [] } };
   });
 
   const circulation = connectors.map((c): CirculationDescription => {

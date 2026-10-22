@@ -43,6 +43,7 @@ function harness() {
     },
     levelId: () => ground,
     entities: () => entities,
+    assets: () => ({}),
     connectors: () => byId,
     previewConnector: (c) => planConnectors({ ...doc, connectors: { ...doc.connectors, [c.id]: c } }, ground, DEFAULT_RULE_LIMITS).find((pc) => pc.id === c.id) ?? null,
     levels: () => [],

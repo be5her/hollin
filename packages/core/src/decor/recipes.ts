@@ -16,6 +16,9 @@ function addPart(builder: MeshBuilder, part: Part): void {
 
 const meshCache = new Map<string, { slot: string; mesh: Mesh }[]>();
 const outlineCache = new Map<string, Polygon[]>();
+const detailCache = new Map<string, Polygon[]>();
+
+const partBox = (p: Part) => (p.k === 'box' ? { x0: p.min[0], y0: p.min[1], x1: p.max[0], y1: p.max[1], top: p.max[2] } : { x0: p.c[0] - Math.max(p.r0, p.r1), y0: p.c[1] - Math.max(p.r0, p.r1), x1: p.c[0] + Math.max(p.r0, p.r1), y1: p.c[1] + Math.max(p.r0, p.r1), top: p.z1 });
 
 /** A recipe's triangles, one mesh per material slot in the order the slots first appear (mm, z up, bottom centre at the origin). */
 export function recipeMeshes(recipe: Recipe): { slot: string; mesh: Mesh }[] {
@@ -29,6 +32,21 @@ export function recipeMeshes(recipe: Recipe): { slot: string; mesh: Mesh }[] {
   }
   const out = [...builders].map(([slot, b]) => ({ slot, mesh: b.build() }));
   meshCache.set(recipe.id, out);
+  return out;
+}
+
+/**
+ * The parts one sees from above, as outlines for the plan symbol's inner lines (cushions, a back,
+ * pillows): a part under a higher one that covers it (legs under a seat or a table top) is left out.
+ */
+export function recipeDetails(recipe: Recipe): Polygon[] {
+  const cached = detailCache.get(recipe.id);
+  if (cached) return cached;
+  const boxes = recipe.parts.map(partBox);
+  const out = recipe.parts
+    .filter((_, i) => !boxes.some((q, j) => j !== i && q.top > boxes[i].top && q.x0 <= boxes[i].x0 + 0.5 && q.y0 <= boxes[i].y0 + 0.5 && q.x1 >= boxes[i].x1 - 0.5 && q.y1 >= boxes[i].y1 - 0.5))
+    .map(partOutline);
+  detailCache.set(recipe.id, out);
   return out;
 }
 

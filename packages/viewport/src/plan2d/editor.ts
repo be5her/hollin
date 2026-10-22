@@ -19,6 +19,7 @@ import { LabelTool } from './tools/label';
 import { WallTool } from './tools/wall';
 import { ElevatorTool, LadderTool, RampTool, StairTool } from './tools/connectors';
 import { ColumnTool } from './tools/column';
+import { ItemTool } from './tools/item';
 
 export type UnderlayMode = 'none' | 'below' | 'above';
 
@@ -103,6 +104,7 @@ export class Plan2dEditor {
       invoke: (id, input) => this.callbacks.invoke?.(id, input) ?? Promise.resolve(undefined),
       levelId: () => this.levelId,
       entities: () => this.entities(),
+      assets: () => this.doc?.assets ?? {},
       connectors: () => this.connectorMap(),
       previewConnector: (connector) => {
         if (!this.doc || !this.levelId) return null;
@@ -135,7 +137,7 @@ export class Plan2dEditor {
         editor.clipboard = value;
       },
     };
-    this.tools = { select: new SelectTool(host), wall: new WallTool(host), door: new OpeningTool(host, 'door'), window: new OpeningTool(host, 'window'), room: new RoomTool(host), separator: new SeparatorTool(host), shape: new ShapeTool(host, 'polyline'), rectangle: new ShapeTool(host, 'rectangle'), circle: new ShapeTool(host, 'circle'), dimension: new DimensionTool(host), label: new LabelTool(host), stair: new StairTool(host), ramp: new RampTool(host), ladder: new LadderTool(host), elevator: new ElevatorTool(host), column: new ColumnTool(host) };
+    this.tools = { select: new SelectTool(host), wall: new WallTool(host), door: new OpeningTool(host, 'door'), window: new OpeningTool(host, 'window'), room: new RoomTool(host), separator: new SeparatorTool(host), shape: new ShapeTool(host, 'polyline'), rectangle: new ShapeTool(host, 'rectangle'), circle: new ShapeTool(host, 'circle'), dimension: new DimensionTool(host), label: new LabelTool(host), stair: new StairTool(host), ramp: new RampTool(host), ladder: new LadderTool(host), elevator: new ElevatorTool(host), column: new ColumnTool(host), item: new ItemTool(host) };
     this.activeTool = this.tools.select;
   }
 
@@ -348,7 +350,7 @@ export class Plan2dEditor {
     let box = emptyBox();
     for (const id of this.selected) {
       const e = entities[id];
-      const b = e ? entityBox(e, entities) : connectors.get(id)?.box;
+      const b = e ? entityBox(e, entities, this.doc?.assets) : connectors.get(id)?.box;
       if (!b) continue;
       box = { minX: Math.min(box.minX, b.minX), minY: Math.min(box.minY, b.minY), maxX: Math.max(box.maxX, b.maxX), maxY: Math.max(box.maxY, b.maxY) };
     }
@@ -492,7 +494,7 @@ export class Plan2dEditor {
         scene = createLevelScene(id);
         this.scenes.set(id, scene);
       }
-      syncLevelScene(scene, this.entitiesOf(id)!);
+      syncLevelScene(scene, this.entitiesOf(id)!, this.doc!.assets);
     }
     this.invalidate();
   }
@@ -608,6 +610,10 @@ export class Plan2dEditor {
 
   private wheel(e: WheelEvent): void {
     e.preventDefault();
+    if (this.activeTool.wheel?.(e)) {
+      this.announceTool();
+      return;
+    }
     const factor = Math.min(2, Math.max(0.5, Math.exp(-e.deltaY * 0.002)));
     this.zoomBy(factor, this.local(e));
   }
@@ -651,6 +657,9 @@ export class Plan2dEditor {
       e.preventDefault();
     } else if (e.key === 'c' || e.key === 'C') {
       this.setTool('column');
+      e.preventDefault();
+    } else if (e.key === 'i' || e.key === 'I') {
+      this.setTool('item');
       e.preventDefault();
     } else if (e.key === 'v' || e.key === 'V') {
       this.setTool('select');

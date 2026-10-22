@@ -107,7 +107,11 @@ export function transformEntity(entity: Entity, xf: Transform): Entity {
       return { ...entity, at: m.point(entity.at), rotation: m.angle(entity.rotation) };
     case 'item': {
       const p = m.point([entity.at[0], entity.at[1]]);
-      return { ...entity, at: [p[0], p[1], entity.at[2]], rotation: [entity.rotation[0], entity.rotation[1], m.angle(entity.rotation[2])] };
+      if (!m.flips) return { ...entity, at: [p[0], p[1], entity.at[2]], rotation: [entity.rotation[0], entity.rotation[1], m.angle(entity.rotation[2])] };
+      // A mirror is the model flipped along its own x, then turned so that axis lands where the mirror sends it.
+      const turned = m.angle(entity.rotation[2]) + 180;
+      const rz = ((((turned + 180) % 360) + 360) % 360) - 180;
+      return { ...entity, at: [p[0], p[1], entity.at[2]], rotation: [entity.rotation[0], entity.rotation[1], Math.round(rz * 1e6) / 1e6], scale: [-entity.scale[0], entity.scale[1], entity.scale[2]] };
     }
     case 'light': {
       const p = m.point([entity.at[0], entity.at[1]]);

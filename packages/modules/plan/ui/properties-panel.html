@@ -115,6 +115,11 @@
             <label><span class="block text-xs font-medium text-muted mb-1">Rotation</span><input xInput xAngle class="font-mono" [formField]="f.rotation" (commit)="set({ rotation: $event })" /></label>
           </div>
         }
+        @case ('item') {
+          @if (entity()) {
+            <x-item-properties [projectId]="projectId()" [item]="$any(e)" />
+          }
+        }
         @case ('column') {
           <div class="grid grid-cols-2 gap-2">
             @if (draft().r) {

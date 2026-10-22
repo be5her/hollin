@@ -57,9 +57,10 @@ The engine. Everything here is pure TypeScript with no Electron, Node I/O or UI 
 | File | What |
 |---|---|
 | `refs.ts` | The reference grammar: `builtin:<id>`, `asset:<sha256>.<ext>`, `paint:#rrggbb`; which ones models, materials and styles accept. |
-| `glb.ts` | GLB files without a library: chunks, structure and bounds checks, refused extensions, the extent through node transforms in mm with z up, packing a self-contained `.gltf` into a GLB, and a writer (meshes with base-colour materials; `meshToGlb` turns a core mesh into glTF space). |
+| `glb.ts` | GLB files without a library (`readGlbTriangles` gives the triangles and base colours for thumbnails): chunks, structure and bounds checks, refused extensions, the extent through node transforms in mm with z up, packing a self-contained `.gltf` into a GLB, and a writer (meshes with base-colour materials; `meshToGlb` turns a core mesh into glTF space). |
 | `builtin.ts` | What ships with the app: 31 furniture recipes (parts in material slots, size, a lamp's bulb and lumens, a usual height), 38 materials (colour, roughness, metalness, opacity, a procedural pattern) and 7 door and window styles, by stable id. |
-| `recipes.ts` | A recipe as one mesh per slot (`MeshBuilder.roundedBox`, `cylinder`) and as its plan outline (its parts from above, united), memoised by id. |
+| `recipes.ts` | A recipe as one mesh per slot (`MeshBuilder.roundedBox`, `cylinder`), as its plan outline (its parts from above, united) and as the parts one sees from above (`recipeDetails`), memoised by id. |
+| `items.ts` | An item's model (`itemModel`: a recipe, or a registered asset with its normalising offset), its size as placed, its footprint on the plan and its 4 × 4 placement in 3D. |
 | `catalog.ts` | The catalog's types (`CatalogModel`, `CatalogApi`, `CatalogEntry`: one shape for built-in and imported entries), `builtinEntries` and `searchCatalog` (the palette's fuzzy score over names, exact tags, then tags). |
 
 ## Geometry (`src/geometry`)

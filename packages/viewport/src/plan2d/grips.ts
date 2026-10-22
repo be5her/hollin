@@ -1,12 +1,15 @@
-import { add, connectorPath, cornerFrame, cornerGripPoint, dimensionGeometry, distance, openingFrame, pathOfEntity, rawSegments, resolveDimension, scale, segmentPoint, type Connector, type Entity, type Path, type Vec2, type WhichPath } from '@studio/core';
+import { DEG, add, connectorPath, itemModel, itemSize, type Asset, cornerFrame, cornerGripPoint, dimensionGeometry, distance, openingFrame, pathOfEntity, rawSegments, resolveDimension, scale, segmentPoint, type Connector, type Entity, type Path, type Vec2, type WhichPath } from '@studio/core';
 
-/** A handle on a selected entity: a vertex of its path, the middle of a segment, a corner's size, a door's hinge or swing side. */
+/** A handle on a selected entity: a vertex of its path, the middle of a segment, a corner's size, a door's hinge or swing side, an item's turn. */
 export interface Grip {
-  kind: 'vertex' | 'mid' | 'corner' | 'hinge' | 'side';
+  kind: 'vertex' | 'mid' | 'corner' | 'hinge' | 'side' | 'rotate';
   which: WhichPath;
   index: number;
   at: Vec2;
 }
+
+/** How far in front of an item its turning grip sits, mm. */
+export const ROTATE_GRIP_MM = 250;
 
 /** A vertex of an entity's path, as the inspector edits it. */
 export interface VertexRef {
@@ -16,8 +19,15 @@ export interface VertexRef {
 }
 
 /** The grips of an entity: every vertex and segment middle of its outline (and of a region's holes), a grip on each rounded or chamfered corner; a door's hinge and swing side; a dimension's points (0: from, 1: to, 2: an angle's corner) and its line. */
-export function gripsOf(entity: Entity, entities?: Record<string, Entity>): Grip[] {
+export function gripsOf(entity: Entity, entities?: Record<string, Entity>, assets: Readonly<Record<string, Asset>> = {}): Grip[] {
   const grips: Grip[] = [];
+  if (entity.type === 'item') {
+    // One grip in front of the item (its model's −y side): drag it round to turn the item.
+    const d = itemSize(entity, itemModel(entity.asset, assets))[1];
+    const r = entity.rotation[2] * DEG;
+    const reach = d / 2 + ROTATE_GRIP_MM;
+    return [{ kind: 'rotate', which: 'outer', index: 0, at: [entity.at[0] + Math.sin(r) * reach, entity.at[1] - Math.cos(r) * reach] }];
+  }
   if (entity.type === 'opening') {
     const wall = entities?.[entity.wallId];
     if (entity.kind !== 'door' || !wall || wall.type !== 'wall') return grips;

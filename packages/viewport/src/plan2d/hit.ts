@@ -1,5 +1,6 @@
 import { columnPolygon, dimensionGeometry, dimensionOutline, distance, flatten, openingFrame, polygonContains, polygonEdgeDistance, regionContains, resolveDimension, wallBody, type Box, type Entity, type EntityType, type Layer, type LevelGeometry, type LevelWalls, type Polygon, type Region, type Vec2 } from '@studio/core';
 import { connectorDistance, type PlanConnector } from './connectors';
+import { LIGHT_GLYPH } from './render';
 import { searchScene, type LevelScene, type SceneItem } from './scene';
 
 export interface Hit {
@@ -84,10 +85,14 @@ export function entityDistance(item: SceneItem, p: Vec2, scene: LevelScene, opti
       const d = polygonEdgeDistance(pts, p);
       return d <= tol ? d : null;
     }
-    case 'fixture':
-    case 'point':
     case 'item':
+      return polygonsDistance(item.footprint ?? [], p, tol);
     case 'light': {
+      const d = distance([e.at[0], e.at[1]], p);
+      return d <= Math.max(tol, LIGHT_GLYPH) ? d : null;
+    }
+    case 'fixture':
+    case 'point': {
       const d = distance([e.at[0], e.at[1]], p);
       return d <= Math.max(tol, GLYPH) ? d : null;
     }

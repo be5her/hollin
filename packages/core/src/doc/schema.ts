@@ -16,6 +16,8 @@ const Mm = z.number().transform(roundMm);
 const PositiveMm = z.number().positive().transform(roundMm);
 const NonNegativeMm = z.number().min(0).transform(roundMm);
 const Degrees = z.number().min(-360).max(360);
+/** A scale factor: positive, or negative for a mirrored model; never zero. */
+const ScaleFactor = z.number().refine((v) => Math.abs(v) >= 1e-3 && Math.abs(v) <= 1000, 'A scale is a factor between 0.001 and 1000 (negative mirrors)');
 /** A reference to a material, symbol or model in the catalog (or a project asset). */
 const CatalogRef = z.string().min(1).max(200);
 /** A model: `builtin:<id>` or `asset:<sha256>.<ext>` (see `decor/refs.ts`). */
@@ -207,7 +209,7 @@ export const ItemSchema = z.object({
   asset: ModelRef.describe('The model: builtin:<id>, or asset:<file> registered in the project'),
   at: Vec3Schema.describe("x, y of the model's bottom centre, and its height above the floor"),
   rotation: z.tuple([Degrees, Degrees, Degrees]).default([0, 0, 0]).describe('Degrees about x, y and z; z is the turn on the plan'),
-  scale: z.tuple([z.number().positive(), z.number().positive(), z.number().positive()]).default([1, 1, 1]).describe("Relative to the model's own size"),
+  scale: z.tuple([ScaleFactor, ScaleFactor, ScaleFactor]).default([1, 1, 1]).describe("Relative to the model's own size; a negative x mirrors the model"),
   materials: z.record(z.string(), MaterialRef).default({}).describe('Material per slot, over the model defaults'),
 });
 export const LightSchema = z.object({

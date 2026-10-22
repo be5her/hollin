@@ -17,6 +17,7 @@ function host(options: Partial<ToolOptions['wall']> = {}) {
     },
     levelId: () => 'lvl_0000000000000001',
     entities: () => ({}),
+    assets: () => ({}),
     seq: () => 0,
     epoch: () => 1,
     connectors: () => new Map(),

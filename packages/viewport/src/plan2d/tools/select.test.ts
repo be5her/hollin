@@ -33,6 +33,7 @@ function harness() {
     },
     levelId: () => lv,
     entities: () => entities,
+    assets: () => ({}),
     seq: () => 7,
     epoch: () => 1,
     connectors: () => new Map(),

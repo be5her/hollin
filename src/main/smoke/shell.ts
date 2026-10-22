@@ -30,7 +30,8 @@ export async function smokeShell(smoke: Smoke): Promise<void> {
   smoke.check('and stores it', await smoke.until(() => host.config.get().appearance.theme === 'dark'));
   await smoke.fill('[data-testid=settings-theme]', 'light');
   await smoke.until(() => host.config.get().appearance.theme === 'light');
-  smoke.check('switching back to light removes the dark class', !(await smoke.js<boolean>(`document.documentElement.classList.contains('dark')`)));
+  // The window hears of the stored theme a round trip later (config.changed): wait for the class itself.
+  smoke.check('switching back to light removes the dark class', await smoke.until(async () => !(await smoke.js<boolean>(`document.documentElement.classList.contains('dark')`))));
 
   await smoke.click('[data-testid=units-system-imperial]');
   smoke.check('the units editor stores the unit system', await smoke.until(() => host.config.get().units.system === 'imperial'));

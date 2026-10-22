@@ -4,6 +4,7 @@ import { FormField, form } from '@angular/forms/signals';
 import { arcGeometry, bulgeOf, connectorPath, dimensionGeometry, distance, findEntity, formatArea, isConnectorId, pathLength, pathOfEntity, resolveDimension, signedArea, type Connector, type Entity, type Path, type Vec2 } from '@studio/core';
 import { AngleInput, Checkbox, EmptyState, HostBridge, Input, LengthInput, ProjectDocs, Select, Toasts, Units } from '@studio/ui';
 import { ConnectorProperties } from './connector-properties';
+import { ItemProperties } from './item-properties';
 import { PlanGeometry } from './plan-geometry';
 import { PlanSelection } from './plan-selection';
 
@@ -55,7 +56,7 @@ interface VertexDraft {
  */
 @Component({
   selector: 'x-properties-panel',
-  imports: [AngleInput, Checkbox, ConnectorProperties, EmptyState, FormField, Input, LengthInput, NgTemplateOutlet, Select],
+  imports: [AngleInput, Checkbox, ConnectorProperties, EmptyState, FormField, Input, ItemProperties, LengthInput, NgTemplateOutlet, Select],
   templateUrl: './properties-panel.html',
   host: { class: 'flex flex-col', 'data-testid': 'properties-panel' },
 })

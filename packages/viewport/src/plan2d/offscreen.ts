@@ -38,7 +38,7 @@ export function renderLevelToPng(doc: ProjectDoc, levelId: string, options: Snap
   // Text and seeds alone make no plan worth a thumbnail.
   if (!Object.values(entities).some((e) => DRAWN.has(e.type) || (e.type === 'room' && e.boundary.k === 'region'))) return null;
   const scene = createLevelScene(levelId);
-  syncLevelScene(scene, entities);
+  syncLevelScene(scene, entities, doc.assets);
   const box = sceneBox(scene);
   if (!Number.isFinite(box.minX)) return null;
   const size = { width: options.width, height: options.height };

@@ -441,3 +441,62 @@ export function meshToGlb(mesh: Mesh, color: GlbMesh['color'], name?: string): G
   }
   return { ...(name ? { name } : {}), positions, normals, color };
 }
+
+/** One primitive's triangles in the app's terms (mm, z up, non-indexed) with its material's name and base colour (linear RGB, 0–1). */
+export interface GlbTriangles {
+  positions: Float32Array;
+  material: string;
+  color: [number, number, number];
+}
+
+/**
+ * The triangles of a GLB file in the default scene, through the node transforms, for drawing a
+ * thumbnail without a 3D engine. Primitives that are not triangle lists or whose positions are
+ * not floats are skipped. Assumes `inspectGlb` already accepted the file.
+ */
+export function readGlbTriangles(bytes: Uint8Array): GlbTriangles[] {
+  const { json, bin } = readGlbChunks(bytes);
+  const buffers = bufferBytes(json, bin);
+  const nodes = json.nodes ?? [];
+  const scene = json.scenes?.[json.scene ?? 0];
+  const children = new Set(nodes.flatMap((n) => n.children ?? []));
+  const roots = scene?.nodes ?? nodes.map((_, i) => i).filter((i) => !children.has(i));
+  const read = (index: number, components: number): number[] | null => {
+    const a = json.accessors?.[index];
+    if (!a || a.bufferView === undefined) return null;
+    if (components === 3 && a.componentType !== 5126) return null;
+    const view = json.bufferViews![a.bufferView];
+    const source = buffers[view.buffer];
+    const size = COMPONENT_BYTES[a.componentType];
+    const stride = view.byteStride ?? size * components;
+    const data = new DataView(source.buffer, source.byteOffset + (view.byteOffset ?? 0) + (a.byteOffset ?? 0));
+    const get = (at: number) => (a.componentType === 5126 ? data.getFloat32(at, true) : a.componentType === 5125 ? data.getUint32(at, true) : a.componentType === 5123 ? data.getUint16(at, true) : data.getUint8(at));
+    const out: number[] = [];
+    for (let i = 0; i < a.count; i++) for (let k = 0; k < components; k++) out.push(get(i * stride + k * size));
+    return out;
+  };
+  const out: GlbTriangles[] = [];
+  const visit = (index: number, parent: Mat4, depth: number) => {
+    if (depth > 64) return;
+    const node = nodes[index];
+    const world = multiply(parent, localMatrix(node));
+    for (const p of node.mesh !== undefined ? (json.meshes?.[node.mesh]?.primitives ?? []) : []) {
+      if ((p.mode ?? 4) !== 4) continue;
+      const pos = read(p.attributes.POSITION, 3);
+      if (!pos) continue;
+      const order = p.indices !== undefined ? read(p.indices, 1) : null;
+      const count = order ? order.length : pos.length / 3;
+      const tri = new Float32Array(Math.floor(count / 3) * 9);
+      for (let i = 0; i < tri.length / 3; i++) {
+        const v = order ? order[i] : i;
+        tri.set(fromGltf(apply(world, [pos[v * 3], pos[v * 3 + 1], pos[v * 3 + 2]])), i * 3);
+      }
+      const m = p.material !== undefined ? (json.materials?.[p.material] as { name?: string; pbrMetallicRoughness?: { baseColorFactor?: number[] } } | undefined) : undefined;
+      const f = m?.pbrMetallicRoughness?.baseColorFactor ?? [0.8, 0.8, 0.8, 1];
+      out.push({ positions: tri, material: m?.name ?? (p.material !== undefined ? `material-${p.material}` : ''), color: [f[0], f[1], f[2]] });
+    }
+    for (const child of node.children ?? []) visit(child, world, depth + 1);
+  };
+  for (const root of roots) visit(root, IDENTITY, 0);
+  return out;
+}

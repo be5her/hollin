@@ -27,6 +27,7 @@ function harness() {
     },
     levelId: () => lv,
     entities: () => entities,
+    assets: () => ({}),
     seq: () => 1,
     epoch: () => 1,
     connectors: () => new Map(),

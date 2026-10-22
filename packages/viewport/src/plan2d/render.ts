@@ -1,8 +1,8 @@
-import { DEG, add, columnPolygon, dimensionGeometry, dimensionOutline, flatten, formatArea, formatLength, normalize, openingFrame, openingMisfits, perp, polygonCentroid, resolveDimension, resolvePath, scale as vscale, sub, wallBody, type DimensionGeometry, type Entity, type EntityType, type Layer, type LevelGeometry, type LevelWalls, type Path, type Region, type UnitSettings, type Vec2 } from '@studio/core';
+import { DEG, add, columnPolygon, itemFootprint, itemModel, itemSize, dimensionGeometry, dimensionOutline, flatten, formatArea, formatLength, normalize, openingFrame, openingMisfits, perp, polygonCentroid, resolveDimension, resolvePath, scale as vscale, sub, wallBody, type DimensionGeometry, type Entity, type EntityType, type Layer, type LevelGeometry, type LevelWalls, type Path, type Region, type UnitSettings, type Vec2 } from '@studio/core';
 import { visibleBox, worldToScreen, type Camera, type Size } from './camera';
 import { drawConnector, traceConnector, type PlanConnector } from './connectors';
 import { tracePath, tracePolygon, traceRegion, traceSegments } from './draw';
-import { entityBox, searchScene, type LevelScene, type SceneItem } from './scene';
+import { entityBox, footprintOf, searchScene, type LevelScene, type SceneItem } from './scene';
 import { withAlpha, type PlanTheme } from './theme';
 
 /** Everything one frame needs. The renderer keeps no state of its own. */
@@ -244,8 +244,9 @@ export function drawScreenText(ctx: CanvasRenderingContext2D, frame: RenderFrame
 /** An entity that is not (yet) in the scene, e.g. a drag preview: drawn like the real thing, without caching. */
 export function drawEntityPreview(ctx: CanvasRenderingContext2D, entity: Entity, frame: RenderFrame): void {
   const texts: TextOp[] = [];
-  const box = entityBox(entity, frame.scene ? Object.fromEntries([...frame.scene.items].map(([id, item]) => [id, item.entity])) : {});
-  const item: SceneItem = { ...box, id: entity.id, type: entity.type, layerId: entity.layerId, entity, path2d: null };
+  const assets = frame.scene?.assets ?? {};
+  const box = entityBox(entity, frame.scene ? Object.fromEntries([...frame.scene.items].map(([id, item]) => [id, item.entity])) : {}, assets);
+  const item: SceneItem = { ...box, id: entity.id, type: entity.type, layerId: entity.layerId, entity, path2d: null, ...(entity.type === 'item' ? { footprint: footprintOf(entity, assets) } : {}) };
   drawEntity(ctx, item, frame, texts);
   drawTexts(ctx, frame, texts);
   worldSpace(ctx, frame);
@@ -350,6 +351,10 @@ export function drawGrips(ctx: CanvasRenderingContext2D, frame: RenderFrame, gri
     ctx.beginPath();
     if (g.kind === 'vertex') ctx.rect(Math.round(x) - 4, Math.round(y) - 4, 8, 8);
     else if (g.kind === 'mid') ctx.arc(x, y, 3.5, 0, Math.PI * 2);
+    else if (g.kind === 'rotate') {
+      ctx.fillStyle = frame.theme.selection;
+      ctx.arc(x, y, 5, 0, Math.PI * 2);
+    }
     else if (g.kind === 'corner') {
       ctx.fillStyle = frame.theme.selection;
       ctx.moveTo(x, y - 4);
@@ -436,6 +441,13 @@ function traceOutline(ctx: CanvasRenderingContext2D, item: SceneItem, frame: Ren
     case 'shape':
       tracePath(ctx, e.path);
       return e.path.closed ? true : 'open';
+    case 'item':
+      for (const poly of item.footprint ?? []) tracePolygon(ctx, poly);
+      return Boolean(item.footprint?.length);
+    case 'light':
+      ctx.moveTo(e.at[0] + LIGHT_GLYPH, e.at[1]);
+      ctx.arc(e.at[0], e.at[1], LIGHT_GLYPH, 0, Math.PI * 2);
+      return true;
     case 'dimension': {
       for (const pts of dimensionOutline(dimensionGeometry(e, resolveDimensionIn(e, frame), null))) {
         ctx.moveTo(pts[0][0], pts[0][1]);
@@ -678,10 +690,14 @@ function drawEntity(ctx: CanvasRenderingContext2D, item: SceneItem, frame: Rende
       if (e.name && e.path.closed) texts.push({ text: e.name, at: polygonCentroid(flatten(e.path, 1)), screenPx: 11, color: theme.muted, align: 'center', baseline: 'middle' });
       return;
     }
-    case 'fixture':
-    case 'point':
     case 'item':
-    case 'light': {
+      drawItem(ctx, item, frame, texts);
+      return;
+    case 'light':
+      drawLightSymbol(ctx, frame, e, frame.theme.decor);
+      return;
+    case 'fixture':
+    case 'point': {
       const at: Vec2 = [e.at[0], e.at[1]];
       ctx.strokeStyle = theme.muted;
       ctx.lineWidth = px(frame, 1);
@@ -705,6 +721,74 @@ function drawEntity(ctx: CanvasRenderingContext2D, item: SceneItem, frame: Rende
       texts.push({ text: e.text, at: e.at, mm: e.size, color: theme.fg, align: 'center', baseline: 'middle', rotation: e.rotation });
       return;
   }
+}
+
+/** How far a light's symbol reaches on the plan, mm. */
+export const LIGHT_GLYPH = 150;
+
+/** A furniture item: its footprint (the model's outline) filled lightly and outlined, its name when there is room for it. */
+function drawItem(ctx: CanvasRenderingContext2D, item: SceneItem, frame: RenderFrame, texts: TextOp[]): void {
+  const e = item.entity as Extract<Entity, { type: 'item' }>;
+  const polys = item.footprint ?? [];
+  if (!polys.length) return;
+  const color = frame.theme.decor;
+  ctx.fillStyle = withAlpha(color, 0.16);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = px(frame, 1.25);
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  for (const poly of polys) tracePolygon(ctx, poly);
+  ctx.fill('nonzero');
+  ctx.stroke();
+  const model = itemModel(e.asset, frame.scene?.assets ?? {});
+  if (model.details.length > 1) {
+    // The parts one sees from above: cushions, a back, pillows.
+    ctx.lineWidth = px(frame, 0.75);
+    ctx.globalAlpha *= 0.7;
+    ctx.beginPath();
+    for (const poly of itemFootprint(e, { outline: model.details })) tracePolygon(ctx, poly);
+    ctx.stroke();
+    ctx.globalAlpha /= 0.7;
+    ctx.lineWidth = px(frame, 1.25);
+  }
+  // Its front (the model's −y side): a short line just inside that edge.
+  const [w, d] = itemSize(e, model);
+  const r = e.rotation[2] * DEG;
+  const front: Vec2 = [Math.sin(r) * Math.sign(e.scale[1]), -Math.cos(r) * Math.sign(e.scale[1])];
+  const inset = Math.min(d / 4, px(frame, 4));
+  const tickAt = add([e.at[0], e.at[1]], vscale(front, d / 2 - inset));
+  const side = vscale(perp(front), w / 4);
+  ctx.beginPath();
+  ctx.moveTo(tickAt[0] - side[0], tickAt[1] - side[1]);
+  ctx.lineTo(tickAt[0] + side[0], tickAt[1] + side[1]);
+  ctx.stroke();
+  if (Math.min(w, d) * frame.camera.scale >= 48) texts.push({ text: e.name ?? model.name, at: [e.at[0], e.at[1]], screenPx: 10, color: frame.theme.muted, align: 'center', baseline: 'middle' });
+}
+
+/** A light on the plan: a circle with rays (and a spot's aim towards its target). */
+export function drawLightSymbol(ctx: CanvasRenderingContext2D, frame: RenderFrame, e: Pick<Extract<Entity, { type: 'light' }>, 'at' | 'kind' | 'target'>, color: string): void {
+  const [x, y] = e.at;
+  const r = LIGHT_GLYPH * 0.45;
+  ctx.strokeStyle = color;
+  ctx.fillStyle = withAlpha(color, 0.25);
+  ctx.lineWidth = px(frame, 1.25);
+  ctx.beginPath();
+  if (e.kind === 'area') ctx.rect(x - r, y - r, 2 * r, 2 * r);
+  else {
+    ctx.moveTo(x + r, y);
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+  }
+  ctx.fill();
+  for (let i = 0; i < 8; i++) {
+    const a = (i * Math.PI) / 4;
+    ctx.moveTo(x + Math.cos(a) * r * 1.35, y + Math.sin(a) * r * 1.35);
+    ctx.lineTo(x + Math.cos(a) * LIGHT_GLYPH, y + Math.sin(a) * LIGHT_GLYPH);
+  }
+  if (e.kind === 'spot' && e.target) {
+    ctx.moveTo(x, y);
+    ctx.lineTo(e.target[0], e.target[1]);
+  }
+  ctx.stroke();
 }
 
 function drawOpening(ctx: CanvasRenderingContext2D, item: SceneItem, frame: RenderFrame): void {

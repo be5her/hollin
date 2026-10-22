@@ -1,5 +1,5 @@
 import RBush from 'rbush';
-import { emptyBox, extendBox, pathBox, pointAt, resolveDimension, type Box, type Entity, type EntityType, type Vec2 } from '@studio/core';
+import { emptyBox, extendBox, itemFootprint, itemModel, pathBox, pointAt, resolveDimension, type Asset, type Box, type Entity, type EntityType, type Polygon, type Vec2 } from '@studio/core';
 
 /** One entity in the spatial index, with its world box and a cache slot for its drawn outline. */
 export interface SceneItem {
@@ -13,6 +13,8 @@ export interface SceneItem {
   readonly entity: Entity;
   /** Filled in lazily by the renderer; dropped with the item. */
   path2d: Path2D | null;
+  /** A furniture item's footprint on the plan (its model's outline placed), worked out with its box. */
+  footprint?: Polygon[];
 }
 
 /** A level's entities as an R-tree, kept in step with the document by diffing object identity. */
@@ -22,10 +24,17 @@ export interface LevelScene {
   readonly index: RBush<SceneItem>;
   /** Bumped on every change, so caches keyed on the scene know when to refresh. */
   version: number;
+  /** The project's asset registry the items' footprints were worked out with. */
+  assets: Readonly<Record<string, Asset>>;
 }
 
 export function createLevelScene(levelId: string): LevelScene {
-  return { levelId, items: new Map(), index: new RBush<SceneItem>(), version: 0 };
+  return { levelId, items: new Map(), index: new RBush<SceneItem>(), version: 0, assets: {} };
+}
+
+/** A furniture item's footprint with the project's assets: its model's outline, scaled, turned and placed. */
+export function footprintOf(entity: Extract<Entity, { type: 'item' }>, assets: Readonly<Record<string, Asset>>): Polygon[] {
+  return itemFootprint(entity, itemModel(entity.asset, assets));
 }
 
 const GLYPH = 250;
@@ -37,7 +46,7 @@ const grow = (box: Box, by: number): Box => ({ minX: box.minX - by, minY: box.mi
 const around = (p: Vec2, half: number): Box => ({ minX: p[0] - half, minY: p[1] - half, maxX: p[0] + half, maxY: p[1] + half });
 
 /** The world box an entity occupies on the plan (generous, for culling and hit-testing candidates). */
-export function entityBox(entity: Entity, entities: Record<string, Entity>): Box {
+export function entityBox(entity: Entity, entities: Record<string, Entity>, assets: Readonly<Record<string, Asset>> = {}): Box {
   switch (entity.type) {
     case 'wall':
       return grow(pathBox(entity.path), entity.thickness);
@@ -75,6 +84,7 @@ export function entityBox(entity: Entity, entities: Record<string, Entity>): Box
     case 'label':
       return grow(boxOf([entity.at]), Math.max(entity.size, entity.text.length * entity.size * 0.6));
     case 'item':
+      return grow(boxOf(footprintOf(entity, assets).flat()), 1);
     case 'light':
       return around([entity.at[0], entity.at[1]], GLYPH * 2);
   }
@@ -85,11 +95,14 @@ export function entityBox(entity: Entity, entities: Record<string, Entity>): Box
  * identity through patches, so an item is rebuilt only when its entity object changed. Returns
  * whether anything changed.
  */
-export function syncLevelScene(scene: LevelScene, entities: Record<string, Entity>): boolean {
+export function syncLevelScene(scene: LevelScene, entities: Record<string, Entity>, assets: Readonly<Record<string, Asset>> = scene.assets): boolean {
   let changed = false;
+  // Items are measured with the registry: when it changed (a model registered or let go), measure them again.
+  const remeasure = assets !== scene.assets;
+  scene.assets = assets;
   for (const [id, item] of scene.items) {
     const current = entities[id];
-    if (current === item.entity) continue;
+    if (current === item.entity && !(remeasure && item.type === 'item')) continue;
     scene.index.remove(item);
     scene.items.delete(id);
     changed = true;
@@ -97,9 +110,9 @@ export function syncLevelScene(scene: LevelScene, entities: Record<string, Entit
   for (const id in entities) {
     if (scene.items.has(id)) continue;
     const entity = entities[id];
-    const box = entityBox(entity, entities);
+    const box = entityBox(entity, entities, assets);
     if (!Number.isFinite(box.minX)) continue;
-    const item: SceneItem = { ...box, id, type: entity.type, layerId: entity.layerId, entity, path2d: null };
+    const item: SceneItem = { ...box, id, type: entity.type, layerId: entity.layerId, entity, path2d: null, ...(entity.type === 'item' ? { footprint: footprintOf(entity, assets) } : {}) };
     scene.items.set(id, item);
     scene.index.insert(item);
     changed = true;
