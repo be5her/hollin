@@ -1,8 +1,16 @@
-import type { ProjectDoc, RuleLimits } from '@studio/core';
-import { Color, DirectionalLight, HemisphereLight, Matrix4, Mesh, PerspectiveCamera, Raycaster, Scene, Vector2, WebGLRenderer, type Object3D } from 'three';
+import { EYE_HEIGHT, floorAt, levelAt, rideElevator, walkRelative, walkWorld, type ProjectDoc, type RuleLimits, type Vec3, type WalkWorld, type Walker } from '@studio/core';
+import { Color, DirectionalLight, HemisphereLight, Matrix4, Mesh, PerspectiveCamera, Raycaster, Scene, Vector2, WebGLRenderer, type Intersection, type Object3D } from 'three';
 import { FOV, ORBIT_PRESETS, fitOrbit, orbitBy, orbitEye, orbitPan, orbitZoomAt, type Orbit, type OrbitPreset } from './orbit';
 import { BuildingScene, DEFAULT_DISPLAY, type SceneDisplay, type SceneHit } from './scene';
 import { LIGHT_SCENE_THEME, type SceneTheme } from './theme';
+
+/** Where the walk camera is: its feet (mm), the way it faces and looks (degrees), and the level it is on. */
+export interface WalkState {
+  at: Vec3;
+  yaw: number;
+  pitch: number;
+  levelId: string | null;
+}
 
 /** What a frame showed, for the component to mirror. */
 export interface Scene3dFrame {
@@ -15,6 +23,8 @@ export interface Scene3dFrame {
   levels: string[];
   /** Where the cutaway's plane clips the connectors, mm, or null. */
   clip: number | null;
+  /** The walk camera, while walking. */
+  walk: WalkState | null;
 }
 
 export interface Scene3dCallbacks {
@@ -28,6 +38,7 @@ export interface Scene3dCallbacks {
 
 /** Degrees turned per pixel dragged. */
 const ORBIT_SPEED = 0.35;
+const LOOK_SPEED = 0.25;
 /** How far the pointer may move before a press becomes a drag, px. */
 const DRAG_SLOP = 4;
 /** The world is drawn in metres: the solids' millimetres scaled down, so depth precision suits a building. */
@@ -42,12 +53,42 @@ const KEY_LIGHT = 1.15;
 /** The key light comes from the camera's upper left, so whichever side is in view reads in three tones. */
 const KEY_TURN = 40;
 const KEY_ELEVATION = 35;
+/** Walking speed, mm per second, and how much faster Shift goes. */
+const WALK_SPEED = 1400;
+const RUN = 2.5;
+const MAX_PITCH = 85;
+/** A frame longer than this is counted as this long, so a stall never throws the walker through a room. */
+const MAX_FRAME_S = 0.1;
+/** Keys that move the walker: forward, back, left, right. */
+const MOVES: Record<string, [number, number]> = {
+  w: [1, 0],
+  arrowup: [1, 0],
+  s: [-1, 0],
+  arrowdown: [-1, 0],
+  a: [0, -1],
+  arrowleft: [0, -1],
+  d: [0, 1],
+  arrowright: [0, 1],
+};
+
+interface Walking {
+  walker: Walker;
+  pitch: number;
+  /** The movement keys held down. */
+  keys: Set<string>;
+  run: boolean;
+  /** When the last movement frame was drawn, ms. */
+  last: number;
+  /** The orbit to go back to. */
+  orbit: Orbit;
+}
 
 /**
  * The 3D view on a canvas, framework-free: a WebGL renderer over a `BuildingScene`, lit by a sky
  * light and a key light (no shadows, so software GL keeps up), drawn only when something changed.
  * Left-drag orbits, right- or middle-drag (or Shift+left) pans, the wheel zooms at the cursor, Home
- * fits. The constructor throws when the canvas cannot give a WebGL context.
+ * fits, a click picks. A double click on a floor starts walking there (see `startWalk`). The
+ * constructor throws when the canvas cannot give a WebGL context.
  */
 export class Scene3dView {
   readonly building: BuildingScene;
@@ -59,10 +100,12 @@ export class Scene3dView {
   private size = { width: 1, height: 1 };
   private pending = 0;
   private placed = false;
-  private drag: { id: number; x: number; y: number; mode: 'orbit' | 'pan'; moved: boolean } | null = null;
+  private drag: { id: number; x: number; y: number; mode: 'orbit' | 'pan' | 'look'; moved: boolean } | null = null;
   private doc: ProjectDoc | null = null;
   private limits: RuleLimits | null = null;
   private display: SceneDisplay = DEFAULT_DISPLAY;
+  private walking: Walking | null = null;
+  private world: WalkWorld | null = null;
   private readonly raycaster = new Raycaster();
   private readonly detach: () => void;
 
@@ -111,25 +154,18 @@ export class Scene3dView {
     if (!this.placed && this.building.box()) this.fit(undefined, false);
   }
 
-  /** Shows all levels, one, or one and those below it cut (see `SceneDisplay`), spread apart by `explode`. */
+  /** Shows all levels, one, or one and those below it cut (see `SceneDisplay`), spread apart by `explode`. While walking, every level shows, whole and in place. */
   setDisplay(display: SceneDisplay): void {
     this.display = display;
-    this.building.applyDisplay(display);
+    this.building.applyDisplay(this.shownDisplay());
     this.rebuild();
     this.requestRender();
   }
 
   /** What is drawn under a window point (the first visible mesh, above the cutaway's plane skipped), or null. */
   pick(clientX: number, clientY: number): SceneHit | null {
-    const r = this.canvas.getBoundingClientRect();
-    this.raycaster.setFromCamera(new Vector2(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1), this.camera);
-    const clip = this.building.clipHeight();
-    for (const hit of this.raycaster.intersectObject(this.building.root, true)) {
-      if (!(hit.object instanceof Mesh) || !shown(hit.object)) continue;
-      if (clip !== null && hit.point.z / MM > clip + 1) continue;
-      return (hit.object.userData['hit'] as SceneHit | undefined) ?? null;
-    }
-    return null;
+    const hit = this.intersect(clientX, clientY);
+    return hit ? ((hit.object.userData['hit'] as SceneHit | undefined) ?? null) : null;
   }
 
   getOrbit(): Orbit {
@@ -143,8 +179,9 @@ export class Scene3dView {
     this.requestRender();
   }
 
-  /** Shows the whole building, from a preset direction or the current one; `notify` reports it to `onOrbit`. */
+  /** Shows the whole building, from a preset direction or the current one; `notify` reports it to `onOrbit`. Ends a walk. */
   fit(preset?: OrbitPreset, notify = true): void {
+    if (this.walking) this.stopWalk();
     const box = this.building.box();
     const direction = preset ? ORBIT_PRESETS[preset] : this.orbit;
     if (!box) {
@@ -157,12 +194,35 @@ export class Scene3dView {
     else this.requestRender();
   }
 
-  /** The solids for the document and the cutaway's cut (rebuilding only what changed). */
-  private rebuild(): void {
-    if (!this.doc || !this.limits) return;
-    const d = this.display;
-    const cut = d.mode === 'cutaway' && d.levelId ? { levelId: d.levelId, height: d.cutHeight } : null;
-    if (this.building.update(this.doc, { limits: this.limits, cut })) this.requestRender();
+  /** True while the walk camera is on. */
+  get isWalking(): boolean {
+    return this.walking !== null;
+  }
+
+  /**
+   * The walk camera: eyes 1.6 m above the feet at `at` (mm), facing `yaw`. W, A, S, D or the arrow
+   * keys walk (Shift runs), up stairs and ramps and through doors but not walls (`walkRelative`), a
+   * drag looks around, PageUp and PageDown ride the elevator stood in, Escape goes back to the orbit.
+   * Every level shows, whole and in place, while walking.
+   */
+  startWalk(at: Vec3, yaw: number): void {
+    const orbit = this.walking?.orbit ?? this.orbit;
+    this.walking = { walker: { at, yaw: ((yaw % 360) + 360) % 360 }, pitch: 0, keys: new Set(), run: false, last: 0, orbit };
+    this.building.applyDisplay(this.shownDisplay());
+    this.rebuild();
+    this.world = walkWorld(this.building.solids(), this.building.levels);
+    this.canvas.focus();
+    this.requestRender();
+  }
+
+  stopWalk(): void {
+    if (!this.walking) return;
+    this.orbit = this.walking.orbit;
+    this.walking = null;
+    this.world = null;
+    this.building.applyDisplay(this.shownDisplay());
+    this.rebuild();
+    this.requestRender();
   }
 
   requestRender(): void {
@@ -180,36 +240,119 @@ export class Scene3dView {
     this.renderer.dispose();
   }
 
+  /** The display as shown: walking shows everything in place. */
+  private shownDisplay(): SceneDisplay {
+    return this.walking ? { ...this.display, mode: 'all', explode: 0 } : this.display;
+  }
+
+  /** The solids for the document and the cutaway's cut (rebuilding only what changed). */
+  private rebuild(): void {
+    if (!this.doc || !this.limits) return;
+    const d = this.shownDisplay();
+    const cut = d.mode === 'cutaway' && d.levelId ? { levelId: d.levelId, height: d.cutHeight } : null;
+    if (this.building.update(this.doc, { limits: this.limits, cut })) {
+      if (this.walking) this.world = walkWorld(this.building.solids(), this.building.levels);
+      this.requestRender();
+    }
+  }
+
+  /** The first visible mesh under a window point, anything above the cutaway's plane skipped; glass is looked through when `solid`. */
+  private intersect(clientX: number, clientY: number, solid = false): Intersection | null {
+    const r = this.canvas.getBoundingClientRect();
+    this.raycaster.setFromCamera(new Vector2(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1), this.camera);
+    const clip = this.building.clipHeight();
+    for (const hit of this.raycaster.intersectObject(this.building.root, true)) {
+      if (!(hit.object instanceof Mesh) || !shown(hit.object)) continue;
+      if (clip !== null && hit.point.z / MM > clip + 1) continue;
+      if (solid && (hit.object.userData['hit'] as SceneHit | undefined)?.kind === 'glass') continue;
+      return hit;
+    }
+    return null;
+  }
+
+  /** Moves the walker for the keys held since the last frame. */
+  private step(now: number): void {
+    const w = this.walking;
+    if (!w || !this.world || !w.keys.size) return;
+    const dt = w.last ? Math.min(MAX_FRAME_S, (now - w.last) / 1000) : 1 / 60;
+    w.last = now;
+    let forward = 0;
+    let right = 0;
+    for (const k of w.keys) {
+      forward += MOVES[k][0];
+      right += MOVES[k][1];
+    }
+    const length = Math.hypot(forward, right);
+    if (!length) return;
+    const distance = WALK_SPEED * (w.run ? RUN : 1) * dt;
+    w.walker = walkRelative(this.world, w.walker, (forward / length) * distance, (right / length) * distance);
+  }
+
   private render(): void {
     const started = performance.now();
-    const o = this.orbit;
-    const eye = orbitEye(o);
-    this.camera.position.set(eye[0] * MM, eye[1] * MM, eye[2] * MM);
-    const d = o.distance * MM;
-    this.camera.near = Math.max(0.02, d / 500);
-    this.camera.far = d * 20 + 200;
+    const w = this.walking;
+    if (w) this.step(started);
+    let target: Vec3;
+    let keyAzimuth: number;
+    if (w) {
+      const [x, y, z] = w.walker.at;
+      const yaw = (w.walker.yaw * Math.PI) / 180;
+      const pitch = (w.pitch * Math.PI) / 180;
+      this.camera.position.set(x * MM, y * MM, (z + EYE_HEIGHT) * MM);
+      this.camera.near = 0.05;
+      this.camera.far = 1000;
+      target = [x + Math.cos(pitch) * Math.cos(yaw) * 1000, y + Math.cos(pitch) * Math.sin(yaw) * 1000, z + EYE_HEIGHT + Math.sin(pitch) * 1000];
+      keyAzimuth = w.walker.yaw + 180;
+    } else {
+      const o = this.orbit;
+      const eye = orbitEye(o);
+      this.camera.position.set(eye[0] * MM, eye[1] * MM, eye[2] * MM);
+      const d = o.distance * MM;
+      this.camera.near = Math.max(0.02, d / 500);
+      this.camera.far = d * 20 + 200;
+      target = o.target;
+      keyAzimuth = o.azimuth;
+    }
     this.camera.updateProjectionMatrix();
-    this.camera.lookAt(o.target[0] * MM, o.target[1] * MM, o.target[2] * MM);
+    this.camera.lookAt(target[0] * MM, target[1] * MM, target[2] * MM);
     this.camera.updateMatrixWorld();
-    const a = ((o.azimuth - KEY_TURN) * Math.PI) / 180;
+    const a = ((keyAzimuth - KEY_TURN) * Math.PI) / 180;
     const e = (KEY_ELEVATION * Math.PI) / 180;
-    this.key.target.position.set(o.target[0] * MM, o.target[1] * MM, o.target[2] * MM);
-    this.key.position.set(o.target[0] * MM + Math.cos(e) * Math.cos(a), o.target[1] * MM + Math.cos(e) * Math.sin(a), o.target[2] * MM + Math.sin(e));
+    this.key.target.position.set(target[0] * MM, target[1] * MM, target[2] * MM);
+    this.key.position.set(target[0] * MM + Math.cos(e) * Math.cos(a), target[1] * MM + Math.cos(e) * Math.sin(a), target[2] * MM + Math.sin(e));
     this.renderer.render(this.scene, this.camera);
     const viewProjection = new Matrix4().multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse).multiply(new Matrix4().makeScale(MM, MM, MM));
     this.callbacks.onFrame?.({
-      orbit: o,
+      orbit: this.orbit,
       viewProjection: viewProjection.elements.slice(),
       frameMs: performance.now() - started,
       meshes: this.building.meshCount(),
       levels: this.building.levels.filter((l) => this.building.levelGroup(l.id)?.visible).map((l) => l.id),
       clip: this.building.clipHeight(),
+      walk: w ? { at: w.walker.at, yaw: w.walker.yaw, pitch: w.pitch, levelId: (this.world && levelAt(this.world, w.walker.at[2])?.id) ?? null } : null,
     });
+    // Keep moving while a movement key is held.
+    if (w?.keys.size) this.requestRender();
   }
 
   private moved(): void {
     this.requestRender();
     this.callbacks.onOrbit?.(this.orbit);
+  }
+
+  /** Starts walking on the floor under a window point, facing away from the camera. */
+  private walkFrom(clientX: number, clientY: number): void {
+    const hit = this.intersect(clientX, clientY, true);
+    if (!hit) return;
+    const p: Vec3 = [hit.point.x / MM, hit.point.y / MM, hit.point.z / MM];
+    // Explode lifts the levels apart; the walk happens with everything in place, so the point is looked up with the level it belongs to.
+    const lift = (hit.object.parent?.parent?.position.z ?? 0) || 0;
+    const z = p[2] - lift;
+    this.building.applyDisplay({ ...this.display, mode: 'all', explode: 0 });
+    this.rebuild();
+    const world = walkWorld(this.building.solids(), this.building.levels);
+    const floor = floorAt(world, [p[0], p[1]], z + 1) ?? z;
+    this.startWalk([p[0], p[1], floor], this.orbit.azimuth + 180);
   }
 
   private listen(): () => void {
@@ -220,7 +363,7 @@ export class Scene3dView {
       if (e.button !== 0 && !pan) return;
       c.setPointerCapture(e.pointerId);
       c.focus();
-      this.drag = { id: e.pointerId, x: e.clientX, y: e.clientY, mode: pan ? 'pan' : 'orbit', moved: false };
+      this.drag = { id: e.pointerId, x: e.clientX, y: e.clientY, mode: this.walking ? 'look' : pan ? 'pan' : 'orbit', moved: false };
       e.preventDefault();
     };
     const move = (e: PointerEvent) => {
@@ -232,6 +375,14 @@ export class Scene3dView {
       d.moved = true;
       d.x = e.clientX;
       d.y = e.clientY;
+      if (d.mode === 'look') {
+        const w = this.walking;
+        if (!w) return;
+        w.walker = { ...w.walker, yaw: (((w.walker.yaw - dx * LOOK_SPEED) % 360) + 360) % 360 };
+        w.pitch = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, w.pitch - dy * LOOK_SPEED));
+        this.requestRender();
+        return;
+      }
       this.placed = true;
       this.orbit = d.mode === 'orbit' ? orbitBy(this.orbit, -dx * ORBIT_SPEED, dy * ORBIT_SPEED) : orbitPan(this.orbit, dx, dy, this.size.height);
       this.moved();
@@ -243,34 +394,79 @@ export class Scene3dView {
       this.drag = null;
       if (!d.moved && d.mode === 'orbit' && e.type === 'pointerup') this.callbacks.onPick?.(this.pick(e.clientX, e.clientY));
     };
+    const dblclick = (e: MouseEvent) => {
+      if (this.walking) return;
+      e.preventDefault();
+      this.walkFrom(e.clientX, e.clientY);
+    };
     const wheel = (e: WheelEvent) => {
       e.preventDefault();
+      if (this.walking) return;
       const r = c.getBoundingClientRect();
       this.placed = true;
       this.orbit = orbitZoomAt(this.orbit, Math.exp(e.deltaY * 0.0015), { x: e.clientX - r.left - r.width / 2, y: e.clientY - r.top - r.height / 2 }, this.size.height);
       this.moved();
     };
-    const key = (e: KeyboardEvent) => {
-      if (e.key === 'Home') {
+    const keyName = (e: KeyboardEvent) => (e.key.length === 1 ? e.key.toLowerCase() : e.key.toLowerCase());
+    const keydown = (e: KeyboardEvent) => {
+      const w = this.walking;
+      if (!w) {
+        if (e.key === 'Home') {
+          e.preventDefault();
+          this.fit();
+        }
+        return;
+      }
+      const k = keyName(e);
+      w.run = e.shiftKey;
+      if (k in MOVES) {
         e.preventDefault();
-        this.fit();
+        e.stopPropagation();
+        if (!w.keys.size) w.last = 0;
+        w.keys.add(k);
+        this.requestRender();
+      } else if (k === 'pageup' || k === 'pagedown') {
+        e.preventDefault();
+        e.stopPropagation();
+        const rode = this.world && rideElevator(this.world, w.walker, k === 'pageup' ? 1 : -1);
+        if (rode) {
+          w.walker = rode;
+          this.requestRender();
+        }
+      } else if (k === 'escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        this.stopWalk();
       }
     };
+    const keyup = (e: KeyboardEvent) => {
+      const w = this.walking;
+      if (!w) return;
+      w.run = e.shiftKey;
+      w.keys.delete(keyName(e));
+    };
+    const blur = () => this.walking?.keys.clear();
     const menu = (e: Event) => e.preventDefault();
     c.addEventListener('pointerdown', down);
     c.addEventListener('pointermove', move);
     c.addEventListener('pointerup', up);
     c.addEventListener('pointercancel', up);
+    c.addEventListener('dblclick', dblclick);
     c.addEventListener('wheel', wheel, { passive: false });
-    c.addEventListener('keydown', key);
+    c.addEventListener('keydown', keydown);
+    c.addEventListener('keyup', keyup);
+    c.addEventListener('blur', blur);
     c.addEventListener('contextmenu', menu);
     return () => {
       c.removeEventListener('pointerdown', down);
       c.removeEventListener('pointermove', move);
       c.removeEventListener('pointerup', up);
       c.removeEventListener('pointercancel', up);
+      c.removeEventListener('dblclick', dblclick);
       c.removeEventListener('wheel', wheel);
-      c.removeEventListener('keydown', key);
+      c.removeEventListener('keydown', keydown);
+      c.removeEventListener('keyup', keyup);
+      c.removeEventListener('blur', blur);
       c.removeEventListener('contextmenu', menu);
     };
   }

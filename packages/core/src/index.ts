@@ -41,6 +41,7 @@ export * from './rules/check';
 export * from './solids/mesh';
 export * from './solids/building';
 export * from './solids/connectors';
+export * from './solids/walk';
 export * from './describe/describe';
 export * from './tools';
 export * from './guidelines';

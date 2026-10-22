@@ -1,4 +1,4 @@
-import { deriveConnectorsSolids, deriveLevelSolids, deriveLevels, meshBox, type ConnectorSolids, type DerivedLevel, type LevelSolids, type ProjectDoc, type RuleLimits, type SolidKind, type SolidPart, type Vec3 } from '@studio/core';
+import { deriveConnectorsSolids, deriveLevelSolids, deriveLevels, meshBox, type BuildingSolids, type ConnectorSolids, type DerivedLevel, type LevelSolids, type ProjectDoc, type RuleLimits, type SolidKind, type SolidPart, type Vec3 } from '@studio/core';
 import { BufferAttribute, BufferGeometry, Color, DoubleSide, EdgesGeometry, FrontSide, Group, LineBasicMaterial, LineSegments, Mesh, MeshLambertMaterial, Plane, Vector3 } from 'three';
 import { LIGHT_SCENE_THEME, kindColor, type SceneTheme } from './theme';
 
@@ -149,6 +149,11 @@ export class BuildingScene {
   /** The connectors as last built. */
   get connectorSolids(): readonly ConnectorSolids[] {
     return this.connectorData;
+  }
+
+  /** Everything as last built, bottom to top: what the walk camera walks on. */
+  solids(): BuildingSolids {
+    return { levels: this.levelsList.map((l) => this.nodes.get(l.id)?.data).filter((d): d is LevelSolids => d !== undefined), connectors: this.connectorData };
   }
 
   /** Brings the scene up to date with the document; true when anything was rebuilt. */

@@ -88,6 +88,12 @@ export class SceneView {
     return clip === null || clip === undefined ? '' : String(Math.round(clip));
   });
   protected readonly frameMs = computed(() => (this.frame()?.frameMs ?? 0).toFixed(1));
+  protected readonly walk = computed(() => this.frame()?.walk ?? null);
+  protected readonly walkAttr = computed(() => {
+    const w = this.walk();
+    return w ? [...w.at, w.yaw].map((v) => Math.round(v)).join(',') : '';
+  });
+  protected readonly walkLevelName = computed(() => this.doc()?.levels[this.walk()?.levelId ?? '']?.name ?? '');
   protected readonly empty = computed(() => this.mounted() && this.frame() !== null && this.meshes() === 0);
 
   private scene: Scene3dView | null = null;

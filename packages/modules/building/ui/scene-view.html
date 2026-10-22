@@ -54,6 +54,8 @@
     [attr.data-mode]="mode()"
     [attr.data-explode]="explode()"
     [attr.data-clip]="clipAttr()"
+    [attr.data-walk]="walkAttr()"
+    [attr.data-walk-level]="walk()?.levelId ?? ''"
     [attr.data-frame-ms]="frameMs()"
   ></canvas>
   @if (empty()) {
@@ -61,5 +63,10 @@
   }
 </div>
 <div class="flex items-center gap-4 px-3 h-6 border-t border-edge bg-surface shrink-0 text-[11px] text-muted whitespace-nowrap overflow-hidden" data-testid="scene-footer">
-  <span class="flex-1 min-w-0 truncate">Drag to orbit · right-drag or Shift+drag to pan · wheel to zoom · Home to fit · click something to make its level active</span>
+  @if (walk()) {
+    <span class="shrink-0 text-fg" data-testid="scene-walk-level">Walking on {{ walkLevelName() }}</span>
+    <span class="flex-1 min-w-0 truncate">W A S D or arrows to walk · Shift to run · drag to look around · PageUp / PageDown in an elevator · Esc to stop</span>
+  } @else {
+    <span class="flex-1 min-w-0 truncate">Drag to orbit · right-drag or Shift+drag to pan · wheel to zoom · Home to fit · click to make a level active · double-click a floor to walk</span>
+  }
 </div>
