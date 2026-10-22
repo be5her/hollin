@@ -41,6 +41,7 @@ export function newProjectDoc(input: NewProjectInput): ProjectDoc {
     levels: { [level.id]: level },
     layers: Object.fromEntries(layers.map((l) => [l.id, l])),
     connectors: {},
+    assets: {},
     levelData: { [level.id]: { entities: {} } },
   };
 }

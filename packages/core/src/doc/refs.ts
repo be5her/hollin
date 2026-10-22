@@ -1,12 +1,14 @@
+import { assetFileOf } from '../decor/refs';
 import type { Building, Connector, Entity, Layer, Level } from './schema';
 
 /** The kinds of record a document holds; `meta` and `building` are single records. */
-export type Coll = 'meta' | 'building' | 'level' | 'layer' | 'connector' | 'entity';
+export type Coll = 'meta' | 'building' | 'level' | 'layer' | 'connector' | 'asset' | 'entity';
 
 export interface Ref {
   /** Where the reference sits, e.g. `span.topLevelId` or `stops.1.levelId`. */
   path: string;
-  target: 'level' | 'layer' | 'entity';
+  target: 'level' | 'layer' | 'entity' | 'asset';
+  /** The record's id; for an asset, its file name (the reference itself is `asset:<file>`). */
   id: string;
 }
 
@@ -41,6 +43,10 @@ export function refsOf(coll: Coll, value: unknown): Ref[] {
       push('layerId', 'layer', e.layerId);
       if ('span' in e && e.span) push('span.topLevelId', 'level', e.span.topLevelId);
       if (e.type === 'opening') push('wallId', 'entity', e.wallId);
+      if (e.type === 'item') {
+        const file = assetFileOf(e.asset);
+        if (file) refs.push({ path: 'asset', target: 'asset', id: file });
+      }
       if (e.type === 'dimension' && e.anchors) {
         if (e.anchors.from) push('anchors.from.entityId', 'entity', e.anchors.from.entityId);
         if (e.anchors.to) push('anchors.to.entityId', 'entity', e.anchors.to.entityId);
@@ -55,6 +61,7 @@ export function refsOf(coll: Coll, value: unknown): Ref[] {
       break;
     }
     case 'meta':
+    case 'asset':
       break;
   }
   return refs;
@@ -64,6 +71,8 @@ export function refsOf(coll: Coll, value: unknown): Ref[] {
 export function remapRefs<T>(coll: Coll, value: T, map: ReadonlyMap<string, string>): T {
   const copy = structuredClone(value) as Record<string, unknown>;
   for (const ref of refsOf(coll, value)) {
+    // Asset files are named by their content; they never change id.
+    if (ref.target === 'asset') continue;
     const next = map.get(ref.id);
     if (!next) continue;
     const keys = ref.path.split('.');

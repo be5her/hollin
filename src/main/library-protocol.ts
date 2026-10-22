@@ -1,5 +1,5 @@
 import { promises as fs } from 'node:fs';
-import { isId } from '@studio/core';
+import { libraryUrlFile } from '@studio/core/node';
 import { protocol } from 'electron';
 import type { Host } from './host';
 
@@ -11,18 +11,14 @@ export function registerLibraryScheme(): void {
 }
 
 /**
- * Serves library files to the renderer, read-only: `library://project/<id>/thumbnail.png`. Only the
- * paths listed here resolve; everything else is 404. Later milestones add project assets and the catalog.
+ * Serves library files to the renderer, read-only: project thumbnails and assets, and the catalog's
+ * models and thumbnails (`libraryUrlFile` in core lists the paths). Everything else is 404.
  */
 export function handleLibraryProtocol(host: Host): void {
   protocol.handle(LIBRARY_SCHEME, async (request) => {
-    const url = new URL(request.url);
-    const parts = url.pathname.split('/').filter(Boolean);
-    if (url.hostname === 'project' && parts.length === 2 && isId(parts[0]) && parts[1] === 'thumbnail.png') {
-      const file = host.projects.library.thumbnailFile(parts[0]);
-      const data = file ? await fs.readFile(file).catch(() => null) : null;
-      if (data) return new Response(new Uint8Array(data), { headers: { 'content-type': 'image/png', 'cache-control': 'max-age=31536000, immutable' } });
-    }
+    const target = request.method === 'GET' ? libraryUrlFile(host.projects.library, request.url) : null;
+    const data = target ? await fs.readFile(target.file).catch(() => null) : null;
+    if (target && data) return new Response(new Uint8Array(data), { headers: { 'content-type': target.type, 'cache-control': 'max-age=31536000, immutable' } });
     return new Response('Not found', { status: 404 });
   });
 }

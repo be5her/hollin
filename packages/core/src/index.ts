@@ -46,3 +46,6 @@ export * from './describe/describe';
 export * from './tools';
 export * from './guidelines';
 export * from './assistant-types';
+export * from './decor/refs';
+export * from './decor/glb';
+export * from './decor/catalog';

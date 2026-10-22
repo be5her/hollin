@@ -19,8 +19,9 @@ import { newProjectDoc } from './defaults';
 import { deriveLevels, entitiesOnLevel } from './derive';
 import { DocumentEngine, type Author, type DocPatch } from './engine';
 import { Transaction, applyPatch, type Op } from './ops';
+import { migrateProject } from './files';
 import { refsOf } from './refs';
-import type { ProjectDoc } from './schema';
+import { FORMAT_VERSION, type ProjectDoc } from './schema';
 
 const you: Author = { kind: 'user', name: 'You' };
 const agent: Author = { kind: 'mcp', name: 'claude-code 2.1' };
@@ -450,5 +451,55 @@ describe('references', () => {
       };
       walk(value, []);
     }
+  });
+});
+
+describe('decor references and the asset registry (format 2)', () => {
+  const file = `${'b'.repeat(64)}.glb`;
+  const asset = { id: file, kind: 'model' as const, name: 'Chair', category: 'imported', size: [500, 520, 900] as const, min: [-250, -260, 0] as const };
+  const item = (doc: ProjectDoc, ref: string) => addEntityOps(doc, { levelId: doc.building.groundLevelId, entity: { type: 'item', asset: ref, at: [0, 0, 0] } });
+
+  it('migrates a format 1 project.json by adding an empty registry', () => {
+    const { formatVersion: _v, assets: _a, levelData: _l, ...rest } = newProjectDoc({ name: 'Old' });
+    const { project, from, migrated } = migrateProject({ ...rest, formatVersion: 1, levelFiles: {} });
+    expect([from, migrated, project.formatVersion, project.assets]).toEqual([1, true, FORMAT_VERSION, {}]);
+    expect(FORMAT_VERSION).toBe(2);
+  });
+
+  it('accepts an item whose asset the project registers, refuses one it does not', () => {
+    let doc = newProjectDoc({ name: 'Flat' });
+    expect(() => commit(doc, item(doc, `asset:${file}`).ops)).toThrow(/assets do not list/);
+    doc = commit(doc, [{ t: 'ins', c: 'asset', id: file, v: asset }, ...item(doc, `asset:${file}`).ops]);
+    expect(doc.assets[file]).toMatchObject({ name: 'Chair', size: [500, 520, 900] });
+    const [entity] = Object.values(doc.levelData[doc.building.groundLevelId].entities);
+    expect(refsOf('entity', entity).find((r) => r.target === 'asset')).toEqual({ path: 'asset', target: 'asset', id: file });
+    // An asset in use cannot go; once the item is gone it can.
+    expect(() => commit(doc, [{ t: 'del', c: 'asset', id: file }])).toThrow(/still refers to asset/);
+    doc = commit(doc, [...deleteEntitiesOps(doc, [entity.id]), { t: 'del', c: 'asset', id: file }]);
+    expect(doc.assets).toEqual({});
+  });
+
+  it('checks the grammar of model, material and style references', () => {
+    const doc = newProjectDoc({ name: 'Flat' });
+    expect(() => commit(doc, item(doc, 'builtin:sofa-3').ops)).not.toThrow();
+    expect(() => commit(doc, item(doc, 'paint:#ff0000').ops)).toThrow(/Not a model reference/);
+    expect(() => commit(doc, item(doc, 'sofa.glb').ops)).toThrow(/Not a model reference/);
+    const withMaterials = addEntityOps(doc, { levelId: doc.building.groundLevelId, entity: { type: 'item', asset: 'builtin:sofa-3', at: [0, 0, 0], materials: { fabric: 'asset:x' } } });
+    expect(() => commit(doc, withMaterials.ops)).toThrow(/Not a material reference/);
+    const wall = addEntityOps(doc, { levelId: doc.building.groundLevelId, entity: { type: 'wall', path: { closed: false, v: [{ p: [0, 0] }, { p: [3000, 0] }] }, thickness: 200, materials: { left: 'paint:#A0B0C0', right: 'builtin:oak-floor' } } });
+    expect(() => commit(doc, wall.ops)).not.toThrow();
+    const after = commit(doc, wall.ops);
+    const door = addEntityOps(after, { levelId: doc.building.groundLevelId, entity: { type: 'opening', kind: 'door', wallId: wall.id, along: 1000, width: 900, height: 2100, style: 'paint:#ffffff' } });
+    expect(() => commit(after, door.ops)).toThrow(/Not a style reference/);
+  });
+
+  it('undoes the registration with the item, and the mirror follows', async () => {
+    let mirror = newProjectDoc({ name: 'Flat' });
+    const engine = new DocumentEngine(mirror, { onChange: (_doc, patch) => (mirror = applyPatch(mirror, patch.ops)) });
+    await engine.transact('Place chair', you, (tx) => tx.apply([{ t: 'ins', c: 'asset', id: file, v: asset }, ...item(tx.doc, `asset:${file}`).ops]));
+    expect(Object.keys(mirror.assets)).toEqual([file]);
+    engine.undo();
+    expect(mirror.assets).toEqual({});
+    expect(engine.doc.assets).toEqual({});
   });
 });

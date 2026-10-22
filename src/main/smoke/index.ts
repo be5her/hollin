@@ -9,6 +9,7 @@ import { smokeBuilding } from './building';
 import { smokeBuildingUi } from './building-ui';
 import { smokeConnectors } from './connectors';
 import { smokeConnectorsUi } from './connectors-ui';
+import { smokeDecor, smokeDecorProtocol } from './decor';
 import { smokeHost } from './host';
 import { smokeLibrary } from './library';
 import { smokeLibraryUi } from './library-ui';
@@ -44,11 +45,13 @@ export async function runSmoke(host: Host, openWindow: () => BrowserWindow): Pro
     const { planId } = await smokePlan(smoke);
     await smoke.run('project.close', { id: planId });
     const { duplexId } = await smokeConnectors(smoke);
+    const { decorId, tableRef } = await smokeDecor(smoke);
 
     smoke.section('renderer');
     await smoke.openWindow(openWindow);
     await smokeShell(smoke);
     await smokeLibraryUi(smoke, houseId);
+    await smokeDecorProtocol(smoke, decorId, tableRef);
     await smokeBuildingUi(smoke, towerId);
     await smokePlanUi(smoke, towerId);
     await smokeTrackingUi(smoke);

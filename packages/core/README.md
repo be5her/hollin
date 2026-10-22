@@ -36,6 +36,8 @@ The engine. Everything here is pure TypeScript with no Electron, Node I/O or UI 
 - `project-session.ts`: one open project's document and its autosave (750 ms debounce, 5 s maximum wait, clean only after a successful write, retries on failure, flush on close).
 - `library.ts`: the library folder: index (a rebuildable cache), listing and search, create, duplicate, trash, snapshots, thumbnails, packages, the lock heartbeat.
 - `package.ts`: export and import of `.psp` packages with the import guards.
+- `catalog.ts`: the library's furniture catalog (`catalog/furniture/<sha256>.glb` with a rebuildable `index.json`): import with checks and hashing, remove, thumbnails, copying a model into a project's assets. See `packages/modules/decor/README.md`.
+- `library-urls.ts`: `libraryUrlFile`, the only files `library://` serves (project thumbnails and assets, catalog models and thumbnails).
 - `project-service.ts`: the library plus the open projects; what `host.projects` is. See `packages/modules/library/README.md`.
 
 ## Document (`src/doc`)
@@ -47,8 +49,16 @@ The engine. Everything here is pure TypeScript with no Electron, Node I/O or UI 
 | `ops.ts` | Ops (`ins`, `upd`, `del` per record), `Transaction` (copy-on-write draft, schema validation, reference integrity at commit, net before/after values), `patchOps`, `applyPatch` (the mirror). |
 | `engine.ts` | `DocumentEngine`: transactions with labels and authors, the linear undo stack (merging, caps, guarded undo), dry runs, `setMeta` outside history, `replace` with a new epoch, `DocPatch` events. |
 | `builders.ts` | Intent to ops against the current draft: add/update/move/remove/duplicate levels, layers, entities (deleting a wall deletes its openings), connectors. |
-| `refs.ts` | The one list of references between records, for integrity checks and id remapping. |
+| `refs.ts` | The one list of references between records, for integrity checks and id remapping; an item's `asset:` model is a reference to the project's asset registry (`assets` in `project.json`, format 2). |
 | `defaults.ts`, `files.ts` | A new project; the split into `project.json` and level files and back; format migrations. |
+
+## Decor (`src/decor`)
+
+| File | What |
+|---|---|
+| `refs.ts` | The reference grammar: `builtin:<id>`, `asset:<sha256>.<ext>`, `paint:#rrggbb`; which ones models, materials and styles accept. |
+| `glb.ts` | GLB files without a library: chunks, structure and bounds checks, refused extensions, the extent through node transforms in mm with z up, packing a self-contained `.gltf` into a GLB, and a writer (meshes with base-colour materials; `meshToGlb` turns a core mesh into glTF space). |
+| `catalog.ts` | The catalog's types (`CatalogModel`, `CatalogApi`). |
 
 ## Geometry (`src/geometry`)
 

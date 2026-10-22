@@ -61,8 +61,11 @@ export function parseLevelFile(raw: unknown): LevelFile {
 
 type Migration = (raw: Record<string, unknown>) => Record<string, unknown>;
 
-/** Steps from each format version to the next. Empty until the format first changes after release. */
-const MIGRATIONS: Record<number, Migration> = {};
+/** Steps from each format version to the next. */
+const MIGRATIONS: Record<number, Migration> = {
+  // 2: the project's asset registry (decor models).
+  1: (raw) => ({ ...raw, assets: {} }),
+};
 
 /**
  * Brings a raw `project.json` up to the current format. A file from a newer version of the app is

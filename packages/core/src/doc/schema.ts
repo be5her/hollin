@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ASSET_FILE, isMaterialRef, isModelRef, isStyleRef } from '../decor/refs';
 import { roundMm } from '../geometry/vec';
 
 /**
@@ -8,7 +9,7 @@ import { roundMm } from '../geometry/vec';
  */
 
 /** Bump when the stored shape changes, and add a step to `migrateProject`. */
-export const FORMAT_VERSION = 1;
+export const FORMAT_VERSION = 2;
 
 export const IdSchema = z.string().regex(/^(?:[a-z]{1,8}_)?[0-9a-hjkmnp-tv-z]{16}$/, 'Not a valid id');
 const Mm = z.number().transform(roundMm);
@@ -17,6 +18,12 @@ const NonNegativeMm = z.number().min(0).transform(roundMm);
 const Degrees = z.number().min(-360).max(360);
 /** A reference to a material, symbol or model in the catalog (or a project asset). */
 const CatalogRef = z.string().min(1).max(200);
+/** A model: `builtin:<id>` or `asset:<sha256>.<ext>` (see `decor/refs.ts`). */
+const ModelRef = CatalogRef.refine(isModelRef, 'Not a model reference (builtin:<id> or asset:<sha256>.<ext>)');
+/** A material: `builtin:<id>` or `paint:#rrggbb`. */
+const MaterialRef = CatalogRef.refine(isMaterialRef, 'Not a material reference (builtin:<id> or paint:#rrggbb)');
+/** A door or window style: `builtin:<id>`. */
+const StyleRef = CatalogRef.refine(isStyleRef, 'Not a style reference (builtin:<id>)');
 
 // ---------- geometry ----------
 
@@ -124,7 +131,7 @@ export const WallSchema = z.object({
   height: PositiveMm.nullable().default(null).describe('null: the height of its level'),
   alignment: z.enum(['center', 'left', 'right']).default('center').describe('Which side of the path the wall body lies on, looking along it'),
   baseOffset: Mm.default(0),
-  materials: z.object({ left: CatalogRef.optional(), right: CatalogRef.optional() }).optional(),
+  materials: z.object({ left: MaterialRef.optional(), right: MaterialRef.optional() }).optional().describe('The finish of each face, looking along the path'),
 });
 
 export const OpeningSchema = z.object({
@@ -137,7 +144,7 @@ export const OpeningSchema = z.object({
   height: PositiveMm,
   sill: NonNegativeMm.default(0),
   swing: z.object({ hinge: z.enum(['start', 'end']), side: z.enum(['left', 'right']) }).optional(),
-  style: CatalogRef.optional(),
+  style: StyleRef.optional(),
 });
 
 const ColumnShape = z.discriminatedUnion('k', [
@@ -161,7 +168,7 @@ export const RoomSchema = z.object({
   name: z.string().trim().min(1).max(120),
   number: z.string().max(20).optional(),
   boundary: z.discriminatedUnion('k', [z.object({ k: z.literal('detect'), seed: Vec2Schema.describe('A point inside the walls that enclose the room') }), z.object({ k: z.literal('region'), region: RegionSchema })]),
-  finish: z.object({ floor: CatalogRef.optional(), walls: CatalogRef.optional(), ceiling: CatalogRef.optional() }).optional(),
+  finish: z.object({ floor: MaterialRef.optional(), walls: MaterialRef.optional(), ceiling: MaterialRef.optional() }).optional(),
 });
 /** Any outline: a terrace, a pool, a counter, a sketch. Open or closed, with every segment kind and corner; filled when closed. */
 export const ShapeSchema = z.object({ ...base, type: z.literal('shape'), path: PathSchema.describe('An open or closed outline: lines, arcs (by bulge) or Béziers, with fillet or chamfer corners'), filled: z.boolean().default(true).describe('A closed shape is filled unless false') });
@@ -197,11 +204,11 @@ export const LabelSchema = z.object({ ...base, type: z.literal('label'), text: z
 export const ItemSchema = z.object({
   ...base,
   type: z.literal('item'),
-  asset: CatalogRef.describe('Model in the catalog or the project'),
-  at: Vec3Schema.describe('x, y, and height above the floor'),
-  rotation: z.tuple([Degrees, Degrees, Degrees]).default([0, 0, 0]),
-  scale: z.tuple([z.number().positive(), z.number().positive(), z.number().positive()]).default([1, 1, 1]),
-  materials: z.record(z.string(), CatalogRef).default({}),
+  asset: ModelRef.describe('The model: builtin:<id>, or asset:<file> registered in the project'),
+  at: Vec3Schema.describe("x, y of the model's bottom centre, and its height above the floor"),
+  rotation: z.tuple([Degrees, Degrees, Degrees]).default([0, 0, 0]).describe('Degrees about x, y and z; z is the turn on the plan'),
+  scale: z.tuple([z.number().positive(), z.number().positive(), z.number().positive()]).default([1, 1, 1]).describe("Relative to the model's own size"),
+  materials: z.record(z.string(), MaterialRef).default({}).describe('Material per slot, over the model defaults'),
 });
 export const LightSchema = z.object({
   ...base,
@@ -294,6 +301,20 @@ export type ConnectorKind = Connector['kind'];
 
 export const CONNECTOR_PREFIX: Record<ConnectorKind, string> = { stair: 'str', ladder: 'lad', ramp: 'rmp', elevator: 'elv', escalator: 'esc' };
 
+// ---------- assets ----------
+
+/** A file in the project's `assets/` folder, by its content-addressed name: what it is and how big. */
+export const AssetSchema = z.object({
+  id: z.string().regex(ASSET_FILE, 'Not an asset file name'),
+  kind: z.literal('model'),
+  name: z.string().trim().min(1).max(200),
+  category: z.string().max(40).default('imported'),
+  size: Vec3Schema.describe("The model's extent, mm (x, y on the plan, z up)"),
+  min: Vec3Schema.describe("The low corner of the extent, mm, in the model's own coordinates"),
+  bytes: z.number().int().min(0).optional(),
+});
+export type Asset = z.infer<typeof AssetSchema>;
+
 // ---------- the document and its files ----------
 
 export const LevelDataSchema = z.object({
@@ -308,6 +329,8 @@ export const ProjectDocSchema = z.object({
   levels: z.record(z.string(), LevelSchema),
   layers: z.record(z.string(), LayerSchema),
   connectors: z.record(z.string(), ConnectorSchema),
+  /** The models and textures in the project's assets, by file name, so the project needs no catalog. */
+  assets: z.record(z.string(), AssetSchema),
   levelData: z.record(z.string(), LevelDataSchema),
 });
 export type ProjectDoc = z.infer<typeof ProjectDocSchema>;

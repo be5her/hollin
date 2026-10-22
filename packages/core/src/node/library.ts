@@ -8,6 +8,7 @@ import type { ListQuery, ProjectSummary, SnapshotInfo } from '../projects';
 import { StudioError } from '../errors';
 import { isId, newId } from '../ids';
 import { WriteQueue, readJsonFile, renameWithRetry, writeFileAtomic, writeJsonAtomic } from './atomic-write';
+import { Catalog } from './catalog';
 import { exportPackage, importPackage, type PackageLimits } from './package';
 import { PROJECT_FILE, readProjectDir, writeProjectDir } from './project-store';
 
@@ -66,11 +67,15 @@ export class Library {
   private heartbeat: ReturnType<typeof setInterval> | null = null;
   /** Another live process that holds the library, found when it was opened. */
   lockedBy: LockHolder | null = null;
+  /** The furniture models shared by every project. */
+  readonly catalog: Catalog;
 
   constructor(
     readonly root: string,
-    private readonly opts: { onChange?(reason: string, projectId?: string): void; appVersion?: string } = {},
-  ) {}
+    private readonly opts: { onChange?(reason: string, projectId?: string): void; onCatalogChange?(reason: string, file?: string): void; appVersion?: string } = {},
+  ) {
+    this.catalog = new Catalog(path.join(root, 'catalog'), opts.onCatalogChange);
+  }
 
   get projectsDir(): string {
     return path.join(this.root, 'projects');
@@ -108,12 +113,14 @@ export class Library {
     await this.acquireLock();
     await this.loadIndex();
     await this.reconcile();
+    await this.catalog.open();
   }
 
   async close(): Promise<void> {
     if (this.heartbeat) clearInterval(this.heartbeat);
     this.heartbeat = null;
     await this.queue.idle();
+    await this.catalog.idle();
     const lockFile = path.join(this.root, 'library.lock');
     const lock = await readJsonFile<{ pid?: number; host?: string }>(lockFile).catch(() => undefined);
     if (lock?.pid === process.pid && lock.host === os.hostname()) await fs.rm(lockFile, { force: true }).catch(() => {});

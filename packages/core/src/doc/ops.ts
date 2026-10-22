@@ -2,7 +2,7 @@ import type { z } from 'zod';
 import { StudioError } from '../errors';
 import { deriveLevels } from './derive';
 import { refsOf, type Coll } from './refs';
-import { BuildingSchema, ConnectorSchema, ENTITY_LAYER, EntitySchema, LayerSchema, LevelSchema, ProjectMetaSchema, type Entity, type ProjectDoc } from './schema';
+import { AssetSchema, BuildingSchema, ConnectorSchema, ENTITY_LAYER, EntitySchema, LayerSchema, LevelSchema, ProjectMetaSchema, type Entity, type ProjectDoc } from './schema';
 
 export type { Coll } from './refs';
 
@@ -27,10 +27,11 @@ const SCHEMAS: Record<Coll, z.ZodType> = {
   level: LevelSchema,
   layer: LayerSchema,
   connector: ConnectorSchema,
+  asset: AssetSchema,
   entity: EntitySchema,
 };
 
-const COLLECTION = { level: 'levels', layer: 'layers', connector: 'connectors' } as const;
+const COLLECTION = { level: 'levels', layer: 'layers', connector: 'connectors', asset: 'assets' } as const;
 
 /** A document under change: containers are copied the first time they are written, records are replaced, never mutated. */
 class Draft {
@@ -141,8 +142,8 @@ export function applyPatch(doc: ProjectDoc, ops: readonly Op[]): ProjectDoc {
   return draft.doc;
 }
 
-const ORDER_INSERT: Coll[] = ['meta', 'level', 'layer', 'building', 'connector', 'entity'];
-const ORDER_DELETE: Coll[] = ['entity', 'connector', 'layer', 'level'];
+const ORDER_INSERT: Coll[] = ['meta', 'level', 'layer', 'building', 'connector', 'asset', 'entity'];
+const ORDER_DELETE: Coll[] = ['entity', 'asset', 'connector', 'layer', 'level'];
 
 const sameJson = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
@@ -247,7 +248,8 @@ function checkIntegrity(doc: ProjectDoc, touched: Map<string, { c: Coll; id: str
   const fail = (message: string) => {
     throw new StudioError('CONFLICT', message);
   };
-  const exists = (target: 'level' | 'layer' | 'entity', id: string) => (target === 'level' ? Boolean(doc.levels[id]) : target === 'layer' ? Boolean(doc.layers[id]) : Boolean(entityById(doc, id)));
+  const exists = (target: 'level' | 'layer' | 'entity' | 'asset', id: string) =>
+    target === 'level' ? Boolean(doc.levels[id]) : target === 'layer' ? Boolean(doc.layers[id]) : target === 'asset' ? Boolean(doc.assets[id]) : Boolean(entityById(doc, id));
   let structural = false;
   let deleted = false;
 
@@ -259,7 +261,7 @@ function checkIntegrity(doc: ProjectDoc, touched: Map<string, { c: Coll; id: str
       continue;
     }
     for (const ref of refsOf(t.c, draftValue)) {
-      if (!exists(ref.target, ref.id)) fail(`${describe(t.c, t.id)} refers to a ${ref.target} that does not exist (${ref.path}: ${ref.id})`);
+      if (!exists(ref.target, ref.id)) fail(ref.target === 'asset' ? `${describe(t.c, t.id)} uses the model ${ref.id}, which the project's assets do not list` : `${describe(t.c, t.id)} refers to a ${ref.target} that does not exist (${ref.path}: ${ref.id})`);
     }
     if (t.c === 'entity') {
       const e = draftValue as Entity;

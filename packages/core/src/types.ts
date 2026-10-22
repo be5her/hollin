@@ -1,6 +1,7 @@
 import type { z } from 'zod';
 import type { AssistantCaller, AssistantEvent } from './assistant-types';
 import type { ConfigPatch, GlobalConfig } from './config';
+import type { CatalogApi } from './decor/catalog';
 import type { Author, DocPatch, EditContext, HistoryInfo, HistoryState, LastTouched } from './doc/engine';
 import { StudioError } from './errors';
 import type { ProjectDoc } from './doc/schema';
@@ -119,6 +120,8 @@ export interface ProjectsApi {
   setUiState(id: string, state: Record<string, unknown>): Promise<void>;
   /** Keeps an open project as it is in an automatic snapshot, e.g. before a large batch by an agent. */
   autoSnapshot?(id: string, name: string, createdBy: string): Promise<void>;
+  /** The library's catalog of imported furniture models. */
+  readonly catalog: CatalogApi;
 }
 
 export interface MutationRequest {
@@ -271,6 +274,8 @@ export interface HostEvents {
   'mcp.call': McpCallEntry;
   /** The assistant's API key was set or cleared. */
   'secrets.changed': { name: string };
+  /** The library catalog changed: a model was imported, removed or got its thumbnail (`file`). */
+  'catalog.changed': { reason: string; file?: string };
   /** The library's listing changed: a project was created, renamed, trashed, imported, and so on. */
   'library.changed': { reason: string; projectId?: string };
   /**

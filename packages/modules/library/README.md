@@ -21,16 +21,17 @@ The project library: one folder the app owns, where every project lives. Users n
 <library>/projects/<id>/snapshots/<snapshotId>/        meta.json plus the same layout
 <library>/trash/<id>/                  trashed projects, with trashed.json
 <library>/catalog/                     furniture, materials and symbols shared by every project
+<library>/catalog/furniture/           imported models, their thumbnails and index.json (see packages/modules/decor)
 <library>/.staging/                    imports and copies in progress (cleared at startup)
 ```
 
 - **Saving** is automatic: 750 ms after the last change, and at most 5 s while changes keep coming (an agent making many edits), plus on close and on quit. A project counts as saved only after a successful write; a failed save shows "Not saved" and is retried.
 - **Crash safety:** level files are never overwritten. A save writes changed levels to new files named after their content hash, then replaces `project.json` (which lists each level's file) atomically, then deletes the files no longer listed. A crash at any point leaves either the old or the new `project.json` with all of its files; leftovers are removed on the next open. Files the app does not recognise (a sync service's conflict copies) are left alone.
 - **Snapshots** copy `project.json` and the level files; assets are shared because their names are their hashes. Restoring keeps the project's id, name, description and tags, and first saves the current design as an automatic snapshot. The last 10 automatic snapshots are kept; named ones stay until deleted.
-- **Format versions:** `project.json` carries `formatVersion`. An older file is migrated (after an automatic snapshot); a newer one is refused and never written.
+- **Format versions:** `project.json` carries `formatVersion` (2 since the decor asset registry). An older file is migrated (after an automatic snapshot); a newer one is refused and never written.
 - **Packages** (`.psp`, a zip): `manifest.json` plus a `project/` tree (the saved project, assets, thumbnail, optionally snapshots). Import unpacks into `.staging/`, checks it like opening a project and moves it in. It refuses path escapes, absolute or drive paths, reserved names (`CON`, `NUL`…), names that differ only in case, too many or too large files, suspiciously compressed entries, and assets whose content does not match their hash. An imported project keeps its id unless the library has it already, and gets " (imported)" when its name is taken. Secrets are never part of a project. Double-clicking a `.psp` file imports it.
 - **One user at a time:** a second launch focuses the running window. `library.lock` warns on the Home screen when another copy (another computer on a synced folder, or a development build) has the library open. Choosing a cloud-synced folder shows a warning.
-- **Thumbnails** are served to the renderer through the read-only `library://project/<id>/thumbnail.png` protocol; nothing else in the library is reachable that way yet.
+- **Thumbnails** are served to the renderer through the read-only `library://project/<id>/thumbnail.png` protocol. The same protocol serves a live project's assets (`library://project/<id>/assets/<sha256>.<ext>`) and the catalog's models and thumbnails (`library://catalog/furniture/<sha256>.glb|.png`); nothing else in the library is reachable that way (`libraryUrlFile` in core).
 
 ## Agents
 

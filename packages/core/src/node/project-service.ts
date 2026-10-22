@@ -2,6 +2,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { newProjectDoc } from '../doc/defaults';
 import { DocumentEngine, type Author, type EditContext } from '../doc/engine';
+import type { CatalogApi } from '../decor/catalog';
 import type { ProjectDoc } from '../doc/schema';
 import { StudioError } from '../errors';
 import type { LibraryInfo, ListQuery, OpenProject, ProjectSummary, SaveStatus, SnapshotInfo } from '../projects';
@@ -55,7 +56,25 @@ export class ProjectService implements ProjectsApi {
         if (reason === 'snapshots' && projectId) this.opts.emit('project.changed', { projectId, kind: 'snapshots' });
         else this.opts.emit('library.changed', projectId ? { reason, projectId } : { reason });
       },
+      onCatalogChange: (reason, file) => this.opts.emit('catalog.changed', file ? { reason, file } : { reason }),
     });
+  }
+
+  /** The library's catalog of furniture models; it follows the library when that moves. */
+  get catalog(): CatalogApi {
+    const catalog = () => this.library.catalog;
+    return {
+      models: () => catalog().models(),
+      model: (file) => catalog().model(file),
+      importModel: (source) => catalog().importModel(source),
+      removeModel: (file) => catalog().removeModel(file),
+      setThumbnail: (file, png) => catalog().setThumbnail(file, png),
+      copyToProject: async (file, projectId) => {
+        this.library.require(projectId, { trashed: false });
+        await catalog().copyToProject(file, this.library.projectDir(projectId));
+      },
+      reindex: () => catalog().reindex(),
+    };
   }
 
   /** Opens the library and reopens the projects that were open last time. */
