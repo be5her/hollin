@@ -208,9 +208,11 @@ describe('MCP server over HTTP', () => {
     const guidelines = await client.readResource({ uri: GUIDELINES_URI });
     expect((guidelines.contents[0] as { text: string }).text).toContain('millimetres');
     const { prompts } = await client.listPrompts();
-    expect(prompts.map((p) => p.name)).toEqual(['design-house']);
+    expect(prompts.map((p) => p.name)).toEqual(['furnish-room', 'design-house']);
     const prompt = await client.getPrompt({ name: 'design-house', arguments: { storeys: '4' } });
     expect((prompt.messages[0].content as { text: string }).text).toContain('4-storey house');
+    const furnish = await client.getPrompt({ name: 'furnish-room', arguments: { room: 'Lounge' } });
+    expect((furnish.messages[0].content as { text: string }).text).toMatch(/the room "Lounge".*catalog_search.*plan_apply.*withLight.*decor_material_set.*night/);
     await client.close();
   });
 

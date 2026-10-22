@@ -339,10 +339,10 @@ describe('view.snapshot', () => {
 
   it('asks for the building in 3D from the south-west, above, with every level shown', async () => {
     const { request, result } = await snapshot({ view: '3d' });
-    expect(request).toMatchObject({ view: '3d', azimuth: 225, elevation: 30, display: 'all', explode: 0, levelId: doc().building.groundLevelId });
+    expect(request).toMatchObject({ view: '3d', azimuth: 225, elevation: 30, display: 'all', explode: 0, lighting: 'day', levelId: doc().building.groundLevelId });
     expect(result).toMatchObject({ view: '3d', data: 'cG5n' });
-    const { request: cut } = await snapshot({ view: '3d', azimuth: 270, elevation: 60, display: 'cutaway', explode: 0.5, width: 400, height: 300 });
-    expect(cut).toMatchObject({ azimuth: 270, elevation: 60, display: 'cutaway', explode: 0.5, width: 400, height: 300 });
+    const { request: cut } = await snapshot({ view: '3d', azimuth: 270, elevation: 60, display: 'cutaway', explode: 0.5, width: 400, height: 300, lighting: 'night' });
+    expect(cut).toMatchObject({ azimuth: 270, elevation: 60, display: 'cutaway', explode: 0.5, width: 400, height: 300, lighting: 'night' });
   });
 
   it('refuses a view from past the poles or an explode beyond 1', async () => {

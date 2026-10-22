@@ -13,6 +13,7 @@ import { smokeDecor, smokeDecorProtocol } from './decor';
 import { smokeDecorUi } from './decor-ui';
 import { smokeDecorSceneUi } from './decor-scene-ui';
 import { smokeDecorFinishesUi } from './decor-finishes-ui';
+import { smokeDecorAgentUi } from './decor-agent-ui';
 import { smokeHost } from './host';
 import { smokeLibrary } from './library';
 import { smokeLibraryUi } from './library-ui';
@@ -65,6 +66,7 @@ export async function runSmoke(host: Host, openWindow: () => BrowserWindow): Pro
     const { flatId } = await smokeDecorUi(smoke, tableRef);
     await smokeDecorSceneUi(smoke, flatId, tableRef);
     await smokeDecorFinishesUi(smoke, flatId);
+    await smokeDecorAgentUi(smoke);
     await smoke.run('project.close', { id: flatId });
     await smokeAssistantUi(smoke, duplexId);
     await smokeAssistantClaudeCode(smoke, duplexId);

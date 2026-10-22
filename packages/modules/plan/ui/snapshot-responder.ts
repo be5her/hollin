@@ -41,7 +41,7 @@ export class SnapshotResponder {
       const { width, height } = request;
       const png =
         request.view === '3d'
-          ? await renderBuildingToPng(doc, { width, height, createCanvas, limits, theme: LIGHT_SCENE_THEME, azimuth: request.azimuth, elevation: request.elevation, mode: request.display, levelId: request.levelId, explode: request.explode })
+          ? await renderBuildingToPng(doc, { width, height, createCanvas, limits, theme: LIGHT_SCENE_THEME, azimuth: request.azimuth, elevation: request.elevation, mode: request.display, levelId: request.levelId, explode: request.explode, lighting: request.lighting })
           : renderLevelToPng(doc, request.levelId, { width, height, createCanvas, limits, theme: LIGHT_THEME, units: untracked(this.units.settings), cache: this.geometry.cache });
       const nothing = request.view === '3d' ? 'Nothing is built in 3D yet: the building has no walls, slabs, columns or connectors.' : `Nothing is drawn on level ${doc.levels[request.levelId]?.name ?? request.levelId} yet.`;
       reply = png ? { id: request.id, png } : { id: request.id, error: nothing };

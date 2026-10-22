@@ -94,9 +94,48 @@ export async function smokeAssistantUi(smoke: Smoke, duplexId: string): Promise<
     smoke.check('the chat is idle again', await smoke.gone(`${panel} [data-testid=assistant-stop]`, 3000));
     await smoke.shots('29-assistant-chat');
 
+
     await smoke.click(`${panel} [data-testid=assistant-clear]`);
     smoke.check('Clear forgets the conversation', (await smoke.waitFor(`${panel} [data-testid=assistant-intro]`, 3000)) && (await smoke.count(`${panel} [data-testid=assistant-item]`)) === 0);
     smoke.check('the undo stack still holds the assistant\'s batch after its undo', (await run<{ redo: HistoryInfo[] }>('edit.history')).redo.some((h) => h.label === 'Add a 3 m wall'));
+
+    // Furnishing: a room named, a sofa and a lamp with its light placed and the floor finished in one plan_apply, then a look in 3D at night.
+    fake.reset();
+    const decor = () => Object.values(doc().levelData[ground].entities).filter((e: Entity) => e.type === 'item' || e.type === 'light').length;
+    fake.script(
+      {
+        text: 'Furnishing the lounge.',
+        tools: [
+          {
+            name: 'plan_apply',
+            input: {
+              label: 'Furnish the lounge',
+              steps: [
+                { command: 'plan.room.add', input: { levelId: ground, seed: [5000, 4000], name: 'Lounge' }, as: 'lounge' },
+                { command: 'decor.item.place', input: { levelId: ground, ref: 'builtin:sofa-3', at: [5000, 2000] } },
+                { command: 'decor.item.place', input: { levelId: ground, ref: 'builtin:floor-lamp', at: [4000, 600], withLight: true } },
+                { command: 'decor.material.set', input: { target: { roomId: '$lounge', surface: 'floor' }, material: 'builtin:oak-floor' } },
+              ],
+            },
+          },
+        ],
+      },
+      { tools: [{ name: 'view_snapshot', input: { view: '3d', display: 'cutaway', levelId: ground, lighting: 'night' } }] },
+      { text: 'The lounge is furnished and lit.' },
+    );
+    await send('Furnish the lounge');
+    smoke.check('the assistant furnishes a room in one plan_apply', (await smoke.waitFor(`${panel} [data-testid=assistant-item][data-kind=assistant]`, 15_000, 'furnished and lit')) && decor() === 3, decor());
+    const furnished = await run<{ undo: HistoryInfo[] }>('edit.history');
+    smoke.check('as one undo step by the assistant', furnished.undo[0]?.label === 'Furnish the lounge' && furnished.undo[0].author.kind === 'assistant', furnished.undo[0]);
+    const night = lastToolResult(2);
+    const nightBlock = Array.isArray(night?.content) ? night.content[0] : undefined;
+    smoke.check('and looks at it in 3D at night: the snapshot reaches the model', nightBlock?.type === 'image' && (nightBlock.source?.data.length ?? 0) > 1000, { type: nightBlock?.type });
+    await run('edit.undo');
+    smoke.check('one undo takes the furnishing back', await smoke.until(() => decor() === 0));
+    // Leave the chat empty for the Claude Code section, as it was.
+    await smoke.gone(`${panel} [data-testid=assistant-stop]`, 3000);
+    await smoke.click(`${panel} [data-testid=assistant-clear]`);
+    await smoke.waitFor(`${panel} [data-testid=assistant-intro]`, 3000);
   } finally {
     delete process.env.STUDIO_AI_BASE_URL;
     await fake.close();

@@ -94,6 +94,28 @@ export function buildMcpServer(opts: McpServerOptions, scope: CallScope): McpSer
     async (uri) => ({ contents: [{ uri: uri.href, mimeType: 'text/markdown', text: DESIGN_GUIDELINES }] }),
   );
   server.registerPrompt(
+    'furnish-room',
+    {
+      title: 'Furnish a room',
+      description: 'Furnish, light and finish one room of the project open in the app.',
+      argsSchema: z.object({
+        room: z.string().optional().describe('The room, by name (default: the largest room on the ground floor)'),
+        style: z.string().optional().describe('A style to follow, e.g. "warm Scandinavian" (default: calm and practical)'),
+      }),
+    },
+    async ({ room, style }) => ({
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: `Furnish ${room?.trim() ? `the room "${room.trim()}"` : 'the largest room on the ground floor'} of the project open in the app, in a ${style?.trim() || 'calm and practical'} style. Read the design guidelines resource first (its furnishing section), then plan_describe to see the room, its area, doors and windows. Choose furniture for what the room is for with catalog_search and place it in one plan_apply batch with a clear label, every piece inside the room, turned to face it and clear of doors and walkways; add light (a lamp placed withLight, or decor_light_add); give the floor and the walls a finish with decor_material_set. Then check with plan_describe that every piece stands in the room and look at it with view_snapshot (the plan, then view "3d" with display "cutaway" by day and at night). Report what you placed and why.`,
+          },
+        },
+      ],
+    }),
+  );
+  server.registerPrompt(
     'design-house',
     {
       title: 'Design a house',

@@ -21,4 +21,12 @@ export const DESIGN_GUIDELINES = `# Designing in ${BRANDING.productName}
 - Close wall loops so rooms can be detected, then name every room. Put a door into every room and a window into every habitable one.
 - Prefer small, checkable steps and confirm the result (plan_describe, view_snapshot, rules_check) before going on. Fix every warning you caused.
 - Commands that delete or overwrite data are gated: the user decides. Ordinary design edits are undoable transactions and need no confirmation.
+
+## Furnishing, lights and finishes
+- Furnish after the rooms are drawn and named: plan_describe then says which room each piece stands in. Find models with catalog_search (furniture by name, tag or category: living, dining, bedroom, kitchen, bathroom, office, lighting, outdoor; materials with kind "material"; door and window styles with kind "style") and place them with decor_item_place, a whole room in one plan_apply.
+- An item's \`at\` is its bottom centre and \`rotation\` turns it counter-clockwise on the plan; at 0 its front faces south (−y), so turn it to face the room: 90 faces east, 180 north, 270 west. Keep pieces inside the room and clear of the walls by their depth (catalog_search gives each model's size).
+- Typical sizes: a 3-seat sofa 2200 × 900, an armchair 850 × 850, a coffee table 1100 × 600, a dining table 1200 × 800 for four or 1800 × 900 for six, a double bed 1600 × 2100, a single 1000 × 2100, a wardrobe 1200 × 600, a desk 1400 × 700, kitchen units 600 deep with a worktop at 900.
+- Clearances: 900 mm to walk past furniture, 1000 in a kitchen between counters, 700 between a sofa and its coffee table's far side, 600 beside a bed, 900 behind a dining chair, 800 in front of a wardrobe or a toilet; keep doors' swings free.
+- Light every room: a lamp from the lighting category placed with \`withLight\` brings its own light, or decor_light_add adds one (about 15–20 lumens per m² of floor for a living room, more for a kitchen or a desk: 800 lumens is a household bulb). view_snapshot with \`lighting: "night"\` shows them.
+- Finishes: decor_material_set gives a wall face, or a room's floor, walls (every face looking into it) or ceiling a material: timber or carpet floors in living rooms and bedrooms, tiles in kitchens and bathrooms; walls in paint (any colour as \`paint:#rrggbb\`).
 `;

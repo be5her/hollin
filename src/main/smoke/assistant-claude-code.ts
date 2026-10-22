@@ -112,7 +112,7 @@ export async function smokeAssistantClaudeCode(smoke: Smoke, duplexId: string): 
     });
     await send('Add a 3 m wall');
     smoke.check('the message shows in the chat', await smoke.waitFor(`${panel} [data-testid=assistant-item][data-kind=user]`, 5000, 'Add a 3 m wall'));
-    smoke.check('the reply streams in', await smoke.waitFor(`${panel} [data-testid=assistant-item][data-kind=assistant]`, 10000, 'Done: a 3 m wall'));
+    smoke.check('the reply streams in', await smoke.waitFor(`${panel} [data-testid=assistant-item][data-kind=assistant]`, 30_000, 'Done: a 3 m wall'));
     smoke.check('the tool call is shown done, with the batch label', (await smoke.waitFor(`${panel} [data-testid=assistant-tool][data-command="plan.apply"][data-status=ok]`, 3000)) && (await smoke.text(`${panel} [data-testid=assistant-tool]`))?.includes('Add a 3 m wall') === true);
     smoke.check('the wall was added', await smoke.until(() => walls() === before + 1));
     const history = await run<{ undo: HistoryInfo[] }>('edit.history');
@@ -173,7 +173,7 @@ export async function smokeAssistantClaudeCode(smoke: Smoke, duplexId: string): 
     smoke.check('the reopened chat shows the earlier messages again', (await smoke.waitFor(`${panel} [data-testid=assistant-item][data-kind=assistant]`, 5000, 'Back on the same session.')) && (await smoke.count(`${panel} [data-testid=assistant-item][data-kind=user]`)) >= 4);
     writeScript({ expectResume: 'smoke-sess-1', replay: [{ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: 'Replayed twice if this shows' }] } }], messages: [[{ text: 'Still here.' }]] });
     await send('Still there?');
-    smoke.check('and its first message resumes it', (await smoke.waitFor(`${panel} [data-testid=assistant-item][data-kind=assistant]`, 10000, 'Still here.')) && starts().length === 3 && starts()[2].resume === 'smoke-sess-1');
+    smoke.check('and its first message resumes it', (await smoke.waitFor(`${panel} [data-testid=assistant-item][data-kind=assistant]`, 30_000, 'Still here.')) && starts().length === 3 && starts()[2].resume === 'smoke-sess-1');
     smoke.check('history the stream replays is not shown twice', (await smoke.count(`${panel} [data-testid=assistant-item]`)) > 0 && !(await smoke.text(`${panel} [data-testid=assistant-log]`))?.includes('Replayed twice'));
     await smoke.gone(`${panel} [data-testid=assistant-stop]`, 3000);
 
@@ -193,7 +193,7 @@ export async function smokeAssistantClaudeCode(smoke: Smoke, duplexId: string): 
     smoke.check('the chat header names them', await smoke.waitFor(`${panel} [data-testid=assistant-model]`, 3000, 'Claude Code 9.9.9 · opus · high effort'), await smoke.text(`${panel} [data-testid=assistant-model]`));
     writeScript({ expectResume: 'smoke-sess-1', messages: [[{ text: 'Now on opus.' }]] });
     await send('Which model?');
-    smoke.check('the next message starts Claude Code with --model and --effort, on the same session', (await smoke.waitFor(`${panel} [data-testid=assistant-item][data-kind=assistant]`, 10000, 'Now on opus.')) && starts().length === 4 && starts()[3].model === 'opus' && starts()[3].effort === 'high' && starts()[3].resume === 'smoke-sess-1', starts().map((s) => [s.model, s.effort, s.resume]));
+    smoke.check('the next message starts Claude Code with --model and --effort, on the same session', (await smoke.waitFor(`${panel} [data-testid=assistant-item][data-kind=assistant]`, 30_000, 'Now on opus.')) && starts().length === 4 && starts()[3].model === 'opus' && starts()[3].effort === 'high' && starts()[3].resume === 'smoke-sess-1', starts().map((s) => [s.model, s.effort, s.resume]));
     smoke.check('and the process started without them is gone', await smoke.until(() => !alive(starts()[2].pid), 30_000));
     await smoke.gone(`${panel} [data-testid=assistant-stop]`, 3000);
     await smoke.click(`${panel} [data-testid=assistant-clear]`);

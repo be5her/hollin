@@ -60,6 +60,7 @@ export async function smokeMcp(smoke: Smoke): Promise<void> {
     const { prompts } = await reader.listPrompts();
     const prompt = await reader.getPrompt({ name: 'design-house', arguments: { storeys: '3' } });
     smoke.check('the design-house prompt asks for a 3-storey house with a central stair', prompts.some((p) => p.name === 'design-house') && /3-storey house .* central stair/.test((prompt.messages[0].content as { text: string }).text));
+    smoke.check('and the furnish-room prompt is offered', prompts.some((p) => p.name === 'furnish-room'));
     await reader.close();
   }
 
