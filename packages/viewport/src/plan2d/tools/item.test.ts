@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_RULE_LIMITS, type Entity, type Layer } from '@studio/core';
+import { DEFAULT_RULE_LIMITS, deriveLevelGeometry, deriveWalls, rectPath, type Entity, type Layer } from '@studio/core';
 import { gripsOf } from '../grips';
 import { hitTest } from '../hit';
 import { createLevelScene, syncLevelScene } from '../scene';
 import { ItemTool } from './item';
 import { LightTool } from './light';
+import { PaintTool } from './paint';
 import { SelectTool } from './select';
 import { DEFAULT_TOOL_OPTIONS, type ToolHost, type ToolOptions, type ToolPointer } from './tool';
 
@@ -103,6 +104,34 @@ describe('LightTool', () => {
     expect(tool.hint()).toMatch(/spot.*1200 lm.*2600 mm/);
     tool.pointerDown(at(3000, 2000));
     expect(host.calls).toEqual([{ id: 'decor.light.add', input: { levelId: lv, kind: 'spot', at: [3000, 2000, 2600], intensity: 1200 } }]);
+  });
+});
+
+describe('PaintTool', () => {
+  it('paints the face of a wall on the side clicked, and the floor of a room anywhere in it', () => {
+    const { host } = harness();
+    const ring: Entity = { id: 'wal_000000000000000r', type: 'wall', levelId: lv, layerId: layer, path: rectPath(0, 0, 4000, 3000), thickness: 200, height: null, alignment: 'center', baseOffset: 0 };
+    const room: Entity = { id: 'rom_000000000000000r', type: 'room', levelId: lv, layerId: layer, name: 'Hall', boundary: { k: 'detect', seed: [2000, 1500] } };
+    const entities: Record<string, Entity> = { [ring.id]: ring, [room.id]: room };
+    const scene = createLevelScene(lv);
+    syncLevelScene(scene, entities, {});
+    const walls = deriveWalls([ring as Extract<Entity, { type: 'wall' }>]);
+    const geometry = deriveLevelGeometry(entities);
+    host.entities = () => entities;
+    host.hit = (p) => hitTest(scene, p, { tolerance: 50, layers, walls, geometry });
+    host.geometry = () => geometry;
+    const options = host.options;
+    host.options = () => ({ ...options(), paint: { ref: 'builtin:paint-sage', name: 'Sage paint' } });
+    const tool = new PaintTool(host);
+    expect(tool.hint()).toMatch(/Sage paint/);
+    tool.pointerDown(at(2000, 50));
+    tool.pointerDown(at(2000, -50));
+    tool.pointerDown(at(3500, 2500));
+    expect(host.calls.map((c) => c.input)).toEqual([
+      { target: { wallId: ring.id, side: 'left' }, material: 'builtin:paint-sage' },
+      { target: { wallId: ring.id, side: 'right' }, material: 'builtin:paint-sage' },
+      { target: { roomId: room.id, surface: 'floor' }, material: 'builtin:paint-sage' },
+    ]);
   });
 });
 

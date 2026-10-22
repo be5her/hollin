@@ -1,4 +1,4 @@
-import { DOCUMENT, Component, DestroyRef, ElementRef, afterNextRender, afterRenderEffect, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
+import { DOCUMENT, Component, DestroyRef, ElementRef, Injector, afterNextRender, afterRenderEffect, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
 import { FormField, form } from '@angular/forms/signals';
 import { DEFAULT_RULE_LIMITS, deriveLevels, type DimensionKind, type GlobalConfig, type ProjectDoc, type Vec2, parseAngle } from '@studio/core';
 import { AppState, Checkbox, ContextMenu, HostBridge, Icon, IconButton, Input, LengthInput, ProjectDocs, ProjectView, Select, Toasts, Units, type ContextMenuItem } from '@studio/ui';
@@ -54,6 +54,7 @@ export class PlanView {
   private readonly planGeometry = inject(PlanGeometry);
   private readonly document = inject(DOCUMENT);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly injector = inject(Injector);
   protected readonly units = inject(Units);
 
   readonly projectId = input.required<string>();
@@ -124,6 +125,9 @@ export class PlanView {
   protected readonly lightDraft = signal({ height: '' });
   protected readonly lightForm = form(this.lightDraft);
   private armedSeen = 0;
+  /** The material the Paint tool paints with (armed from the Catalog panel). */
+  protected readonly paintArm = computed(() => this.planTools.armedPaint(this.projectId())());
+  private paintSeen = 0;
   protected readonly isConnectorTool = computed(() => this.tool() === 'stair' || this.tool() === 'ramp' || this.tool() === 'ladder' || this.tool() === 'elevator');
   /** The levels the options show for a new connector: the chosen ones, else the active level and the stacked level above it. */
   protected readonly connectorFromShown = computed(() => this.connectorFrom() ?? this.activeLevelId() ?? '');
@@ -187,8 +191,11 @@ export class PlanView {
     },
     onLevelStep: (direction) => this.stepLevel(direction),
     onToolChange: (tool, hint) => {
+      const was = untracked(this.tool);
       this.tool.set(tool);
       this.hint.set(hint);
+      // Leaving the Paint tool ends painting, in the 3D view too.
+      if (was === 'paint' && tool !== 'paint') this.planTools.disarmPaint(untracked(this.projectId));
     },
     onSelectionChange: (ids) => {
       this.selection.set(ids);
@@ -229,7 +236,18 @@ export class PlanView {
         this.itemArm.set(armed.item);
         const c = this.editorConfig();
         if (c) this.editor.setToolOptions(this.toolOptions(c));
-        this.chooseTool('item');
+        this.armTool('item');
+      });
+    });
+    effect(() => {
+      // A material armed in the Catalog panel: the Paint tool paints with it.
+      const paint = this.paintArm();
+      if (!paint || paint.n === this.paintSeen) return;
+      this.paintSeen = paint.n;
+      untracked(() => {
+        const c = this.editorConfig();
+        if (c) this.editor.setToolOptions(this.toolOptions(c));
+        this.armTool('paint');
       });
     });
     effect(() => this.editor.setUnderlay(this.underlay()));
@@ -274,6 +292,7 @@ export class PlanView {
       this.lightKind();
       this.lightHeight();
       this.lightLumens();
+      this.paintArm();
       const c = untracked(this.editorConfig);
       if (c) this.editor.setToolOptions(this.toolOptions(c));
     });
@@ -353,7 +372,8 @@ export class PlanView {
     const canvas = this.canvas().nativeElement;
     const container = this.container().nativeElement;
     this.editor.attach(canvas);
-    this.editor.setTool('select');
+    // Announce the tool the editor has: a tool armed from another panel before the canvas was there stays.
+    this.editor.setTool(this.editor.tool);
     const measure = () => {
       const r = container.getBoundingClientRect();
       this.editor.resize(r.width, r.height, this.document.defaultView?.devicePixelRatio ?? 1);
@@ -397,7 +417,7 @@ export class PlanView {
   }
 
   private toolOptions(c: EditorConfig) {
-    return { ...DEFAULT_TOOL_OPTIONS, nudge: c.gridSpacing, wall: this.wallOptions, door: { width: c.doorWidth, height: c.doorHeight }, window: { width: c.windowWidth, height: c.windowHeight, sill: c.windowSill }, shape: { kind: untracked(this.shapeKind), filled: untracked(this.shapeFilled) }, dimension: { kind: untracked(this.dimensionKind) }, label: { size: untracked(this.labelSize) }, connector: { bottomLevelId: untracked(this.connectorFrom), topLevelId: untracked(this.connectorTo) }, stair: { shape: untracked(this.stairShape), width: c.stairWidth, turn: untracked(this.stairTurn) }, ramp: { width: c.rampWidth }, elevator: { shaft: { w: c.elevatorShaftW, d: c.elevatorShaftD }, car: { w: c.elevatorCarW, d: c.elevatorCarD } }, column: { shape: untracked(this.columnShape), w: c.columnW, d: c.columnD, r: c.columnR, rotation: untracked(this.columnRotation), topLevelId: untracked(this.columnSpan) }, item: this.itemOptions(), light: { kind: untracked(this.lightKind), height: untracked(this.lightHeight), intensity: untracked(this.lightLumens) } };
+    return { ...DEFAULT_TOOL_OPTIONS, nudge: c.gridSpacing, wall: this.wallOptions, door: { width: c.doorWidth, height: c.doorHeight }, window: { width: c.windowWidth, height: c.windowHeight, sill: c.windowSill }, shape: { kind: untracked(this.shapeKind), filled: untracked(this.shapeFilled) }, dimension: { kind: untracked(this.dimensionKind) }, label: { size: untracked(this.labelSize) }, connector: { bottomLevelId: untracked(this.connectorFrom), topLevelId: untracked(this.connectorTo) }, stair: { shape: untracked(this.stairShape), width: c.stairWidth, turn: untracked(this.stairTurn) }, ramp: { width: c.rampWidth }, elevator: { shaft: { w: c.elevatorShaftW, d: c.elevatorShaftD }, car: { w: c.elevatorCarW, d: c.elevatorCarD } }, column: { shape: untracked(this.columnShape), w: c.columnW, d: c.columnD, r: c.columnR, rotation: untracked(this.columnRotation), topLevelId: untracked(this.columnSpan) }, item: this.itemOptions(), light: { kind: untracked(this.lightKind), height: untracked(this.lightHeight), intensity: untracked(this.lightLumens) }, paint: { ref: untracked(this.paintArm)?.ref ?? null, name: untracked(this.paintArm)?.name ?? '' } };
   }
 
   protected setLightKind(value: string): void {
@@ -541,6 +561,12 @@ export class PlanView {
   protected chooseTool(tool: ToolId): void {
     this.editor.setTool(tool);
     this.canvas().nativeElement.focus({ preventScroll: true });
+  }
+
+  /** A tool picked from another panel (the Catalog): the canvas may not be drawn yet, so it is focused once it is. */
+  private armTool(tool: ToolId): void {
+    this.editor.setTool(tool);
+    afterNextRender(() => this.canvas().nativeElement.focus({ preventScroll: true }), { injector: this.injector });
   }
 
   private showWallOptions(): void {

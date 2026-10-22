@@ -47,6 +47,8 @@ export interface RoomDescription {
   furniture: FurnitureDescription[];
   /** The lights in the room. */
   lights: LightDescription[];
+  /** Its finishes: the floor's and ceiling's material, and the walls' (the faces that look into it): one material, `mixed`, or null for none. */
+  finish: { floor: string | null; walls: string | null; ceiling: string | null };
 }
 
 export interface FurnitureDescription {
@@ -222,7 +224,14 @@ export function describeDesign(doc: ProjectDoc, limits: RuleLimits): DesignDescr
       }
     };
 
-    // Rooms on both sides of every wall, probed along it.
+    // Rooms on both sides of every wall, probed along it; and the wall faces that look into each room, with their finish.
+    const faces = new Map<string, Map<string, string | null>>();
+    const face = (roomId: string | null, wall: EntityOf<'wall'>, side: 'left' | 'right') => {
+      if (!roomId) return;
+      let m = faces.get(roomId);
+      if (!m) faces.set(roomId, (m = new Map()));
+      m.set(`${wall.id}|${side}`, wall.materials?.[side] ?? null);
+    };
     for (const e of entities) {
       if (e.type !== 'wall') continue;
       const offsets = wallOffsets(e);
@@ -231,9 +240,18 @@ export function describeDesign(doc: ProjectDoc, limits: RuleLimits): DesignDescr
       for (let i = 0; i < steps; i++) {
         const { point, tangent } = pointAt(e.path, ((i + 0.5) / steps) * length);
         const n = perp(tangent);
-        touch(at(add(point, scale(n, offsets.left + PROBE))), at(add(point, scale(n, offsets.right - PROBE))), 'wall');
+        const left = at(add(point, scale(n, offsets.left + PROBE)));
+        const right = at(add(point, scale(n, offsets.right - PROBE)));
+        touch(left, right, 'wall');
+        face(left, e, 'left');
+        face(right, e, 'right');
       }
     }
+    const wallsFinish = (roomId: string): string | null => {
+      const set = new Set(faces.get(roomId)?.values() ?? []);
+      if (!set.size || (set.size === 1 && set.has(null))) return null;
+      return set.size === 1 ? [...set][0] : 'mixed';
+    };
 
     // Openings: the room on each side.
     const openings: LevelOpeningDescription[] = [];
@@ -310,6 +328,7 @@ export function describeDesign(doc: ProjectDoc, limits: RuleLimits): DesignDescr
         connectors: connectorsByRoom.get(g.id) ?? [],
         furniture: furnitureBy.get(g.id) ?? [],
         lights: lightsBy.get(g.id) ?? [],
+        finish: { floor: room.finish?.floor ?? null, walls: wallsFinish(g.id), ceiling: room.finish?.ceiling ?? null },
       };
     });
     const claimed = new Set(rooms.map((r) => r.polygon).filter(Boolean));

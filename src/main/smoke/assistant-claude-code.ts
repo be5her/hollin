@@ -75,14 +75,18 @@ export async function smokeAssistantClaudeCode(smoke: Smoke, duplexId: string): 
     // Logged out: the fake says so until the environment changes and the user checks again.
     process.env.FAKE_CLAUDE_LOGGED_OUT = '1';
     await smoke.run('config.update', { patch: { ai: { claudeCodePath: fakePath } } });
-    // Once seen to time out still showing "not found" (one run in many); the detail says what the panel showed, should it happen again.
+    // The panel can show the answer only once the new path has been probed (the fake run twice through the app's executable),
+    // which a busy machine can take more than the panel's wait over: wait for the probe itself, which the panel's own request shares.
+    const probed = await smoke.until(async () => (await smoke.run<{ claudeCode: { found: boolean; loggedIn: boolean | null } | null }>('assistant.status')).claudeCode?.found === true, 30_000, 200);
     smoke.check(
       'the panel says Claude Code is not logged in',
-      await smoke.waitFor(`${panel} [data-testid=assistant-empty][data-reason=not-logged-in]`, 5000),
+      probed && (await smoke.waitFor(`${panel} [data-testid=assistant-empty][data-reason=not-logged-in]`, 5000)),
       `showing ${await smoke.js<string>(`document.querySelector('${panel} [data-testid=assistant-empty]')?.dataset.reason ?? (document.querySelector('${panel} [data-testid=assistant-input]') ? 'the chat' : 'nothing')`)}`,
     );
     delete process.env.FAKE_CLAUDE_LOGGED_OUT;
     await smoke.click(`${panel} [data-testid=assistant-check-again]`);
+    // Check again probes anew; wait for that probe to answer before looking at the panel.
+    await smoke.until(async () => (await smoke.run<{ claudeCode: { loggedIn: boolean | null } | null }>('assistant.status')).claudeCode?.loggedIn === true, 30_000, 200);
     smoke.check('Check again finds it logged in and the chat opens', await smoke.waitFor(`${panel} [data-testid=assistant-input]`, 5000));
     smoke.check('the header names Claude Code and its version', (await smoke.text(`${panel} [data-testid=assistant-model]`))?.includes('Claude Code 9.9.9') === true, await smoke.text(`${panel} [data-testid=assistant-model]`));
 
@@ -146,7 +150,8 @@ export async function smokeAssistantClaudeCode(smoke: Smoke, duplexId: string): 
     await send('Wipe once more');
     await smoke.waitFor(`${panel} [data-testid=assistant-confirm]`, 5000);
     await smoke.click(`${panel} [data-testid=assistant-stop]`);
-    smoke.check('Stop kills the Claude Code process', await smoke.until(() => !alive(first.pid)));
+    // Killing a process tree (taskkill on Windows) and seeing it gone can take seconds on a busy machine: wait for that, not a fixed few.
+    smoke.check('Stop kills the Claude Code process', await smoke.until(() => !alive(first.pid), 30_000));
     smoke.check('and the chat is idle, still on its session', (await smoke.gone(`${panel} [data-testid=assistant-stop]`, 3000)) && (await run<{ sessionId: string | null }>('assistant.state')).sessionId === 'smoke-sess-1');
     writeScript({
       expectResume: 'smoke-sess-1',
@@ -157,13 +162,13 @@ export async function smokeAssistantClaudeCode(smoke: Smoke, duplexId: string): 
       messages: [[{ text: 'Back on the same session.' }]],
     });
     await send('Continue');
-    smoke.check('the next message is answered by a fresh process that resumed the session', (await smoke.waitFor(`${panel} [data-testid=assistant-item][data-kind=assistant]`, 10000, 'Back on the same session.')) && starts().length === 2 && starts()[1].resume === 'smoke-sess-1' && starts()[1].mcpUrl !== first.mcpUrl, starts().map((s) => s.resume));
+    smoke.check('the next message is answered by a fresh process that resumed the session', (await smoke.waitFor(`${panel} [data-testid=assistant-item][data-kind=assistant]`, 30_000, 'Back on the same session.')) && starts().length === 2 && starts()[1].resume === 'smoke-sess-1' && starts()[1].mcpUrl !== first.mcpUrl, starts().map((s) => s.resume));
     const texts = await smoke.js<string[]>(`Array.from(document.querySelectorAll('${panel} [data-testid=assistant-item]')).map((e) => e.textContent.trim())`);
     smoke.check('the replayed history shows before the new message', texts.indexOf('An earlier answer') > -1 && texts.indexOf('An earlier answer') < texts.indexOf('Continue'), texts);
 
     // Closed and reopened: the chat continues the stored session.
     await smoke.run('project.close', { id: duplexId });
-    smoke.check('closing the project kills the process', await smoke.until(() => !alive(starts()[1].pid)));
+    smoke.check('closing the project kills the process', await smoke.until(() => !alive(starts()[1].pid), 30_000));
     await openAssistant();
     smoke.check('the reopened chat shows the earlier messages again', (await smoke.waitFor(`${panel} [data-testid=assistant-item][data-kind=assistant]`, 5000, 'Back on the same session.')) && (await smoke.count(`${panel} [data-testid=assistant-item][data-kind=user]`)) >= 4);
     writeScript({ expectResume: 'smoke-sess-1', replay: [{ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: 'Replayed twice if this shows' }] } }], messages: [[{ text: 'Still here.' }]] });
@@ -189,11 +194,11 @@ export async function smokeAssistantClaudeCode(smoke: Smoke, duplexId: string): 
     writeScript({ expectResume: 'smoke-sess-1', messages: [[{ text: 'Now on opus.' }]] });
     await send('Which model?');
     smoke.check('the next message starts Claude Code with --model and --effort, on the same session', (await smoke.waitFor(`${panel} [data-testid=assistant-item][data-kind=assistant]`, 10000, 'Now on opus.')) && starts().length === 4 && starts()[3].model === 'opus' && starts()[3].effort === 'high' && starts()[3].resume === 'smoke-sess-1', starts().map((s) => [s.model, s.effort, s.resume]));
-    smoke.check('and the process started without them is gone', await smoke.until(() => !alive(starts()[2].pid)));
+    smoke.check('and the process started without them is gone', await smoke.until(() => !alive(starts()[2].pid), 30_000));
     await smoke.gone(`${panel} [data-testid=assistant-stop]`, 3000);
     await smoke.click(`${panel} [data-testid=assistant-clear]`);
     smoke.check('Clear forgets the session', (await smoke.waitFor(`${panel} [data-testid=assistant-intro]:not([data-resumed])`, 3000)) && (await smoke.until(async () => (await run<{ sessionId: string | null }>('assistant.state')).sessionId === null)));
-    smoke.check('and the process with it', await smoke.until(() => !alive(starts()[3].pid)));
+    smoke.check('and the process with it', await smoke.until(() => !alive(starts()[3].pid), 30_000));
   } finally {
     delete process.env.FAKE_CLAUDE_SCRIPT;
     delete process.env.FAKE_CLAUDE_LOG;

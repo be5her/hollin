@@ -1,9 +1,10 @@
 import { DOCUMENT, Component, DestroyRef, ElementRef, afterNextRender, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
-import { DEFAULT_RULE_LIMITS, deriveLevels } from '@studio/core';
-import { AppState, Button, EmptyState, Icon, IconButton, ProjectDocs, ProjectView, Select, Units } from '@studio/ui';
+import { DEFAULT_RULE_LIMITS, deriveLevelGeometry, deriveLevels, surfaceAt } from '@studio/core';
+import { AppState, Button, EmptyState, HostBridge, Icon, IconButton, ProjectDocs, ProjectView, Select, Toasts, Units } from '@studio/ui';
 import { Scene3dView, parseOrbit, readSceneTheme, type Orbit, type OrbitPreset, type Scene3dFrame, type SceneLighting, type SceneMode } from '@studio/viewport';
 import { Maximize, Moon, Sun } from 'lucide';
 import { PlanSelection } from '../../plan/ui/plan-selection';
+import { PlanTools } from '../../plan/ui/plan-tools';
 import { BuildingActions } from './building-actions';
 
 /** What the 3D view keeps in the project's view state (`view3d`). */
@@ -48,6 +49,9 @@ export class SceneView {
   private readonly app = inject(AppState);
   private readonly actions = inject(BuildingActions);
   private readonly planSelection = inject(PlanSelection);
+  private readonly planTools = inject(PlanTools);
+  private readonly host = inject(HostBridge);
+  private readonly toasts = inject(Toasts);
   private readonly document = inject(DOCUMENT);
   private readonly destroyRef = inject(DestroyRef);
   protected readonly units = inject(Units);
@@ -76,6 +80,8 @@ export class SceneView {
   protected readonly explode = computed(() => Math.min(1, Math.max(0, Number(this.stored()?.explode) || 0)));
   protected readonly lighting = computed<SceneLighting>(() => (this.stored()?.lighting === 'night' ? 'night' : 'day'));
   protected readonly lightsOn = computed(() => this.frame()?.lightsOn ?? 0);
+  /** The material a click paints with, while one is armed in the Catalog panel. */
+  protected readonly paint = computed(() => this.planTools.armedPaint(this.projectId())());
 
   /** Why there is no 3D view (no WebGL), or null. */
   protected readonly unavailable = signal<string | null>(null);
@@ -172,6 +178,10 @@ export class SceneView {
           onOrbit: (orbit) => this.storeOrbit(orbit),
           onPick: (hit) => {
             if (!hit) return;
+            if (untracked(this.paint)) {
+              this.paintAt(hit);
+              return;
+            }
             this.chooseLevel(hit.levelId);
             // Furniture is selected on the plan too, as a warning's target is.
             if (hit.kind === 'item') this.planSelection.request(untracked(this.projectId), { levelId: hit.levelId, ids: hit.ids });
@@ -198,6 +208,23 @@ export class SceneView {
       themes.disconnect();
     });
     this.mounted.set(true);
+  }
+
+  /** Gives the armed material to the wall face, floor or ceiling under a click. */
+  private paintAt(hit: { levelId: string; point?: readonly [number, number, number]; normal?: readonly [number, number, number] }): void {
+    const paint = untracked(this.paint);
+    const entities = untracked(this.doc)?.levelData[hit.levelId]?.entities;
+    if (!paint || !entities || !hit.point || !hit.normal) return;
+    const target = surfaceAt(entities, deriveLevelGeometry(entities).rooms.values(), hit.point, hit.normal);
+    if (!target) {
+      this.toasts.notify('Click a wall face, a floor or a ceiling to paint it.', 'error');
+      return;
+    }
+    this.host.invoke('decor.material.set', { target, material: paint.ref }, untracked(this.projectId)).catch((err) => this.toasts.error(err));
+  }
+
+  protected stopPainting(): void {
+    this.planTools.disarmPaint(untracked(this.projectId));
   }
 
   private storeOrbit(orbit: Orbit): void {

@@ -21,6 +21,7 @@ import { ElevatorTool, LadderTool, RampTool, StairTool } from './tools/connector
 import { ColumnTool } from './tools/column';
 import { ItemTool } from './tools/item';
 import { LightTool } from './tools/light';
+import { PaintTool } from './tools/paint';
 
 export type UnderlayMode = 'none' | 'below' | 'above';
 
@@ -138,7 +139,7 @@ export class Plan2dEditor {
         editor.clipboard = value;
       },
     };
-    this.tools = { select: new SelectTool(host), wall: new WallTool(host), door: new OpeningTool(host, 'door'), window: new OpeningTool(host, 'window'), room: new RoomTool(host), separator: new SeparatorTool(host), shape: new ShapeTool(host, 'polyline'), rectangle: new ShapeTool(host, 'rectangle'), circle: new ShapeTool(host, 'circle'), dimension: new DimensionTool(host), label: new LabelTool(host), stair: new StairTool(host), ramp: new RampTool(host), ladder: new LadderTool(host), elevator: new ElevatorTool(host), column: new ColumnTool(host), item: new ItemTool(host), light: new LightTool(host) };
+    this.tools = { select: new SelectTool(host), wall: new WallTool(host), door: new OpeningTool(host, 'door'), window: new OpeningTool(host, 'window'), room: new RoomTool(host), separator: new SeparatorTool(host), shape: new ShapeTool(host, 'polyline'), rectangle: new ShapeTool(host, 'rectangle'), circle: new ShapeTool(host, 'circle'), dimension: new DimensionTool(host), label: new LabelTool(host), stair: new StairTool(host), ramp: new RampTool(host), ladder: new LadderTool(host), elevator: new ElevatorTool(host), column: new ColumnTool(host), item: new ItemTool(host), light: new LightTool(host), paint: new PaintTool(host) };
     this.activeTool = this.tools.select;
   }
 

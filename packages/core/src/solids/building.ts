@@ -11,10 +11,11 @@ import type { WallBody } from '../geometry/walls';
 import { deriveConnectorsSolids, type ConnectorSolids } from './connectors';
 import { MeshBuilder, type Mesh } from './mesh';
 import { openingParts } from './openings';
+import { FinishSet, addRoomCovers, addWallSkins } from './finishes';
 import { itemFootprint, itemModel, itemSize } from '../decor/items';
 
 /** What a part of the building is made of: the 3D view gives each its own material. Connectors are stairs, ramps and escalators; rails their handrails and ladders; car an elevator's car; frame and leaf a door's or window's lining, casements and leaf. */
-export type SolidKind = 'wall' | 'slab' | 'column' | 'glass' | 'connector' | 'rail' | 'car' | 'frame' | 'leaf';
+export type SolidKind = 'wall' | 'slab' | 'column' | 'glass' | 'connector' | 'rail' | 'car' | 'frame' | 'leaf' | 'finish';
 
 /** A mesh of one kind and the entities it was built from (a level's walls are joined into one). */
 export interface SolidPart {
@@ -119,6 +120,7 @@ export function deriveLevelSolids(doc: ProjectDoc, levelId: string, options: Sol
   const joinedBy = new Map<string, Polygon[]>();
   if (visible.length === walls.length) joinedBy.set(walls.map((w) => w.id).sort().join(','), all.joined);
   const bands: WallBand[] = [];
+  const finishes = new FinishSet();
   for (let i = 0; i + 1 < breaks.length; i++) {
     const z0 = breaks[i];
     const z1 = breaks[i + 1];
@@ -138,7 +140,16 @@ export function deriveLevelSolids(doc: ProjectDoc, levelId: string, options: Sol
     }
     const ids = new Set(present.map((s) => s.wall.id));
     const cuts = holes.filter((h) => ids.has(h.wall.id) && h.z0 <= z0 + EPS && h.z1 >= z1 - EPS).map((h) => h.cut);
-    bands.push({ z0, z1, footprint: cuts.length ? differencePolygons(joined, cuts) : joined });
+    const footprint = cuts.length ? differencePolygons(joined, cuts) : joined;
+    bands.push({ z0, z1, footprint });
+    // Painted wall faces: a skin over each face in this band.
+    addWallSkins(
+      finishes,
+      present.map((s) => s.wall),
+      footprint,
+      z0,
+      z1,
+    );
   }
   const wallMesh = new MeshBuilder();
   bands.forEach((band, i) => {
@@ -228,6 +239,14 @@ export function deriveLevelSolids(doc: ProjectDoc, levelId: string, options: Sol
     if (slab?.type === 'slab' && shown(doc, slab)) addSlab(id, polys, slab.thickness ?? level.slabThickness);
   }
   if (!slabMesh.empty) parts.push({ kind: 'slab', mesh: slabMesh.build(), ids: slabIds });
+
+  // ---------- room finishes: floor and ceiling covers ----------
+  for (const id in entities) {
+    const e = entities[id];
+    if (e.type !== 'room' || !e.finish || !shown(doc, e)) continue;
+    addRoomCovers(finishes, e, slabs.rooms.get(id), e0, ceiling <= cutAt ? ceiling : null);
+  }
+  for (const f of finishes.all) parts.push({ kind: 'finish', mesh: f.builder.build(), ids: f.ids, material: f.material });
 
   return { levelId, elevation: e0, ceiling, parts, bands, floor: floor.length > 1 ? unionPolygons(floor) : floor, obstacles };
 }

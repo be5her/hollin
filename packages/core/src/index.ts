@@ -42,6 +42,8 @@ export * from './solids/mesh';
 export * from './solids/building';
 export * from './solids/connectors';
 export * from './solids/walk';
+export * from './solids/openings';
+export * from './solids/finishes';
 export * from './describe/describe';
 export * from './tools';
 export * from './guidelines';

@@ -50,5 +50,5 @@ export function readSceneTheme(root: Element): SceneTheme {
   return theme;
 }
 
-/** The theme colour a kind of solid is drawn in (frames and leaves without a material: the walls'). */
-export const kindColor = (theme: SceneTheme, kind: SolidKind): string => (kind === 'frame' || kind === 'leaf' ? theme.wall : theme[kind]);
+/** The theme colour a kind of solid is drawn in (frames, leaves and finishes without a material: the walls'). */
+export const kindColor = (theme: SceneTheme, kind: SolidKind): string => (kind === 'frame' || kind === 'leaf' || kind === 'finish' ? theme.wall : theme[kind]);

@@ -2,14 +2,14 @@ import { deriveConnectorsSolids, deriveLevelSolids, deriveLevels, meshBox, type 
 import { LevelDecor, type PlacedLight } from './decor';
 import { DecorMaterials } from './materials';
 import { ModelCache } from './models';
-import { BufferAttribute, BufferGeometry, Color, DoubleSide, EdgesGeometry, FrontSide, Group, LineBasicMaterial, LineSegments, Mesh, MeshLambertMaterial, Plane, Vector3 } from 'three';
+import { BufferAttribute, BufferGeometry, Color, DoubleSide, EdgesGeometry, FrontSide, Group, LineBasicMaterial, LineSegments, Mesh, MeshStandardMaterial, Plane, Vector3 } from 'three';
 import { LIGHT_SCENE_THEME, kindColor, type SceneTheme } from './theme';
 
 /** Kinds drawn with their edges as lines; thin rails would be all edges. */
 const EDGED = new Set<SolidKind>(['wall', 'slab', 'column', 'connector', 'glass', 'car', 'frame', 'leaf']);
 /** Faces meeting at more than this angle (degrees) get an edge line. */
 const EDGE_ANGLE = 25;
-const KINDS: SolidKind[] = ['wall', 'slab', 'column', 'glass', 'connector', 'rail', 'car', 'frame', 'leaf'];
+const KINDS: SolidKind[] = ['wall', 'slab', 'column', 'glass', 'connector', 'rail', 'car', 'frame', 'leaf', 'finish'];
 /**
  * Kinds the cutaway clips with a plane at the cut: what the solids do not cut themselves (the active
  * level's walls, columns and windows are cut exactly, with caps). Connectors running up from below
@@ -38,6 +38,9 @@ export interface SceneHit {
   levelId: string;
   kind: SolidKind | 'item';
   ids: string[];
+  /** Where the click met it (mm, z above its level's floor, explode left out) and the face's normal there: for painting. */
+  point?: Vec3;
+  normal?: Vec3;
   /** The connector it belongs to, when it is one. */
   connectorId?: string;
 }
@@ -75,7 +78,7 @@ export class BuildingScene {
   private readonly nodes = new Map<string, LevelNode>();
   private connectorKey: readonly unknown[] = [];
   private connectorData: ConnectorSolids[] = [];
-  private readonly materials = new Map<SolidKind, MeshLambertMaterial>();
+  private readonly materials = new Map<SolidKind, MeshStandardMaterial>();
   private readonly edgeMaterial = new LineBasicMaterial({ color: LIGHT_SCENE_THEME.edge });
   /** The edges of the kinds the cutaway clips, clipped with them. */
   private readonly clippedEdgeMaterial = new LineBasicMaterial({ color: LIGHT_SCENE_THEME.edge });
@@ -97,8 +100,11 @@ export class BuildingScene {
       const glass = kind === 'glass';
       this.materials.set(
         kind,
-        new MeshLambertMaterial({
+        // Physically based, as the design's materials are, so its lights light them alike.
+        new MeshStandardMaterial({
           color: kindColor(theme, kind),
+          roughness: 0.9,
+          metalness: 0,
           transparent: glass,
           opacity: glass ? 0.35 : 1,
           depthWrite: !glass,
@@ -311,6 +317,7 @@ export class BuildingScene {
   private objects(part: SolidPart, hit: SceneHit): (Mesh | LineSegments)[] {
     const geometry = new BufferGeometry();
     geometry.setAttribute('position', new BufferAttribute(part.mesh.positions, 3));
+    if (part.mesh.uvs) geometry.setAttribute('uv', new BufferAttribute(part.mesh.uvs, 2));
     geometry.computeVertexNormals();
     const mesh = new Mesh(geometry, part.material ? this.decorMaterials.get(part.material) : this.materials.get(part.kind)!);
     mesh.userData['hit'] = hit;

@@ -202,10 +202,15 @@ export class Scene3dView {
     this.requestRender();
   }
 
-  /** What is drawn under a window point (the first visible mesh, above the cutaway's plane skipped), or null. */
+  /** What is drawn under a window point (the first visible mesh, above the cutaway's plane skipped), where, and which way its face looks; or null. */
   pick(clientX: number, clientY: number): SceneHit | null {
     const hit = this.intersect(clientX, clientY);
-    return hit ? ((hit.object.userData['hit'] as SceneHit | undefined) ?? null) : null;
+    const meant = hit ? (hit.object.userData['hit'] as SceneHit | undefined) : undefined;
+    if (!hit || !meant) return null;
+    const level = this.building.levels.find((l) => l.id === meant.levelId);
+    const lift = this.building.levelGroup(meant.levelId)?.position.z ?? 0;
+    const n = hit.face ? hit.face.normal.clone().transformDirection(hit.object.matrixWorld) : null;
+    return { ...meant, point: [hit.point.x / MM, hit.point.y / MM, hit.point.z / MM - lift - (level?.elevation ?? 0)], ...(n ? { normal: [n.x, n.y, n.z] as Vec3 } : {}) };
   }
 
   getOrbit(): Orbit {

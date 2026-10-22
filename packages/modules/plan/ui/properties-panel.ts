@@ -1,11 +1,12 @@
 import { NgTemplateOutlet } from '@angular/common';
 import { Component, computed, inject, input, linkedSignal, untracked } from '@angular/core';
 import { FormField, form } from '@angular/forms/signals';
-import { arcGeometry, bulgeOf, connectorPath, dimensionGeometry, distance, findEntity, formatArea, isConnectorId, pathLength, pathOfEntity, resolveDimension, signedArea, type Connector, type Entity, type Path, type Vec2 } from '@studio/core';
+import { arcGeometry, bulgeOf, connectorPath, dimensionGeometry, distance, findEntity, formatArea, isConnectorId, pathLength, pathOfEntity, resolveDimension, signedArea, wallSidesFacing, type Connector, type Entity, type Path, type Vec2 } from '@studio/core';
 import { AngleInput, Checkbox, EmptyState, HostBridge, Input, LengthInput, ProjectDocs, Select, Toasts, Units } from '@studio/ui';
 import { ConnectorProperties } from './connector-properties';
 import { ItemProperties } from './item-properties';
 import { LightProperties } from './light-properties';
+import { MaterialPicker } from './material-picker';
 import { PlanGeometry } from './plan-geometry';
 import { PlanSelection } from './plan-selection';
 
@@ -57,7 +58,7 @@ interface VertexDraft {
  */
 @Component({
   selector: 'x-properties-panel',
-  imports: [AngleInput, Checkbox, ConnectorProperties, EmptyState, FormField, Input, ItemProperties, LengthInput, LightProperties, NgTemplateOutlet, Select],
+  imports: [AngleInput, Checkbox, ConnectorProperties, EmptyState, FormField, Input, ItemProperties, LengthInput, LightProperties, MaterialPicker, NgTemplateOutlet, Select],
   templateUrl: './properties-panel.html',
   host: { class: 'flex flex-col', 'data-testid': 'properties-panel' },
 })
@@ -107,6 +108,17 @@ export class PropertiesPanel {
     const g = this.geometry.cache.level(entities).rooms.get(e.id);
     if (!g) return null;
     return { enclosed: g.enclosed, shared: g.shared ?? null, area: formatArea(g.area, this.units.settings()), perimeter: this.units.length(g.perimeter) };
+  });
+  /** A room's wall finish as its faces have it: one material, `mixed`, or null. */
+  protected readonly roomWalls = computed(() => {
+    const e = this.subject();
+    const doc = this.state()?.doc;
+    if (!e || e.type !== 'room' || !doc || !this.entity()) return null;
+    const entities = doc.levelData[e.levelId]?.entities ?? {};
+    const faces = wallSidesFacing(entities, this.geometry.cache.level(entities).rooms.values(), e.id);
+    const set = new Set(faces.map((f) => (entities[f.wallId] as Wall).materials?.[f.side] ?? null));
+    if (!set.size || (set.size === 1 && set.has(null))) return null;
+    return set.size === 1 ? [...set][0] : 'mixed';
   });
   protected readonly wallLength = computed(() => {
     const e = this.subject();
@@ -270,6 +282,13 @@ export class PropertiesPanel {
     const e = untracked(this.subject) as Opening | null;
     if (!e) return;
     this.set({ swing: { hinge: e.swing?.hinge ?? 'start', side: e.swing?.side ?? 'left', [part]: value } });
+  }
+
+  /** A wall face's or a room surface's material, through `decor.material.set` (a room's walls: every face looking into it). */
+  protected setFinish(target: { side: 'left' | 'right' } | { surface: 'floor' | 'walls' | 'ceiling' }, material: string | null): void {
+    const e = untracked(this.subject);
+    if (!e) return;
+    void this.run('decor.material.set', { target: 'side' in target ? { wallId: e.id, side: target.side } : { roomId: e.id, surface: target.surface }, material });
   }
 
   protected setColumnSize(field: 'w' | 'd' | 'r', mm: number | null): void {

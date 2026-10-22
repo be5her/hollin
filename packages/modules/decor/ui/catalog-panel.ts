@@ -92,7 +92,7 @@ export class CatalogPanel {
   /** The project's registered models, so a model placed from another machine's catalog shows up. */
   private readonly assetCount = computed(() => Object.keys(this.docs.read(this.projectId())?.doc.assets ?? {}).length);
   private readonly entries = invokeResource<CatalogEntry[]>('catalog.search', () => ({ kind: this.tab(), limit: 500, assets: this.assetCount() }), { projectId: () => this.projectId(), refreshOnEvents: ['catalog.changed'] });
-  protected readonly armedRef = computed(() => this.tools.armedItem(this.projectId())()?.item.ref ?? null);
+  protected readonly armedRef = computed(() => (this.tab() === 'material' ? (this.tools.armedPaint(this.projectId())()?.ref ?? null) : (this.tools.armedItem(this.projectId())()?.item.ref ?? null)));
 
   protected readonly categories = computed(() => [...new Set((this.entries.value() ?? []).filter((e) => e.kind === this.tab()).map((e) => e.category))]);
   protected readonly shown = computed(() => {
@@ -119,10 +119,10 @@ export class CatalogPanel {
     return `${e.name}${size}${e.source === 'library' ? ' · imported' : e.source === 'project' ? ' · in this project only' : ''}`;
   }
 
-  /** A model arms the plan's Furniture tool. */
+  /** A model arms the plan's Furniture tool; a material arms painting (the plan's Paint tool, and clicks in 3D). */
   protected pick(e: CatalogEntry): void {
-    if (e.kind !== 'item') return;
-    this.tools.armItem(this.projectId(), { ref: e.ref, name: e.name, size: e.size, ...(e.lamp ? { lamp: true } : {}) });
+    if (e.kind === 'material') this.tools.armPaint(this.projectId(), { ref: e.ref, name: e.name });
+    else if (e.kind === 'item') this.tools.armItem(this.projectId(), { ref: e.ref, name: e.name, size: e.size, ...(e.lamp ? { lamp: true } : {}) });
   }
 
   protected menu(event: MouseEvent, e: CatalogEntry): void {

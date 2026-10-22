@@ -7,9 +7,28 @@ export type Vec3 = readonly [number, number, number];
 /**
  * Triangles in mm, z up: three vertices (x, y, z) per triangle, each counter-clockwise seen from
  * outside, so a closed solid's normals point outwards. Not indexed: every triangle is flat-shaded.
+ * `uvs` (two per vertex) are texture coordinates in mm: a face turned up or down is mapped by its
+ * plan position (x, y), any other by its distance along the face and its height (z), so a pattern
+ * keeps its scale and lines up across faces.
  */
 export interface Mesh {
   positions: Float32Array;
+  uvs?: Float32Array;
+}
+
+/** The texture coordinates of a triangle's corners, in mm (see `Mesh`). */
+export function triangleUvs(a: Vec3, b: Vec3, c: Vec3): [number, number, number, number, number, number] {
+  const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2];
+  const vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
+  const nx = uy * vz - uz * vy;
+  const ny = uz * vx - ux * vz;
+  const nz = ux * vy - uy * vx;
+  const plan = Math.hypot(nx, ny);
+  if (Math.abs(nz) >= plan) return [a[0], a[1], b[0], b[1], c[0], c[1]];
+  // Along the face, seen from outside: left to right.
+  const tx = -ny / plan;
+  const ty = nx / plan;
+  return [a[0] * tx + a[1] * ty, a[2], b[0] * tx + b[1] * ty, b[2], c[0] * tx + c[1] * ty, c[2]];
 }
 
 /** Below this area (mm²) a cap left over by a boolean is a sliver and is dropped. */
@@ -18,6 +37,7 @@ const SLIVER = 1;
 /** Collects triangles. Polygons follow the boolean convention: outlines counter-clockwise, holes clockwise. */
 export class MeshBuilder {
   private readonly p: number[] = [];
+  private readonly uv: number[] = [];
 
   get empty(): boolean {
     return this.p.length === 0;
@@ -25,6 +45,7 @@ export class MeshBuilder {
 
   triangle(a: Vec3, b: Vec3, c: Vec3): this {
     this.p.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2]);
+    this.uv.push(...triangleUvs(a, b, c));
     return this;
   }
 
@@ -117,11 +138,12 @@ export class MeshBuilder {
   /** Adds another builder's triangles. */
   append(other: MeshBuilder): this {
     for (const v of other.p) this.p.push(v);
+    for (const v of other.uv) this.uv.push(v);
     return this;
   }
 
   build(): Mesh {
-    return { positions: new Float32Array(this.p) };
+    return { positions: new Float32Array(this.p), uvs: new Float32Array(this.uv) };
   }
 }
 

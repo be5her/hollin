@@ -64,13 +64,19 @@
     [attr.data-frame-ms]="frameMs()"
     [attr.data-lighting]="lighting()"
     [attr.data-lights]="lightsOn()"
+    [attr.data-paint]="paint()?.ref ?? ''"
+    [class.cursor-crosshair]="paint()"
+    (keydown.escape)="stopPainting()"
   ></canvas>
   @if (empty()) {
     <div class="absolute inset-0 grid place-items-center text-sm text-muted pointer-events-none" data-testid="scene-empty">Nothing to show yet: draw walls on the plan.</div>
   }
 </div>
 <div class="flex items-center gap-4 px-3 h-6 border-t border-edge bg-surface shrink-0 text-[11px] text-muted whitespace-nowrap overflow-hidden" data-testid="scene-footer">
-  @if (walk()) {
+  @if (paint(); as p) {
+    <span class="shrink-0 text-fg" data-testid="scene-painting">Painting with {{ p.name }}</span>
+    <span class="flex-1 min-w-0 truncate">Click a wall face, a floor or a ceiling · Esc to stop</span>
+  } @else if (walk()) {
     <span class="shrink-0 text-fg" data-testid="scene-walk-level">Walking on {{ walkLevelName() }}</span>
     <span class="flex-1 min-w-0 truncate">W A S D or arrows to walk · Shift to run · drag to look around · PageUp / PageDown in an elevator · Esc to stop</span>
   } @else {

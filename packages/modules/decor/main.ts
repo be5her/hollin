@@ -2,6 +2,10 @@ import {
   StudioError,
   addEntityOps,
   builtinEntries,
+  deriveLevelGeometry,
+  requireEntity,
+  updateEntityOps,
+  wallSidesFacing,
   builtinMaterial,
   builtinRecipe,
   defineCommand,
@@ -149,6 +153,57 @@ export const decorModule = defineModule({
         const parsed = parseRef(ref);
         if (parsed?.k !== 'asset') throw new StudioError('INVALID_INPUT', `${ref} is not an imported model`);
         return modelEntry(await ctx.host.projects.catalog.setThumbnail(parsed.file, new Uint8Array(Buffer.from(png, 'base64'))));
+      },
+    }),
+    defineCommand({
+      id: 'decor.material.set',
+      title: 'Set a finish',
+      description:
+        "Gives a surface a material (`builtin:<id>` from catalog_search with kind 'material', or `paint:#rrggbb` for any colour), or clears it with `material: null`. The target is one face of a wall (`wallId` and `side`, left or right looking along the wall's path), or a room's `floor`, `ceiling` or `walls` (every wall face that looks into the room, all in one change). Finishes show in the 3D view; plan_describe lists them per room. One undo step. Returns what was changed.",
+      scope: 'project',
+      batchable: true,
+      input: z.object({
+        target: z.union([z.object({ wallId: z.string(), side: z.enum(['left', 'right']) }), z.object({ roomId: z.string(), surface: z.enum(['floor', 'walls', 'ceiling']) })]),
+        material: z.string().min(1).max(200).nullable(),
+      }),
+      handler: async ({ target, material }, ctx) => {
+        if (material !== null) checkMaterial(material, 'material');
+        const doc = ctx.project!.doc;
+        const what = material ?? 'nothing';
+        type Face = { wallId: string; side: 'left' | 'right' };
+        const paintFaces = (tx: { doc: typeof doc; apply: (ops: Op[]) => void }, faces: Face[]) => {
+          for (const face of faces) {
+            const wall = requireEntity(tx.doc, face.wallId);
+            if (wall.type !== 'wall') throw new StudioError('INVALID_INPUT', `${face.wallId} is a ${wall.type}, not a wall`);
+            const materials = { ...(wall.materials ?? {}) };
+            if (material) materials[face.side] = material;
+            else delete materials[face.side];
+            tx.apply(Object.keys(materials).length ? updateEntityOps(tx.doc, wall.id, { materials }) : updateEntityOps(tx.doc, wall.id, {}, ['materials']));
+          }
+        };
+        if ('wallId' in target) {
+          const wall = requireEntity(doc, target.wallId);
+          if (wall.type !== 'wall') throw new StudioError('INVALID_INPUT', `${target.wallId} is a ${wall.type}, not a wall`);
+          await editProject(ctx, `Finish wall (${target.side}): ${what}`, (tx) => paintFaces(tx, [target]));
+          return { changed: [target] };
+        }
+        const room = requireEntity(doc, target.roomId);
+        if (room.type !== 'room') throw new StudioError('INVALID_INPUT', `${target.roomId} is a ${room.type}, not a room`);
+        if (target.surface === 'walls') {
+          const entities = doc.levelData[room.levelId].entities;
+          const faces = wallSidesFacing(entities, deriveLevelGeometry(entities).rooms.values(), room.id);
+          if (!faces.length) throw new StudioError('INVALID_INPUT', `No wall faces look into "${room.name}" (is it enclosed?)`);
+          await editProject(ctx, `Finish the walls of ${room.name}: ${what}`, (tx) => paintFaces(tx, faces));
+          return { changed: faces };
+        }
+        await editProject(ctx, `Finish the ${target.surface} of ${room.name}: ${what}`, (tx) => {
+          const current = tx.doc.levelData[room.levelId].entities[room.id] as typeof room;
+          const finish = { ...(current.finish ?? {}) };
+          if (material) finish[target.surface as 'floor' | 'ceiling'] = material;
+          else delete finish[target.surface as 'floor' | 'ceiling'];
+          tx.apply(Object.keys(finish).length ? updateEntityOps(tx.doc, room.id, { finish }) : updateEntityOps(tx.doc, room.id, {}, ['finish']));
+        });
+        return { changed: [target] };
       },
     }),
     defineCommand({

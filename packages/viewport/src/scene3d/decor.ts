@@ -33,12 +33,13 @@ export interface DecorContext {
 /** Recipe slot meshes as geometry, shared by every item made from that recipe. */
 const geometries = new Map<string, BufferGeometry>();
 
-function slotGeometry(recipeId: string, slot: string, positions: Float32Array): BufferGeometry {
+function slotGeometry(recipeId: string, slot: string, mesh: { positions: Float32Array; uvs?: Float32Array }): BufferGeometry {
   const key = `${recipeId}|${slot}`;
   let g = geometries.get(key);
   if (!g) {
     g = new BufferGeometry();
-    g.setAttribute('position', new BufferAttribute(positions, 3));
+    g.setAttribute('position', new BufferAttribute(mesh.positions, 3));
+    if (mesh.uvs) g.setAttribute('uv', new BufferAttribute(mesh.uvs, 2));
     g.computeVertexNormals();
     geometries.set(key, g);
   }
@@ -135,7 +136,7 @@ export class LevelDecor {
     if (model.recipe) {
       for (const { slot, mesh } of recipeMeshes(model.recipe)) {
         const material = ctx.materials.get(e.materials[slot] ?? model.recipe.slots[slot]);
-        out.add(new Mesh(slotGeometry(model.recipe.id, slot, mesh.positions), material));
+        out.add(new Mesh(slotGeometry(model.recipe.id, slot, mesh), material));
       }
       return out;
     }

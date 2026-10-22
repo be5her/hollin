@@ -1,5 +1,34 @@
-import { builtinMaterial, parseRef } from '@studio/core';
-import { DoubleSide, FrontSide, MeshStandardMaterial, type Plane } from 'three';
+import { builtinMaterial, parseRef, type BuiltinMaterial } from '@studio/core';
+import { CanvasTexture, DoubleSide, FrontSide, MeshStandardMaterial, RepeatWrapping, SRGBColorSpace, type Plane } from 'three';
+import { drawMaterialTile, patternTile } from '../decor/patterns';
+
+/** A pattern's texture is drawn at this many pixels per millimetre, within these bounds a side. */
+const PX_PER_MM = 0.5;
+const MIN_PX = 64;
+const MAX_PX = 512;
+
+/**
+ * A material's pattern as a repeating texture: one seamless tile (`drawMaterialTile`) for UVs in mm
+ * (see core's `Mesh`), so the planks, tiles and bricks keep their real size on any face. Null
+ * without a pattern, or without a DOM (unit tests).
+ */
+export function patternTexture(m: BuiltinMaterial): CanvasTexture | null {
+  if (!m.pattern || typeof document === 'undefined') return null;
+  const [tw, th] = patternTile(m.pattern);
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(MIN_PX, Math.min(MAX_PX, Math.round(tw * PX_PER_MM)));
+  canvas.height = Math.max(MIN_PX, Math.min(MAX_PX, Math.round(th * PX_PER_MM)));
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  drawMaterialTile(ctx, m, canvas.width, canvas.height);
+  const texture = new CanvasTexture(canvas);
+  texture.wrapS = RepeatWrapping;
+  texture.wrapT = RepeatWrapping;
+  texture.repeat.set(1 / tw, 1 / th);
+  texture.colorSpace = SRGBColorSpace;
+  texture.anisotropy = 4;
+  return texture;
+}
 
 /**
  * The materials of the design (`builtin:<id>` or `paint:#rrggbb`) as three materials, one per
@@ -29,7 +58,10 @@ export class DecorMaterials {
   }
 
   dispose(): void {
-    for (const m of this.cache.values()) m.dispose();
+    for (const m of this.cache.values()) {
+      m.map?.dispose();
+      m.dispose();
+    }
     this.cache.clear();
   }
 
@@ -40,7 +72,9 @@ export class DecorMaterials {
       const m = builtinMaterial(parsed.id);
       if (m) {
         const clear = m.opacity !== undefined && m.opacity < 1;
-        return new MeshStandardMaterial({ ...base, color: m.color, roughness: m.roughness, metalness: m.metalness, transparent: clear, opacity: m.opacity ?? 1, depthWrite: !clear, side: clear ? DoubleSide : FrontSide, name: ref });
+        // A pattern carries its own colours; the material's colour then leaves it as drawn.
+        const map = patternTexture(m);
+        return new MeshStandardMaterial({ ...base, color: map ? '#ffffff' : m.color, map, roughness: m.roughness, metalness: m.metalness, transparent: clear, opacity: m.opacity ?? 1, depthWrite: !clear, side: clear ? DoubleSide : FrontSide, name: ref });
       }
     }
     if (parsed?.k === 'paint') return new MeshStandardMaterial({ ...base, color: parsed.color, roughness: 0.85, metalness: 0, name: ref });

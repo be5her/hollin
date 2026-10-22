@@ -59,6 +59,9 @@
           </label>
           @if (entity()) {
             <div class="text-xs text-muted">Length <span class="font-mono text-fg" data-testid="prop-length">{{ wallLength() }}</span></div>
+            <div class="text-[11px] font-medium text-muted uppercase tracking-wide mt-1">Finishes</div>
+            <label class="flex items-center gap-2"><span class="w-16 shrink-0 text-xs text-muted">Left face</span><x-material-picker class="flex-1 min-w-0" [value]="asWall(e).materials?.left" label="Left face" testId="prop-finish-left" (changed)="setFinish({ side: 'left' }, $event)" /></label>
+            <label class="flex items-center gap-2"><span class="w-16 shrink-0 text-xs text-muted">Right face</span><x-material-picker class="flex-1 min-w-0" [value]="asWall(e).materials?.right" label="Right face" testId="prop-finish-right" (changed)="setFinish({ side: 'right' }, $event)" /></label>
           }
         }
         @case ('opening') {
@@ -106,6 +109,12 @@
             } @else {
               <div class="text-xs text-muted">Area <span class="font-mono text-fg" data-testid="prop-area">{{ info.area }}</span> · Perimeter <span class="font-mono text-fg">{{ info.perimeter }}</span></div>
             }
+          }
+          @if (entity()) {
+            <div class="text-[11px] font-medium text-muted uppercase tracking-wide mt-1">Finishes</div>
+            <label class="flex items-center gap-2"><span class="w-16 shrink-0 text-xs text-muted">Floor</span><x-material-picker class="flex-1 min-w-0" [value]="$any(e).finish?.floor" label="Floor" testId="prop-finish-floor" (changed)="setFinish({ surface: 'floor' }, $event)" /></label>
+            <label class="flex items-center gap-2"><span class="w-16 shrink-0 text-xs text-muted">Walls</span><x-material-picker class="flex-1 min-w-0" [value]="roomWalls()" label="Walls" testId="prop-finish-walls" (changed)="setFinish({ surface: 'walls' }, $event)" /></label>
+            <label class="flex items-center gap-2"><span class="w-16 shrink-0 text-xs text-muted">Ceiling</span><x-material-picker class="flex-1 min-w-0" [value]="$any(e).finish?.ceiling" label="Ceiling" testId="prop-finish-ceiling" (changed)="setFinish({ surface: 'ceiling' }, $event)" /></label>
           }
         }
         @case ('label') {

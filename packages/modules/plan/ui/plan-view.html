@@ -337,6 +337,17 @@
     }
   </div>
 }
+@if (tool() === 'paint') {
+  <div class="flex items-center gap-3 px-3 h-9 border-b border-edge bg-surface shrink-0 text-xs" data-testid="tool-options">
+    <span class="font-medium">Paint</span>
+    @if (paintArm(); as paint) {
+      <span class="text-fg" data-testid="paint-armed">{{ paint.name }}</span>
+      <span class="text-muted">Click a wall face or a room's floor; in 3D, any wall face, floor or ceiling.</span>
+    } @else {
+      <span class="text-muted">Pick a material in the Catalog panel (right).</span>
+    }
+  </div>
+}
 @if (tool() === 'light') {
   <div class="flex items-center gap-3 px-3 h-9 border-b border-edge bg-surface shrink-0 text-xs" data-testid="tool-options">
     <span class="font-medium">Light</span>
