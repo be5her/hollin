@@ -75,7 +75,12 @@ export async function smokeAssistantClaudeCode(smoke: Smoke, duplexId: string): 
     // Logged out: the fake says so until the environment changes and the user checks again.
     process.env.FAKE_CLAUDE_LOGGED_OUT = '1';
     await smoke.run('config.update', { patch: { ai: { claudeCodePath: fakePath } } });
-    smoke.check('the panel says Claude Code is not logged in', await smoke.waitFor(`${panel} [data-testid=assistant-empty][data-reason=not-logged-in]`, 5000));
+    // Once seen to time out still showing "not found" (one run in many); the detail says what the panel showed, should it happen again.
+    smoke.check(
+      'the panel says Claude Code is not logged in',
+      await smoke.waitFor(`${panel} [data-testid=assistant-empty][data-reason=not-logged-in]`, 5000),
+      `showing ${await smoke.js<string>(`document.querySelector('${panel} [data-testid=assistant-empty]')?.dataset.reason ?? (document.querySelector('${panel} [data-testid=assistant-input]') ? 'the chat' : 'nothing')`)}`,
+    );
     delete process.env.FAKE_CLAUDE_LOGGED_OUT;
     await smoke.click(`${panel} [data-testid=assistant-check-again]`);
     smoke.check('Check again finds it logged in and the chat opens', await smoke.waitFor(`${panel} [data-testid=assistant-input]`, 5000));
