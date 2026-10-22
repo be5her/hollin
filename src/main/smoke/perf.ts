@@ -6,7 +6,7 @@ const canvas = `${tab} [data-testid=plan-canvas]`;
 
 /**
  * 5,000 walls on one level: added in three batches, drawn, then panned and zoomed with real input
- * while the plan's frame time is read from the canvas. The bounds are loose (CI draws with
+ * while the plan's frame time is read from the canvas; then built in 3D and orbited and zoomed there. The bounds are loose (CI draws with
  * software GL); the numbers are logged for the eye.
  */
 export async function smokePerf(smoke: Smoke): Promise<void> {
@@ -60,5 +60,33 @@ export async function smokePerf(smoke: Smoke): Promise<void> {
   smoke.check(`panning and zooming 5,000 walls stays under 100 ms a frame (mean ${mean.toFixed(1)} ms)`, frames.every(Number.isFinite) && mean < 100, { firstFrame, frames });
   const rooms = await smoke.run<unknown[]>('plan.rooms', { levelId: ground }, { projectId: project.id });
   smoke.check('nothing encloses a room on the grid', rooms.length === 0);
+
+  // The same 5,000 walls in 3D: built, then orbited and zoomed with real input.
+  const scene = `${tab} [data-testid=scene-canvas]`;
+  const sceneAttr = (name: string) => smoke.js<string | undefined>(`document.querySelector('${scene}')?.dataset.${name}`);
+  const t1 = Date.now();
+  await smoke.click(`${tab} [data-testid=center-tab-3d]`);
+  smoke.check('the 3D view builds them', await smoke.until(async () => Number(await sceneAttr('meshes')) > 0, 30_000), await sceneAttr('meshes'));
+  const built = Date.now() - t1;
+  await wait(300);
+  const r3 = (await smoke.rect(scene))!;
+  const middle = { x: r3.x + r3.width / 2, y: r3.y + r3.height / 2 };
+  const frames3d: number[] = [];
+  const sample3d = async () => {
+    await wait(80);
+    frames3d.push(Number(await sceneAttr('frameMs')));
+  };
+  for (let i = 0; i < 3; i++) {
+    await smoke.dragAt(middle, { x: middle.x + 80, y: middle.y + 20 }, { steps: 6 });
+    await sample3d();
+  }
+  for (let i = 0; i < 3; i++) {
+    await smoke.wheel(middle.x, middle.y, -240);
+    await sample3d();
+  }
+  const mean3d = frames3d.reduce((a, b) => a + b, 0) / frames3d.length;
+  console.log(`5,000 walls in 3D: built and first drawn in ${built} ms; ${frames3d.length} frames while orbiting and zooming: mean ${mean3d.toFixed(1)} ms, worst ${Math.max(...frames3d).toFixed(1)} ms`);
+  smoke.check(`orbiting and zooming 5,000 walls in 3D stays under 250 ms a frame (mean ${mean3d.toFixed(1)} ms)`, frames3d.every(Number.isFinite) && mean3d < 250, { built, frames3d });
+  await smoke.click(`${tab} [data-testid=center-tab-plan]`);
   await smoke.run('project.close', { id: project.id });
 }

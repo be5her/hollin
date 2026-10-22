@@ -14,8 +14,9 @@ Windows, macOS and Linux, built with Electron and Angular.
 | 4. 2D editor: plan view, walls and joins, snapping, exact input, openings, rooms, shapes, dimensions, thumbnails | done |
 | 5. Vertical circulation: stairs, ramps and elevators on the plan, slab openings, plan symbols, drawing tools, angle tracking, rule warnings | done |
 | 6. AI tools: `plan.describe`, `view.snapshot`, MCP resources and a prompt, the in-app assistant (the Claude API, or your own Claude Code) | done |
-| 7. 3D view: stacked levels, extrusion, cut openings, slabs, connector geometry, cameras | next |
-| 8–9. Decor, export | planned |
+| 7. 3D view: stacked levels, extrusion, cut openings, slabs, connector geometry, isolate, cutaway and explode, orbit and walk cameras, 3D snapshots | done |
+| 8. Decor: glTF catalog, placing items, materials, lighting | next |
+| 9. Export and import: DXF, SVG/PDF plans, glTF building, PNG renders | planned |
 
 ## Development
 
@@ -43,8 +44,8 @@ packages/core/src/node   Node-only storage: atomic writes, config and secret sto
 packages/mcp             Turns the command registry into a stateless Streamable HTTP MCP server.
 packages/ui              The renderer side of the host contract: HostBridge, invokeResource, state services,
                          shared controls and overlays.
-packages/viewport        Framework-free renderers driven by the document: plan2d (Canvas 2D). Imported by the
-                         renderer only.
+packages/viewport        Framework-free renderers driven by the document: plan2d (Canvas 2D) and scene3d (three).
+                         Imported by the renderer only.
 packages/modules/<name>  One folder per feature: main.ts (commands), ui/ (Angular), README.md.
 src/main                 Electron main: the host, IPC, the window, the smoke test.
 src/preload              The only bridge between renderer and main.
@@ -57,13 +58,13 @@ Every feature is a set of **commands** with zod input schemas, registered in one
 
 **Mutating** commands (delete, write outside the library, otherwise destructive) are refused to MCP agents until the user allows it in Settings, and the in-app assistant pauses until the user allows or declines the call in the chat. Ordinary design edits are undoable transactions instead.
 
-The **document** of an open project lives in the main process: a building (datum, ground level, level stack) with levels, per-level layers and entities, and connectors between levels. Elevations are derived from the stack. Every edit is a validated transaction with a label and an author on one undo stack; the renderer mirrors the document from `doc.patched` events. The stairs, ramps and elevators between levels are stored as intent (a walk line, levels, a width) and everything else about them (risers, treads, the holes they cut in the slabs, the limits they break) is derived from the level heights and the rule limits, never stored; a rules watcher in main keeps the warnings current. See `packages/modules/building`, `plan`, `edit` and `rules`.
+The **document** of an open project lives in the main process: a building (datum, ground level, level stack) with levels, per-level layers and entities, and connectors between levels. Elevations are derived from the stack. Every edit is a validated transaction with a label and an author on one undo stack; the renderer mirrors the document from `doc.patched` events. The stairs, ramps and elevators between levels are stored as intent (a walk line, levels, a width) and everything else about them (risers, treads, the holes they cut in the slabs, the limits they break) is derived from the level heights and the rule limits, never stored; a rules watcher in main keeps the warnings current. The 3D view is derived the same way: core turns the document into solids (walls extruded in height bands with the openings cut through, slabs, columns, stairs, ramps, elevators; `packages/core/src/solids`) and `scene3d` draws them with three, with isolate, cutaway, explode and a walk camera that climbs the stairs. See `packages/modules/building`, `plan`, `edit` and `rules`.
 
 Projects live in one **library** folder the app owns (see `packages/modules/library/README.md`): crash-safe saves, autosave, snapshots, a restorable trash and single-file packages.
 
 The host broadcasts typed **events** (`config.changed`, `library.changed`, `project.changed`, `mcp.call`, …) to every window; views follow them, so changes made by an agent show up live.
 
-The **assistant** (`packages/modules/assistant`) is a chat per project in the project tab, run in main with every non-hidden command as a tool; its edits are undoable transactions under its name, destructive calls wait for the user in the chat, and `view.snapshot` lets it see the plan it changed. Two providers: the Claude API with the user's own key (the default, and the only path supported for anyone but the user), or the user's own installed, logged-in Claude Code driven as a subprocess whose tools come over the app's MCP server (personal use on the user's machine; it consumes their Claude Code usage limits, and the app never touches its credentials: see the module README's Compliance section). `plan.describe` gives any agent the design as a reader would describe it: rooms with areas, adjacency and openings, and where each stair or elevator lands.
+The **assistant** (`packages/modules/assistant`) is a chat per project in the project tab, run in main with every non-hidden command as a tool; its edits are undoable transactions under its name, destructive calls wait for the user in the chat, and `view.snapshot` lets it see the plan it changed, or the building in 3D. Two providers: the Claude API with the user's own key (the default, and the only path supported for anyone but the user), or the user's own installed, logged-in Claude Code driven as a subprocess whose tools come over the app's MCP server (personal use on the user's machine; it consumes their Claude Code usage limits, and the app never touches its credentials: see the module README's Compliance section). `plan.describe` gives any agent the design as a reader would describe it: rooms with areas, adjacency and openings, and where each stair or elevator lands.
 
 ### MCP
 
@@ -83,5 +84,6 @@ The **assistant** (`packages/modules/assistant`) is a chat per project in the pr
 | @anthropic-ai/sdk | The in-app assistant's Claude API client: streaming, typed errors and the request types (`packages/modules/assistant`). |
 | fflate | Project packages (zip) without native modules. |
 | rbush (+ `@types/rbush`) | The plan's R-tree: culling what is drawn and hit-testing candidates. |
-| clipper2-ts | Polygon unions, differences and offsets (a TypeScript port of Clipper2): joined walls, opening cuts, room detection, the automatic slab. Pinned exactly to `2.0.1-18`: its releases are numbered `2.0.1-N`, which semver ranks below the old plain `2.0.1`. |
+| three (+ `@types/three`) | The 3D view's WebGL rendering (`packages/viewport/src/scene3d`). Pinned exactly to `0.186.1`: three has no semver, any release may change the API. |
+| clipper2-ts | Polygon unions, differences and offsets (a TypeScript port of Clipper2): joined walls, opening cuts, room detection, the automatic slab; and its triangulation for the 3D solids' caps. Pinned exactly to `2.0.1-18`: its releases are numbered `2.0.1-N`, which semver ranks below the old plain `2.0.1`. |
 | vitest, typescript | Tests and type checking (TypeScript 6.0 pinned for the Angular compiler, 7 elsewhere). |
