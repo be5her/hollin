@@ -3,11 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Framework-free renderers driven by the document: plan2d draws and edits one level on a Canvas 2D; scene3d (three) arrives with milestone 7.",
+  "description": "Framework-free renderers driven by the document: plan2d draws and edits one level on a Canvas 2D; scene3d draws the whole building in 3D with three.",
   "exports": {
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "rbush": "4.0.1"
+    "rbush": "4.0.1",
+    "three": "0.186.1"
+  },
+  "devDependencies": {
+    "@types/three": "0.186.0"
   }
 }

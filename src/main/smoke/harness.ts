@@ -249,6 +249,21 @@ export class Smoke {
     })))`);
   }
 
+  /**
+   * The colour on screen at a window point, as `r,g,b`, from a capture of the window after the next
+   * frames: for WebGL canvases, whose pixels a 2D context cannot read.
+   */
+  async screenPixel(x: number, y: number): Promise<string | null> {
+    const wc = this.window.webContents;
+    wc.invalidate();
+    await Promise.race([this.js('new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(true))))'), wait(500)]);
+    const image = await wc.capturePage({ x: Math.round(x), y: Math.round(y), width: 1, height: 1 });
+    if (image.isEmpty()) return null;
+    // Chromium's bitmaps are BGRA.
+    const b = image.toBitmap();
+    return `${b[2]},${b[1]},${b[0]}`;
+  }
+
   /** A real right click at the centre of the element (or at an offset from its top-left corner). */
   async rightClick(selector: string, offset?: { x: number; y: number }): Promise<boolean> {
     const r = await this.rect(selector);

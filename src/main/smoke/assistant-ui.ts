@@ -1,7 +1,7 @@
 import type { Entity, HistoryInfo } from '@studio/core';
 import { FakeClaude } from '@studio/modules/assistant/fake-api';
 import type { Smoke } from './harness';
-import { tab } from './plan-canvas';
+import { openProjectTab, tab } from './plan-canvas';
 
 type ToolResultBlock = { type: string; tool_use_id?: string; is_error?: boolean; content: string | { type: string; source?: { media_type: string; data: string }; text?: string }[] };
 
@@ -35,7 +35,7 @@ export async function smokeAssistantUi(smoke: Smoke, duplexId: string): Promise<
   };
 
   try {
-    await smoke.run('project.open', { id: duplexId });
+    await openProjectTab(smoke, duplexId);
     await smoke.click(`${tab} [data-testid=right-tab-assistant]`);
     smoke.check('the Assistant panel asks for a key when none is set', (await smoke.waitFor(`${panel} [data-testid=assistant-empty]`)) && (await smoke.count(`${panel} [data-testid=assistant-input]`)) === 0);
     await smoke.shots('27-assistant-empty');

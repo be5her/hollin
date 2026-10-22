@@ -1,0 +1,34 @@
+<div class="flex flex-wrap items-center gap-x-1.5 gap-y-1 px-1.5 py-1 min-h-9 border-b border-edge bg-surface shrink-0 text-xs" data-testid="scene-toolbar">
+  <div class="flex items-center shrink-0 gap-0.5" role="toolbar" aria-label="Views">
+    @for (p of presets; track p.id) {
+      <button xButton size="sm" variant="ghost" [attr.title]="p.title" (click)="preset(p.id)" [attr.data-testid]="'scene-preset-' + p.id">{{ p.label }}</button>
+    }
+  </div>
+  <div class="w-px h-5 bg-edge mx-1"></div>
+  <button xIconButton size="sm" label="Fit the building (Home)" (click)="fit()" data-testid="scene-fit">
+    <svg [xIcon]="icons.Maximize" class="size-3.5"></svg>
+  </button>
+</div>
+@if (unavailable(); as reason) {
+  <x-empty-state title="3D needs WebGL" [hint]="reason" data-testid="scene-unavailable" />
+}
+<div #container class="relative flex-1 min-h-0 bg-canvas" [class.hidden]="unavailable()">
+  <canvas
+    #canvas
+    class="absolute inset-0 w-full h-full outline-none touch-none"
+    tabindex="0"
+    aria-label="The building in 3D"
+    data-testid="scene-canvas"
+    [attr.data-camera3d]="cameraAttr()"
+    [attr.data-orbit]="orbitAttr()"
+    [attr.data-meshes]="meshes()"
+    [attr.data-levels]="levelsAttr()"
+    [attr.data-frame-ms]="frameMs()"
+  ></canvas>
+  @if (empty()) {
+    <div class="absolute inset-0 grid place-items-center text-sm text-muted pointer-events-none" data-testid="scene-empty">Nothing to show yet: draw walls on the plan.</div>
+  }
+</div>
+<div class="flex items-center gap-4 px-3 h-6 border-t border-edge bg-surface shrink-0 text-[11px] text-muted whitespace-nowrap overflow-hidden" data-testid="scene-footer">
+  <span class="flex-1 min-w-0 truncate">Drag to orbit · right-drag or Shift+drag to pan · wheel to zoom · Home to fit</span>
+</div>

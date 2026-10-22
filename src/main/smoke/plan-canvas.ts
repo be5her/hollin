@@ -28,3 +28,13 @@ export async function view(smoke: Smoke): Promise<{ rect: Rect; cam: Camera; at:
   const at = (p: readonly [number, number]) => toScreen(rect, cam, p);
   return { rect, cam, at, pixel: (p) => smoke.canvasPixel(canvas, at(p).x, at(p).y) };
 }
+
+/**
+ * Opens a project and waits until its tab is the one on screen. The window activates the tab only
+ * after the open event's round trip, so a click right after `project.open` can land on the tab that
+ * was showing before.
+ */
+export async function openProjectTab(smoke: Smoke, id: string): Promise<boolean> {
+  const project = await smoke.run<{ name: string }>('project.open', { id });
+  return smoke.until(() => smoke.js<boolean>(`document.querySelector('${tab} [data-testid=project-name]')?.value === ${JSON.stringify(project.name)}`));
+}

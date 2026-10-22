@@ -39,6 +39,15 @@
   --plan-warning: #b7791f;
   --plan-connector: #33363c;
   --plan-connector-fill: #f1f1ee;
+  /* The 3D view: each kind of solid, and the lines along their edges. */
+  --scene-edge: #3b3e44;
+  --scene-wall: #e9e6df;
+  --scene-slab: #c9c6bf;
+  --scene-column: #d9d5cc;
+  --scene-glass: #8fb8de;
+  --scene-connector: #d8cfc0;
+  --scene-rail: #5a5e66;
+  --scene-car: #2f6fda;
 }
 
 .dark {
@@ -69,6 +78,14 @@
   --plan-warning: #f0b94a;
   --plan-connector: #d5d7db;
   --plan-connector-fill: #1b1c1f;
+  --scene-edge: #121315;
+  --scene-wall: #b9b6ae;
+  --scene-slab: #6d6b66;
+  --scene-column: #a29e95;
+  --scene-glass: #5b8fc4;
+  --scene-connector: #a39a8b;
+  --scene-rail: #d5d7db;
+  --scene-car: #5b9bf8;
 }
 
 @theme inline {

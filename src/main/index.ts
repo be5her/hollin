@@ -26,6 +26,9 @@ if (smoke) {
   app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
   app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
   app.commandLine.appendSwitch('disable-renderer-backgrounding');
+  // The 3D view needs WebGL. On a machine without a GPU (CI) Chromium only falls back to its software
+  // renderer when allowed to; real runs keep Chromium's default.
+  app.commandLine.appendSwitch('enable-unsafe-swiftshader');
 }
 
 /** OS-backed encryption for secrets. Linux's `basic_text` fallback uses a fixed key, so it counts as none. */

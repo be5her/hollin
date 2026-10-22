@@ -1,6 +1,6 @@
 # @studio/viewport
 
-Framework-free renderers driven by the document. `plan2d` draws and edits one level from above on a Canvas 2D; `scene3d` (three) arrives with milestone 7. The package is imported by the renderer only; main never loads it.
+Framework-free renderers driven by the document. `plan2d` draws and edits one level from above on a Canvas 2D; `scene3d` draws the whole building in 3D with three. The package is imported by the renderer only; main never loads it.
 
 ## plan2d
 
@@ -22,12 +22,26 @@ Framework-free renderers driven by the document. `plan2d` draws and edits one le
 
 The Angular host (`packages/modules/plan/ui/plan-view.ts`) owns the canvas element, sizes it with a `ResizeObserver` times `devicePixelRatio`, re-reads the theme when `<html class>` changes, persists the camera and mirrors the editor's state into `data-camera="x,y,scale"`, `data-level`, `data-underlay`, `data-entities`, `data-frame-level` (the level the last frame drew) and `data-frame-ms` attributes on the canvas, which the smoke test reads to convert millimetres to window pixels and to assert without any globals.
 
+## scene3d
+
+The whole building in 3D, drawn with three from the solids `@studio/core` derives (`deriveLevelSolids`, `deriveConnectorsSolids`; see `packages/core/README.md`).
+
+| File | What |
+|---|---|
+| `orbit.ts` | The orbit camera in the building's terms: the point looked at (mm, z up), the distance, and the direction looked from (azimuth counter-clockwise from +x on the plan, elevation above the horizon, kept within ±89°). The eye and the screen axes, turning, panning so the scene follows the pointer, zooming at the cursor so the point under it stays put, fitting a box from a direction (`fitOrbit`), the toolbar's presets (3/4 from the south-west, top with north up, front from the south, side from the east) and `parseOrbit` for a stored value. Pure and unit-tested. |
+| `theme.ts` | The colours per kind of solid and of the edge lines, read from the CSS variables in `styles.css` (`--scene-*`, `--canvas`) so the view follows the theme. |
+| `scene.ts` | `BuildingScene`: one three group per level holding its solids and the connectors that start on it, in mm with z up. `update` rebuilds only the levels whose inputs changed (the level's entity record, the levels, the building, the layers, the connectors and the limits, compared by identity: the mirror replaces exactly what a patch touched) and the connectors when they or the levels change. Each part is a non-indexed mesh, flat-shaded, with its edges (faces meeting at more than 25°) drawn as lines; glass is transparent; materials are shared per kind. Every object carries what it stands for (level, kind, entity or connector ids) for picking. |
+| `view.ts` | `Scene3dView`: a WebGL renderer on a canvas (the constructor throws when there is no WebGL context), the world in metres (the solids' millimetres scaled down, for depth precision), a sky light and a key light that follows the camera from its upper left (no shadows, so software GL keeps up), frames drawn only when something changed. Left-drag orbits, right- or middle-drag or Shift+drag pans, the wheel zooms at the cursor, Home fits. The first document with something in it fits the camera unless an orbit was set (that fit is not reported, so a stored orbit arriving later still wins). Each frame reports the orbit, the view-projection matrix (building mm to clip space), the frame time, the meshes and the levels drawn. |
+
+The Angular host (`packages/modules/building/ui/scene-view.ts`) owns the canvas, sizes it with a `ResizeObserver`, re-reads the theme when `<html class>` changes, stores the camera in the project's view state and mirrors each frame into `data-camera3d` (the view-projection matrix, column-major), `data-orbit` (target, distance, azimuth, elevation), `data-meshes`, `data-levels` and `data-frame-ms`. The smoke test projects building points to window pixels with the matrix and reads the window's capture there (`screenPixel`), since a WebGL canvas has no 2D context to sample.
+
 ## Dependencies and why
 
 | Package | Why |
 |---|---|
 | `rbush` 4 | An R-tree for culling what is drawn and for hit-testing candidates. ESM, so the Angular build raises no CommonJS warning; it ships no types, hence `@types/rbush` at the root. |
+| `three` 0.186.1 | WebGL rendering for the 3D view, as the brief asks: meshes, lines, lights, cameras. Pinned exactly (three has no semver: any release may change the API); `@types/three` 0.186.0 is its types. Openings are cut without a CSG library (see the core README's solids). |
 
 ## Tests
 
-`npm test` runs `*.test.ts` here in node: the camera mapping and zoom, the scene index (boxes per type, diffing, openings following walls), the editor without a canvas (scenes per level, underlay choice, fit, camera callbacks), the offscreen render through a fake canvas (an empty level, labels alone, a level a column spans up into), the Select tool with connectors (`tools/select-connectors.test.ts`), and `perf.test.ts`, which derives and indexes 5,000 walls under a loose bound and logs the times. Nothing here touches `ResizeObserver`, `OffscreenCanvas` or `Path2D` at import time; `Path2D` outlines are built lazily at draw time. Drawing itself is checked by the smoke test (`src/main/smoke/plan-ui.ts`), which samples canvas pixels and takes screenshots.
+`npm test` runs `*.test.ts` here in node: the camera mapping and zoom, the scene index (boxes per type, diffing, openings following walls), the editor without a canvas (scenes per level, underlay choice, fit, camera callbacks), the offscreen render through a fake canvas (an empty level, labels alone, a level a column spans up into), the Select tool with connectors (`tools/select-connectors.test.ts`), `scene3d/orbit.test.ts` (the eye and axes, turning off the poles, panning with the pointer, zooming at the cursor, fitting a box, reading a stored orbit), and `perf.test.ts`, which derives and indexes 5,000 walls under a loose bound and logs the times. Nothing here touches `ResizeObserver`, `OffscreenCanvas` or `Path2D` at import time; `Path2D` outlines are built lazily at draw time. Drawing itself is checked by the smoke test (`src/main/smoke/plan-ui.ts`, `scene-ui.ts`), which samples pixels and takes screenshots.

@@ -20,3 +20,7 @@ export * from './plan2d/tools/separator';
 export * from './plan2d/tools/shape';
 export * from './plan2d/tools/dimension';
 export * from './plan2d/tools/label';
+export * from './scene3d/theme';
+export * from './scene3d/orbit';
+export * from './scene3d/scene';
+export * from './scene3d/view';

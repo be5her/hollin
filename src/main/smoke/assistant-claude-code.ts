@@ -3,7 +3,7 @@ import path from 'node:path';
 import type { Entity, HistoryInfo, McpCallEntry } from '@studio/core';
 import fakeClaudeSource from '@studio/modules/assistant/fake-claude.cjs?raw';
 import type { Smoke } from './harness';
-import { tab } from './plan-canvas';
+import { openProjectTab, tab } from './plan-canvas';
 
 type LogEntry = { type: string; pid: number; resume?: string | null; model?: string | null; effort?: string | null; mcpUrl?: string; name?: string; isError?: boolean; result?: { type: string; text?: string }[] };
 
@@ -54,7 +54,7 @@ export async function smokeAssistantClaudeCode(smoke: Smoke, duplexId: string): 
     await smoke.waitFor('[data-testid=settings]');
   };
   const openAssistant = async () => {
-    await smoke.run('project.open', { id: duplexId });
+    await openProjectTab(smoke, duplexId);
     await smoke.click(`${tab} [data-testid=right-tab-assistant]`);
   };
 

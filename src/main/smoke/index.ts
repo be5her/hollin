@@ -17,6 +17,7 @@ import { smokePerf } from './perf';
 import { smokePlan } from './plan';
 import { smokePlanUi } from './plan-ui';
 import { smokeRulesUi } from './rules-ui';
+import { smokeSceneUi } from './scene-ui';
 import { smokeShell } from './shell';
 import { smokeSnapshotUi } from './snapshot-ui';
 import { smokeTrackingUi } from './tracking-ui';
@@ -54,6 +55,7 @@ export async function runSmoke(host: Host, openWindow: () => BrowserWindow): Pro
     await smokeConnectorsUi(smoke, duplexId);
     await smokeRulesUi(smoke, duplexId);
     await smokeSnapshotUi(smoke, duplexId);
+    await smokeSceneUi(smoke);
     await smokeAssistantUi(smoke, duplexId);
     await smokeAssistantClaudeCode(smoke, duplexId);
     await smokePerf(smoke);
