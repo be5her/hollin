@@ -1,7 +1,7 @@
 import type { ProjectDoc, RuleLimits } from '@studio/core';
-import { Color, DirectionalLight, HemisphereLight, Matrix4, PerspectiveCamera, Scene, WebGLRenderer } from 'three';
+import { Color, DirectionalLight, HemisphereLight, Matrix4, Mesh, PerspectiveCamera, Raycaster, Scene, Vector2, WebGLRenderer, type Object3D } from 'three';
 import { FOV, ORBIT_PRESETS, fitOrbit, orbitBy, orbitEye, orbitPan, orbitZoomAt, type Orbit, type OrbitPreset } from './orbit';
-import { BuildingScene, type BuildOptions } from './scene';
+import { BuildingScene, DEFAULT_DISPLAY, type SceneDisplay, type SceneHit } from './scene';
 import { LIGHT_SCENE_THEME, type SceneTheme } from './theme';
 
 /** What a frame showed, for the component to mirror. */
@@ -13,6 +13,8 @@ export interface Scene3dFrame {
   meshes: number;
   /** The levels drawn, bottom to top. */
   levels: string[];
+  /** Where the cutaway's plane clips the connectors, mm, or null. */
+  clip: number | null;
 }
 
 export interface Scene3dCallbacks {
@@ -20,6 +22,8 @@ export interface Scene3dCallbacks {
   onFrame?: (frame: Scene3dFrame) => void;
   /** When a gesture or a fit moved the camera (not when `setOrbit` did). */
   onOrbit?: (orbit: Orbit) => void;
+  /** A click (a press and release without a drag) on something drawn, or on nothing (null). */
+  onPick?: (hit: SceneHit | null) => void;
 }
 
 /** Degrees turned per pixel dragged. */
@@ -56,6 +60,10 @@ export class Scene3dView {
   private pending = 0;
   private placed = false;
   private drag: { id: number; x: number; y: number; mode: 'orbit' | 'pan'; moved: boolean } | null = null;
+  private doc: ProjectDoc | null = null;
+  private limits: RuleLimits | null = null;
+  private display: SceneDisplay = DEFAULT_DISPLAY;
+  private readonly raycaster = new Raycaster();
   private readonly detach: () => void;
 
   constructor(
@@ -64,6 +72,8 @@ export class Scene3dView {
     theme: SceneTheme = LIGHT_SCENE_THEME,
   ) {
     this.renderer = new WebGLRenderer({ canvas, antialias: true });
+    // The cutaway clips the connectors with a plane.
+    this.renderer.localClippingEnabled = true;
     this.camera.up.set(0, 0, 1);
     this.building = new BuildingScene(theme);
     this.building.root.scale.setScalar(MM);
@@ -94,9 +104,32 @@ export class Scene3dView {
    * camera fits it (unless an orbit was set). That fit is not reported to `onOrbit`: it is no choice
    * of the user's, and a stored orbit arriving after it still wins.
    */
-  setDocument(doc: ProjectDoc, options: BuildOptions): void {
-    if (this.building.update(doc, options)) this.requestRender();
+  setDocument(doc: ProjectDoc, limits: RuleLimits): void {
+    this.doc = doc;
+    this.limits = limits;
+    this.rebuild();
     if (!this.placed && this.building.box()) this.fit(undefined, false);
+  }
+
+  /** Shows all levels, one, or one and those below it cut (see `SceneDisplay`), spread apart by `explode`. */
+  setDisplay(display: SceneDisplay): void {
+    this.display = display;
+    this.building.applyDisplay(display);
+    this.rebuild();
+    this.requestRender();
+  }
+
+  /** What is drawn under a window point (the first visible mesh, above the cutaway's plane skipped), or null. */
+  pick(clientX: number, clientY: number): SceneHit | null {
+    const r = this.canvas.getBoundingClientRect();
+    this.raycaster.setFromCamera(new Vector2(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1), this.camera);
+    const clip = this.building.clipHeight();
+    for (const hit of this.raycaster.intersectObject(this.building.root, true)) {
+      if (!(hit.object instanceof Mesh) || !shown(hit.object)) continue;
+      if (clip !== null && hit.point.z / MM > clip + 1) continue;
+      return (hit.object.userData['hit'] as SceneHit | undefined) ?? null;
+    }
+    return null;
   }
 
   getOrbit(): Orbit {
@@ -122,6 +155,14 @@ export class Scene3dView {
     }
     if (notify) this.moved();
     else this.requestRender();
+  }
+
+  /** The solids for the document and the cutaway's cut (rebuilding only what changed). */
+  private rebuild(): void {
+    if (!this.doc || !this.limits) return;
+    const d = this.display;
+    const cut = d.mode === 'cutaway' && d.levelId ? { levelId: d.levelId, height: d.cutHeight } : null;
+    if (this.building.update(this.doc, { limits: this.limits, cut })) this.requestRender();
   }
 
   requestRender(): void {
@@ -162,6 +203,7 @@ export class Scene3dView {
       frameMs: performance.now() - started,
       meshes: this.building.meshCount(),
       levels: this.building.levels.filter((l) => this.building.levelGroup(l.id)?.visible).map((l) => l.id),
+      clip: this.building.clipHeight(),
     });
   }
 
@@ -195,9 +237,11 @@ export class Scene3dView {
       this.moved();
     };
     const up = (e: PointerEvent) => {
-      if (!this.drag || e.pointerId !== this.drag.id) return;
+      const d = this.drag;
+      if (!d || e.pointerId !== d.id) return;
       if (c.hasPointerCapture(e.pointerId)) c.releasePointerCapture(e.pointerId);
       this.drag = null;
+      if (!d.moved && d.mode === 'orbit' && e.type === 'pointerup') this.callbacks.onPick?.(this.pick(e.clientX, e.clientY));
     };
     const wheel = (e: WheelEvent) => {
       e.preventDefault();
@@ -230,4 +274,10 @@ export class Scene3dView {
       c.removeEventListener('contextmenu', menu);
     };
   }
+}
+
+/** True when the object and every group above it are visible. */
+function shown(o: Object3D | null): boolean {
+  for (let p = o; p; p = p.parent) if (!p.visible) return false;
+  return true;
 }

@@ -1,6 +1,6 @@
 import { wait, type Smoke } from './harness';
-import { openProjectTab, tab } from './plan-canvas';
-import { colorDistance, readOrbit, rgbOf, sceneAttr, sceneCanvas, sceneView } from './scene-canvas';
+import { canvas, canvasAttr, openProjectTab, tab, view } from './plan-canvas';
+import { colorDistance, readOrbit, rgbOf, sceneAttr, sceneCanvas, sceneView, type Vec3 } from './scene-canvas';
 
 const rect = (x: number, y: number, w: number, h: number) => ({ closed: true, v: [{ p: [x, y] }, { p: [x + w, y] }, { p: [x + w, y + h] }, { p: [x, y + h] }] });
 const line = (a: [number, number], b: [number, number]) => ({ closed: false, v: [{ p: a }, { p: b }] });
@@ -12,7 +12,10 @@ const DARK_BACKGROUND = rgbOf('#17181a');
  * The 3D view: a two-storey project drawn through commands shows in the 3D tab; seen from the front,
  * a free-standing wall is drawn where its face is and its door lets the background through; an
  * agent's wall appears at once and goes away on undo; the camera moved with the wheel is kept across
- * closing and reopening the project; the view follows the dark theme.
+ * closing and reopening the project; the view follows the dark theme. Isolate, Cutaway (the floor
+ * above gone, the walls cut at the plan cut height) and Explode, checked by pixels; side by side, the
+ * level shared with the plan both ways, a click in 3D picking a level, and a wall drawn on the plan
+ * with real clicks appearing in 3D.
  */
 export async function smokeSceneUi(smoke: Smoke): Promise<void> {
   smoke.section('3D view');
@@ -29,8 +32,8 @@ export async function smokeSceneUi(smoke: Smoke): Promise<void> {
     await run('plan.entity.add', { levelId, entity: { type: 'slab', source: { k: 'auto' } } });
   }
   await run('building.connector.add', { connector: { kind: 'stair', shape: 'straight', bottom: { levelId: ground }, top: { levelId: upper }, axis: line([1000, 300], [1000, 3700]), width: 1000 } });
-  const front = await run<{ id: string }>('plan.entity.add', { levelId: ground, entity: { type: 'wall', path: line([9000, -4000], [13000, -4000]), thickness: 200 } });
-  await run('plan.opening.add', { wallId: front.id, kind: 'door', along: 2000 });
+  const freeWall = await run<{ id: string }>('plan.entity.add', { levelId: ground, entity: { type: 'wall', path: line([9000, -4000], [13000, -4000]), thickness: 200 } });
+  await run('plan.opening.add', { wallId: freeWall.id, kind: 'door', along: 2000 });
 
   await openProjectTab(smoke, id);
   await smoke.click(`${tab} [data-testid=center-tab-3d]`);
@@ -96,6 +99,83 @@ export async function smokeSceneUi(smoke: Smoke): Promise<void> {
     { kept, now: await readOrbit(smoke) },
   );
   smoke.check('the canvas reports its frame time', Number(await sceneAttr(smoke, 'frameMs')) >= 0);
+
+  // Display modes, from the front. The room's south wall face is at y = -100: its ground storey around 1.5 m, its upper storey around 4.5 m.
+  const front = async () => {
+    await smoke.click(`${tab} [data-testid=scene-preset-front]`);
+    await smoke.until(async () => (await readOrbit(smoke))?.azimuth === 270);
+    await wait(100);
+    return sceneView(smoke);
+  };
+  const groundWall: Vec3 = [3000, -100, 1500];
+  const upperWall: Vec3 = [3000, -100, 4500];
+  const isBackground = async (p: Vec3) => colorDistance(await v.pixel(p), LIGHT_BACKGROUND) <= 3;
+  const chooseLevel = async (levelId: string) => {
+    await smoke.fill(`${tab} [data-testid=scene-level]`, levelId);
+    return smoke.until(async () => (await sceneAttr(smoke, 'level')) === levelId);
+  };
+  await chooseLevel(ground);
+  v = await front();
+  smoke.check('all levels show both storeys of the room', !(await isBackground(groundWall)) && !(await isBackground(upperWall)));
+  await smoke.click(`${tab} [data-testid=scene-mode-isolate]`);
+  smoke.check('Isolate shows the active level alone', await smoke.until(async () => (await sceneAttr(smoke, 'levels')) === ground), await sceneAttr(smoke, 'levels'));
+  smoke.check('the ground storey is drawn and the upper one is not', !(await isBackground(groundWall)) && (await isBackground(upperWall)), { ground: await v.pixel(groundWall), upper: await v.pixel(upperWall) });
+  smoke.check('the level select switches the isolated level', (await chooseLevel(upper)) && (await smoke.until(async () => (await sceneAttr(smoke, 'levels')) === upper)));
+  smoke.check('now only the upper storey is drawn', await smoke.until(async () => (await isBackground(groundWall)) && !(await isBackground(upperWall))), { ground: await v.pixel(groundWall), upper: await v.pixel(upperWall) });
+
+  // Cutaway at the ground floor: the floor above goes, and the ground floor's walls are cut at the plan cut height (1200), a stair's flight with them.
+  await chooseLevel(ground);
+  await smoke.click(`${tab} [data-testid=scene-mode-cutaway]`);
+  smoke.check('Cutaway shows the active level and those below', await smoke.until(async () => (await sceneAttr(smoke, 'levels')) === ground && (await sceneAttr(smoke, 'clip')) === '1200'), { levels: await sceneAttr(smoke, 'levels'), clip: await sceneAttr(smoke, 'clip') });
+  const aboveCut: Vec3 = [3000, -100, 2400];
+  const belowCut: Vec3 = [3000, -100, 600];
+  smoke.check('the walls are cut: background above the cut, wall below it', await smoke.until(async () => (await isBackground(aboveCut)) && !(await isBackground(belowCut))), { above: await v.pixel(aboveCut), below: await v.pixel(belowCut) });
+  await smoke.shots('38-scene-cutaway');
+  await smoke.click(`${tab} [data-testid=scene-mode-all]`);
+  smoke.check('All brings the levels back', await smoke.until(async () => (await sceneAttr(smoke, 'levels')) === `${ground} ${upper}` && (await sceneAttr(smoke, 'clip')) === ''));
+  smoke.check('and the walls whole', await smoke.until(async () => !(await isBackground(aboveCut))));
+
+  // Explode: the upper level rises by 4 m; between the storeys, the background.
+  await smoke.fill(`${tab} [data-testid=scene-explode]`, '100');
+  smoke.check('Explode spreads the levels apart', await smoke.until(async () => (await sceneAttr(smoke, 'explode')) === '1'));
+  v = await front();
+  smoke.check('the gap between the storeys shows the background, the upper storey 4 m higher', await smoke.until(async () => (await isBackground(upperWall)) && !(await isBackground([3000, -100, 8500]))), { gap: await v.pixel(upperWall), raised: await v.pixel([3000, -100, 8500]) });
+  await smoke.shots('39-scene-explode');
+  await smoke.fill(`${tab} [data-testid=scene-explode]`, '0');
+  await smoke.until(async () => (await sceneAttr(smoke, 'explode')) === '0');
+
+  // Side by side: the plan next to the 3D view, sharing the active level; a click in 3D picks a level, a wall drawn on the plan shows in 3D.
+  await smoke.click(`${tab} [data-testid=center-split]`);
+  smoke.check('Side by side shows the plan next to the 3D view', (await smoke.waitFor(`${tab} [data-testid=center-side-by-side] [data-testid=plan-canvas]`)) && (await smoke.count(`${tab} [data-testid=center-side-by-side] [data-testid=scene-canvas]`)) === 1);
+  await smoke.waitFor(`${tab} [data-testid=plan-level] option[value="${upper}"]`);
+  await smoke.fill(`${tab} [data-testid=plan-level]`, upper);
+  smoke.check('switching the level on the plan switches it in 3D', await smoke.until(async () => (await sceneAttr(smoke, 'level')) === upper));
+  v = await front();
+  const onGround = v.at(groundWall);
+  await smoke.clickAt(onGround.x, onGround.y);
+  smoke.check('a click on the ground storey in 3D makes it the active level, on the plan too', await smoke.until(async () => (await sceneAttr(smoke, 'level')) === ground && (await canvasAttr(smoke, 'level')) === ground), { scene: await sceneAttr(smoke, 'level'), plan: await canvasAttr(smoke, 'level') });
+  const spot3d: Vec3 = [7750, -4100, 1200];
+  smoke.check('nothing stands between the room and the free wall yet', await isBackground(spot3d));
+  await smoke.until(async () => (await canvasAttr(smoke, 'frameLevel')) === ground);
+  await smoke.click(`${tab} [data-testid=plan-zoom-fit]`);
+  await wait(150);
+  await smoke.js(`document.querySelector('${canvas}').focus()`);
+  await smoke.key('W');
+  await smoke.until(async () => (await canvasAttr(smoke, 'tool')) === 'wall');
+  await wait(100);
+  // The Wall tool's options bar changes the plan's height: measure after it shows. Alt keeps both clicks exactly where they are.
+  const plan = await view(smoke);
+  const a = plan.at([7000, -4000]);
+  const b = plan.at([8500, -4000]);
+  await smoke.clickAt(a.x, a.y, { modifiers: ['alt'] });
+  await smoke.mouseMove(b.x, b.y, ['alt']);
+  await smoke.clickAt(b.x, b.y, { modifiers: ['alt'] });
+  await smoke.key('Escape');
+  smoke.check('a wall drawn on the plan appears in 3D', await smoke.until(async () => !(await isBackground(spot3d))), { at: await v.pixel(spot3d) });
+  await smoke.shots('40-scene-side-by-side');
+  await smoke.key('Escape');
+  await smoke.click(`${tab} [data-testid=center-split]`);
+  smoke.check('Side by side turns off again', await smoke.gone(`${tab} [data-testid=center-side-by-side]`));
   await smoke.click(`${tab} [data-testid=center-tab-plan]`);
   await smoke.run('project.close', { id });
 }

@@ -60,10 +60,35 @@
                 {{ panel.title }}
               </button>
             }
+            <div class="flex-1"></div>
+            <button
+              xIconButton
+              size="sm"
+              [label]="primary() === center() ? 'Side by side: choose another view to see it next to the ' + (primary()?.title ?? '').toLowerCase() : 'Side by side with the ' + (primary()?.title ?? '').toLowerCase()"
+              [disabled]="primary() === center()"
+              [class.bg-elevated]="split()"
+              [class.text-fg]="split()"
+              [attr.aria-pressed]="split()"
+              (click)="toggleSplit()"
+              data-testid="center-split"
+            >
+              <svg [xIcon]="icons.Columns2" class="size-3.5"></svg>
+            </button>
           </div>
         }
         @if (center(); as panel) {
-          <ng-container *ngComponentOutlet="panel.component; inputs: { projectId: p.id }" />
+          @if (sideBySide(); as first) {
+            <div class="flex flex-1 min-h-0" data-testid="center-side-by-side">
+              <div class="flex-1 min-w-0 flex flex-col border-r border-edge">
+                <ng-container *ngComponentOutlet="first.component; inputs: { projectId: p.id }" />
+              </div>
+              <div class="flex-1 min-w-0 flex flex-col">
+                <ng-container *ngComponentOutlet="panel.component; inputs: { projectId: p.id }" />
+              </div>
+            </div>
+          } @else {
+            <ng-container *ngComponentOutlet="panel.component; inputs: { projectId: p.id }" />
+          }
         }
       </main>
       <aside class="w-80 shrink-0 border-l border-edge bg-surface flex flex-col min-h-0" data-testid="project-right">

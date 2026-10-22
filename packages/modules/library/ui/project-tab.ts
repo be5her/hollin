@@ -2,7 +2,7 @@ import { NgComponentOutlet } from '@angular/common';
 import { Component, computed, inject, input, linkedSignal, untracked } from '@angular/core';
 import { FormField, form, required } from '@angular/forms/signals';
 import { Badge, Button, EmptyState, HostBridge, Icon, IconButton, OpenProjects, ProjectDocs, ProjectPanels, ProjectView, Toasts, UiActions, relativeTime, type Tab, type TabComponent } from '@studio/ui';
-import { Copy, Download, Redo2, Save, Trash2, Undo2 } from 'lucide';
+import { Columns2, Copy, Download, Redo2, Save, Trash2, Undo2 } from 'lucide';
 import { LibraryActions } from './library-actions';
 
 /**
@@ -28,7 +28,7 @@ export class ProjectTab implements TabComponent {
 
   readonly tab = input.required<Tab>();
 
-  protected readonly icons = { Copy, Download, Redo2, Save, Trash2, Undo2 };
+  protected readonly icons = { Columns2, Copy, Download, Redo2, Save, Trash2, Undo2 };
   protected readonly projectId = computed(() => this.tab().projectId ?? null);
   protected readonly project = computed(() => {
     const id = this.projectId();
@@ -45,6 +45,14 @@ export class ProjectTab implements TabComponent {
     return this.centers().find((p) => p.id === chosen) ?? this.centers()[0] ?? null;
   });
   protected readonly centerId = computed(() => this.center()?.id ?? '');
+  /** The first main view (the plan): side by side, it shows next to the one chosen. */
+  protected readonly primary = computed(() => this.centers()[0] ?? null);
+  protected readonly split = computed(() => {
+    const id = this.projectId();
+    return id ? this.view.get<boolean>(id, 'centerSplit', false) === true : false;
+  });
+  /** The view shown next to the chosen one, when side by side is on and another view than the first is chosen. */
+  protected readonly sideBySide = computed(() => (this.split() && this.center() !== this.primary() ? this.primary() : null));
   protected readonly right = computed(() => this.panels.panels().filter((p) => p.side === 'right'));
   protected readonly rightPanel = computed(() => {
     const id = this.projectId();
@@ -64,6 +72,11 @@ export class ProjectTab implements TabComponent {
   protected chooseRight(id: string): void {
     const projectId = this.projectId();
     if (projectId) this.view.set(projectId, 'rightPanel', id);
+  }
+
+  protected toggleSplit(): void {
+    const projectId = this.projectId();
+    if (projectId) this.view.set(projectId, 'centerSplit', !untracked(this.split));
   }
 
   protected chooseCenter(id: string): void {

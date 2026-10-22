@@ -1,5 +1,5 @@
 import { deriveConnectorsSolids, deriveLevelSolids, deriveLevels, meshBox, type ConnectorSolids, type DerivedLevel, type LevelSolids, type ProjectDoc, type RuleLimits, type SolidKind, type SolidPart, type Vec3 } from '@studio/core';
-import { BufferAttribute, BufferGeometry, Color, DoubleSide, EdgesGeometry, FrontSide, Group, LineBasicMaterial, LineSegments, Mesh, MeshLambertMaterial } from 'three';
+import { BufferAttribute, BufferGeometry, Color, DoubleSide, EdgesGeometry, FrontSide, Group, LineBasicMaterial, LineSegments, Mesh, MeshLambertMaterial, Plane, Vector3 } from 'three';
 import { LIGHT_SCENE_THEME, kindColor, type SceneTheme } from './theme';
 
 /** Kinds drawn with their edges as lines; thin rails would be all edges. */
@@ -7,6 +7,28 @@ const EDGED = new Set<SolidKind>(['wall', 'slab', 'column', 'connector', 'glass'
 /** Faces meeting at more than this angle (degrees) get an edge line. */
 const EDGE_ANGLE = 25;
 const KINDS: SolidKind[] = ['wall', 'slab', 'column', 'glass', 'connector', 'rail', 'car'];
+/**
+ * Kinds the cutaway clips with a plane at the cut: what the solids do not cut themselves (the active
+ * level's walls, columns and windows are cut exactly, with caps). Connectors running up from below
+ * are cut there too.
+ */
+const CLIPPED = new Set<SolidKind>(['connector', 'rail', 'car', 'glass']);
+/** How far apart a fully exploded view sets each level from the one below, mm. */
+export const EXPLODE_GAP = 4000;
+
+/** How the levels are shown. */
+export type SceneMode = 'all' | 'isolate' | 'cutaway';
+export interface SceneDisplay {
+  /** All levels; the active level alone (with the connectors that start on it); or the active level and everything below it, its walls cut at `cutHeight`. */
+  mode: SceneMode;
+  levelId: string | null;
+  /** 0 (stacked as built) to 1 (each level `EXPLODE_GAP` above the one below). */
+  explode: number;
+  /** Where the cutaway cuts the active level, mm above its floor. */
+  cutHeight: number;
+}
+
+export const DEFAULT_DISPLAY: SceneDisplay = { mode: 'all', levelId: null, explode: 0, cutHeight: 1200 };
 
 /** What a mesh in the scene stands for, for picking. */
 export interface SceneHit {
@@ -49,7 +71,10 @@ export class BuildingScene {
   private connectorData: ConnectorSolids[] = [];
   private readonly materials = new Map<SolidKind, MeshLambertMaterial>();
   private readonly edgeMaterial = new LineBasicMaterial({ color: LIGHT_SCENE_THEME.edge });
+  /** The edges of the kinds the cutaway clips, clipped with them. */
+  private readonly clippedEdgeMaterial = new LineBasicMaterial({ color: LIGHT_SCENE_THEME.edge });
   private levelsList: DerivedLevel[] = [];
+  private display: SceneDisplay = DEFAULT_DISPLAY;
 
   constructor(theme: SceneTheme = LIGHT_SCENE_THEME) {
     for (const kind of KINDS) {
@@ -75,6 +100,35 @@ export class BuildingScene {
   setTheme(theme: SceneTheme): void {
     for (const kind of KINDS) this.materials.get(kind)!.color = new Color(kindColor(theme, kind));
     this.edgeMaterial.color = new Color(theme.edge);
+    this.clippedEdgeMaterial.color = new Color(theme.edge);
+  }
+
+  /**
+   * Shows, hides and places the levels for a display mode (see `SceneDisplay`); kept and applied
+   * again after every `update`. The cutaway's cut itself is a build option (`BuildOptions.cut`).
+   */
+  applyDisplay(display: SceneDisplay): void {
+    this.display = display;
+    const active = this.levelsList.find((l) => l.id === display.levelId) ?? null;
+    const mode = active ? display.mode : 'all';
+    let clipAt: number | null = null;
+    this.levelsList.forEach((level, i) => {
+      const node = this.nodes.get(level.id);
+      if (!node) return;
+      node.group.visible = mode === 'all' ? true : mode === 'isolate' ? level.id === active!.id : level.elevation <= active!.elevation + 1e-6;
+      node.group.position.z = i * display.explode * EXPLODE_GAP;
+      if (mode === 'cutaway' && level.id === active!.id) clipAt = level.elevation + display.cutHeight + node.group.position.z;
+    });
+    // The plane works in the world's units (the root is scaled to metres) and keeps what lies below it.
+    const planes = clipAt === null ? [] : [new Plane(new Vector3(0, 0, -1), clipAt * this.root.scale.z)];
+    for (const kind of CLIPPED) this.materials.get(kind)!.clippingPlanes = planes;
+    this.clippedEdgeMaterial.clippingPlanes = planes;
+  }
+
+  /** Where the cutaway's plane is, mm (world, explode included), or null. */
+  clipHeight(): number | null {
+    const plane = this.materials.get('connector')!.clippingPlanes?.[0];
+    return plane ? plane.constant / this.root.scale.z : null;
   }
 
   /** The levels as last built, bottom to top. */
@@ -102,6 +156,8 @@ export class BuildingScene {
     const levels = deriveLevels(doc);
     this.levelsList = levels;
     let changed = false;
+    // Levels added or removed: the connectors hang in the level groups, so they are placed again.
+    let regrouped = false;
     const seen = new Set<string>();
     for (const level of levels) {
       seen.add(level.id);
@@ -123,6 +179,7 @@ export class BuildingScene {
         this.root.add(group);
         node = { level, group, solids, connectors, key, data };
         this.nodes.set(level.id, node);
+        regrouped = true;
       } else {
         clear(node.solids);
         node.level = level;
@@ -137,9 +194,10 @@ export class BuildingScene {
       this.root.remove(node.group);
       this.nodes.delete(id);
       changed = true;
+      regrouped = true;
     }
     const connectorKey = [doc.connectors, doc.levels, doc.building, options.limits, levels.map((l) => l.id).join(',')];
-    if (changed || !sameKey(this.connectorKey, connectorKey)) {
+    if (regrouped || !sameKey(this.connectorKey, connectorKey)) {
       this.connectorKey = connectorKey;
       this.connectorData = deriveConnectorsSolids(doc, options.limits, levels);
       for (const node of this.nodes.values()) clear(node.connectors);
@@ -150,6 +208,7 @@ export class BuildingScene {
       }
       changed = true;
     }
+    this.applyDisplay(this.display);
     return changed;
   }
 
@@ -191,6 +250,7 @@ export class BuildingScene {
     this.nodes.clear();
     for (const m of this.materials.values()) m.dispose();
     this.edgeMaterial.dispose();
+    this.clippedEdgeMaterial.dispose();
   }
 
   private objects(part: SolidPart, hit: SceneHit): (Mesh | LineSegments)[] {
@@ -201,7 +261,7 @@ export class BuildingScene {
     mesh.userData['hit'] = hit;
     if (part.kind === 'glass') mesh.renderOrder = 1;
     if (!EDGED.has(part.kind)) return [mesh];
-    const edges = new LineSegments(new EdgesGeometry(geometry, EDGE_ANGLE), this.edgeMaterial);
+    const edges = new LineSegments(new EdgesGeometry(geometry, EDGE_ANGLE), CLIPPED.has(part.kind) ? this.clippedEdgeMaterial : this.edgeMaterial);
     edges.userData['hit'] = hit;
     return [mesh, edges];
   }

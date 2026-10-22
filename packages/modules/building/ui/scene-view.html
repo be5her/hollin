@@ -3,11 +3,38 @@
     @for (p of presets; track p.id) {
       <button xButton size="sm" variant="ghost" [attr.title]="p.title" (click)="preset(p.id)" [attr.data-testid]="'scene-preset-' + p.id">{{ p.label }}</button>
     }
+    <button xIconButton size="sm" label="Fit the building (Home)" (click)="fit()" data-testid="scene-fit">
+      <svg [xIcon]="icons.Maximize" class="size-3.5"></svg>
+    </button>
   </div>
   <div class="w-px h-5 bg-edge mx-1"></div>
-  <button xIconButton size="sm" label="Fit the building (Home)" (click)="fit()" data-testid="scene-fit">
-    <svg [xIcon]="icons.Maximize" class="size-3.5"></svg>
-  </button>
+  <div class="flex items-center shrink-0 gap-0.5" role="radiogroup" aria-label="Levels shown">
+    @for (m of modes; track m.id) {
+      <button
+        xButton
+        size="sm"
+        variant="ghost"
+        role="radio"
+        [attr.title]="m.title"
+        [class.bg-elevated]="mode() === m.id"
+        [class.text-fg]="mode() === m.id"
+        [attr.aria-checked]="mode() === m.id"
+        (click)="chooseMode(m.id)"
+        [attr.data-testid]="'scene-mode-' + m.id"
+      >
+        {{ m.label }}
+      </button>
+    }
+  </div>
+  <select xSelect class="h-7 text-xs shrink-0 w-44" (change)="chooseLevel($any($event.target).value)" data-testid="scene-level" aria-label="Active level">
+    @for (level of levelsTopDown(); track level.id) {
+      <option [value]="level.id" [selected]="level.id === activeLevelId()">{{ level.name }} · {{ units.length(level.elevation) }}</option>
+    }
+  </select>
+  <label class="flex items-center gap-2 shrink-0 text-muted">
+    Explode
+    <input type="range" min="0" max="100" class="w-24 accent-accent h-1" [value]="explode() * 100" (input)="setExplode($event)" aria-label="Spread the levels apart" data-testid="scene-explode" />
+  </label>
 </div>
 @if (unavailable(); as reason) {
   <x-empty-state title="3D needs WebGL" [hint]="reason" data-testid="scene-unavailable" />
@@ -23,6 +50,10 @@
     [attr.data-orbit]="orbitAttr()"
     [attr.data-meshes]="meshes()"
     [attr.data-levels]="levelsAttr()"
+    [attr.data-level]="activeLevelId()"
+    [attr.data-mode]="mode()"
+    [attr.data-explode]="explode()"
+    [attr.data-clip]="clipAttr()"
     [attr.data-frame-ms]="frameMs()"
   ></canvas>
   @if (empty()) {
@@ -30,5 +61,5 @@
   }
 </div>
 <div class="flex items-center gap-4 px-3 h-6 border-t border-edge bg-surface shrink-0 text-[11px] text-muted whitespace-nowrap overflow-hidden" data-testid="scene-footer">
-  <span class="flex-1 min-w-0 truncate">Drag to orbit · right-drag or Shift+drag to pan · wheel to zoom · Home to fit</span>
+  <span class="flex-1 min-w-0 truncate">Drag to orbit · right-drag or Shift+drag to pan · wheel to zoom · Home to fit · click something to make its level active</span>
 </div>
