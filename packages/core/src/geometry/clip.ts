@@ -1,4 +1,4 @@
-import { ClipType, EndType, FillRule, JoinType, PolyTree64, TriangulateResult, booleanOpWithPolyTree, inflatePaths, triangulate, type Path64, type Paths64, type PolyPath64 } from 'clipper2-ts';
+import { ClipType, EndType, FillRule, JoinType, PolyTree64, TriangulateResult, booleanOpWithPolyTree, inflatePaths, simplifyPaths, triangulate, type Path64, type Paths64, type PolyPath64 } from 'clipper2-ts';
 import { flatten, type Path, type Region } from './path';
 import { orient, type Polygon } from './polygon';
 
@@ -102,14 +102,25 @@ export function closePolygons(polys: Polygon[], delta: number): Polygon[] {
 }
 
 /**
+ * How far off the line through its neighbours a vertex may lie and still be dropped before
+ * triangulating, mm: booleans can leave a zero-width spike (an edge running out and straight back, a
+ * few µm off true) where two outlines met, and the triangulation then fills the holes through it
+ * while reporting success (a wall top cap once covered the rooms below it).
+ */
+const SPIKE = 0.01;
+
+/**
  * Polygons (outlines counter-clockwise, holes clockwise, as booleans return them) split into
- * triangles, each counter-clockwise, by Clipper2's constrained Delaunay triangulation. Input that
- * overlaps or touches itself is unioned first; an empty list when even that cannot be triangulated.
+ * triangles, each counter-clockwise, by Clipper2's constrained Delaunay triangulation. Spikes go
+ * first (`SPIKE`); input that overlaps or touches itself is unioned; an empty list when even that
+ * cannot be triangulated.
  */
 export function triangulatePolygons(polys: Polygon[]): Polygon[] {
   if (!polys.length) return [];
-  let result = triangulate(polys.map(toClip), true);
-  if (result.result !== TriangulateResult.success) result = triangulate(unionPolygons(polys).map(toClip), true);
+  const clean = simplifyPaths(polys.map(toClip), SPIKE * SCALE, true).filter((p) => p.length >= 3);
+  if (!clean.length) return [];
+  let result = triangulate(clean, true);
+  if (result.result !== TriangulateResult.success) result = triangulate(unionPolygons(clean.map(fromClip)).map(toClip), true);
   if (result.result !== TriangulateResult.success) return [];
   return result.solution.map((t) => orient(fromClip(t), true));
 }

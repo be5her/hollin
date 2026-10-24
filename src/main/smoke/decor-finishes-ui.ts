@@ -64,6 +64,20 @@ export async function smokeDecorFinishesUi(smoke: Smoke, flatId: string): Promis
   const slab = await v.pixel(onFloor);
   await smoke.run('decor.material.set', { target: { roomId: room().id, surface: 'floor' }, material: 'builtin:oak-floor' }, { projectId: flatId });
   smoke.check('a timber floor set by command shows from above', await smoke.until(async () => warmth(await v.pixel(onFloor)) > warmth(slab) + 30), { slab, now: await v.pixel(onFloor) });
+  // The finish is a 2 mm skin over the slab: from far off the two once fought in stripes. Well out, the clear floor is timber everywhere.
+  const r = (await smoke.rect(sceneCanvas))!;
+  for (let i = 0; i < 20 && ((await readOrbit(smoke))?.distance ?? 0) < 150_000; i++) {
+    await smoke.wheel(r.x + r.width / 2, r.y + r.height / 2, 240);
+    await wait(50);
+  }
+  const far = (await readOrbit(smoke))?.distance ?? 0;
+  await wait(150);
+  v = await sceneView(smoke);
+  const clear: Vec3[] = [1000, 1400, 1800].flatMap((x) => [600, 1000, 1400].map((y): Vec3 => [x, y, 2]));
+  const samples = await Promise.all(clear.map((p) => v.pixel(p)));
+  smoke.check('from far off the floor finish shows whole, with no stripes of the slab', far >= 150_000 && samples.every((px) => warmth(px) > warmth(slab) + 30), { far, slab, samples });
+  await smoke.click(`${tab} [data-testid=scene-preset-top]`);
+  smoke.check('the top view frames the flat again', await smoke.until(async () => ((await readOrbit(smoke))?.distance ?? Infinity) < far));
 
   const status = await smoke.run<{ url: string }>('mcp.status');
   const agent = new Client({ name: 'smoke-decorator', version: '2.0' });

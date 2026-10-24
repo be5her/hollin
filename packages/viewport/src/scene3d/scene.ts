@@ -1,6 +1,6 @@
 import { deriveConnectorsSolids, deriveLevelSolids, deriveLevels, meshBox, type BuildingSolids, type ConnectorSolids, type DerivedLevel, type LevelSolids, type ProjectDoc, type RuleLimits, type SolidKind, type SolidPart, type Vec3 } from '@studio/core';
 import { LevelDecor, type PlacedLight } from './decor';
-import { DecorMaterials } from './materials';
+import { DecorMaterials, FACE_OFFSET, FINISH_OFFSET } from './materials';
 import { ModelCache } from './models';
 import { BufferAttribute, BufferGeometry, Color, DoubleSide, EdgesGeometry, FrontSide, Group, LineBasicMaterial, LineSegments, Mesh, MeshStandardMaterial, Plane, Vector3 } from 'three';
 import { LIGHT_SCENE_THEME, kindColor, type SceneTheme } from './theme';
@@ -109,10 +109,7 @@ export class BuildingScene {
           opacity: glass ? 0.35 : 1,
           depthWrite: !glass,
           side: glass ? DoubleSide : FrontSide,
-          // Faces sit a hair behind their edge lines, so the lines never flicker.
-          polygonOffset: true,
-          polygonOffsetFactor: 1,
-          polygonOffsetUnits: 1,
+          ...(kind === 'finish' ? FINISH_OFFSET : FACE_OFFSET),
         }),
       );
     }
@@ -319,7 +316,7 @@ export class BuildingScene {
     geometry.setAttribute('position', new BufferAttribute(part.mesh.positions, 3));
     if (part.mesh.uvs) geometry.setAttribute('uv', new BufferAttribute(part.mesh.uvs, 2));
     geometry.computeVertexNormals();
-    const mesh = new Mesh(geometry, part.material ? this.decorMaterials.get(part.material) : this.materials.get(part.kind)!);
+    const mesh = new Mesh(geometry, part.material ? this.decorMaterials.get(part.material, undefined, part.kind === 'finish') : this.materials.get(part.kind)!);
     mesh.userData['hit'] = hit;
     if (part.kind === 'glass') mesh.renderOrder = 1;
     if (!EDGED.has(part.kind)) return [mesh];

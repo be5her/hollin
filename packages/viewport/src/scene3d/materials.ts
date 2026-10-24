@@ -2,6 +2,15 @@ import { builtinMaterial, parseRef, type BuiltinMaterial } from '@studio/core';
 import { CanvasTexture, DoubleSide, FrontSide, MeshStandardMaterial, RepeatWrapping, SRGBColorSpace, type Plane } from 'three';
 import { drawMaterialTile, patternTile } from '../decor/patterns';
 
+/** Faces sit a hair behind their edge lines, so the lines never flicker. */
+export const FACE_OFFSET = { polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 } as const;
+/**
+ * A finish is a skin (`SKIN`, 2 mm) over the floor or wall face it finishes. From a few tens of metres
+ * the depth buffer cannot tell 2 mm apart, so the two fought in stripes: finishes are pulled forward
+ * in the depth test where every other face is pushed back.
+ */
+export const FINISH_OFFSET = { polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 } as const;
+
 /** A pattern's texture is drawn at this many pixels per millimetre, within these bounds a side. */
 const PX_PER_MM = 0.5;
 const MIN_PX = 64;
@@ -39,12 +48,12 @@ export class DecorMaterials {
   private readonly cache = new Map<string, MeshStandardMaterial>();
   private planes: Plane[] = [];
 
-  /** The material for a reference; `fallback` (a colour) for none or one that does not resolve. */
-  get(ref: string | undefined, fallback = '#b8b4ac'): MeshStandardMaterial {
-    const key = ref ?? `color:${fallback}`;
+  /** The material for a reference; `fallback` (a colour) for none or one that does not resolve. `finish` for a finish's skin (see `FINISH_OFFSET`). */
+  get(ref: string | undefined, fallback = '#b8b4ac', finish = false): MeshStandardMaterial {
+    const key = `${finish ? 'finish:' : ''}${ref ?? `color:${fallback}`}`;
     let material = this.cache.get(key);
     if (!material) {
-      material = this.make(ref, fallback);
+      material = this.make(ref, fallback, finish ? FINISH_OFFSET : FACE_OFFSET);
       material.clippingPlanes = this.planes;
       this.cache.set(key, material);
     }
@@ -65,9 +74,8 @@ export class DecorMaterials {
     this.cache.clear();
   }
 
-  private make(ref: string | undefined, fallback: string): MeshStandardMaterial {
+  private make(ref: string | undefined, fallback: string, base: typeof FACE_OFFSET | typeof FINISH_OFFSET): MeshStandardMaterial {
     const parsed = ref ? parseRef(ref) : null;
-    const base = { polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 };
     if (parsed?.k === 'builtin') {
       const m = builtinMaterial(parsed.id);
       if (m) {
