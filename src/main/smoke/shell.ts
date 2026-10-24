@@ -7,6 +7,7 @@ export async function smokeShell(smoke: Smoke): Promise<void> {
   smoke.section('shell');
   smoke.check('the shell renders', await smoke.waitFor('[data-testid=app-ready]', 15000));
   smoke.check('the title bar names the product', (await smoke.text('[data-testid=product-name]')) === BRANDING.productName);
+  smoke.check('with no module panel there is no activity bar, so the tab content starts at the left edge', await smoke.js<boolean>(`!document.querySelector('[data-testid=activity-bar]') && document.querySelector('main')?.getBoundingClientRect().left === 0`));
   smoke.check('projects open before the window are restored as tabs', await smoke.waitFor('[data-testid=tab][data-type="project.editor"][aria-selected=true]'));
   await smoke.click('[data-testid=tab][data-type="shell.home"]');
   smoke.check('Home is the first, pinned tab', await smoke.js<boolean>(`(() => { const t = document.querySelector('[data-testid=tab]'); return t?.dataset.type === 'shell.home' && t.getAttribute('aria-selected') === 'true'; })()`));
@@ -79,8 +80,8 @@ export async function smokeShell(smoke: Smoke): Promise<void> {
   await smoke.click('[data-testid=tab-menu-close]');
   smoke.check('Close in the tab menu closes the tab', await smoke.gone('[data-testid=tab][data-type="settings.main"]'));
   smoke.check('the tab to its left becomes active', await smoke.waitFor('[data-testid=tab][aria-selected=true]'));
-  await smoke.click('[data-testid=activity-settings]');
-  smoke.check('the activity bar opens Settings', await smoke.waitFor('[data-testid=tab][data-type="settings.main"][aria-selected=true]'));
+  await smoke.click('[data-testid=titlebar-settings]');
+  smoke.check('the title bar gear opens Settings', await smoke.waitFor('[data-testid=tab][data-type="settings.main"][aria-selected=true]'));
   await smoke.key('W', ['control']);
   smoke.check('Ctrl+W closes the active tab', await smoke.gone('[data-testid=tab][data-type="settings.main"]'));
   await smoke.click('[data-testid=tab][data-type="shell.home"]');

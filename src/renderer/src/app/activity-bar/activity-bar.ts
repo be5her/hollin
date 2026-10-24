@@ -1,10 +1,8 @@
 import { Component, computed, inject } from '@angular/core';
 import { AppState, Icon, type ModuleUI } from '@studio/ui';
-import { Settings } from 'lucide';
 import { modules } from '../modules';
-import { ShellActions } from '../shell-actions';
 
-/** One icon per module panel; clicking the active one hides the sidebar. Settings sit at the bottom. */
+/** One icon per module panel; clicking the active one hides the sidebar. The shell shows it only when a module has a panel. */
 @Component({
   selector: 'nav[xActivityBar]',
   imports: [Icon],
@@ -28,25 +26,12 @@ import { ShellActions } from '../shell-actions';
         <svg [xIcon]="mod.icon" strokeWidth="1.75" class="size-[18px]"></svg>
       </button>
     }
-    <div class="flex-1"></div>
-    <button
-      type="button"
-      title="Settings (Ctrl+,)"
-      aria-label="Settings"
-      class="flex items-center justify-center size-9 shrink-0 rounded-md text-muted hover:text-fg hover:bg-elevated/60"
-      data-testid="activity-settings"
-      (click)="shell.openSettings()"
-    >
-      <svg [xIcon]="settingsIcon" strokeWidth="1.75" class="size-[18px]"></svg>
-    </button>
   `,
   host: { class: 'flex flex-col items-center w-12 py-1.5 gap-1 border-r border-edge bg-surface shrink-0', 'data-testid': 'activity-bar' },
 })
 export class ActivityBar {
   private readonly app = inject(AppState);
-  protected readonly shell = inject(ShellActions);
 
-  protected readonly settingsIcon = Settings;
   protected readonly panels = modules.filter((m) => m.sidebar);
   protected readonly active = this.app.activeModule;
   private readonly hasProject = computed(() => this.app.hasProject());

@@ -1,12 +1,12 @@
 import { Component, ElementRef, afterRenderEffect, computed, inject, untracked, viewChild } from '@angular/core';
 import { BRANDING } from '@studio/core';
 import { AppState, ContextMenu, DropMarker, HostBridge, Icon, Kbd, TabsState, dragReorder, type Tab } from '@studio/ui';
-import { House, Search, X } from 'lucide';
+import { House, Search, Settings, X } from 'lucide';
 import { ShellActions } from '../shell-actions';
 
 /**
  * The window's title bar: the app name, the document tabs (Home, projects, Settings; drag to reorder,
- * middle-click or Ctrl+W to close, right-click for more) and the palette. The OS draws its window
+ * middle-click or Ctrl+W to close, right-click for more), the palette and the Settings gear. The OS draws its window
  * buttons over the right end (left on macOS), so those areas stay empty.
  */
 @Component({
@@ -27,7 +27,7 @@ export class TitleBar {
   private readonly strip = viewChild<ElementRef<HTMLDivElement>>('strip');
 
   protected readonly productName = BRANDING.productName;
-  protected readonly icons = { House, Search, X };
+  protected readonly icons = { House, Search, Settings, X };
   protected readonly tabs = this.tabsState.tabs;
   protected readonly activeId = this.tabsState.activeTabId;
   protected readonly reorder = dragReorder(

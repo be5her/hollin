@@ -50,7 +50,7 @@ export async function smokeAssistantClaudeCode(smoke: Smoke, duplexId: string): 
     await smoke.click(`${panel} [data-testid=assistant-send]`);
   };
   const openSettings = async () => {
-    await smoke.click('[data-testid=activity-settings]');
+    await smoke.click('[data-testid=titlebar-settings]');
     await smoke.waitFor('[data-testid=settings]');
   };
   const openAssistant = async () => {

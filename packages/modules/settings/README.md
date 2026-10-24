@@ -1,6 +1,6 @@
 # Settings
 
-The Settings tab (activity bar gear, `Ctrl+,`, or the palette) and the commands behind its secrets.
+The Settings tab (the gear beside the palette button in the title bar, `Ctrl+,`, or the palette) and the commands behind its secrets.
 
 - **Appearance:** light, dark or follow the system. The native window buttons are recoloured to match.
 - **Units:** metric (mm, cm or m, with a decimal precision) or imperial (feet and inches, or inches, rounded to a fraction from 1" to 1/64"). Only display and typing change: designs are stored in millimetres. The units editor is one `FormValueControl` bound with `[formField]`.

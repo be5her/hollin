@@ -137,7 +137,7 @@ export async function smokeLibraryUi(smoke: Smoke, houseId: string): Promise<voi
   smoke.check('a project an agent closes loses its tab', await smoke.gone(tabSelector('Office Block 3')));
   await client.close();
 
-  await smoke.click('[data-testid=activity-settings]');
+  await smoke.click('[data-testid=titlebar-settings]');
   smoke.check('Settings shows where the library is', await smoke.waitFor('[data-testid=library-path]', 3000, host.projects.library.root));
   // The rule limits, typed in any unit and kept in the settings; put back afterwards.
   smoke.check('Settings shows the stair limits in display units', (await smoke.waitFor('[data-testid=rule-maxRiser]')) && (await smoke.js<string>(`document.querySelector('[data-testid=rule-maxRiser]').value`)) === '190 mm');

@@ -73,4 +73,14 @@
     <span class="flex-1 text-left">Search commands…</span>
     <kbd xKbd>{{ host.modKey }} K</kbd>
   </button>
+  <button
+    type="button"
+    [title]="'Settings (' + host.modKey + '+,)'"
+    aria-label="Settings"
+    class="app-no-drag grid place-items-center size-7 rounded-md text-muted hover:text-fg hover:bg-elevated/60"
+    data-testid="titlebar-settings"
+    (click)="shell.openSettings()"
+  >
+    <svg [xIcon]="icons.Settings" strokeWidth="1.75" class="size-4"></svg>
+  </button>
 </div>
