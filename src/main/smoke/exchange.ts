@@ -1,7 +1,7 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
-import { inspectGlb, readDxfEntities, readGlbChunks, readGlbTriangles, xmlEscape } from '@studio/core';
+import { inspectGlb, readDxfEntities, readGlbChunks, readGlbTriangles, xmlEscape, type OpenProject } from '@studio/core';
 import type { Smoke } from './harness';
 
 const text = (result: unknown) => JSON.parse((result as { content: { text: string }[] }).content[0].text) as Record<string, unknown>;
@@ -108,7 +108,75 @@ export async function smokeExchange(smoke: Smoke, duplexId: string): Promise<voi
     await smoke.run('config.update', { patch: { mcp: { allowMutations: false } } });
     await agent.close();
   }
+  await smokeDxfImport(smoke, dxf.files[0].path);
   await smoke.run('project.close', { id: duplexId });
+}
+
+type Probe = { insUnits: number | null; units: string | null; scale: number; layers: { name: string; entities: number; color: number; hidden: boolean }[]; skipped: Record<string, number>; paperSpace: number; extents: { min: [number, number]; max: [number, number] } | null };
+type Imported = { levelId: string; scale: number; counts: { shapes: number; separators: number; labels: number; layers: number }; skipped: Record<string, number>; layers: { id: string; name: string; dxfLayer: string; created: boolean; visible: boolean }[] };
+
+/**
+ * DXF import through commands and MCP: the duplex's ground floor DXF (written above) probed for its
+ * units and layers, imported into a throwaway project (so the duplex stays as the UI sections expect
+ * it) as shapes, separators and labels on `DXF <layer>` layers, found with `plan.query`, removed in
+ * one undo step; over MCP `import_dxf` is not destructive and runs while mutations are off. The
+ * project is trashed and deleted at the end.
+ */
+async function smokeDxfImport(smoke: Smoke, file: string): Promise<void> {
+  smoke.section('exchange: DXF import');
+  const probe = await smoke.run<Probe>('import.dxf.probe', { path: file });
+  const walls = probe.layers.find((l) => l.name === 'Walls');
+  smoke.check('the probe reads the units (millimetres) and the layers with their entities', probe.insUnits === 4 && probe.units === 'millimetres' && probe.scale === 1 && (walls?.entities ?? 0) > 0 && (probe.layers.find((l) => l.name === 'Stairs and lifts')?.entities ?? 0) > 0 && probe.extents !== null, probe);
+  smoke.check('and what an import would skip (the poché hatch)', (probe.skipped.HATCH ?? 0) > 0, probe.skipped);
+  await smoke.expectError('a relative path is refused by the probe', 'import.dxf.probe', { path: 'Duplex.dxf' }, 'INVALID_INPUT');
+  await smoke.expectError('a missing file is NOT_FOUND', 'import.dxf.probe', { path: path.join(path.dirname(file), 'missing.dxf') }, 'NOT_FOUND');
+
+  const project = await smoke.run<OpenProject>('project.create', { name: 'DXF import', open: true });
+  const projectId = project.id;
+  try {
+    const run = <T = unknown>(id: string, input: unknown = {}) => smoke.run<T>(id, input, { projectId });
+    const levelId = smoke.host.projects.session(projectId)!.doc.building.groundLevelId;
+    const from = smoke.events.length;
+    const imported = await run<Imported>('import.dxf', { path: file });
+    console.log(`DXF import of ${path.basename(file)}: ${JSON.stringify(imported.counts)}, skipped ${JSON.stringify(imported.skipped)}`);
+    const wallLayer = imported.layers.find((l) => l.name === 'DXF Walls');
+    const stairLayer = imported.layers.find((l) => l.name === 'DXF Stairs and lifts');
+    smoke.check('the import lands on the ground level in millimetres, a new layer per DXF layer', imported.levelId === levelId && imported.scale === 1 && Boolean(wallLayer?.created && stairLayer?.created) && imported.counts.layers === imported.layers.length, imported);
+    smoke.check('with shapes, separators and labels', imported.counts.shapes > 0 && imported.counts.separators > 0 && imported.counts.labels > 0, imported.counts);
+    smoke.check('and is announced as a change of the project', await smoke.until(() => smoke.eventsSince(from, 'doc.patched').some((e) => e.projectId === projectId)));
+    const wallShapes = await run<{ type: string }[]>('plan.query', { levelId, layerId: wallLayer?.id });
+    const stairs = await run<{ type: string }[]>('plan.query', { levelId, layerId: stairLayer?.id, type: 'separator' });
+    smoke.check('plan.query finds the walls as shapes and the stair as separators on their layers', wallShapes.length > 0 && wallShapes.every((e) => e.type === 'shape') && stairs.length > 0, { walls: wallShapes.length, stairs: stairs.length });
+    const total = (await run<unknown[]>('plan.query', { levelId })).length;
+    smoke.check('every imported entity is on the level', total === imported.counts.shapes + imported.counts.separators + imported.counts.labels, { total, counts: imported.counts });
+    const history = await run<{ history: { undo: { label: string }[] } }>('edit.history');
+    smoke.check('the import is one change named after the file', JSON.stringify(history).includes(`Import ${path.basename(file)}`), history);
+    await run('edit.undo');
+    const doc = smoke.host.projects.session(projectId)!.doc;
+    smoke.check('one undo removes it all, layers included', Object.keys(doc.levelData[levelId].entities).length === 0 && !Object.values(doc.layers).some((l) => l.name.startsWith('DXF ')));
+    await smoke.expectError('a relative path is refused', 'import.dxf', { path: 'Duplex.dxf' }, 'INVALID_INPUT', { projectId });
+    await smoke.expectError('an unknown level is refused', 'import.dxf', { path: file, levelId: 'lvl_0000000000000000' }, 'NOT_FOUND', { projectId });
+
+    smoke.section('exchange: DXF import over MCP');
+    const status = await smoke.run<{ url: string }>('mcp.status');
+    const agent = new Client({ name: 'smoke-importer', version: '1.0' });
+    await agent.connect(new StreamableHTTPClientTransport(new URL(`${status.url}?project=${projectId}`)));
+    try {
+      const { tools } = await agent.listTools();
+      const tool = tools.find((t) => t.name === 'import_dxf');
+      smoke.check('import_dxf is a tool, not marked destructive', Boolean(tool) && tool?.annotations?.destructiveHint === false, tool?.annotations);
+      smoke.check('import_dxf_probe is a tool too', tools.some((t) => t.name === 'import_dxf_probe'));
+      const result = await agent.callTool({ name: 'import_dxf', arguments: { path: file, layers: ['Walls'], layerPrefix: 'Traced ' } });
+      const answer = text(result) as unknown as Imported;
+      smoke.check('an agent imports while mutations are off', result.isError !== true && answer.layers?.length === 1 && answer.layers[0].name === 'Traced Walls' && answer.counts?.shapes === wallShapes.length && answer.counts.separators === 0, answer);
+    } finally {
+      await agent.close();
+    }
+  } finally {
+    await smoke.run('project.close', { id: projectId });
+    await smoke.run('project.trash', { id: projectId });
+    await smoke.run('project.delete', { id: projectId });
+  }
 }
 
 /**

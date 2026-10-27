@@ -1,3 +1,4 @@
+import { promises as fs } from 'node:fs';
 import { deflateSync } from 'node:zlib';
 import nodePath from 'node:path';
 import {
@@ -12,11 +13,19 @@ import {
   drawingToDxf,
   drawingToPdf,
   drawingToSvg,
+  dxfExtents,
+  dxfLayerSummary,
+  dxfToOps,
+  dxfUnitScale,
+  DXF_UNIT_NAMES,
+  editProject,
   pdfLayouts,
   planDrawing,
+  readDxf,
   readPngHeader,
   svgLayout,
   today,
+  type DxfFile,
   type PlanDrawing,
 } from '@studio/core';
 import { writeFileAtomic } from '@studio/core/node';
@@ -63,11 +72,36 @@ export function levelPaths(path: string, names: readonly string[]): string[] {
 }
 
 /**
+ * Reads a DXF file for import: an absolute path (INVALID_INPUT otherwise), NOT_FOUND when missing,
+ * decoded as UTF-8 (a BOM dropped by the reader), or as Latin-1 when it is not valid UTF-8 (older
+ * ANSI files); a binary DXF or a file without sections is refused.
+ */
+export async function readDxfFile(path: string): Promise<DxfFile> {
+  if (!nodePath.isAbsolute(path)) throw new StudioError('INVALID_INPUT', 'path must be a full (absolute) file path.');
+  let bytes: Buffer;
+  try {
+    bytes = await fs.readFile(path);
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === 'ENOENT' || code === 'ENOTDIR') throw new StudioError('NOT_FOUND', `No file at ${path}.`);
+    if (code === 'EISDIR') throw new StudioError('INVALID_INPUT', `${path} is a folder, not a DXF file.`);
+    throw err;
+  }
+  if (bytes.subarray(0, 18).toString('latin1') === 'AutoCAD Binary DXF') throw new StudioError('INVALID_INPUT', 'This is a binary DXF; save it as an ASCII DXF and import that.');
+  let text = bytes.toString('utf8');
+  if (text.includes('\uFFFD')) text = bytes.toString('latin1');
+  if (!/^\s*0\s*\r?\n\s*SECTION\s*$/m.test(text.slice(0, 4096).replace(/^\uFEFF/, ''))) throw new StudioError('INVALID_INPUT', `${nodePath.basename(path)} is not a DXF file (no SECTION at its start).`);
+  return readDxf(text);
+}
+
+/**
  * Exports and imports. `export.plan` writes levels' plans as DXF, SVG or PDF from the pure writers in
  * `@studio/core` (`planDrawing`, `drawingToDxf`, `drawingToSvg`, `drawingToPdf`); `export.building`
  * writes the building in 3D as a GLB (`buildingToGlb`); `export.image` has the window draw a PNG
  * render the way `view.snapshot` does (`requestSnapshot` from the plan module) and writes it.
- * Writing files outside the library is gated for agents.
+ * Writing files outside the library is gated for agents. `import.dxf` reads a DXF (`readDxf`) and adds
+ * its drawing to a level as shapes, separators and labels on `DXF <layer>` layers (`dxfToOps`), one
+ * undoable transaction; `import.dxf.probe` reads a file's units and layers without touching anything.
  */
 export const exchangeModule = defineModule({
   id: 'exchange',
@@ -202,6 +236,54 @@ export const exchangeModule = defineModule({
         await writeFileAtomic(path, bytes);
         ctx.host.emit('exchange.exported', { projectId: project.id, format: 'png', files: [path] });
         return { path, bytes: bytes.length, width: render.width, height: render.height, view: render.view, levelId, levelName: doc.levels[levelId].name };
+      },
+    }),
+    defineCommand({
+      id: 'import.dxf.probe',
+      title: 'Inspect a DXF file',
+      description:
+        "Reads a DXF file at `path` (a full file path) without importing anything, so its units and layers can be checked first. Returns { insUnits, units, scale, layers, skipped, paperSpace, extents }: `insUnits` is the file's $INSUNITS code (null when it does not say), `units` its name, `scale` the millimetres per drawing unit import_dxf would use by default (1 when unitless or unknown), `layers` every DXF layer with how many model-space entities it holds (block references expanded), its colour index and whether it is off or frozen (`hidden`: it would be imported hidden), `skipped` the entity types import_dxf would leave out with their counts, `paperSpace` how many paper-space entities it ignores, `extents` the drawing's extent in drawing units ({ min, max }, null when empty; multiply by `scale` for mm).",
+      scope: 'global',
+      input: z.object({ path: z.string().min(1).describe('A full file path to a .dxf file') }),
+      handler: async ({ path }) => {
+        const file = await readDxfFile(path);
+        return {
+          insUnits: file.insUnits,
+          units: file.insUnits === null ? null : (DXF_UNIT_NAMES[file.insUnits] ?? null),
+          scale: dxfUnitScale(file.insUnits),
+          layers: dxfLayerSummary(file),
+          skipped: file.skipped,
+          paperSpace: file.paperSpace,
+          extents: dxfExtents(file),
+        };
+      },
+    }),
+    defineCommand({
+      id: 'import.dxf',
+      title: 'Import DXF',
+      description:
+        "Imports the model space of a DXF file at `path` (a full file path) onto a level of the open project as a drawing to trace over: one new interior layer per DXF layer that has something to import, named `layerPrefix` + the DXF layer's name (`DXF Walls`; a layer of that exact name already on the level is reused; DXF layers that are off or frozen come in hidden), closed polylines, circles, closed ellipses and splines as unfilled `shape`s keeping their arcs, lines, open polylines and arcs as room dividers (`separator`s, which also split rooms), texts and MTEXT (formatting stripped) as `label`s. Block references are expanded (one nesting deep); hatches, dimensions, points, solids, images and other entities are skipped and counted. `scale` is millimetres per drawing unit (default from the file's $INSUNITS: 25.4 for inches, 1000 for metres, 1 when unitless), `origin` an offset in mm added after scaling, `layers` limits the import to some DXF layers, `levelId` defaults to the ground level. One undoable change named `Import <file name>`; it does not change existing walls or rooms. Afterwards use plan_query with the returned layer ids to find the shapes, then trace walls over them with plan_wall_add or plan_apply (and remove or hide the DXF layers with plan_layer_remove or plan_layer_update). Returns { levelId, scale, counts: { shapes, separators, labels, layers }, skipped, layers: [{ id, name, dxfLayer, created, visible }] }.",
+      scope: 'project',
+      input: z.object({
+        path: z.string().min(1).describe('A full file path to a .dxf file'),
+        levelId: z.string().optional().describe('Default: the ground level'),
+        scale: z.number().positive().max(1e9).optional().describe('Millimetres per drawing unit; default from the file\'s $INSUNITS (import_dxf_probe reports it)'),
+        origin: z.tuple([z.number(), z.number()]).optional().describe('An offset in mm added to every point after scaling'),
+        layerPrefix: z.string().max(60).default('DXF ').describe('Put before each DXF layer\'s name to name its project layer'),
+        layers: z.array(z.string().min(1)).min(1).optional().describe('Only these DXF layers (names as import_dxf_probe lists them); all by default'),
+        textHeight: z.number().positive().max(100000).optional().describe('Every label\'s height in mm instead of the texts\' own'),
+      }),
+      handler: async ({ path, levelId: lv, ...options }, ctx) => {
+        const file = await readDxfFile(path);
+        const project = ctx.project!;
+        const levelId = lv ?? project.doc.building.groundLevelId;
+        if (!project.doc.levels[levelId]) throw new StudioError('NOT_FOUND', `No level ${levelId} in this project. building_get lists the levels.`);
+        const { result } = await editProject(ctx, `Import ${nodePath.basename(path)}`, (tx) => {
+          const imported = dxfToOps(file, tx.doc, levelId, options);
+          if (imported.ops.length) tx.apply(imported.ops);
+          return imported;
+        });
+        return { levelId, scale: result.scale, counts: result.counts, skipped: result.skipped, layers: result.layers };
       },
     }),
   ],
