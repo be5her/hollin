@@ -58,8 +58,8 @@ export async function smokeExchangeUi(smoke: Smoke, duplexId: string): Promise<v
   smoke.check('and so has a transparent 3D render, where the opaque one has its sky', corners.clear3d?.endsWith('/0') === true && corners.building?.endsWith('/255') === true, corners);
   if (smoke.shotsDir) {
     await fs.mkdir(smoke.shotsDir, { recursive: true });
-    await fs.writeFile(path.join(smoke.shotsDir, '36-export-plan-dark.png'), dark);
-    await fs.writeFile(path.join(smoke.shotsDir, '36-export-3d.png'), buildingBytes);
+    await fs.writeFile(path.join(smoke.shotsDir, '42-export-plan-dark.png'), dark);
+    await fs.writeFile(path.join(smoke.shotsDir, '42-export-3d.png'), buildingBytes);
   }
 
   // The largest size in 3D: written at exactly that size, or refused (WebGL's drawing buffer is capped by the GPU), never smaller.
@@ -154,7 +154,7 @@ export async function smokeExchangeDialogs(smoke: Smoke, duplexId: string): Prom
   };
   smoke.check('each format shows only its own fields', JSON.stringify(shown) === JSON.stringify(expected), shown);
   smoke.check('PDF of every level says one file with a page per level', ((await smoke.text('[data-testid=export-levels-hint]')) ?? '').includes('a page per level (2)'));
-  await smoke.shots('36-export-dialog-pdf');
+  await smoke.shots('43-export-dialog-pdf');
 
   const asked = smoke.dialogs.asked.length;
   await smoke.click(`${dialog} button`, 'Cancel');
@@ -183,7 +183,7 @@ export async function smokeExchangeDialogs(smoke: Smoke, duplexId: string): Prom
   await smoke.fill('[data-testid=export-height]', '240');
   await smoke.fill('[data-testid=export-theme]', 'dark');
   await smoke.until(() => smoke.js<boolean>(`!document.querySelector('[data-testid=export-confirm]').disabled`), 2000);
-  await smoke.shots('36-export-dialog-png');
+  await smoke.shots('44-export-dialog-png');
   smoke.check('a dark 320 × 240 PNG is written', await exportTo(pngPath));
   const pngBytes = new Uint8Array(await fs.readFile(pngPath).catch(() => Buffer.alloc(0)));
   const head = readPngHeader(pngBytes);
@@ -228,7 +228,7 @@ export async function smokeExchangeDialogs(smoke: Smoke, duplexId: string): Prom
     smoke.check('and the layers with their entity counts, all ticked', layers.some((l) => l.name === 'Walls' && l.count > 0) && layers.some((l) => l.name === 'Stairs and lifts' && l.count > 0) && layers.every((l) => l.checked), layers);
     smoke.check('what it skips (the hatch) and the extent', ((await smoke.text('[data-testid=import-dxf-skipped]')) ?? '').includes('HATCH') && ((await smoke.text('[data-testid=import-dxf-extent]')) ?? '').includes('×'));
     smoke.check('the level on screen is the target', (await smoke.js<string>(`document.querySelector('[data-testid=import-dxf-level]').value`)) === smoke.host.projects.session(projectId)?.doc.building.groundLevelId);
-    await smoke.shots('36-import-dxf-dialog');
+    await smoke.shots('45-import-dxf-dialog');
     await smoke.click('[data-testid=import-dxf-confirm]');
     smoke.check('the import says what it brought in', await smoke.waitFor('[data-testid=toast-message]', 15_000, 'Imported'));
     const message = (await smoke.text('[data-testid=toast-message]')) ?? '';

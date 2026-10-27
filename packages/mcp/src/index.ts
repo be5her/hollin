@@ -70,7 +70,7 @@ interface CallScope {
 /**
  * A fresh McpServer for one HTTP request. Every non-hidden command becomes a tool whose input schema
  * is the command's zod schema; project-scope tools also take an optional `projectId`. The document
- * schema and the design guidelines are resources, and `design-house` a prompt to start from.
+ * schema and the design guidelines are resources, and `design-house` and `furnish-room` prompts to start from.
  */
 export function buildMcpServer(opts: McpServerOptions, scope: CallScope): McpServer {
   const server = new McpServer({ name: opts.name, version: opts.version }, opts.instructions ? { instructions: opts.instructions } : undefined);
@@ -90,7 +90,7 @@ export function buildMcpServer(opts: McpServerOptions, scope: CallScope): McpSer
   server.registerResource(
     'design-guidelines',
     GUIDELINES_URI,
-    { title: 'Design guidelines', description: 'How the model is organised (millimetres, derived elevations, rooms from walls, connectors as intent) and how to work on a design well.', mimeType: 'text/markdown' },
+    { title: 'Design guidelines', description: 'How the model is organised (millimetres, derived elevations, rooms from walls, connectors as intent), how to work on a design well, furnish it, export it and import a DXF to trace over.', mimeType: 'text/markdown' },
     async (uri) => ({ contents: [{ uri: uri.href, mimeType: 'text/markdown', text: DESIGN_GUIDELINES }] }),
   );
   server.registerPrompt(

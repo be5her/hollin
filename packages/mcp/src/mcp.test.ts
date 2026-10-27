@@ -207,6 +207,7 @@ describe('MCP server over HTTP', () => {
     expect(Object.keys(parsed.properties)).toEqual(expect.arrayContaining(['building', 'levels', 'layers', 'connectors', 'levelData']));
     const guidelines = await client.readResource({ uri: GUIDELINES_URI });
     expect((guidelines.contents[0] as { text: string }).text).toContain('millimetres');
+    expect((guidelines.contents[0] as { text: string }).text).toMatch(/export_plan.*export_building.*export_image.*gated[\s\S]*import_dxf.*import_dxf_probe/);
     const { prompts } = await client.listPrompts();
     expect(prompts.map((p) => p.name)).toEqual(['furnish-room', 'design-house']);
     const prompt = await client.getPrompt({ name: 'design-house', arguments: { storeys: '4' } });

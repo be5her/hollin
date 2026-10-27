@@ -16,7 +16,7 @@ Windows, macOS and Linux, built with Electron and Angular.
 | 6. AI tools: `plan.describe`, `view.snapshot`, MCP resources and a prompt, the in-app assistant (the Claude API, or your own Claude Code) | done |
 | 7. 3D view: stacked levels, extrusion, cut openings, slabs, connector geometry, isolate, cutaway and explode, orbit and walk cameras, 3D snapshots | done |
 | 8. Decor: a built-in and imported (glTF) furniture catalog, placing and editing items, materials and finishes, lights with day and night in 3D, door and window parts | done |
-| 9. Export and import: DXF, SVG/PDF plans, glTF building, PNG renders | next |
+| 9. Export and import: plans as DXF, SVG and PDF, the building as glTF, PNG renders of the plan or in 3D, DXF import to trace over, the Export dialog | done |
 
 ## Development
 
@@ -41,12 +41,16 @@ packages/core            The engine: no Electron, Node I/O or UI framework. Comm
                          units, ids, shared types. Safe to import from the renderer.
 packages/core/src/node   Node-only storage: atomic writes, config and secret stores, the project library,
                          project folders and sessions (autosave), packages.
+packages/core/src/exchange
+                         Exports and imports as pure functions: the plan drawing and its DXF, SVG and PDF
+                         writers, the building as GLB, the DXF reader and import, PNG headers.
 packages/mcp             Turns the command registry into a stateless Streamable HTTP MCP server.
 packages/ui              The renderer side of the host contract: HostBridge, invokeResource, state services,
                          shared controls and overlays.
 packages/viewport        Framework-free renderers driven by the document: plan2d (Canvas 2D) and scene3d (three).
                          Imported by the renderer only.
-packages/modules/<name>  One folder per feature: main.ts (commands), ui/ (Angular), README.md.
+packages/modules/<name>  One folder per feature: main.ts (commands), ui/ (Angular), README.md. exchange holds
+                         the exports, the DXF import and their dialogs.
 src/main                 Electron main: the host, IPC, the window, the smoke test.
 src/preload              The only bridge between renderer and main.
 src/renderer             The Angular app and the shell (its own npm workspace).
@@ -58,7 +62,7 @@ Every feature is a set of **commands** with zod input schemas, registered in one
 
 **Mutating** commands (delete, write outside the library, otherwise destructive) are refused to MCP agents until the user allows it in Settings, and the in-app assistant pauses until the user allows or declines the call in the chat. Ordinary design edits are undoable transactions instead.
 
-The **document** of an open project lives in the main process: a building (datum, ground level, level stack) with levels, per-level layers and entities, and connectors between levels. Elevations are derived from the stack. Every edit is a validated transaction with a label and an author on one undo stack; the renderer mirrors the document from `doc.patched` events. The stairs, ramps and elevators between levels are stored as intent (a walk line, levels, a width) and everything else about them (risers, treads, the holes they cut in the slabs, the limits they break) is derived from the level heights and the rule limits, never stored; a rules watcher in main keeps the warnings current. The 3D view is derived the same way: core turns the document into solids (walls extruded in height bands with the openings cut through, slabs, columns, stairs, ramps, elevators; `packages/core/src/solids`) and `scene3d` draws them with three, with isolate, cutaway, explode and a walk camera that climbs the stairs. See `packages/modules/building`, `plan`, `edit` and `rules`. Decor (`packages/modules/decor`) adds furniture from a catalog (31 built-in parametric models drawn from code, and `.glb` models imported into the library and copied into each project that uses them), lights, and finishes on wall faces, floors and ceilings (38 built-in materials with procedural patterns, or any colour), drawn on the plan and in 3D, where a Day | Night switch lights the design with its own lights; doors and windows get frames, leaves and casements from their styles.
+The **document** of an open project lives in the main process: a building (datum, ground level, level stack) with levels, per-level layers and entities, and connectors between levels. Elevations are derived from the stack. Every edit is a validated transaction with a label and an author on one undo stack; the renderer mirrors the document from `doc.patched` events. The stairs, ramps and elevators between levels are stored as intent (a walk line, levels, a width) and everything else about them (risers, treads, the holes they cut in the slabs, the limits they break) is derived from the level heights and the rule limits, never stored; a rules watcher in main keeps the warnings current. The 3D view is derived the same way: core turns the document into solids (walls extruded in height bands with the openings cut through, slabs, columns, stairs, ramps, elevators; `packages/core/src/solids`) and `scene3d` draws them with three, with isolate, cutaway, explode and a walk camera that climbs the stairs. See `packages/modules/building`, `plan`, `edit` and `rules`. Decor (`packages/modules/decor`) adds furniture from a catalog (31 built-in parametric models drawn from code, and `.glb` models imported into the library and copied into each project that uses them), lights, and finishes on wall faces, floors and ceilings (38 built-in materials with procedural patterns, or any colour), drawn on the plan and in 3D, where a Day | Night switch lights the design with its own lights; doors and windows get frames, leaves and casements from their styles. Exchange (`packages/modules/exchange`, the pure writers and readers in `packages/core/src/exchange`) exports a level's plan as DXF, or as SVG and PDF on a paper sheet at a scale, from the same derived geometry the canvas draws; the building as one self-contained glTF (GLB) coloured as the 3D view draws it; PNG renders of the plan or the building in 3D drawn by the window; and imports a DXF as shapes, dividers and labels on `DXF <layer>` layers to trace walls over. The exports write outside the library, so they are gated like other mutating commands; the import is an ordinary undoable edit.
 
 Projects live in one **library** folder the app owns (see `packages/modules/library/README.md`): crash-safe saves, autosave, snapshots, a restorable trash and single-file packages.
 
@@ -84,6 +88,6 @@ The **assistant** (`packages/modules/assistant`) is a chat per project in the pr
 | @anthropic-ai/sdk | The in-app assistant's Claude API client: streaming, typed errors and the request types (`packages/modules/assistant`). |
 | fflate | Project packages (zip) without native modules. |
 | rbush (+ `@types/rbush`) | The plan's R-tree: culling what is drawn and hit-testing candidates. |
-| three (+ `@types/three`) | The 3D view's WebGL rendering (`packages/viewport/src/scene3d`); its own `GLTFLoader` and `RectAreaLightUniformsLib` addons load imported models and light area panels (Milestone 8 added no dependency). Pinned exactly to `0.186.1`: three has no semver, any release may change the API. |
+| three (+ `@types/three`) | The 3D view's WebGL rendering (`packages/viewport/src/scene3d`); its own `GLTFLoader` and `RectAreaLightUniformsLib` addons load imported models and light area panels (Milestone 8 added no dependency; nor did Milestone 9: the DXF, SVG, PDF and GLB writers, the DXF reader and the PNG header reader are hand-written in core, and the PDF's streams are compressed with node's `zlib`). Pinned exactly to `0.186.1`: three has no semver, any release may change the API. |
 | clipper2-ts | Polygon unions, differences and offsets (a TypeScript port of Clipper2): joined walls, opening cuts, room detection, the automatic slab; and its triangulation for the 3D solids' caps. Pinned exactly to `2.0.1-18`: its releases are numbered `2.0.1-N`, which semver ranks below the old plain `2.0.1`. |
 | vitest, typescript | Tests and type checking (TypeScript 6.0 pinned for the Angular compiler, 7 elsewhere). |
