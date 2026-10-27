@@ -91,4 +91,6 @@ A review of milestones 1–9 (2026-10-27) found these. Each group is one commit 
 3. `triangulatePolygons` (`packages/core/src/geometry/clip.ts:118`): compare the triangles' area with the net area; on a mismatch retry after a union / larger simplification, and test it.
 4. The title-bar Settings gear uses `button[xIconButton]`.
 5. Docs: viewport README lists `scene3d/scene.test.ts`; plan README's stale "milestone 5" note; CLAUDE.md's shortcut list adds `I` (Furniture) and `G` (Light).
-6. The escalator tool: escalators can be placed from the plan like stairs and ramps (a tool and shortcut, an options bar, and an intent form of `building.connector.add`), with smoke checks through commands, MCP and the UI.
+6. Shafts and `span`: `ShaftSchema` requires `span`, but duplicating a level (`packages/core/src/doc/builders.ts`, `delete copy.span` on every copied entity) and `removeLevelOps` (cutting spans at the removed level) may leave a shaft without one. Check both with a test (duplicate a level holding a shaft; remove a level a shaft spans to) and fix what fails.
+7. CLAUDE.md Conventions: a line on the `readOnly` command flag (group 3) next to mutating and hidden.
+8. The escalator tool: escalators can be placed from the plan like stairs and ramps (a tool and shortcut, an options bar, and an intent form of `building.connector.add`), with smoke checks through commands, MCP and the UI.

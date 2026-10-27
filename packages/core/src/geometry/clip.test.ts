@@ -27,4 +27,21 @@ describe('triangulatePolygons', () => {
     expect(triangles.reduce((s, t) => s + polygonArea(t), 0)).toBeCloseTo(net, -2);
     expect(triangles.filter((t) => holes.some((h) => polygonContains(h, centroid(t))))).toEqual([]);
   });
+  it('retries when Clipper reports success with the wrong area, and leaves the hole empty', () => {
+    // A spike 0.05 mm wide, above the first simplification: Clipper triangulates it "successfully" over the hole.
+    const outline: Polygon = [[0, 0], [10, 0], [10, 10], [5, 10], [5, 30], [5.05, 10], [0, 10]];
+    const hole: Polygon = [[2, 2], [2, 8], [8, 8], [8, 2]];
+    const triangles = triangulatePolygons([outline, hole]);
+    expect(triangles.length).toBeGreaterThan(0);
+    const area = triangles.reduce((s, t) => s + polygonArea(t), 0);
+    expect(area).toBeGreaterThan(63);
+    expect(area).toBeLessThan(65);
+    expect(triangles.filter((t) => polygonContains(hole, centroid(t)))).toEqual([]);
+  });
+
+  it('unions outlines that overlap before triangulating them', () => {
+    const square = (x: number, y: number): Polygon => [[x, y], [x + 10, y], [x + 10, y + 10], [x, y + 10]];
+    const triangles = triangulatePolygons([square(0, 0), square(5, 5)]);
+    expect(triangles.reduce((s, t) => s + polygonArea(t), 0)).toBeCloseTo(175, 6);
+  });
 });

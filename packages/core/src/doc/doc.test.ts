@@ -200,6 +200,31 @@ describe('levels and elevations', () => {
     expect(copyDoor.wallId).toBe(copyWall.id);
     expect(doc.layers[copyDoor.layerId].levelId).toBe(levelId);
   });
+  it('duplicates a level holding a shaft, the copy keeping a span', () => {
+    let { doc } = building(2, 0);
+    const [ground, l1] = doc.building.stack;
+    const shaft = addEntityOps(doc, { levelId: ground, entity: { type: 'shaft', region: { outer: rectPath(0, 0, 2000, 2000) }, span: { topLevelId: l1 } } });
+    doc = commit(doc, shaft.ops);
+    const { ops, levelId } = duplicateLevelOps(doc, ground);
+    const next = commit(doc, ops);
+    expect(next).not.toBe(doc);
+    const copy = Object.values(next.levelData[levelId].entities).find((e) => e.type === 'shaft') as { span?: unknown } | undefined;
+    // Single-level, as every spanning copy is: up to the copy's own ceiling.
+    expect(copy?.span).toEqual({ topLevelId: levelId, baseOffset: 0, topOffset: 3000 });
+    expect((next.levelData[ground].entities[shaft.id] as { span: unknown }).span).toEqual({ topLevelId: l1, baseOffset: 0, topOffset: 0 });
+  });
+
+  it('removes a level a shaft spans to, the shaft kept with a span', () => {
+    let { doc } = building(2, 0);
+    const [ground, , l2] = doc.building.stack;
+    const shaft = addEntityOps(doc, { levelId: ground, entity: { type: 'shaft', region: { outer: rectPath(0, 0, 2000, 2000) }, span: { topLevelId: l2 } } });
+    doc = commit(doc, shaft.ops);
+    const next = commit(doc, removeLevelOps(doc, l2));
+    expect(next.levels[l2]).toBeUndefined();
+    // It stops at its own level, at the ceiling.
+    expect((next.levelData[ground].entities[shaft.id] as { span?: unknown } | undefined)?.span).toEqual({ topLevelId: ground, baseOffset: 0, topOffset: 3000 });
+    expect(levelRemovalImpact(doc, l2).spansCut).toBe(1);
+  });
 });
 
 describe('transactions', () => {

@@ -1,6 +1,6 @@
 import { Component, ElementRef, afterRenderEffect, computed, inject, untracked, viewChild } from '@angular/core';
 import { BRANDING } from '@studio/core';
-import { AppState, ContextMenu, DropMarker, HostBridge, Icon, Kbd, TabsState, dragReorder, type Tab } from '@studio/ui';
+import { AppState, ContextMenu, DropMarker, HostBridge, Icon, IconButton, Kbd, TabsState, dragReorder, type Tab } from '@studio/ui';
 import { House, Search, Settings, X } from 'lucide';
 import { ShellActions } from '../shell-actions';
 
@@ -11,7 +11,7 @@ import { ShellActions } from '../shell-actions';
  */
 @Component({
   selector: 'header[xTitleBar]',
-  imports: [DropMarker, Icon, Kbd],
+  imports: [DropMarker, Icon, IconButton, Kbd],
   templateUrl: './title-bar.html',
   host: {
     class: 'app-drag flex items-stretch h-10 border-b border-edge shrink-0 select-none',

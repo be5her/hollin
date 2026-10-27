@@ -152,7 +152,7 @@ export function moveLevelOps(doc: ProjectDoc, levelId: string, toIndex: number):
 /**
  * Removes a level with its layers and entities. Levels above drop by its height (or basements below
  * rise). Connectors that end on it are removed; elevators lose that stop; things spanning up to it
- * become single-level. If it was the ground level, the next level up becomes ground at its own elevation.
+ * become single-level (a shaft, whose span is required, ends at its own level's ceiling). If it was the ground level, the next level up becomes ground at its own elevation.
  */
 export function removeLevelOps(doc: ProjectDoc, levelId: string): Op[] {
   const level = requireLevel(doc, levelId);
@@ -162,10 +162,15 @@ export function removeLevelOps(doc: ProjectDoc, levelId: string): Op[] {
   if (stack.length === 1 && stack[0] === levelId) fail('CONFLICT', 'A building needs at least one level.');
   const ops: Op[] = [];
   for (const e of Object.values(doc.levelData[levelId]?.entities ?? {})) ops.push({ t: 'del', c: 'entity', id: e.id, lv: levelId });
-  // Things on other levels that run up to this one stop at their own level.
+  // Things on other levels that run up to this one stop at their own level (a shaft, whose span is required, at its own ceiling).
+  const derived = deriveLevels(doc);
   for (const [lv, data] of Object.entries(doc.levelData)) {
     if (lv === levelId) continue;
-    for (const e of Object.values(data.entities)) if ('span' in e && e.span?.topLevelId === levelId) ops.push({ t: 'upd', c: 'entity', id: e.id, lv, unset: ['span'] });
+    for (const e of Object.values(data.entities)) {
+      if (!('span' in e) || e.span?.topLevelId !== levelId) continue;
+      if (e.type === 'shaft') ops.push({ t: 'upd', c: 'entity', id: e.id, lv, set: { span: ownLevelSpan(e.span, lv, derived.find((l) => l.id === lv)?.height ?? 0) } });
+      else ops.push({ t: 'upd', c: 'entity', id: e.id, lv, unset: ['span'] });
+    }
   }
   for (const c of Object.values(doc.connectors)) {
     if (c.kind === 'elevator') {
@@ -180,7 +185,6 @@ export function removeLevelOps(doc: ProjectDoc, levelId: string): Op[] {
     const nextStack = stack.filter((id) => id !== levelId);
     const set: Record<string, unknown> = { stack: nextStack };
     if (groundLevelId === levelId) {
-      const derived = deriveLevels(doc);
       const replacement = stack[index + 1] ?? stack[index - 1];
       set['groundLevelId'] = replacement;
       set['datum'] = derived.find((l) => l.id === replacement)!.elevation - (index + 1 < stack.length ? level.place.height : 0);
@@ -190,6 +194,9 @@ export function removeLevelOps(doc: ProjectDoc, levelId: string): Op[] {
   ops.push({ t: 'del', c: 'level', id: levelId });
   return ops;
 }
+
+/** A span that ends at the ceiling of the entity's own level: what single-level means for a shaft, whose span is required. */
+const ownLevelSpan = (span: { baseOffset: number }, levelId: string, height: number) => ({ topLevelId: levelId, baseOffset: span.baseOffset, topOffset: height });
 
 /** What removing a level would do, for a confirmation: the same rules as `removeLevelOps`, grouped. */
 export interface LevelRemovalImpact {
@@ -231,7 +238,7 @@ export function levelRemovalImpact(doc: ProjectDoc, levelId: string): LevelRemov
 /**
  * Copies a level (its layers and entities, with new ids) and stacks the copy right above it.
  * References inside the copy point at the copies; references outside stay. Spanning entities become
- * single-level copies; connectors are not copied.
+ * single-level copies (a shaft, whose span is required, reaches the copy's ceiling); connectors are not copied.
  */
 export function duplicateLevelOps(doc: ProjectDoc, levelId: string, input: { name?: string } = {}): { ops: Op[]; levelId: string } {
   const source = requireLevel(doc, levelId);
@@ -254,7 +261,8 @@ export function duplicateLevelOps(doc: ProjectDoc, levelId: string, input: { nam
   }
   for (const e of entities) {
     const copy = remapRefs('entity', e, map) as Entity & { span?: unknown };
-    delete copy.span;
+    if (e.type === 'shaft') copy.span = ownLevelSpan(e.span, id, source.place.height);
+    else delete copy.span;
     ops.push({ t: 'ins', c: 'entity', id: map.get(e.id)!, lv: id, v: { ...copy, id: map.get(e.id)! } });
   }
   return { ops, levelId: id };

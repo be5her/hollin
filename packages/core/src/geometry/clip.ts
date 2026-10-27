@@ -1,6 +1,6 @@
 import { ClipType, EndType, FillRule, JoinType, PolyTree64, TriangulateResult, booleanOpWithPolyTree, inflatePaths, simplifyPaths, triangulate, type Path64, type Paths64, type PolyPath64 } from 'clipper2-ts';
 import { flatten, type Path, type Region } from './path';
-import { orient, type Polygon } from './polygon';
+import { orient, polygonArea, type Polygon } from './polygon';
 
 /**
  * Polygon booleans and offsets through Clipper2 (clipper2-ts). Clipper works on integers, so
@@ -109,20 +109,42 @@ export function closePolygons(polys: Polygon[], delta: number): Polygon[] {
  */
 const SPIKE = 0.01;
 
+/** How far a vertex may lie off its neighbours' line in the last try, mm: coarse enough to drop any sliver a boolean leaves. */
+const COARSE = 0.5;
+
+/** Signed area of Clipper paths, mm² (holes, clockwise, count negative). */
+const netArea = (paths: Paths64): number => paths.reduce((sum, p) => sum + polygonArea(fromClip(p)), 0);
+
+/** The paths' triangles when the triangulation succeeds and covers exactly their net area, else null. */
+function triangulateChecked(paths: Paths64): Polygon[] | null {
+  if (!paths.length) return null;
+  const result = triangulate(paths, true);
+  if (result.result !== TriangulateResult.success) return null;
+  const triangles = result.solution.map((t) => orient(fromClip(t), true));
+  const want = netArea(paths);
+  const got = triangles.reduce((sum, t) => sum + polygonArea(t), 0);
+  return Math.abs(got - want) <= 1e-6 * Math.abs(want) + 0.01 ? triangles : null;
+}
+
 /**
  * Polygons (outlines counter-clockwise, holes clockwise, as booleans return them) split into
  * triangles, each counter-clockwise, by Clipper2's constrained Delaunay triangulation. Spikes go
- * first (`SPIKE`); input that overlaps or touches itself is unioned; an empty list when even that
- * cannot be triangulated.
+ * first (`SPIKE`). Clipper can report success and still fill a hole (through a sliver or a spike a
+ * little wider than `SPIKE`, or input that overlaps itself), so every try is checked: the triangles'
+ * area must be the input's net area. On a failure or a mismatch the input is unioned, then simplified
+ * coarsely (`COARSE`); an empty list when even that cannot be triangulated.
  */
 export function triangulatePolygons(polys: Polygon[]): Polygon[] {
   if (!polys.length) return [];
   const clean = simplifyPaths(polys.map(toClip), SPIKE * SCALE, true).filter((p) => p.length >= 3);
   if (!clean.length) return [];
-  let result = triangulate(clean, true);
-  if (result.result !== TriangulateResult.success) result = triangulate(unionPolygons(clean.map(fromClip)).map(toClip), true);
-  if (result.result !== TriangulateResult.success) return [];
-  return result.solution.map((t) => orient(fromClip(t), true));
+  const direct = triangulateChecked(clean);
+  if (direct) return direct;
+  const union = unionPolygons(clean.map(fromClip)).map(toClip);
+  const unioned = triangulateChecked(union);
+  if (unioned) return unioned;
+  const coarse = unionPolygons(simplifyPaths(union, COARSE * SCALE, true).filter((p) => p.length >= 3).map(fromClip)).map(toClip);
+  return triangulateChecked(coarse) ?? [];
 }
 
 /** Clipper's loose output as a clean, oriented set: unions it once more through a tree. */

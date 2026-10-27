@@ -70,7 +70,10 @@ export type PendingDialog =
   | { kind: 'form'; options: FormDialogOptions; resolve(value: Record<string, string> | null): void }
   | { kind: 'component'; component: Type<unknown>; data: unknown; resolve(value: unknown): void };
 
-/** Prompt and confirm dialogs as promises. The shell's dialog host draws the pending one. */
+/**
+ * Prompt, confirm, form and component dialogs as promises. The shell's dialog host draws the pending
+ * one; every kind keeps focus inside while open and gives it back to the opener on close (`DialogFocus`).
+ */
 @Service()
 export class Dialogs {
   private readonly current = signal<PendingDialog | null>(null);

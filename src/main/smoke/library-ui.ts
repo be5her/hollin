@@ -53,6 +53,12 @@ export async function smokeLibraryUi(smoke: Smoke, houseId: string): Promise<voi
   await smoke.shots('06-library');
 
   smoke.section('new project');
+  // A prompt gives focus back to the button that opened it, as the component dialogs do.
+  await smoke.js(`document.querySelector('[data-testid=library-new]')?.focus()`);
+  await smoke.click('[data-testid=library-new]');
+  smoke.check('the prompt takes focus and is labelled by its heading', await smoke.until(() => smoke.js<boolean>(`(() => { const f = document.querySelector('[data-testid=prompt-dialog-frame]'); const id = f?.getAttribute('aria-labelledby'); return !!f && f.contains(document.activeElement) && !!id && document.getElementById(id)?.textContent?.trim() === 'New project'; })()`), 3000));
+  await smoke.key('Escape');
+  smoke.check('Escape closes the prompt and focus goes back to New project', await smoke.until(() => smoke.js<boolean>(`!document.querySelector('x-dialog-host form') && document.activeElement === document.querySelector('[data-testid=library-new]')`), 3000));
   await smoke.click('[data-testid=library-new]');
   smoke.check('New project asks for a name', await smoke.waitFor('x-dialog-host form input'));
   await smoke.shot('07-new-project-dialog');

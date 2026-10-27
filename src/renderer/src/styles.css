@@ -38,7 +38,6 @@
   --plan-selection: #2f6fda;
   --plan-warning: #b7791f;
   --plan-connector: #33363c;
-  --plan-connector-fill: #f1f1ee;
   --plan-decor: #8a6a45;
   /* The 3D view: each kind of solid, and the lines along their edges. */
   --scene-edge: #3b3e44;
@@ -79,7 +78,6 @@
   --plan-selection: #5b9bf8;
   --plan-warning: #f0b94a;
   --plan-connector: #d5d7db;
-  --plan-connector-fill: #1b1c1f;
   --plan-decor: #d2ab7c;
   --scene-edge: #121315;
   --scene-wall: #b9b6ae;

@@ -14,7 +14,15 @@
         <ng-container *ngComponentOutlet="pending.component; inputs: { data: pending.data, close: pending.resolve }" />
       </div>
     } @else {
-      <div class="w-[440px] max-w-[90vw] rounded-lg border border-edge bg-canvas shadow-xl p-4" (mousedown)="$event.stopPropagation()">
+      <div
+        class="w-[440px] max-w-[90vw] rounded-lg border border-edge bg-canvas shadow-xl p-4 outline-none"
+        role="dialog"
+        aria-modal="true"
+        tabindex="-1"
+        xDialogFocus
+        [attr.data-testid]="pending.kind + '-dialog-frame'"
+        (mousedown)="$event.stopPropagation()"
+      >
         @if (pending.kind === 'prompt') {
           <form (submit)="submitPrompt($event, pending)" (keydown)="promptKeys($event, pending)">
             <h2 class="text-sm font-semibold mb-3">{{ pending.options.title }}</h2>

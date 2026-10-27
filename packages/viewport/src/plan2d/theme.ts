@@ -15,16 +15,15 @@ export interface PlanTheme {
   snap: string;
   selection: string;
   warning: string;
-  /** Stairs, ramps, elevators and other connectors: their lines, and the fill of their treads and shafts. */
+  /** Stairs, ramps, elevators and other connectors: their lines. */
   connector: string;
-  connectorFill: string;
   /** Furniture and lights. */
   decor: string;
   fontSans: string;
   fontMono: string;
 }
 
-/** The light placeholder palette, used when no document is available (tests, thumbnails). */
+/** The light palette, the `:root` block of styles.css (`packages/modules/plan/snapshot-theme.test.ts` keeps them equal), used when no document is available (tests, thumbnails). */
 export const LIGHT_THEME: PlanTheme = {
   background: '#f7f7f5',
   fg: '#1d1f22',
@@ -35,14 +34,13 @@ export const LIGHT_THEME: PlanTheme = {
   wall: '#4a4e55',
   wallLine: '#1d1f22',
   room: '#2f6fda',
-  slab: '#dcdcd7',
+  slab: '#e2e2dd',
   dim: '#2f6fda',
   underlay: '#9a9ca3',
   snap: '#1f8a4c',
   selection: '#2f6fda',
   warning: '#b7791f',
   connector: '#33363c',
-  connectorFill: '#f1f1ee',
   decor: '#8a6a45',
   fontSans: 'system-ui, sans-serif',
   fontMono: 'ui-monospace, monospace',
@@ -66,7 +64,6 @@ export const DARK_THEME: PlanTheme = {
   selection: '#5b9bf8',
   warning: '#f0b94a',
   connector: '#d5d7db',
-  connectorFill: '#1b1c1f',
   decor: '#d2ab7c',
   fontSans: 'system-ui, sans-serif',
   fontMono: 'ui-monospace, monospace',
@@ -90,7 +87,6 @@ export const PLAN_THEME_VARIABLES: Record<keyof PlanTheme, string> = {
   selection: '--plan-selection',
   warning: '--plan-warning',
   connector: '--plan-connector',
-  connectorFill: '--plan-connector-fill',
   decor: '--plan-decor',
   fontSans: '--font-sans',
   fontMono: '--font-mono',
