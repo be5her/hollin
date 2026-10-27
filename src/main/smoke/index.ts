@@ -15,6 +15,7 @@ import { smokeDecorSceneUi } from './decor-scene-ui';
 import { smokeDecorFinishesUi } from './decor-finishes-ui';
 import { smokeDecorAgentUi } from './decor-agent-ui';
 import { smokeExchange, smokeExchangeDecor } from './exchange';
+import { smokeExchangeUi } from './exchange-ui';
 import { smokeHost } from './host';
 import { smokeLibrary } from './library';
 import { smokeLibraryUi } from './library-ui';
@@ -65,6 +66,7 @@ export async function runSmoke(host: Host, openWindow: () => BrowserWindow): Pro
     await smokeConnectorsUi(smoke, duplexId);
     await smokeRulesUi(smoke, duplexId);
     await smokeSnapshotUi(smoke, duplexId);
+    await smokeExchangeUi(smoke, duplexId);
     await smokeSceneUi(smoke);
     const { flatId } = await smokeDecorUi(smoke, tableRef);
     await smokeDecorSceneUi(smoke, flatId, tableRef);

@@ -48,7 +48,32 @@ export const LIGHT_THEME: PlanTheme = {
   fontMono: 'ui-monospace, monospace',
 };
 
-const VARIABLES: Record<keyof PlanTheme, string> = {
+/** The dark palette, the `.dark` block of styles.css (`packages/modules/plan/snapshot-theme.test.ts` keeps them equal): renders asked for in dark (`export.image`) without the window's theme. */
+export const DARK_THEME: PlanTheme = {
+  background: '#17181a',
+  fg: '#e8e9eb',
+  muted: '#9a9ca3',
+  accent: '#5b9bf8',
+  grid: '#202225',
+  gridMajor: '#2b2d31',
+  wall: '#c9cbd0',
+  wallLine: '#f1f2f4',
+  room: '#5b9bf8',
+  slab: '#222427',
+  dim: '#5b9bf8',
+  underlay: '#676b72',
+  snap: '#4fcf86',
+  selection: '#5b9bf8',
+  warning: '#f0b94a',
+  connector: '#d5d7db',
+  connectorFill: '#1b1c1f',
+  decor: '#d2ab7c',
+  fontSans: 'system-ui, sans-serif',
+  fontMono: 'ui-monospace, monospace',
+};
+
+/** The CSS variable each plan colour is read from. */
+export const PLAN_THEME_VARIABLES: Record<keyof PlanTheme, string> = {
   background: '--canvas',
   fg: '--fg',
   muted: '--muted',
@@ -75,8 +100,8 @@ const VARIABLES: Record<keyof PlanTheme, string> = {
 export function readPlanTheme(root: Element): PlanTheme {
   const style = getComputedStyle(root);
   const theme = { ...LIGHT_THEME };
-  for (const key of Object.keys(VARIABLES) as (keyof PlanTheme)[]) {
-    const value = style.getPropertyValue(VARIABLES[key]).trim();
+  for (const key of Object.keys(PLAN_THEME_VARIABLES) as (keyof PlanTheme)[]) {
+    const value = style.getPropertyValue(PLAN_THEME_VARIABLES[key]).trim();
     if (value) theme[key] = value;
   }
   return theme;

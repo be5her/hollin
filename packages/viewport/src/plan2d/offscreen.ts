@@ -22,11 +22,13 @@ export interface SnapshotOptions {
   showGrid?: boolean;
   /** World mm of padding around the level; default 24 px worth. */
   paddingPx?: number;
+  /** Leave the background transparent instead of painting the theme's paper colour. */
+  transparent?: boolean;
 }
 
 /**
  * Draws one level of a document fitted into a canvas and returns it as a PNG (base64, without the
- * `data:` prefix): the project thumbnail, and later `view.snapshot`. Null when the level has nothing
+ * `data:` prefix): the project thumbnail, `view.snapshot` and `export.image`. Null when the level has nothing
  * to draw (the Home card keeps its placeholder) or the canvas gives no 2D context.
  */
 export function renderLevelToPng(doc: ProjectDoc, levelId: string, options: SnapshotOptions): string | null {
@@ -61,6 +63,7 @@ export function renderLevelToPng(doc: ProjectDoc, levelId: string, options: Snap
     underlay: null,
     showGrid: options.showGrid ?? false,
     connectors: cache.connectorsOn(doc, levelId, options.limits ?? DEFAULT_RULE_LIMITS),
+    transparent: options.transparent ?? false,
   };
   const canvas = options.createCanvas(size.width, size.height);
   const ctx = canvas.getContext('2d');

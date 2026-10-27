@@ -14,12 +14,29 @@ import {
   drawingToSvg,
   pdfLayouts,
   planDrawing,
+  readPngHeader,
   svgLayout,
   today,
   type PlanDrawing,
 } from '@studio/core';
 import { writeFileAtomic } from '@studio/core/node';
 import { z } from 'zod';
+import { requestSnapshot } from '../plan/main';
+
+/** How long a render may take in the window: a 4096 px building on software GL is slow. */
+const RENDER_TIMEOUT = 60_000;
+
+/**
+ * The PNG the window drew, checked against the size asked for: its IHDR must say exactly
+ * `width` × `height`, so a render WebGL had to shrink is refused (UNAVAILABLE), never written smaller.
+ */
+export function checkedPng(base64: string, width: number, height: number): Buffer {
+  const bytes = Buffer.from(base64, 'base64');
+  const header = readPngHeader(bytes);
+  if (!header) throw new StudioError('UNAVAILABLE', 'The window did not answer with a PNG image.');
+  if (header.width !== width || header.height !== height) throw new StudioError('UNAVAILABLE', `The window could draw only ${header.width} × ${header.height} px, not the ${width} × ${height} asked for; ask for a smaller image.`);
+  return bytes;
+}
 
 /** A file name made of a level's name: the characters Windows forbids replaced, trimmed of dots and spaces. */
 export function fileSafe(name: string): string {
@@ -48,8 +65,9 @@ export function levelPaths(path: string, names: readonly string[]): string[] {
 /**
  * Exports and imports. `export.plan` writes levels' plans as DXF, SVG or PDF from the pure writers in
  * `@studio/core` (`planDrawing`, `drawingToDxf`, `drawingToSvg`, `drawingToPdf`); `export.building`
- * writes the building in 3D as a GLB (`buildingToGlb`). Writing files outside the library is gated
- * for agents.
+ * writes the building in 3D as a GLB (`buildingToGlb`); `export.image` has the window draw a PNG
+ * render the way `view.snapshot` does (`requestSnapshot` from the plan module) and writes it.
+ * Writing files outside the library is gated for agents.
  */
 export const exchangeModule = defineModule({
   id: 'exchange',
@@ -150,6 +168,40 @@ export const exchangeModule = defineModule({
         await writeFileAtomic(input.path, built.glb);
         ctx.host.emit('exchange.exported', { projectId: project.id, format: 'glb', files: [input.path] });
         return { path: input.path, bytes: built.glb.length, nodes: built.nodes, triangles: built.triangles, skipped: built.skipped };
+      },
+    }),
+    defineCommand({
+      id: 'export.image',
+      title: 'Export image (PNG)',
+      description:
+        "Renders a picture of the open project and writes it to `path` (a full file path, usually ending in .png) as a PNG of exactly `width` × `height` pixels (64 to 4096 a side, 1600 × 1200 by default). It draws what `view_snapshot` draws, larger and to a file: `view: 'plan'` (the default) one level's plan from above, `view: '3d'` the whole building in 3D seen from `azimuth` and `elevation` with `display` (every level, one isolated, or cut away at `levelId`), `explode` and `lighting` (day or night). `theme` picks the light palette (the default) or the dark one; `transparent` leaves the background out (no paper colour on the plan, no sky in 3D), for laying the picture over something else. `levelId` defaults to the ground level. Needs the app window, like view_snapshot: fails with UNAVAILABLE when no window draws it in time or when the window cannot draw that large (WebGL caps the 3D size at the GPU's limit; ask for a smaller image then), and with NOT_FOUND when there is nothing to draw yet. Writes outside the library, so it is gated. Returns { path, bytes, width, height, view, levelId, levelName }; it does not return the image itself (use view_snapshot to look).",
+      scope: 'project',
+      mutating: true,
+      input: z.object({
+        path: z.string().min(1).describe('A full file path for the .png file'),
+        levelId: z.string().optional().describe('Default: the ground level'),
+        view: z.enum(['plan', '3d']).default('plan').describe('The plan of a level, or the building in 3D'),
+        width: z.number().int().min(64).max(4096).default(1600).describe('Pixels'),
+        height: z.number().int().min(64).max(4096).default(1200).describe('Pixels'),
+        azimuth: z.number().min(-360).max(360).default(225).describe('3D: degrees counter-clockwise from east the building is seen from (0 east, 90 north, 180 west, 270 south)'),
+        elevation: z.number().min(-89).max(89).default(30).describe('3D: degrees above the horizon (89 is from straight above)'),
+        display: z.enum(['all', 'isolate', 'cutaway']).default('all').describe('3D: every level, the level alone, or the level and those below it with its walls cut'),
+        explode: z.number().min(0).max(1).default(0).describe('3D: 0 as built, 1 spreads each level 4 m above the one below'),
+        lighting: z.enum(['day', 'night']).default('day').describe("3D: the sky and the sun, or night with the design's own lights"),
+        theme: z.enum(['light', 'dark']).default('light').describe('The light palette (the default) or the dark one'),
+        transparent: z.boolean().default(false).describe('Leave the background transparent (no paper colour, no sky)'),
+      }),
+      handler: async ({ path, levelId: lv, ...render }, ctx) => {
+        if (!nodePath.isAbsolute(path)) throw new StudioError('INVALID_INPUT', 'path must be a full (absolute) file path.');
+        const project = ctx.project!;
+        const doc = project.doc;
+        const levelId = lv ?? doc.building.groundLevelId;
+        if (!doc.levels[levelId]) throw new StudioError('NOT_FOUND', `No level ${levelId} in this project. building_get lists the levels.`);
+        const base64 = await requestSnapshot(ctx.host, { projectId: project.id, levelId, ...render }, RENDER_TIMEOUT);
+        const bytes = checkedPng(base64, render.width, render.height);
+        await writeFileAtomic(path, bytes);
+        ctx.host.emit('exchange.exported', { projectId: project.id, format: 'png', files: [path] });
+        return { path, bytes: bytes.length, width: render.width, height: render.height, view: render.view, levelId, levelName: doc.levels[levelId].name };
       },
     }),
   ],

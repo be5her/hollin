@@ -333,7 +333,7 @@ describe('view.snapshot', () => {
 
   it('asks the window for the plan of the ground level by default', async () => {
     const { request, result } = await snapshot({});
-    expect(request).toMatchObject({ projectId, view: 'plan', levelId: doc().building.groundLevelId, width: 800, height: 600 });
+    expect(request).toMatchObject({ projectId, view: 'plan', levelId: doc().building.groundLevelId, width: 800, height: 600, theme: 'light', transparent: false });
     expect(result).toMatchObject({ mimeType: 'image/png', data: 'cG5n', view: 'plan', levelName: 'Ground floor' });
   });
 
@@ -343,6 +343,20 @@ describe('view.snapshot', () => {
     expect(result).toMatchObject({ view: '3d', data: 'cG5n' });
     const { request: cut } = await snapshot({ view: '3d', azimuth: 270, elevation: 60, display: 'cutaway', explode: 0.5, width: 400, height: 300, lighting: 'night' });
     expect(cut).toMatchObject({ azimuth: 270, elevation: 60, display: 'cutaway', explode: 0.5, width: 400, height: 300, lighting: 'night' });
+  });
+
+  it('passes the dark theme and a transparent background on, and the code the window fails with', async () => {
+    const { request } = await snapshot({ theme: 'dark', transparent: true });
+    expect(request).toMatchObject({ theme: 'dark', transparent: true });
+    const from = host.events.length;
+    const failing = run('view.snapshot', { view: '3d' });
+    let id: string | undefined;
+    for (let i = 0; i < 100 && !id; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      id = (host.events.slice(from).find((e) => e.event === 'view.snapshot.request')?.payload as { id: string } | undefined)?.id;
+    }
+    await run('view.snapshot.reply', { id, error: 'Too large', code: 'UNAVAILABLE' });
+    await expect(failing).rejects.toMatchObject({ code: 'UNAVAILABLE', message: 'Too large' });
   });
 
   it('refuses a view from past the poles or an explode beyond 1', async () => {

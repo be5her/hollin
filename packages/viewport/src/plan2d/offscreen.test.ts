@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { addEntityOps, addLevelOps, applyPatch, newProjectDoc, rectPath } from '@studio/core';
 import { renderLevelToPng } from './offscreen';
+import { DARK_THEME } from './theme';
 
 /** A canvas whose 2D context swallows every call, enough to run the renderer in node. */
 function fakeCanvas(log: string[]) {
@@ -9,11 +10,14 @@ function fakeCanvas(log: string[]) {
       get: (_t, key) => {
         if (key === 'measureText') return () => ({ width: 10 });
         return (...args: unknown[]) => {
-          if (key === 'fillRect') log.push(`fillRect ${args.join(',')}`);
+          if (key === 'fillRect' || key === 'clearRect') log.push(`${String(key)} ${args.join(',')}`);
           return undefined;
         };
       },
-      set: () => true,
+      set: (_t, key, value) => {
+        if (key === 'fillStyle') log.push(`fillStyle ${String(value)}`);
+        return true;
+      },
     });
     return { width, height, getContext: () => ctx, toDataURL: () => 'data:image/png;base64,iVBORw0KGgo=' } as unknown as HTMLCanvasElement;
   };
@@ -31,9 +35,22 @@ describe('renderLevelToPng', () => {
     const log: string[] = [];
     const png = renderLevelToPng(doc, ground, { width: 480, height: 360, createCanvas: fakeCanvas(log) });
     expect(png).toBe('iVBORw0KGgo=');
-    // The background was painted over the whole canvas.
-    expect(log[0]).toBe('fillRect 0,0,480,360');
+    // The background was painted over the whole canvas, in the theme's paper colour.
+    expect(log.slice(0, 2)).toEqual(['fillStyle #f7f7f5', 'fillRect 0,0,480,360']);
     expect(renderLevelToPng(doc, 'lvl_0000000000000000', { width: 10, height: 10, createCanvas: fakeCanvas([]) })).toBeNull();
+  });
+
+  it('leaves the background transparent when asked, and paints the dark paper with the dark theme', () => {
+    let doc = newProjectDoc({ name: 'Clear' });
+    const ground = doc.building.groundLevelId;
+    doc = applyPatch(doc, addEntityOps(doc, { levelId: ground, entity: { type: 'wall', path: rectPath(0, 0, 9000, 6000), thickness: 250 } }).ops);
+    const clear: string[] = [];
+    expect(renderLevelToPng(doc, ground, { width: 200, height: 100, createCanvas: fakeCanvas(clear), transparent: true })).toBe('iVBORw0KGgo=');
+    expect(clear[0]).toBe('clearRect 0,0,200,100');
+    expect(clear).not.toContain('fillRect 0,0,200,100');
+    const dark: string[] = [];
+    renderLevelToPng(doc, ground, { width: 200, height: 100, createCanvas: fakeCanvas(dark), theme: DARK_THEME });
+    expect(dark.slice(0, 2)).toEqual([`fillStyle ${DARK_THEME.background}`, 'fillRect 0,0,200,100']);
   });
 
   it('draws the columns, shafts and voids that span up from other levels, as the plan view does', () => {

@@ -27,7 +27,21 @@ export const LIGHT_SCENE_THEME: SceneTheme = {
   car: SOLID_COLORS.car,
 };
 
-const VARIABLES: Record<keyof SceneTheme, string> = {
+/** The dark palette, the `.dark` block of styles.css (`packages/modules/plan/snapshot-theme.test.ts` keeps them equal): renders asked for in dark (`export.image`) without the window's theme. */
+export const DARK_SCENE_THEME: SceneTheme = {
+  background: '#17181a',
+  edge: '#121315',
+  wall: '#b9b6ae',
+  slab: '#6d6b66',
+  column: '#a29e95',
+  glass: '#5b8fc4',
+  connector: '#a39a8b',
+  rail: '#d5d7db',
+  car: '#5b9bf8',
+};
+
+/** The CSS variable each scene colour is read from. */
+export const SCENE_THEME_VARIABLES: Record<keyof SceneTheme, string> = {
   background: '--canvas',
   edge: '--scene-edge',
   wall: '--scene-wall',
@@ -43,8 +57,8 @@ const VARIABLES: Record<keyof SceneTheme, string> = {
 export function readSceneTheme(root: Element): SceneTheme {
   const style = getComputedStyle(root);
   const theme = { ...LIGHT_SCENE_THEME };
-  for (const key of Object.keys(VARIABLES) as (keyof SceneTheme)[]) {
-    const value = style.getPropertyValue(VARIABLES[key]).trim();
+  for (const key of Object.keys(SCENE_THEME_VARIABLES) as (keyof SceneTheme)[]) {
+    const value = style.getPropertyValue(SCENE_THEME_VARIABLES[key]).trim();
     if (value) theme[key] = value;
   }
   return theme;

@@ -23,6 +23,8 @@ export interface RenderFrame {
   showGrid: boolean;
   /** The stairs, ramps, elevators and other connectors this level shows. */
   connectors?: readonly PlanConnector[];
+  /** Leave the background unpainted (cleared to transparent), for a render laid over something else. */
+  transparent?: boolean;
 }
 
 /** The joined walls' outlines as a `Path2D`, kept per derived geometry. */
@@ -163,8 +165,11 @@ export function renderPlan(ctx: CanvasRenderingContext2D, frame: RenderFrame): R
   const started = performance.now();
   const { size, dpr, camera, theme } = frame;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.fillStyle = theme.background;
-  ctx.fillRect(0, 0, size.width, size.height);
+  if (frame.transparent) ctx.clearRect(0, 0, size.width, size.height);
+  else {
+    ctx.fillStyle = theme.background;
+    ctx.fillRect(0, 0, size.width, size.height);
+  }
   if (frame.showGrid) drawGrid(ctx, frame);
 
   const texts: TextOp[] = [];

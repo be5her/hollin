@@ -111,6 +111,8 @@ export class Scene3dView {
   private readonly key = new DirectionalLight('#ffffff', KEY_LIGHT);
   private readonly sky = new HemisphereLight('#ffffff', '#8c8a84', SKY_LIGHT);
   private lighting: SceneLighting = 'day';
+  /** No background at all (a render laid over something else): the scene's background stays null. */
+  private readonly transparent: boolean;
   private background = new Color(LIGHT_SCENE_THEME.background);
   /** The lights switched on, as a key, so they are switched (and the shaders rebuilt) only when the set changes. */
   private lightsKey = '';
@@ -132,9 +134,12 @@ export class Scene3dView {
     private readonly canvas: HTMLCanvasElement,
     private readonly callbacks: Scene3dCallbacks = {},
     theme: SceneTheme = LIGHT_SCENE_THEME,
-    options: { preserveDrawingBuffer?: boolean } = {},
+    options: { preserveDrawingBuffer?: boolean; transparent?: boolean } = {},
   ) {
-    this.renderer = new WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: options.preserveDrawingBuffer ?? false });
+    this.transparent = options.transparent ?? false;
+    this.renderer = new WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: options.preserveDrawingBuffer ?? false, alpha: this.transparent });
+    // Transparent: no sky colour behind the building, the canvas cleared to alpha 0.
+    if (this.transparent) this.renderer.setClearColor(0x000000, 0);
     // The cutaway clips the connectors with a plane.
     this.renderer.localClippingEnabled = true;
     if (!areaLightsReady) {
@@ -172,6 +177,12 @@ export class Scene3dView {
   async modelsReady(): Promise<void> {
     await this.building.modelsSettled();
     this.rebuild();
+  }
+
+  /** The size of the drawing buffer WebGL actually gave, which can be smaller than asked for past the GPU's limits. */
+  drawingBufferSize(): { width: number; height: number } {
+    const gl = this.renderer.getContext();
+    return { width: gl.drawingBufferWidth, height: gl.drawingBufferHeight };
   }
 
   setSize(width: number, height: number, dpr: number): void {
@@ -406,7 +417,7 @@ export class Scene3dView {
     const night = this.lighting === 'night';
     this.sky.intensity = night ? NIGHT_SKY : SKY_LIGHT;
     this.key.intensity = night ? 0 : KEY_LIGHT;
-    this.scene.background = night ? new Color(NIGHT_BACKGROUND) : this.background;
+    this.scene.background = this.transparent ? null : night ? new Color(NIGHT_BACKGROUND) : this.background;
     const lights = this.building.lights();
     let on: typeof lights = [];
     if (night) {

@@ -292,12 +292,14 @@ export interface HostEvents {
   /**
    * `view.snapshot` asks a window to draw a level's plan, or the building in 3D seen from `azimuth`
    * and `elevation` (degrees) with a display mode at `levelId`, an explode amount and day or night
-   * lighting; the window answers with the hidden `view.snapshot.reply`.
+   * lighting, in the light or dark palette and with or without a background (`export.image` asks for
+   * those; `view.snapshot` defaults to light on paper); the window answers with the hidden
+   * `view.snapshot.reply`.
    */
-  'view.snapshot.request': { id: string; projectId: string; levelId: string; width: number; height: number; view: 'plan' | '3d'; azimuth: number; elevation: number; display: 'all' | 'isolate' | 'cutaway'; explode: number; lighting: 'day' | 'night' };
+  'view.snapshot.request': { id: string; projectId: string; levelId: string; width: number; height: number; view: 'plan' | '3d'; azimuth: number; elevation: number; display: 'all' | 'isolate' | 'cutaway'; explode: number; lighting: 'day' | 'night'; theme: 'light' | 'dark'; transparent: boolean };
   /** The assistant's chat for a project changed: the whole chat after a structural change, or a text delta while a reply streams. */
   'assistant.event': { projectId: string; event: AssistantEvent };
-  /** An export wrote files outside the library (`export.plan`): the format and the full paths written. */
+  /** An export wrote files outside the library (`export.plan`, `export.building`, `export.image`): the format and the full paths written. */
   'exchange.exported': { projectId: string; format: string; files: string[] };
 }
 

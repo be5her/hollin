@@ -60,6 +60,8 @@ import {
   type Dimension,
   type EditContext,
   type Entity,
+  type HostApi,
+  type HostEvents,
   type Op,
   type NewConnector,
   type Opening,
@@ -258,6 +260,28 @@ async function runSteps(ctx: CommandContext, steps: z.infer<typeof StepSchema>[]
 const pendingSnapshots = new Map<string, { resolve: (png: string) => void; reject: (err: Error) => void; timer: ReturnType<typeof setTimeout> }>();
 const SNAPSHOT_TIMEOUT = 10_000;
 
+/** What a snapshot request asks the window to draw: the `view.snapshot.request` event without its id. */
+export type SnapshotRequest = Omit<HostEvents['view.snapshot.request'], 'id'>;
+
+/**
+ * Asks the window to draw a level or the building (`view.snapshot.request`) and waits for the PNG
+ * (base64) it answers with through `view.snapshot.reply`: `view.snapshot` and `export.image`. Fails
+ * with UNAVAILABLE when no window answers within `timeout` ms, and with the code the window gives
+ * (NOT_FOUND when there is nothing to draw, UNAVAILABLE when it cannot draw at that size).
+ */
+export function requestSnapshot(host: HostApi, request: SnapshotRequest, timeout = SNAPSHOT_TIMEOUT): Promise<string> {
+  const id = newId('snp');
+  const png = new Promise<string>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      pendingSnapshots.delete(id);
+      reject(new StudioError('UNAVAILABLE', 'No window drew the snapshot in time: snapshots need the app window open.'));
+    }, timeout);
+    pendingSnapshots.set(id, { resolve, reject, timer });
+  });
+  host.emit('view.snapshot.request', { id, ...request });
+  return png;
+}
+
 /**
  * Editing on a level: layers and entities (walls, openings, rooms, fixtures, items…), and
  * `plan.apply`, which runs many edits as one transaction and one undo step.
@@ -299,7 +323,7 @@ export const planModule = defineModule({
       id: 'view.snapshot',
       title: 'Snapshot of a level or the building',
       description:
-        "Draws a picture fitted into a PNG and returns it as an image, with the level's id and name, the view and the image size. `view: 'plan'` (the default): one level's plan from above (walls joined, openings cut, rooms with their names and areas, stairs and elevators with their symbols, columns, slabs, furniture and lights, dimensions and labels). `view: '3d'`: the whole building in 3D (every level at its elevation, walls with the openings cut through, doors and windows with their frames and leaves, slabs with their stairwells, columns, stairs, ramps and elevators, furniture and finishes), `lighting` by `day` (the sky and the sun, the default) or at `night` (the design's own lights), seen from `azimuth` (degrees counter-clockwise from east on the plan: 270 looks from the south) and `elevation` (degrees above the horizon), the default a three-quarter view from the south-west; `display` shows every level, the level alone (`isolate`), or the level and those below it with its walls cut at the plan cut height (`cutaway`, to see into its rooms from above); `explode` (0 to 1) spreads the levels apart. `levelId` is the level drawn, or the level isolate and cutaway work on; the ground level by default. Use it to look at the result of a change. Needs the app window: it fails with UNAVAILABLE when no window can draw, and with NOT_FOUND when there is nothing to draw yet.",
+        "Draws a picture fitted into a PNG and returns it as an image, with the level's id and name, the view and the image size. `view: 'plan'` (the default): one level's plan from above (walls joined, openings cut, rooms with their names and areas, stairs and elevators with their symbols, columns, slabs, furniture and lights, dimensions and labels). `view: '3d'`: the whole building in 3D (every level at its elevation, walls with the openings cut through, doors and windows with their frames and leaves, slabs with their stairwells, columns, stairs, ramps and elevators, furniture and finishes), `lighting` by `day` (the sky and the sun, the default) or at `night` (the design's own lights), seen from `azimuth` (degrees counter-clockwise from east on the plan: 270 looks from the south) and `elevation` (degrees above the horizon), the default a three-quarter view from the south-west; `display` shows every level, the level alone (`isolate`), or the level and those below it with its walls cut at the plan cut height (`cutaway`, to see into its rooms from above); `explode` (0 to 1) spreads the levels apart. `levelId` is the level drawn, or the level isolate and cutaway work on; the ground level by default. `theme` picks the light palette (the default) or the dark one; `transparent` leaves the background out (no paper colour on the plan, no sky in 3D). Use it to look at the result of a change. Needs the app window: it fails with UNAVAILABLE when no window can draw, and with NOT_FOUND when there is nothing to draw yet.",
       scope: 'project',
       output: 'image',
       input: z.object({
@@ -312,38 +336,31 @@ export const planModule = defineModule({
         display: z.enum(['all', 'isolate', 'cutaway']).default('all').describe('3D: every level, the level alone, or the level and those below it with its walls cut'),
         explode: z.number().min(0).max(1).default(0).describe('3D: 0 as built, 1 spreads each level 4 m above the one below'),
         lighting: z.enum(['day', 'night']).default('day').describe("3D: the sky and the sun, or night with the design's own lights (the 16 nearest the camera)"),
+        theme: z.enum(['light', 'dark']).default('light').describe('The light palette (the default) or the dark one'),
+        transparent: z.boolean().default(false).describe('Leave the background transparent (no paper colour, no sky) instead of painting it'),
       }),
-      handler: async ({ levelId: lv, view, width, height, azimuth, elevation, display, explode, lighting }, ctx) => {
+      handler: async ({ levelId: lv, view, width, height, azimuth, elevation, display, explode, lighting, theme, transparent }, ctx) => {
         const doc = ctx.project!.doc;
         const level = lv ?? doc.building.groundLevelId;
         if (!doc.levels[level]) throw new StudioError('NOT_FOUND', `No level ${level}`);
-        const id = newId('snp');
-        const png = new Promise<string>((resolve, reject) => {
-          const timer = setTimeout(() => {
-            pendingSnapshots.delete(id);
-            reject(new StudioError('UNAVAILABLE', 'No window drew the snapshot in time: snapshots need the app window open.'));
-          }, SNAPSHOT_TIMEOUT);
-          pendingSnapshots.set(id, { resolve, reject, timer });
-        });
-        ctx.host.emit('view.snapshot.request', { id, projectId: ctx.project!.id, levelId: level, width, height, view, azimuth, elevation, display, explode, lighting });
-        const data = await png;
+        const data = await requestSnapshot(ctx.host, { projectId: ctx.project!.id, levelId: level, width, height, view, azimuth, elevation, display, explode, lighting, theme, transparent });
         return { mimeType: 'image/png', data, view, levelId: level, levelName: doc.levels[level].name, width, height };
       },
     }),
     defineCommand({
       id: 'view.snapshot.reply',
       title: 'Answer a snapshot request',
-      description: 'The window returns the PNG a `view.snapshot.request` asked for, or why it could not draw it.',
+      description: 'The window returns the PNG a `view.snapshot.request` asked for, or why it could not draw it (`code`: NOT_FOUND when there is nothing to draw, the default; UNAVAILABLE when it cannot draw at that size).',
       scope: 'global',
       hidden: true,
-      input: z.object({ id: z.string(), png: z.string().optional(), error: z.string().optional() }),
-      handler: async ({ id, png, error }) => {
+      input: z.object({ id: z.string(), png: z.string().optional(), error: z.string().optional(), code: z.enum(['NOT_FOUND', 'UNAVAILABLE']).optional() }),
+      handler: async ({ id, png, error, code }) => {
         const waiting = pendingSnapshots.get(id);
         if (!waiting) return { taken: false };
         pendingSnapshots.delete(id);
         clearTimeout(waiting.timer);
         if (png) waiting.resolve(png);
-        else waiting.reject(new StudioError('NOT_FOUND', error ?? 'The snapshot could not be drawn.'));
+        else waiting.reject(new StudioError(code ?? 'NOT_FOUND', error ?? 'The snapshot could not be drawn.'));
         return { taken: true };
       },
     }),
