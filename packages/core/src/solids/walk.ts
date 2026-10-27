@@ -92,44 +92,86 @@ function edgeDistance(poly: Polygon, p: Vec2): number {
   return best;
 }
 
-/** True when a wall stands within the walker's radius of a point at knee or head height above feet at `z`, or furniture at the knee. */
-export function blocked(world: WalkWorld, p: Vec2, z: number): boolean {
-  const near = (band: WallBand) => inside(band.footprint, p) || band.footprint.some((poly) => edgeDistance(poly, p) < WALKER_RADIUS);
+/**
+ * How far a point is from the nearest wall at knee or head height above feet at `z`, or furniture at
+ * the knee, mm: negative inside one, Infinity with none at those heights.
+ */
+export function clearance(world: WalkWorld, p: Vec2, z: number): number {
+  let best = Infinity;
+  const measure = (band: WallBand) => {
+    let d = Infinity;
+    for (const poly of band.footprint) d = Math.min(d, edgeDistance(poly, p));
+    best = Math.min(best, inside(band.footprint, p) ? -d : d);
+  };
   for (const probe of PROBES) {
     const h = z + probe;
-    for (const band of world.walls) if (h >= band.z0 && h < band.z1 && near(band)) return true;
+    for (const band of world.walls) if (h >= band.z0 && h < band.z1) measure(band);
   }
   const knee = z + PROBES[0];
-  for (const item of world.obstacles) if (knee >= item.z0 && knee < item.z1 && near(item)) return true;
-  return false;
+  for (const item of world.obstacles) if (knee >= item.z0 && knee < item.z1) measure(item);
+  return best;
+}
+
+/** True when a wall stands within the walker's radius of a point at knee or head height above feet at `z`, or furniture at the knee. */
+export function blocked(world: WalkWorld, p: Vec2, z: number): boolean {
+  return clearance(world, p, z) < WALKER_RADIUS;
 }
 
 /**
  * The walker moved by a step on the plan (mm): in short substeps, each tried whole, then along x
  * alone, then along y alone, so it slides along a wall it meets at an angle; after each, its feet
  * settle on the floor under them (climbing a step, dropping into a stairwell). A step with nothing to
- * stand on is not taken.
+ * stand on is not taken, nor one that comes within the walker's radius of a wall or furniture, unless
+ * it leaves at least the clearance the walker had (so one already too close can still back away).
  */
 export function walkBy(world: WalkWorld, walker: Walker, move: Vec2): Walker {
   const n = Math.max(1, Math.ceil(Math.hypot(move[0], move[1]) / SUBSTEP));
   const d = scale(move, 1 / n);
   let p: Vec2 = [walker.at[0], walker.at[1]];
   let z = walker.at[2];
+  let room = clearance(world, p, z);
   for (let i = 0; i < n; i++) {
     let moved = false;
     for (const tryMove of [d, [d[0], 0] as Vec2, [0, d[1]] as Vec2]) {
       if (tryMove[0] === 0 && tryMove[1] === 0) continue;
       const q = add(p, tryMove);
       const floor = floorAt(world, q, z);
-      if (floor === null || blocked(world, q, floor)) continue;
+      if (floor === null) continue;
+      const c = clearance(world, q, floor);
+      if (c < WALKER_RADIUS && c < room - 1e-6) continue;
       p = q;
       z = floor;
+      room = c;
       moved = true;
       break;
     }
     if (!moved) break;
   }
   return { ...walker, at: [p[0], p[1], z] };
+}
+
+/** How far `nudgeOut` looks for a free spot, mm, and in what steps. */
+const NUDGE_MAX = 1000;
+const NUDGE_STEP = 50;
+const NUDGE_DIRECTIONS = 16;
+
+/**
+ * Where to start walking from feet at `at`: the point itself when it is clear of walls and
+ * furniture, else the nearest clear point within a metre whose floor is within a step of it (a
+ * double click on a sofa starts beside it); `at` unchanged when there is none.
+ */
+export function nudgeOut(world: WalkWorld, at: Vec3): Vec3 {
+  if (!blocked(world, [at[0], at[1]], at[2])) return at;
+  for (let r = NUDGE_STEP; r <= NUDGE_MAX; r += NUDGE_STEP) {
+    for (let k = 0; k < NUDGE_DIRECTIONS; k++) {
+      const a = (k / NUDGE_DIRECTIONS) * 2 * Math.PI;
+      const q: Vec2 = [at[0] + r * Math.cos(a), at[1] + r * Math.sin(a)];
+      const floor = floorAt(world, q, at[2]);
+      if (floor === null || Math.abs(floor - at[2]) > STEP_UP || blocked(world, q, floor)) continue;
+      return [q[0], q[1], floor];
+    }
+  }
+  return at;
 }
 
 /** The walker turned to face `yaw` and moved `forward` and `right` mm relative to it. */

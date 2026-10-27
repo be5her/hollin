@@ -82,6 +82,10 @@ export class BuildingScene {
   private readonly edgeMaterial = new LineBasicMaterial({ color: LIGHT_SCENE_THEME.edge });
   /** The edges of the kinds the cutaway clips, clipped with them. */
   private readonly clippedEdgeMaterial = new LineBasicMaterial({ color: LIGHT_SCENE_THEME.edge });
+  /** The boxes standing in for imported models not (yet) loaded, in the theme's colour and clipped with the furniture. */
+  private readonly standIn = new MeshStandardMaterial({ color: LIGHT_SCENE_THEME.standIn, roughness: 0.8, metalness: 0, ...FACE_OFFSET });
+  /** The project's assets as last built: when they change, models that failed to load are tried again. */
+  private assets: unknown = null;
   private levelsList: DerivedLevel[] = [];
   private display: SceneDisplay = DEFAULT_DISPLAY;
   /** The design's materials (frames, leaves, furniture), shared across levels. */
@@ -120,6 +124,7 @@ export class BuildingScene {
     for (const kind of KINDS) this.materials.get(kind)!.color = new Color(kindColor(theme, kind));
     this.edgeMaterial.color = new Color(theme.edge);
     this.clippedEdgeMaterial.color = new Color(theme.edge);
+    this.standIn.color = new Color(theme.standIn);
   }
 
   /**
@@ -144,6 +149,7 @@ export class BuildingScene {
     this.clippedEdgeMaterial.clippingPlanes = planes;
     // Furniture above the cut goes with it.
     this.decorMaterials.setClipping(planes);
+    this.standIn.clippingPlanes = planes;
   }
 
   /** Every light of the design as built, on the levels shown. */
@@ -225,14 +231,18 @@ export class BuildingScene {
       }
       for (const part of data.parts) node.solids.add(...this.objects(part, { levelId: level.id, kind: part.kind, ids: part.ids }));
     }
-    // Furniture and lights, item by item: they change far more often than the walls.
+    // Furniture and lights, item by item: they change far more often than the walls. A model announced again may load now.
+    if (doc.assets !== this.assets) {
+      this.assets = doc.assets;
+      this.models.retryFailed();
+    }
     const project = doc.meta.id;
     for (const level of levels) {
       const node = this.nodes.get(level.id)!;
       const decorKey = [doc.levelData[level.id]?.entities, doc.assets, doc.layers, level.elevation, this.modelsVersion];
       if (sameKey(node.decorKey, decorKey)) continue;
       node.decorKey = decorKey;
-      const ctx = { materials: this.decorMaterials, models: this.models, modelUrl: (file: string) => `library://project/${project}/assets/${file}` };
+      const ctx = { materials: this.decorMaterials, models: this.models, modelUrl: (file: string) => `library://project/${project}/assets/${file}`, standIn: this.standIn };
       if (node.decor.update(doc.levelData[level.id]?.entities ?? {}, doc.assets, doc.layers, level.elevation, ctx)) changed = true;
     }
     for (const [id, node] of this.nodes) {
@@ -309,6 +319,7 @@ export class BuildingScene {
     for (const m of this.materials.values()) m.dispose();
     this.edgeMaterial.dispose();
     this.clippedEdgeMaterial.dispose();
+    this.standIn.dispose();
   }
 
   private objects(part: SolidPart, hit: SceneHit): (Mesh | LineSegments)[] {

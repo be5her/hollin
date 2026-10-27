@@ -301,8 +301,18 @@ export function inspectGltf(json: GltfJson, bin: Uint8Array | null): ModelInfo {
   const round = (v: number) => Math.round(v * 1000) / 1000;
   const lo: Vec3 = [round(min[0]), round(min[1]), round(min[2])];
   const hi: Vec3 = [round(max[0]), round(max[1]), round(max[2])];
-  const materials = (json.materials ?? []).map((m, i) => (typeof m?.name === 'string' && m.name.trim() ? m.name.trim().slice(0, 60) : `material-${i}`));
+  const materials = gltfMaterialSlots(json);
   return { min: lo, max: hi, size: [round(hi[0] - lo[0]), round(hi[1] - lo[1]), round(hi[2] - lo[2])], meshes, triangles, materials: [...new Set(materials)] };
+}
+
+/**
+ * The repaint slot of each of a glTF's materials, by index: its name trimmed and cut to 60
+ * characters, or `material-<i>` when it has none. Materials sharing a name share a slot. Items store
+ * their repaints under these names, and the 3D view and the exports find a material's slot through
+ * its index, so they must stay as they are.
+ */
+export function gltfMaterialSlots(json: Pick<GltfJson, 'materials'>): string[] {
+  return (json.materials ?? []).map((m, i) => (typeof m?.name === 'string' && m.name.trim() ? m.name.trim().slice(0, 60) : `material-${i}`));
 }
 
 /** Reads and measures a GLB file. Throws INVALID_INPUT with the reason when it is damaged or unusable. */
@@ -511,6 +521,7 @@ export function meshToGlb(mesh: Mesh, color: GlbMesh['color'], name?: string): G
 /** One primitive's triangles in the app's terms (mm, z up, non-indexed) with its material's name and base colour (linear RGB, 0–1). */
 export interface GlbTriangles {
   positions: Float32Array;
+  /** The repaint slot of its material (`gltfMaterialSlots`), or empty without one. */
   material: string;
   color: [number, number, number];
 }
@@ -542,6 +553,7 @@ export function readGlbTriangles(bytes: Uint8Array): GlbTriangles[] {
     return out;
   };
   const out: GlbTriangles[] = [];
+  const slots = gltfMaterialSlots(json);
   const visit = (index: number, parent: Mat4, depth: number) => {
     if (depth > 64) return;
     const node = nodes[index];
@@ -559,7 +571,7 @@ export function readGlbTriangles(bytes: Uint8Array): GlbTriangles[] {
       }
       const m = p.material !== undefined ? (json.materials?.[p.material] as { name?: string; pbrMetallicRoughness?: { baseColorFactor?: number[] } } | undefined) : undefined;
       const f = m?.pbrMetallicRoughness?.baseColorFactor ?? [0.8, 0.8, 0.8, 1];
-      out.push({ positions: tri, material: m?.name ?? (p.material !== undefined ? `material-${p.material}` : ''), color: [f[0], f[1], f[2]] });
+      out.push({ positions: tri, material: p.material !== undefined ? (slots[p.material] ?? '') : '', color: [f[0], f[1], f[2]] });
     }
     for (const child of node.children ?? []) visit(child, world, depth + 1);
   };

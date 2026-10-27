@@ -194,7 +194,7 @@ export const libraryModule = defineModule({
     defineCommand({
       id: 'library.reindex',
       title: 'Rebuild library index',
-      description: 'Rebuilds the project list from the folders on disk.',
+      description: "Rebuilds the project list from the folders on disk and the furniture catalog's index from its model files. Returns how many projects and models it found.",
       scope: 'global',
       hidden: true,
       input: z.object({}),

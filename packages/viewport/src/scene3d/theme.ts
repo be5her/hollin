@@ -12,6 +12,8 @@ export interface SceneTheme {
   connector: string;
   rail: string;
   car: string;
+  /** The box drawn for an imported model while it loads, or when it cannot be. */
+  standIn: string;
 }
 
 /** The light placeholder palette, used when no document is available (tests, snapshots); its solid colours are core's `SOLID_COLORS`, which the glTF export writes. */
@@ -25,6 +27,7 @@ export const LIGHT_SCENE_THEME: SceneTheme = {
   connector: SOLID_COLORS.connector,
   rail: SOLID_COLORS.rail,
   car: SOLID_COLORS.car,
+  standIn: '#9a9a9a',
 };
 
 /** The dark palette, the `.dark` block of styles.css (`packages/modules/plan/snapshot-theme.test.ts` keeps them equal): renders asked for in dark (`export.image`) without the window's theme. */
@@ -38,6 +41,7 @@ export const DARK_SCENE_THEME: SceneTheme = {
   connector: '#a39a8b',
   rail: '#d5d7db',
   car: '#5b9bf8',
+  standIn: '#5c5b58',
 };
 
 /** The CSS variable each scene colour is read from. */
@@ -51,6 +55,7 @@ export const SCENE_THEME_VARIABLES: Record<keyof SceneTheme, string> = {
   connector: '--scene-connector',
   rail: '--scene-rail',
   car: '--scene-car',
+  standIn: '--scene-stand-in',
 };
 
 /** Reads the theme from the computed style of `root` (the document element); missing variables keep the light defaults. */

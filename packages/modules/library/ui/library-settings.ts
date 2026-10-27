@@ -64,8 +64,8 @@ export class LibrarySettings {
 
   protected async reindex(): Promise<void> {
     try {
-      const { projects } = await this.host.invoke<{ projects: number }>('library.reindex', {}, null);
-      this.toasts.notify(`Found ${projects} project${projects === 1 ? '' : 's'}`, 'success');
+      const { projects, models } = await this.host.invoke<{ projects: number; models: number }>('library.reindex', {}, null);
+      this.toasts.notify(`Found ${projects} project${projects === 1 ? '' : 's'} and ${models} imported model${models === 1 ? '' : 's'}`, 'success');
     } catch (err) {
       this.toasts.error(err);
     }

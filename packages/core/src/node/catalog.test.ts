@@ -105,6 +105,28 @@ describe('Catalog', () => {
     expect((await library.catalog.reindex()).models).toBe(1);
   });
 
+  it("the library's Rescan rebuilds the catalog index too, and lookups keep working while it runs", async () => {
+    const a = (await library.catalog.importModel(await file('a.glb', cube(500)))).model;
+    const project = await library.create(newProjectDoc({ name: 'Kept' }));
+    // A model file copied into the catalog folder behind the index's back.
+    const bytes = cube(900);
+    const sha = createHash('sha256').update(bytes).digest('hex');
+    await fs.writeFile(path.join(library.catalogDir, 'furniture', `${sha}.glb`), bytes);
+    expect(library.catalog.model(`${sha}.glb`)).toBeUndefined();
+    changes.length = 0;
+    const rescan = library.reindex();
+    // Mid-rebuild, the old entries still answer.
+    expect(library.catalog.model(a.file)?.name).toBe('a');
+    expect(library.get(project.id)?.name).toBe('Kept');
+    const catalogRebuild = library.catalog.reindex();
+    expect(library.catalog.model(a.file)).toBeDefined();
+    expect(await rescan).toEqual({ projects: 1, models: 2 });
+    await catalogRebuild;
+    expect(library.catalog.model(`${sha}.glb`)?.size).toEqual([900, 900, 900]);
+    expect(library.catalog.model(a.file)?.name).toBe('a');
+    expect(changes).toContain('reindexed');
+  });
+
   it('removes a model with its thumbnail, stores thumbnails, and copies models into projects', async () => {
     const { model } = await library.catalog.importModel(await file('lamp.glb', cube(300)));
     const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2]);

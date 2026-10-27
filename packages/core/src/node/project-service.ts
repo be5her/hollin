@@ -367,7 +367,7 @@ export class ProjectService implements ProjectsApi {
 
   // ---------- the library itself ----------
 
-  reindex(): Promise<{ projects: number }> {
+  reindex(): Promise<{ projects: number; models: number }> {
     return this.library.reindex();
   }
 

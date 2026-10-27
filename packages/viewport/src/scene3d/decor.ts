@@ -28,6 +28,8 @@ export interface DecorContext {
   models: ModelCache;
   /** The URL an imported model of the project is fetched from. */
   modelUrl(file: string): string;
+  /** What a box standing in for a model is drawn in: the scene theme's `standIn` colour. */
+  standIn: Material;
 }
 
 /** Recipe slot meshes as geometry, shared by every item made from that recipe. */
@@ -60,8 +62,9 @@ export function lightIntensity(e: Pick<LightEntity, 'kind' | 'intensity' | 'angl
  * A level's furniture and lights in 3D, kept in step with its entities by identity: an item is built
  * again only when its entity, its level's elevation, its model (an imported one arriving) or its
  * layer's visibility changed. Items are placed by `itemMatrix` (core): a recipe's slot meshes in
- * their materials, or a clone of an imported model (its material slots repainted by name), with a
- * grey box standing in while a model loads or when it cannot be.
+ * their materials, or a clone of an imported model (its material slots repainted, found by the slot
+ * `ModelCache` marked on each material), with a box in the theme's stand-in colour while a model
+ * loads or when it cannot be (its geometry, the only one an item owns, freed when it goes).
  */
 export class LevelDecor {
   readonly group = new Group();
@@ -90,7 +93,7 @@ export class LevelDecor {
     }
     for (const [id, built] of this.items) {
       if (seen.has(id)) continue;
-      this.group.remove(built.object);
+      this.release(built.object);
       this.items.delete(id);
       changed = true;
     }
@@ -107,6 +110,7 @@ export class LevelDecor {
 
   dispose(): void {
     for (const built of this.lightObjects.values()) built.light.object.dispose();
+    for (const built of this.items.values()) this.release(built.object);
     this.items.clear();
     this.lightObjects.clear();
     this.group.clear();
@@ -120,7 +124,7 @@ export class LevelDecor {
     const key = `${elevation}|${file ? (loaded === undefined ? 'loading' : loaded === null ? 'failed' : 'loaded') : ''}`;
     const built = this.items.get(e.id);
     if (built && built.entity === e && built.key === key) return false;
-    if (built) this.group.remove(built.object);
+    if (built) this.release(built.object);
     const object = this.itemObject(e, model, loaded ?? null, ctx);
     object.matrixAutoUpdate = false;
     object.matrix.fromArray(itemMatrix(e, model, elevation));
@@ -145,19 +149,32 @@ export class LevelDecor {
       if (Object.keys(e.materials).length) {
         clone.traverse((o) => {
           if (!(o instanceof Mesh)) return;
-          const repaint = (m: Material) => (e.materials[m.name] ? ctx.materials.get(e.materials[m.name]) : m);
+          // GLTFLoader shades a primitive without normals flat; its repaint keeps that.
+          const repaint = (m: Material) => {
+            const ref = e.materials[(m.userData['slot'] as string | undefined) ?? m.name];
+            return ref ? ctx.materials.get(ref, undefined, false, 'flatShading' in m && m.flatShading === true) : m;
+          };
           o.material = Array.isArray(o.material) ? o.material.map(repaint) : repaint(o.material);
         });
       }
       out.add(clone);
       return out;
     }
-    // A stand-in while the model loads, or when it cannot be: its extent, in grey.
+    // A stand-in while the model loads, or when it cannot be: its extent, in the theme's stand-in colour.
     const [w, d, h] = model.size;
-    const box = new Mesh(new BoxGeometry(w, d, h), ctx.materials.get(undefined, '#9a9a9a'));
+    const box = new Mesh(new BoxGeometry(w, d, h), ctx.standIn);
+    box.userData['standIn'] = true;
     box.position.set(-model.offset[0], -model.offset[1], -model.offset[2] + h / 2);
     out.add(box);
     return out;
+  }
+
+  /** Takes an item's object out of the level, freeing a stand-in box's geometry (recipe and model geometry is shared and kept). */
+  private release(object: Object3D): void {
+    this.group.remove(object);
+    object.traverse((o) => {
+      if (o instanceof Mesh && o.userData['standIn']) (o.geometry as BufferGeometry).dispose();
+    });
   }
 
   private updateLight(e: LightEntity, elevation: number): boolean {

@@ -165,9 +165,10 @@ export class Library {
 
   /**
    * Brings the index in line with the folders on disk: adds projects it does not know, drops those
-   * that are gone, and refreshes entries whose project.json changed behind its back.
+   * that are gone, and refreshes entries whose project.json changed behind its back (every entry with
+   * `force`).
    */
-  async reconcile(): Promise<{ added: number; removed: number; updated: number }> {
+  async reconcile(force = false): Promise<{ added: number; removed: number; updated: number }> {
     let added = 0;
     let removed = 0;
     let updated = 0;
@@ -183,7 +184,7 @@ export class Library {
         if (!stat) continue;
         found.add(name);
         const known = this.index.get(name);
-        const stale = !known || Boolean(known.trashedAt) !== trashed || Date.parse(known.updatedAt) + 2000 < stat.mtimeMs;
+        const stale = force || !known || Boolean(known.trashedAt) !== trashed || Date.parse(known.updatedAt) + 2000 < stat.mtimeMs;
         if (!stale) continue;
         const summary = await this.summarize(dir, trashed, known).catch((err: Error) => {
           console.warn(`[library] skipped ${dir}: ${err.message}`);
@@ -206,11 +207,15 @@ export class Library {
     return { added, removed, updated };
   }
 
-  /** Rebuilds the index from scratch, from the folders on disk. */
-  async reindex(): Promise<{ projects: number }> {
-    this.index.clear();
-    await this.reconcile();
-    return { projects: this.index.size };
+  /**
+   * Rebuilds the project index from the folders on disk, every entry read again (`reconcile` with
+   * `force`: the old entries answer lookups until each is replaced, and the gone ones are dropped at
+   * the end), and the furniture catalog's index from its model files (`Catalog.reindex`).
+   */
+  async reindex(): Promise<{ projects: number; models: number }> {
+    await this.reconcile(true);
+    const { models } = await this.catalog.reindex();
+    return { projects: this.index.size, models };
   }
 
   private async summarize(dir: string, trashed: boolean, known?: ProjectSummary): Promise<ProjectSummary> {

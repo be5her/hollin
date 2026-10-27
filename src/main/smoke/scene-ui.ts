@@ -12,7 +12,8 @@ const DARK_BACKGROUND = rgbOf('#17181a');
  * The 3D view: a two-storey project drawn through commands shows in the 3D tab; seen from the front,
  * a free-standing wall is drawn where its face is and its door lets the background through; an
  * agent's wall appears at once and goes away on undo; the camera moved with the wheel is kept across
- * closing and reopening the project; the view follows the dark theme. Isolate, Cutaway (the floor
+ * closing and reopening the project; the view follows the dark theme and survives a lost WebGL
+ * context (a banner while it lasts, the building drawn again on restore). Isolate, Cutaway (the floor
  * above gone, the walls cut at the plan cut height) and Explode, checked by pixels; side by side, the
  * level shared with the plan both ways, a click in 3D picking a level, and a wall drawn on the plan
  * with real clicks appearing in 3D.
@@ -74,6 +75,18 @@ export async function smokeSceneUi(smoke: Smoke): Promise<void> {
   await smoke.setDark(true);
   smoke.check('the 3D view follows the dark theme', await smoke.until(async () => colorDistance(await v.pixel([11000, -4000, 1000]), DARK_BACKGROUND) <= 3), { throughDoor: await v.pixel([11000, -4000, 1000]), background: DARK_BACKGROUND });
   await smoke.setDark(false);
+
+  // A lost WebGL context (a GPU reset), forced through WEBGL_lose_context: the banner shows while it lasts, and the building is drawn again once it is restored.
+  const contextBanner = `${tab} [data-testid=scene-context-lost]`;
+  await smoke.js(`(window.__smokeLoseContext = document.querySelector('${sceneCanvas}').getContext('webgl2').getExtension('WEBGL_lose_context')).loseContext()`);
+  smoke.check('a lost WebGL context shows the banner', (await smoke.until(async () => (await sceneAttr(smoke, 'context')) === 'lost')) && (await smoke.waitFor(contextBanner)), { context: await sceneAttr(smoke, 'context') });
+  await smoke.shots('37a-scene-context-lost');
+  await smoke.js(`window.__smokeLoseContext.restoreContext()`);
+  smoke.check(
+    'and the view draws the building again when it is restored',
+    await smoke.until(async () => (await sceneAttr(smoke, 'context')) === 'ok' && (await smoke.count(contextBanner)) === 0 && colorDistance(await v.pixel([9800, -4100, 1000]), LIGHT_BACKGROUND) > 20, 10_000),
+    { context: await sceneAttr(smoke, 'context'), wallFace: await v.pixel([9800, -4100, 1000]) },
+  );
 
   // The wheel zooms; the camera is stored per project and comes back when the project is reopened.
   const r = (await smoke.rect(sceneCanvas))!;

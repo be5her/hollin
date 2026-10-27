@@ -1,4 +1,4 @@
-import { EYE_HEIGHT, floorAt, levelAt, rideElevator, walkRelative, walkWorld, type ProjectDoc, type RuleLimits, type Vec3, type WalkWorld, type Walker } from '@studio/core';
+import { EYE_HEIGHT, floorAt, levelAt, nudgeOut, rideElevator, walkRelative, walkWorld, type ProjectDoc, type RuleLimits, type Vec3, type WalkWorld, type Walker } from '@studio/core';
 import { Color, DirectionalLight, HemisphereLight, Matrix4, Mesh, PerspectiveCamera, Raycaster, Scene, Vector2, Vector3, WebGLRenderer, type Intersection, type Object3D } from 'three';
 import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
 import { FOV, ORBIT_PRESETS, fitOrbit, orbitBy, orbitEye, orbitPan, orbitZoomAt, type Orbit, type OrbitPreset } from './orbit';
@@ -41,6 +41,8 @@ export interface Scene3dCallbacks {
   onOrbit?: (orbit: Orbit) => void;
   /** A click (a press and release without a drag) on something drawn, or on nothing (null). */
   onPick?: (hit: SceneHit | null) => void;
+  /** When the GPU took the WebGL context away (true) and when it gave it back (false); nothing is drawn in between. */
+  onContextLost?: (lost: boolean) => void;
 }
 
 /** Degrees turned per pixel dragged. */
@@ -127,6 +129,8 @@ export class Scene3dView {
   private display: SceneDisplay = DEFAULT_DISPLAY;
   private walking: Walking | null = null;
   private world: WalkWorld | null = null;
+  /** True while the WebGL context is lost: frames wait for it to be restored. */
+  private contextLost = false;
   private readonly raycaster = new Raycaster();
   private readonly detach: () => void;
 
@@ -262,6 +266,7 @@ export class Scene3dView {
   /**
    * The walk camera: eyes 1.6 m above the feet at `at` (mm), facing `yaw`. W, A, S, D or the arrow
    * keys walk (Shift runs), up stairs and ramps and through doors but not walls (`walkRelative`), a
+   * start inside furniture or against a wall moves to the nearest clear spot (`nudgeOut`), a
    * drag looks around, PageUp and PageDown ride the elevator stood in, Escape goes back to the orbit.
    * Every level shows, whole and in place, while walking.
    */
@@ -271,6 +276,8 @@ export class Scene3dView {
     this.building.applyDisplay(this.shownDisplay());
     this.rebuild();
     this.world = walkWorld(this.building.solids(), this.building.levels);
+    // A start on a sofa or against a wall begins beside it, where the walker can move.
+    this.walking.walker = { ...this.walking.walker, at: nudgeOut(this.world, at) };
     this.canvas.focus();
     this.requestRender();
   }
@@ -358,6 +365,7 @@ export class Scene3dView {
   }
 
   private render(): void {
+    if (this.contextLost) return;
     const started = performance.now();
     const w = this.walking;
     if (w) this.step(started);
@@ -443,7 +451,8 @@ export class Scene3dView {
     if (!hit) return;
     const p: Vec3 = [hit.point.x / MM, hit.point.y / MM, hit.point.z / MM];
     // Explode lifts the levels apart; the walk happens with everything in place, so the point is looked up with the level it belongs to.
-    const lift = (hit.object.parent?.parent?.position.z ?? 0) || 0;
+    const levelId = (hit.object.userData['hit'] as SceneHit | undefined)?.levelId;
+    const lift = (levelId && this.building.levelGroup(levelId)?.position.z) || 0;
     const z = p[2] - lift;
     this.building.applyDisplay({ ...this.display, mode: 'all', explode: 0 });
     this.rebuild();
@@ -544,6 +553,17 @@ export class Scene3dView {
     };
     const blur = () => this.walking?.keys.clear();
     const menu = (e: Event) => e.preventDefault();
+    // Context loss (a GPU reset, a driver update): three keeps the scene and uploads it again on restore; the frame is drawn then.
+    const lost = (e: Event) => {
+      e.preventDefault();
+      this.contextLost = true;
+      this.callbacks.onContextLost?.(true);
+    };
+    const restored = () => {
+      this.contextLost = false;
+      this.callbacks.onContextLost?.(false);
+      this.requestRender();
+    };
     c.addEventListener('pointerdown', down);
     c.addEventListener('pointermove', move);
     c.addEventListener('pointerup', up);
@@ -554,6 +574,8 @@ export class Scene3dView {
     c.addEventListener('keyup', keyup);
     c.addEventListener('blur', blur);
     c.addEventListener('contextmenu', menu);
+    c.addEventListener('webglcontextlost', lost);
+    c.addEventListener('webglcontextrestored', restored);
     return () => {
       c.removeEventListener('pointerdown', down);
       c.removeEventListener('pointermove', move);
@@ -565,6 +587,8 @@ export class Scene3dView {
       c.removeEventListener('keyup', keyup);
       c.removeEventListener('blur', blur);
       c.removeEventListener('contextmenu', menu);
+      c.removeEventListener('webglcontextlost', lost);
+      c.removeEventListener('webglcontextrestored', restored);
     };
   }
 }

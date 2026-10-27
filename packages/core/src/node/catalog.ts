@@ -106,15 +106,23 @@ export class Catalog {
     return this.index.size;
   }
 
-  /** Rebuilds the index from the files, keeping the names and tags it knew. */
+  /**
+   * Rebuilds the index from the files, keeping the names and tags it knew. The new index is built
+   * aside and swapped in at the end, so lookups meanwhile still find every model; an import or a
+   * removal made while it ran is kept.
+   */
   async reindex(): Promise<{ models: number }> {
     const known = new Map(this.index);
-    this.index.clear();
+    const next = new Map<string, CatalogModel>();
     const files = (await fs.readdir(this.furnitureDir).catch(() => [] as string[])).filter((f) => MODEL_FILE.test(f));
     for (const file of files) {
       const model = await this.describe(file, known.get(file)).catch(() => null);
-      if (model) this.index.set(file, model);
+      if (model) next.set(file, model);
     }
+    for (const [file, model] of this.index) if (!known.has(file)) next.set(file, model);
+    for (const file of known.keys()) if (!this.index.has(file)) next.delete(file);
+    this.index.clear();
+    for (const [file, model] of next) this.index.set(file, model);
     await this.saveIndex();
     this.onChange?.('reindexed');
     return { models: this.index.size };

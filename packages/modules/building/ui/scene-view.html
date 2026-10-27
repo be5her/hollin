@@ -65,10 +65,13 @@
     [attr.data-lighting]="lighting()"
     [attr.data-lights]="lightsOn()"
     [attr.data-paint]="paint()?.ref ?? ''"
+    [attr.data-context]="contextLost() ? 'lost' : 'ok'"
     [class.cursor-crosshair]="paint()"
     (keydown.escape)="stopPainting()"
   ></canvas>
-  @if (empty()) {
+  @if (contextLost()) {
+    <x-empty-state class="absolute inset-0 bg-canvas" title="3D needs WebGL" hint="The graphics context was lost (the GPU was reset or busy). The view comes back on its own when it is restored; the plan and the section still work." data-testid="scene-context-lost" />
+  } @else if (empty()) {
     <div class="absolute inset-0 grid place-items-center text-sm text-muted pointer-events-none" data-testid="scene-empty">Nothing to show yet: draw walls on the plan.</div>
   }
 </div>

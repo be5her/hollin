@@ -7,7 +7,7 @@ import { Transaction, type Op } from '../doc/ops';
 import type { ProjectDoc } from '../doc/schema';
 import { rectPath, type Path } from '../geometry/path';
 import { deriveBuildingSolids } from './building';
-import { WALKER_RADIUS, blocked, floorAt, levelAt, rideElevator, walkRelative, walkWorld, type WalkWorld, type Walker } from './walk';
+import { WALKER_RADIUS, blocked, clearance, floorAt, levelAt, nudgeOut, rideElevator, walkRelative, walkWorld, type WalkWorld, type Walker } from './walk';
 
 function commit(doc: ProjectDoc, ops: Op[]): ProjectDoc {
   const tx = new Transaction(doc);
@@ -21,7 +21,7 @@ const line = (a: [number, number], b: [number, number]): Path => ({ closed: fals
  * 5900) with slabs, a straight stair up the west side from y = 300 to 3700, a door in the south
  * wall at x = 3000, a window in the east wall at y = 2000, and an elevator in the north-east corner.
  */
-function house(): { world: WalkWorld; ground: string; upper: string } {
+function house(options: { sofa?: boolean } = {}): { world: WalkWorld; ground: string; upper: string } {
   let doc = newProjectDoc({ name: 'Walk' });
   const ground = doc.building.groundLevelId;
   const upperOps = addLevelOps(doc, { name: 'Level 1' });
@@ -38,6 +38,7 @@ function house(): { world: WalkWorld; ground: string; upper: string } {
     if (levelId === ground) {
       add(levelId, { type: 'opening', kind: 'door', wallId: wall, along: 3000, width: 900, height: 2100 });
       add(levelId, { type: 'opening', kind: 'window', wallId: wall, along: 8000, width: 1200, height: 1200, sill: 900 });
+      if (options.sofa) add(levelId, { type: 'item', asset: 'builtin:sofa-3', at: [3000, 2500, 0] });
     }
   }
   doc = commit(doc, addConnectorOps({ kind: 'stair', shape: 'straight', bottom: { levelId: ground }, top: { levelId: upper }, axis: line([1000, 300], [1000, 3700]), width: 1000 }).ops);
@@ -110,5 +111,35 @@ describe('walking', () => {
     expect(rideElevator(world, up, 1)).toBeNull();
     expect(rideElevator(world, up, -1)!.at[2]).toBe(0);
     expect(rideElevator(world, { at: [3000, 2000, 0], yaw: 0 }, 1)).toBeNull();
+  });
+
+  it('backs away from a wall it stands too close to, but goes no closer', () => {
+    const { world } = house();
+    // 100 mm from the south wall's inner face, well within the radius.
+    const close: Walker = { at: [2000, 200, 0], yaw: 90 };
+    expect(blocked(world, [2000, 200], 0)).toBe(true);
+    expect(clearance(world, [2000, 200], 0)).toBeCloseTo(100, 6);
+    const away = forward(world, close, 10);
+    expect(away.at[1]).toBeGreaterThan(1000);
+    // Towards the wall it does not move; along it, it slides at the same distance.
+    expect(forward(world, { ...close, yaw: 270 }, 5).at[1]).toBe(200);
+    const along = forward(world, { ...close, yaw: 0 }, 5);
+    expect(along.at[0]).toBeGreaterThan(2400);
+    expect(along.at[1]).toBe(200);
+  });
+
+  it('starts a walk beside furniture or a wall it was asked to start in', () => {
+    const { world } = house({ sofa: true });
+    // Inside the sofa: negative clearance, and nudged out to the nearest clear spot.
+    expect(clearance(world, [3000, 2500], 0)).toBeLessThan(0);
+    const start = nudgeOut(world, [3000, 2500, 0]);
+    expect(blocked(world, [start[0], start[1]], start[2])).toBe(false);
+    expect(start[2]).toBe(0);
+    expect(Math.hypot(start[0] - 3000, start[1] - 2500)).toBeLessThanOrEqual(1000);
+    // From there it walks off freely; a clear point is left as it is.
+    expect(nudgeOut(world, [2000, 1500, 0])).toEqual([2000, 1500, 0]);
+    const near = nudgeOut(world, [2000, 200, 0]);
+    expect(near[1]).toBeGreaterThanOrEqual(100 + WALKER_RADIUS);
+    expect(near[1]).toBeLessThanOrEqual(100 + WALKER_RADIUS + 50);
   });
 });

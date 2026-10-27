@@ -49,6 +49,7 @@
   --scene-connector: #d8cfc0;
   --scene-rail: #5a5e66;
   --scene-car: #2f6fda;
+  --scene-stand-in: #9a9a9a;
 }
 
 .dark {
@@ -88,6 +89,7 @@
   --scene-connector: #a39a8b;
   --scene-rail: #d5d7db;
   --scene-car: #5b9bf8;
+  --scene-stand-in: #5c5b58;
 }
 
 @theme inline {

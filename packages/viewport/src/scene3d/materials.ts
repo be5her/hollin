@@ -48,12 +48,17 @@ export class DecorMaterials {
   private readonly cache = new Map<string, MeshStandardMaterial>();
   private planes: Plane[] = [];
 
-  /** The material for a reference; `fallback` (a colour) for none or one that does not resolve. `finish` for a finish's skin (see `FINISH_OFFSET`). */
-  get(ref: string | undefined, fallback = '#b8b4ac', finish = false): MeshStandardMaterial {
-    const key = `${finish ? 'finish:' : ''}${ref ?? `color:${fallback}`}`;
+  /**
+   * The material for a reference; `fallback` (a colour) for none or one that does not resolve.
+   * `finish` for a finish's skin (see `FINISH_OFFSET`); `flat` for faces shaded flat (an imported
+   * model's primitive without normals).
+   */
+  get(ref: string | undefined, fallback = '#b8b4ac', finish = false, flat = false): MeshStandardMaterial {
+    const key = `${finish ? 'finish:' : ''}${flat ? 'flat:' : ''}${ref ?? `color:${fallback}`}`;
     let material = this.cache.get(key);
     if (!material) {
       material = this.make(ref, fallback, finish ? FINISH_OFFSET : FACE_OFFSET);
+      material.flatShading = flat;
       material.clippingPlanes = this.planes;
       this.cache.set(key, material);
     }

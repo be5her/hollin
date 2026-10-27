@@ -85,6 +85,8 @@ export class SceneView {
 
   /** Why there is no 3D view (no WebGL), or null. */
   protected readonly unavailable = signal<string | null>(null);
+  /** True while the GPU has taken the WebGL context away; the view draws again when it is restored. */
+  protected readonly contextLost = signal(false);
   private readonly mounted = signal(false);
   private readonly frame = signal<Scene3dFrame | null>(null);
   protected readonly cameraAttr = computed(() => this.frame()?.viewProjection.map((v) => +v.toPrecision(9)).join(',') ?? '');
@@ -176,6 +178,7 @@ export class SceneView {
         {
           onFrame: (frame) => this.frame.set(frame),
           onOrbit: (orbit) => this.storeOrbit(orbit),
+          onContextLost: (lost) => this.contextLost.set(lost),
           onPick: (hit) => {
             if (!hit) return;
             if (untracked(this.paint)) {
