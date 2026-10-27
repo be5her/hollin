@@ -10,7 +10,7 @@ import { isId, newId } from '../ids';
 import { WriteQueue, readJsonFile, renameWithRetry, writeFileAtomic, writeJsonAtomic } from './atomic-write';
 import { Catalog } from './catalog';
 import { exportPackage, importPackage, type PackageLimits } from './package';
-import { PROJECT_FILE, readProjectDir, writeProjectDir } from './project-store';
+import { PROJECT_FILE, SNAPSHOTS_DIR, SNAPSHOT_STAGING, readProjectDir, writeProjectDir } from './project-store';
 
 export const LIBRARY_FORMAT = 1;
 const INDEX_VERSION = 1;
@@ -355,21 +355,37 @@ export class Library {
 
   // ---------- trash ----------
 
+  /**
+   * Moves a project to the trash. The index marks it trashed first, so writes that check it (a late
+   * thumbnail) are refused from then on; the move waits for writes already under way (`folder:<id>`).
+   */
   async trash(id: string): Promise<ProjectSummary> {
     const summary = this.require(id, { trashed: false });
     const trashedAt = new Date().toISOString();
-    await renameWithRetry(this.projectDir(id), this.trashedDir(id));
-    await writeJsonAtomic(path.join(this.trashedDir(id), 'trashed.json'), { trashedAt, name: summary.name });
     const next = { ...summary, trashedAt };
     this.index.set(id, next);
+    try {
+      await this.queue.run(`folder:${id}`, () => renameWithRetry(this.projectDir(id), this.trashedDir(id)));
+    } catch (err) {
+      this.index.set(id, summary);
+      throw err;
+    }
+    await writeJsonAtomic(path.join(this.trashedDir(id), 'trashed.json'), { trashedAt, name: summary.name });
     await this.changed('trashed', id);
-    return next;
+    return this.index.get(id) ?? next;
   }
 
+  /** Moves a trashed project back. A folder left in its place without a project.json (a write that landed after the move) is removed first. */
   async restore(id: string): Promise<ProjectSummary> {
     const summary = this.require(id, { trashed: true });
-    await renameWithRetry(this.trashedDir(id), this.projectDir(id));
-    await fs.rm(path.join(this.projectDir(id), 'trashed.json'), { force: true });
+    await this.queue.run(`folder:${id}`, async () => {
+      const target = this.projectDir(id);
+      if ((await fs.stat(target).catch(() => null)) && !(await fs.stat(path.join(target, PROJECT_FILE)).catch(() => null))) {
+        await fs.rm(target, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+      }
+      await renameWithRetry(this.trashedDir(id), target);
+      await fs.rm(path.join(target, 'trashed.json'), { force: true });
+    });
     const next = { ...summary, trashedAt: null };
     this.index.set(id, next);
     await this.changed('restored', id);
@@ -384,20 +400,24 @@ export class Library {
     await this.changed('deleted', id);
   }
 
+  /** Deletes every trashed project for good. When one cannot be deleted, those deleted before it stay deleted (and are announced) and the error is reported. */
   async emptyTrash(): Promise<{ deleted: number }> {
     const trashed = this.list({ trashed: true });
-    for (const p of trashed) {
-      await fs.rm(this.trashedDir(p.id), { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
-      this.index.delete(p.id);
+    try {
+      for (const p of trashed) {
+        await fs.rm(this.trashedDir(p.id), { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+        this.index.delete(p.id);
+      }
+    } finally {
+      if (trashed.length) await this.changed('deleted');
     }
-    if (trashed.length) await this.changed('deleted');
     return { deleted: trashed.length };
   }
 
   // ---------- snapshots ----------
 
   private snapshotsDir(id: string): string {
-    return path.join(this.projectDir(id), 'snapshots');
+    return path.join(this.projectDir(id), SNAPSHOTS_DIR);
   }
 
   async listSnapshots(id: string): Promise<SnapshotInfo[]> {
@@ -424,7 +444,7 @@ export class Library {
       levelCount: Object.keys(doc.levels).length,
     };
     const dir = this.snapshotsDir(id);
-    const staging = path.join(dir, `.tmp-${info.id}`);
+    const staging = path.join(dir, `${SNAPSHOT_STAGING}${info.id}`);
     await writeProjectDir(staging, doc);
     await writeJsonAtomic(path.join(staging, 'meta.json'), info);
     await renameWithRetry(staging, path.join(dir, info.id));
@@ -461,12 +481,18 @@ export class Library {
     return path.join(summary.trashedAt ? this.trashedDir(id) : this.projectDir(id), 'thumbnail.png');
   }
 
+  /** Refused for a project in the trash (or on its way there); runs as a `folder:<id>` write, so a move to the trash waits for it. */
   async setThumbnail(id: string, png: Uint8Array): Promise<ProjectSummary> {
-    const summary = this.require(id, { trashed: false });
+    this.require(id, { trashed: false });
     if (png.length < 8 || png[0] !== 0x89 || png[1] !== 0x50 || png[2] !== 0x4e || png[3] !== 0x47) throw new StudioError('INVALID_INPUT', 'The thumbnail must be a PNG image');
-    await writeFileAtomic(path.join(this.projectDir(id), 'thumbnail.png'), png);
-    const next = { ...summary, thumbnail: createHash('sha1').update(png).digest('hex').slice(0, 10) };
-    this.index.set(id, next);
+    const next = await this.queue.run(`folder:${id}`, async () => {
+      this.require(id, { trashed: false });
+      await writeFileAtomic(path.join(this.projectDir(id), 'thumbnail.png'), png);
+      // Over the entry as it is now: a trash that started during the write has marked it already.
+      const updated = { ...this.require(id), thumbnail: createHash('sha1').update(png).digest('hex').slice(0, 10) };
+      this.index.set(id, updated);
+      return updated;
+    });
     await this.changed('thumbnail', id);
     return next;
   }

@@ -8,6 +8,9 @@ import { readJsonFile, writeFileAtomic } from './atomic-write';
 
 export const PROJECT_FILE = 'project.json';
 export const LEVELS_DIR = 'levels';
+export const SNAPSHOTS_DIR = 'snapshots';
+/** The prefix of a snapshot's staging folder inside `snapshots/`. */
+export const SNAPSHOT_STAGING = '.tmp-';
 const LEVEL_FILE = /^[a-z0-9_]+\.[0-9a-f]{12}\.json$/;
 
 /** What is on disk for a project, so the next save writes only what changed. */
@@ -30,10 +33,13 @@ export interface ReadResult {
 const sha = (text: string) => createHash('sha256').update(text).digest('hex').slice(0, 12);
 
 /**
- * Reads a project folder. Level files that `project.json` does not list (left by a crash between
- * the steps of a save) and stray temp files are removed; anything else in the folder is left alone.
+ * Reads a project folder. With `removeStrays` (only when the project is being opened, so no save of
+ * it can be under way), level files that `project.json` does not list (left by a crash between the
+ * steps of a save), stray temp files and snapshot staging folders are removed; anything else in the
+ * folder is left alone. Any other read leaves the folder untouched: a level file that is not listed
+ * yet may be the first step of a save in progress.
  */
-export async function readProjectDir(dir: string): Promise<ReadResult> {
+export async function readProjectDir(dir: string, options: { removeStrays?: boolean } = {}): Promise<ReadResult> {
   const raw = await readJsonFile(path.join(dir, PROJECT_FILE)).catch((err: Error) => {
     throw new StudioError('INVALID_INPUT', `project.json could not be read: ${err.message}`);
   });
@@ -52,7 +58,7 @@ export async function readProjectDir(dir: string): Promise<ReadResult> {
     }
   }
   const doc = docFromFiles(project, levels);
-  await removeStrays(dir, new Set(Object.values(project.levelFiles)));
+  if (options.removeStrays) await removeStrays(dir, new Set(Object.values(project.levelFiles)));
   const saved: SavedState = wasMigrated
     ? { levels: new Map(), projectJson: '' }
     : {
@@ -70,6 +76,11 @@ async function removeStrays(dir: string, keep: Set<string>): Promise<void> {
   }
   for (const name of await fs.readdir(dir).catch(() => [] as string[])) {
     if (name.startsWith(`${PROJECT_FILE}.`) && name.endsWith('.tmp')) await fs.rm(path.join(dir, name), { force: true }).catch(() => {});
+  }
+  // A snapshot is staged in snapshots/.tmp-<id> and renamed into place; a crash in between leaves the staging folder.
+  const snapshotsDir = path.join(dir, SNAPSHOTS_DIR);
+  for (const name of await fs.readdir(snapshotsDir).catch(() => [] as string[])) {
+    if (name.startsWith(SNAPSHOT_STAGING)) await fs.rm(path.join(snapshotsDir, name), { recursive: true, force: true }).catch(() => {});
   }
 }
 

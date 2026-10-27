@@ -32,13 +32,13 @@ The engine. Everything here is pure TypeScript with no Electron, Node I/O or UI 
 - `WriteQueue` runs writes one after another per key; a failed write rejects its caller but never blocks later writes.
 - `ConfigStore`: `config.json` in the app's data folder. A file that is not JSON is kept aside as `config.corrupt-<time>.json` and the app starts from defaults. Every update is written atomically and announced (`config.changed`).
 - `SecretStore`: named secrets encrypted with the OS keychain (Electron `safeStorage`) in `secrets.json`. Without OS encryption (or with Linux's fixed-key `basic_text` backend) nothing is written and secrets last for the session only; `persistent` says which.
-- `project-store.ts`: reads and writes a project folder with the commit protocol (content-hashed level files, `project.json` last, then old files removed), so a crash never mixes old and new files. Only changed levels are stringified.
-- `project-session.ts`: one open project's document and its autosave (750 ms debounce, 5 s maximum wait, clean only after a successful write, retries on failure, flush on close).
-- `library.ts`: the library folder: index (a rebuildable cache), listing and search, create, duplicate, trash, snapshots, thumbnails, packages, the lock heartbeat.
+- `project-store.ts`: reads and writes a project folder with the commit protocol (content-hashed level files, `project.json` last, then old files removed), so a crash never mixes old and new files. Only changed levels are stringified. Leftovers of a crash (unlisted level files, temp files, snapshot staging folders) are removed only with `removeStrays`, which `ProjectService.open` passes; any other read leaves the folder as it is.
+- `project-session.ts`: one open project's document and its autosave (750 ms debounce, 5 s maximum wait, clean only after a successful write, retries on failure, flush on close; a close whose save fails throws and leaves the session open). `whileSaved(read)` saves, then runs a read of the folder while no save can start (export, duplicate).
+- `library.ts`: the library folder: index (a rebuildable cache), listing and search, create, duplicate, trash, snapshots, thumbnails, packages, the lock heartbeat. Moving a project's folder (trash, restore) and writing its thumbnail run one at a time per project (`folder:<id>` on the library's queue); a project is marked trashed before its folder moves.
 - `package.ts`: export and import of `.psp` packages with the import guards.
 - `catalog.ts`: the library's furniture catalog (`catalog/furniture/<sha256>.glb` with a rebuildable `index.json`): import with checks and hashing, remove, thumbnails, copying a model into a project's assets. See `packages/modules/decor/README.md`.
 - `library-urls.ts`: `libraryUrlFile`, the only files `library://` serves (project thumbnails and assets, catalog models and thumbnails).
-- `project-service.ts`: the library plus the open projects; what `host.projects` is. See `packages/modules/library/README.md`.
+- `project-service.ts`: the library plus the open projects; what `host.projects` is. A second `open` of a project still opening waits for the first. See `packages/modules/library/README.md`.
 
 ## Document (`src/doc`)
 

@@ -149,7 +149,18 @@ export class Host {
     if (config.mcp.enabled) await this.startMcp();
   }
 
-  async stop(): Promise<void> {
+  /**
+   * Stops the MCP server, saves and closes the projects, stops the modules and lets queued writes
+   * finish. Idempotent: a second call (Windows logoff, then quit) waits for the first.
+   */
+  stop(): Promise<void> {
+    this.stopping ??= this.stopOnce();
+    return this.stopping;
+  }
+
+  private stopping: Promise<void> | null = null;
+
+  private async stopOnce(): Promise<void> {
     await this.stopMcp();
     await this.service?.stop();
     for (const mod of this.registry.listModules()) {

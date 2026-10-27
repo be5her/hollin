@@ -77,22 +77,50 @@ describe('project folder', () => {
     await fs.copyFile(path.join(temp, LEVELS_DIR, newFile), path.join(dir, LEVELS_DIR, newFile));
     await fs.writeFile(path.join(dir, 'project.json.abc123.tmp'), '{"half":');
     await fs.rm(temp, { recursive: true });
-    const afterCrash = await readProjectDir(dir);
+    const afterCrash = await readProjectDir(dir, { removeStrays: true });
     expect(afterCrash.doc).toEqual(original);
     expect(await levelFiles()).toEqual([[...saved.levels.values()][0].file]);
     expect((await fs.readdir(dir)).some((n) => n.endsWith('.tmp'))).toBe(false);
     // Crash after project.json but before old files were deleted: the new project loads, the old file is cleaned up.
     const s2 = await writeProjectDir(dir, edited, afterCrash.saved);
     await fs.writeFile(path.join(dir, LEVELS_DIR, `${ground}.aaaaaaaaaaaa.json`), '{}');
-    const afterSecond = await readProjectDir(dir);
+    const afterSecond = await readProjectDir(dir, { removeStrays: true });
     expect(afterSecond.doc).toEqual(edited);
     expect(await levelFiles()).toEqual([s2.levels.get(ground)!.file]);
+  });
+
+  it('removes strays only when asked (on open): a read between two steps of a save keeps the new level file', async () => {
+    const original = newProjectDoc({ name: 'House' });
+    await writeProjectDir(dir, original);
+    // Step 1 of a save of an edit: the new level file is there, project.json does not list it yet.
+    const edited = withEntity(original);
+    const temp = path.join(dir, 'next');
+    await writeProjectDir(temp, edited);
+    const newFile = (await fs.readdir(path.join(temp, LEVELS_DIR)))[0];
+    await fs.copyFile(path.join(temp, LEVELS_DIR, newFile), path.join(dir, LEVELS_DIR, newFile));
+    await fs.rm(temp, { recursive: true });
+    expect((await readProjectDir(dir)).doc).toEqual(original);
+    expect(await levelFiles()).toContain(newFile);
+    // Step 2 lands: the level opens with its edit.
+    await fs.writeFile(path.join(dir, 'project.json'), (await fs.readFile(path.join(dir, 'project.json'), 'utf8')).replace(/"[a-z0-9_]+\.[0-9a-f]{12}\.json"/, `"${newFile}"`));
+    expect((await readProjectDir(dir)).doc.levelData).toEqual(edited.levelData);
+  });
+
+  it('removes snapshot staging folders left by a crash when opening', async () => {
+    await writeProjectDir(dir, newProjectDoc({ name: 'House' }));
+    const staging = path.join(dir, 'snapshots', '.tmp-snp_0000000000000000');
+    await writeProjectDir(staging, newProjectDoc({ name: 'Half a snapshot' }));
+    await fs.mkdir(path.join(dir, 'snapshots', 'snp_1111111111111111'), { recursive: true });
+    await readProjectDir(dir);
+    expect(await fs.stat(staging).catch(() => null)).not.toBeNull();
+    await readProjectDir(dir, { removeStrays: true });
+    expect(await fs.readdir(path.join(dir, 'snapshots'))).toEqual(['snp_1111111111111111']);
   });
 
   it('leaves files it does not recognise alone', async () => {
     await writeProjectDir(dir, newProjectDoc({ name: 'House' }));
     await fs.writeFile(path.join(dir, LEVELS_DIR, 'notes-DESKTOP-conflict.json'), '{}');
-    await readProjectDir(dir);
+    await readProjectDir(dir, { removeStrays: true });
     expect(await levelFiles()).toContain('notes-DESKTOP-conflict.json');
   });
 
@@ -186,5 +214,39 @@ describe('ProjectSession autosave', () => {
     await s.close();
     expect((await readProjectDir(dir)).doc.levelData).toEqual(edited.levelData);
     expect(() => s.setDoc(withEntity(edited))).toThrow(/closed/);
+  });
+
+  it('stays open, dirty and retrying when the save on close fails, so no edit is lost', async () => {
+    let fail = true;
+    const s = await session({ debounceMs: 60_000, retryMs: 60_000, write: async (d, doc, prev) => (fail ? Promise.reject(new Error('disk full')) : writeProjectDir(d, doc, prev)) });
+    const edited = withEntity(s.doc);
+    s.setDoc(edited);
+    await expect(s.close()).rejects.toThrow('disk full');
+    expect(s.isDirty).toBe(true);
+    const again = withEntity(edited);
+    s.setDoc(again);
+    fail = false;
+    await s.close();
+    expect((await readProjectDir(dir)).doc.levelData).toEqual(again.levelData);
+  });
+
+  it('starts no save while a folder read runs', async () => {
+    const order: string[] = [];
+    const s = await session({ debounceMs: 60_000, write: async (d, doc, prev) => (order.push('write'), writeProjectDir(d, doc, prev)) });
+    s.setDoc(withEntity(s.doc));
+    let release!: () => void;
+    const reading = s.whileSaved(async () => {
+      order.push('read');
+      await new Promise<void>((r) => (release = r));
+      order.push('read done');
+    });
+    await vi.waitFor(() => expect(order).toContain('read'));
+    s.setDoc(withEntity(s.doc));
+    const saving = s.flush();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(order).toEqual(['write', 'read']);
+    release();
+    await Promise.all([reading, saving]);
+    expect(order).toEqual(['write', 'read', 'read done', 'write']);
   });
 });

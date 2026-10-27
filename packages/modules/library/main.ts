@@ -7,6 +7,8 @@ import { z } from 'zod';
 const projectId = z.string().describe('Project id, from project_list');
 const name = z.string().trim().min(1, 'A project needs a name').max(200);
 const tags = z.array(z.string().trim().min(1).max(40)).max(30);
+/** A relative path would resolve against the app's working folder, which no caller can see. */
+const fullPath = z.string().min(1).refine((p) => nodePath.isAbsolute(p), 'path must be a full (absolute) path');
 
 function currentId(ctx: CommandContext, id?: string): string {
   const target = id ?? ctx.host.projects.current()?.id;
@@ -149,15 +151,15 @@ export const libraryModule = defineModule({
       description: `Writes a project to a single .${BRANDING.packageExtension} package file at \`path\` (a full file path). Writes outside the library, so it is gated.`,
       scope: 'global',
       mutating: true,
-      input: z.object({ id: projectId, path: z.string().min(1), includeSnapshots: z.boolean().default(false) }),
+      input: z.object({ id: projectId, path: fullPath, includeSnapshots: z.boolean().default(false) }),
       handler: async ({ id, path, includeSnapshots }, ctx) => ctx.host.projects.exportProject(id, path, { includeSnapshots }),
     }),
     defineCommand({
       id: 'project.import',
       title: 'Import project',
-      description: `Adds the project in a .${BRANDING.packageExtension} package file to the library. Returns the new project; it keeps its id unless the library already has it.`,
+      description: `Adds the project in a .${BRANDING.packageExtension} package file at \`path\` (a full file path) to the library. Returns the new project; it keeps its id unless the library already has it.`,
       scope: 'global',
-      input: z.object({ path: z.string().min(1), open: z.boolean().default(true) }),
+      input: z.object({ path: fullPath, open: z.boolean().default(true) }),
       handler: async ({ path, open }, ctx) => {
         const imported = await ctx.host.projects.importProject(path);
         return open ? ctx.host.projects.open(imported.id) : imported;
@@ -166,10 +168,10 @@ export const libraryModule = defineModule({
     defineCommand({
       id: 'library.move',
       title: 'Move library',
-      description: 'Moves the whole project library to another folder (mode "move", the folder must be empty), or switches to a library already there (mode "adopt").',
+      description: 'Moves the whole project library to the folder at `path` (a full path; mode "move", the folder must be empty), or switches to a library already there (mode "adopt").',
       scope: 'global',
       mutating: true,
-      input: z.object({ path: z.string().min(1), mode: z.enum(['move', 'adopt']).default('move') }),
+      input: z.object({ path: fullPath, mode: z.enum(['move', 'adopt']).default('move') }),
       handler: async ({ path, mode }, ctx) => ctx.host.projects.moveLibrary(path, mode),
     }),
     defineCommand({

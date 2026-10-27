@@ -3,14 +3,14 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { strToU8, zipSync, type Zippable } from 'fflate';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { newProjectDoc } from '../doc/defaults';
 import { newId } from '../ids';
 import { testHost } from '../test-host';
 import { Library } from './library';
 import { unsafeEntryName } from './package';
 import { ProjectService } from './project-service';
-import { readProjectDir } from './project-store';
+import { readProjectDir, writeProjectDir } from './project-store';
 
 let root: string;
 let library: Library;
@@ -23,6 +23,7 @@ beforeEach(async () => {
   await library.open();
 });
 afterEach(async () => {
+  vi.restoreAllMocks();
   await library.close();
   await fs.rm(root, { recursive: true, force: true, maxRetries: 3 });
 });
@@ -96,6 +97,43 @@ describe('Library', () => {
     expect(await library.emptyTrash()).toEqual({ deleted: 1 });
     expect(library.get(p.id)).toBeUndefined();
     expect(await fs.readdir(library.trashDir)).toEqual([]);
+  });
+
+  it('refuses a thumbnail that arrives while the project goes to the trash, and restores over a folder a late write left', async () => {
+    const p = await library.create(newProjectDoc({ name: 'Shed' }));
+    const trashing = library.trash(p.id);
+    await expect(library.setThumbnail(p.id, PNG)).rejects.toMatchObject({ code: 'CONFLICT' });
+    await trashing;
+    expect(library.get(p.id)?.trashedAt).toBeTruthy();
+    expect(await fs.stat(library.projectDir(p.id)).catch(() => null)).toBeNull();
+    // A write that does not check the index (the view state) recreated the folder: restore clears it.
+    await fs.mkdir(path.join(library.projectDir(p.id), '.local'), { recursive: true });
+    await fs.writeFile(path.join(library.projectDir(p.id), '.local', 'ui.json'), '{}');
+    await library.restore(p.id);
+    expect(library.get(p.id)?.trashedAt).toBeNull();
+    expect((await readProjectDir(library.projectDir(p.id))).doc.meta.name).toBe('Shed');
+    expect(await library.setThumbnail(p.id, PNG)).toMatchObject({ trashedAt: null, thumbnail: expect.stringMatching(/^[0-9a-f]{10}$/) });
+  });
+
+  it('saves and announces the index when emptying the trash fails part way', async () => {
+    const a = await library.create(newProjectDoc({ name: 'A', now: '2026-01-01T00:00:00.000Z' }));
+    const b = await library.create(newProjectDoc({ name: 'B', now: '2026-02-01T00:00:00.000Z' }));
+    await library.trash(a.id);
+    await library.trash(b.id);
+    const rm = fs.rm.bind(fs);
+    let calls = 0;
+    vi.spyOn(fs, 'rm').mockImplementation(async (target, options) => {
+      if (String(target).startsWith(library.trashDir) && ++calls === 2) throw Object.assign(new Error('EBUSY: resource busy'), { code: 'EBUSY' });
+      return rm(target, options);
+    });
+    changes.length = 0;
+    await expect(library.emptyTrash()).rejects.toThrow(/EBUSY/);
+    expect(changes).toEqual(['deleted']);
+    expect(library.list({ trashed: true })).toHaveLength(1);
+    await library.close();
+    const index = JSON.parse(await fs.readFile(path.join(library.root, 'index.json'), 'utf8')) as { projects: { id: string }[] };
+    expect(index.projects).toHaveLength(1);
+    await library.open();
   });
 
   it('duplicates a project under a new id with its thumbnail', async () => {
@@ -251,6 +289,72 @@ describe('ProjectService', () => {
     await svc.close(created.id);
     expect(svc.openProjects()).toEqual([]);
     expect(svc.current()).toBeNull();
+    await svc.stop();
+  });
+
+  it('makes one session for two opens of the same project at once', async () => {
+    const { svc, host } = await service();
+    const a = await svc.create({ name: 'A' });
+    const [first, second] = await Promise.all([svc.open(a.id), svc.open(a.id, { focus: false })]);
+    expect(first.id).toBe(a.id);
+    expect(second.id).toBe(a.id);
+    expect(svc.openProjects().map((p) => p.id)).toEqual([a.id]);
+    const session = svc.session(a.id)!;
+    await svc.close(a.id);
+    expect(svc.session(a.id)).toBeUndefined();
+    expect(() => session.setDoc({ ...session.doc })).toThrow(/closed/);
+    expect(host.events.filter((e) => e.event === 'project.changed' && (e.payload as { kind: string }).kind === 'closed')).toHaveLength(1);
+    await svc.stop();
+  });
+
+  it('keeps a project open and its edits when saving it on close fails', async () => {
+    const host = testHost();
+    await library.close();
+    let fail = false;
+    const svc = new ProjectService({
+      libraryRoot: library.root,
+      defaultLibraryRoot: library.root,
+      appVersion: 'test',
+      emit: host.emit,
+      rememberSession: async () => {},
+      rememberLibrary: async () => {},
+      session: { debounceMs: 60_000, maxWaitMs: 60_000, retryMs: 60_000, write: (dir, doc, prev) => (fail ? Promise.reject(new Error('disk full')) : writeProjectDir(dir, doc, prev)) },
+    });
+    await svc.start({ openProjects: [], activeProjectId: null });
+    const a = await svc.create({ name: 'A' });
+    await svc.open(a.id);
+    const project = (await svc.resolve(a.id))!;
+    const levelId = project.doc.building.stack[0];
+    const layerId = Object.keys(project.doc.layers)[0];
+    fail = true;
+    await project.edit({ kind: 'user', name: 'You' }, 'Add label', (tx) => tx.apply([{ t: 'ins', c: 'entity', id: 'lbl_0000000000000000', lv: levelId, v: { id: 'lbl_0000000000000000', type: 'label', levelId, layerId, text: 'x', at: [0, 0], size: 250, rotation: 0 } }]));
+    await expect(svc.close(a.id)).rejects.toThrow('disk full');
+    expect(svc.openProjects().map((p) => p.id)).toEqual([a.id]);
+    await project.edit({ kind: 'user', name: 'You' }, 'Move label', (tx) => tx.apply([{ t: 'upd', c: 'entity', id: 'lbl_0000000000000000', lv: levelId, set: { at: [100, 0] } }]));
+    fail = false;
+    await svc.close(a.id);
+    expect(svc.openProjects()).toEqual([]);
+    expect((await readProjectDir(svc.library.projectDir(a.id))).doc.levelData[levelId].entities.lbl_0000000000000000).toMatchObject({ at: [100, 0] });
+    await svc.stop();
+  });
+
+  it('exports and duplicates an open project while it autosaves, with every level file', async () => {
+    const { svc } = await service();
+    const a = await svc.create({ name: 'A' });
+    await svc.open(a.id);
+    const project = (await svc.resolve(a.id))!;
+    const levelId = project.doc.building.stack[0];
+    const layerId = Object.keys(project.doc.layers)[0];
+    for (let i = 0; i < 5; i++) {
+      await project.edit({ kind: 'user', name: 'You' }, 'Add label', (tx) => {
+        const id = newId('lbl');
+        tx.apply([{ t: 'ins', c: 'entity', id, lv: levelId, v: { id, type: 'label', levelId, layerId, text: `${i}`, at: [i, 0], size: 250, rotation: 0 } }]);
+      });
+      const [copy] = await Promise.all([svc.duplicate(a.id), svc.exportProject(a.id, path.join(root, `a-${i}.psp`))]);
+      const read = await readProjectDir(svc.library.projectDir(copy.id));
+      expect(read.warnings).toEqual([]);
+      expect(Object.keys(read.doc.levelData[levelId].entities)).toHaveLength(i + 1);
+    }
     await svc.stop();
   });
 

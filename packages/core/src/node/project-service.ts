@@ -37,6 +37,8 @@ export interface ProjectServiceOptions {
 export class ProjectService implements ProjectsApi {
   library: Library;
   private readonly sessions = new Map<string, ProjectSession>();
+  /** Opens still reading their project's folder. */
+  private readonly opening = new Map<string, Promise<unknown>>();
   private readonly engines = new Map<string, DocumentEngine>();
   /** Edits run one at a time per project, so a batch is never interleaved with another caller's edit. */
   private readonly edits = new WriteQueue();
@@ -94,6 +96,7 @@ export class ProjectService implements ProjectsApi {
 
   /** Saves and closes every project (they reopen next time) and releases the library. */
   async stop(): Promise<void> {
+    await Promise.all([...this.opening.values()].map((p) => p.catch(() => {})));
     for (const id of [...this.order]) {
       const session = this.sessions.get(id)!;
       await session.close().catch((err: Error) => console.error(`[projects] could not save ${id} on exit: ${err.message}`));
@@ -162,14 +165,26 @@ export class ProjectService implements ProjectsApi {
 
   async open(id: string, options: { focus?: boolean; remember?: boolean } = {}): Promise<OpenProject & { warnings: string[] }> {
     const focus = options.focus ?? true;
+    // A second open while the first is still reading the folder waits for it rather than making a second session.
+    for (let pending = this.opening.get(id); pending; pending = this.opening.get(id)) await pending.catch(() => {});
     if (this.sessions.has(id)) {
       if (focus) await this.focus(id);
       this.opts.emit('project.changed', { projectId: id, kind: 'opened', focus });
       return { ...this.openProject(id), warnings: [] };
     }
+    const opening = this.openClosed(id, focus, options.remember !== false);
+    this.opening.set(id, opening);
+    try {
+      return await opening;
+    } finally {
+      this.opening.delete(id);
+    }
+  }
+
+  private async openClosed(id: string, focus: boolean, remember: boolean): Promise<OpenProject & { warnings: string[] }> {
     this.library.require(id, { trashed: false });
     const dir = this.library.projectDir(id);
-    const read = await readProjectDir(dir);
+    const read = await readProjectDir(dir, { removeStrays: true });
     let { doc, saved } = read;
     if (doc.meta.id !== id) doc = { ...doc, meta: { ...doc.meta, id } };
     if (read.migratedFrom !== undefined) {
@@ -192,7 +207,7 @@ export class ProjectService implements ProjectsApi {
     this.order.push(id);
     if (focus || !this.activeId) this.activeId = id;
     await this.library.noteOpened(id);
-    if (options.remember !== false) await this.remember();
+    if (remember) await this.remember();
     await this.opts.onProjectOpen?.(this.api(session));
     this.opts.emit('project.changed', { projectId: id, kind: 'opened', focus });
     return { ...this.openProject(id), warnings: read.warnings };
@@ -248,8 +263,13 @@ export class ProjectService implements ProjectsApi {
 
   async duplicate(id: string, name?: string): Promise<ProjectSummary> {
     const source = this.library.require(id, { trashed: false });
-    await this.sessions.get(id)?.flush();
-    return this.library.duplicate(id, name?.trim() || `${source.name} copy`);
+    return this.readingFolder(id, () => this.library.duplicate(id, name?.trim() || `${source.name} copy`));
+  }
+
+  /** Runs `read` on a project's folder; for an open project after saving it and while no save can start. */
+  private readingFolder<T>(id: string, read: () => Promise<T>): Promise<T> {
+    const session = this.sessions.get(id);
+    return session ? session.whileSaved(read) : read();
   }
 
   async trash(id: string): Promise<ProjectSummary> {
@@ -333,8 +353,7 @@ export class ProjectService implements ProjectsApi {
   // ---------- packages and thumbnails ----------
 
   async exportProject(id: string, target: string, options: { includeSnapshots?: boolean } = {}): Promise<{ path: string; bytes: number; files: number }> {
-    await this.sessions.get(id)?.flush();
-    const result = await this.library.exportProject(id, target, { appVersion: this.opts.appVersion, includeSnapshots: options.includeSnapshots ?? false });
+    const result = await this.readingFolder(id, () => this.library.exportProject(id, target, { appVersion: this.opts.appVersion, includeSnapshots: options.includeSnapshots ?? false }));
     return { path: target, bytes: result.bytes, files: result.files };
   }
 

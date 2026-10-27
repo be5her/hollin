@@ -120,16 +120,26 @@ export class ProjectSession {
     });
   }
 
-  /** Saves what is pending (including edits that land during the save) and stops autosaving. */
+  /**
+   * Saves pending changes, then runs `read` while no save can start, e.g. to copy the project's
+   * folder: between the steps of a save the folder holds level files that project.json does not
+   * list yet, or no longer lists.
+   */
+  async whileSaved<T>(read: () => Promise<T>): Promise<T> {
+    await this.flush();
+    return this.queue.run('save', read);
+  }
+
+  /**
+   * Saves what is pending (including edits that land during the save) and stops autosaving. When the
+   * save fails the session stays open, dirty and retrying, so no edit is lost; the error is thrown.
+   */
   async close(): Promise<void> {
-    try {
-      let rounds = 0;
-      do await this.flush();
-      while (this.dirty && ++rounds < 5);
-    } finally {
-      this.closed = true;
-      this.clearTimers();
-    }
+    let rounds = 0;
+    do await this.flush();
+    while (this.dirty && ++rounds < 5);
+    this.closed = true;
+    this.clearTimers();
   }
 
   private setState(state: SaveState): void {
