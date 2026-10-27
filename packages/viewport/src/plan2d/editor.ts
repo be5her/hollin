@@ -17,7 +17,7 @@ import { ShapeTool } from './tools/shape';
 import { DimensionTool } from './tools/dimension';
 import { LabelTool } from './tools/label';
 import { WallTool } from './tools/wall';
-import { ElevatorTool, LadderTool, RampTool, StairTool } from './tools/connectors';
+import { ElevatorTool, EscalatorTool, LadderTool, RampTool, StairTool } from './tools/connectors';
 import { ColumnTool } from './tools/column';
 import { ItemTool } from './tools/item';
 import { LightTool } from './tools/light';
@@ -140,7 +140,7 @@ export class Plan2dEditor {
         editor.clipboard = value;
       },
     };
-    this.tools = { select: new SelectTool(host), wall: new WallTool(host), door: new OpeningTool(host, 'door'), window: new OpeningTool(host, 'window'), room: new RoomTool(host), separator: new SeparatorTool(host), shape: new ShapeTool(host, 'polyline'), rectangle: new ShapeTool(host, 'rectangle'), circle: new ShapeTool(host, 'circle'), dimension: new DimensionTool(host), label: new LabelTool(host), stair: new StairTool(host), ramp: new RampTool(host), ladder: new LadderTool(host), elevator: new ElevatorTool(host), column: new ColumnTool(host), item: new ItemTool(host), light: new LightTool(host), paint: new PaintTool(host) };
+    this.tools = { select: new SelectTool(host), wall: new WallTool(host), door: new OpeningTool(host, 'door'), window: new OpeningTool(host, 'window'), room: new RoomTool(host), separator: new SeparatorTool(host), shape: new ShapeTool(host, 'polyline'), rectangle: new ShapeTool(host, 'rectangle'), circle: new ShapeTool(host, 'circle'), dimension: new DimensionTool(host), label: new LabelTool(host), stair: new StairTool(host), ramp: new RampTool(host), ladder: new LadderTool(host), elevator: new ElevatorTool(host), escalator: new EscalatorTool(host), column: new ColumnTool(host), item: new ItemTool(host), light: new LightTool(host), paint: new PaintTool(host) };
     this.activeTool = this.tools.select;
   }
 
@@ -652,8 +652,8 @@ export class Plan2dEditor {
     } else if (e.key === 'PageUp' || e.key === 'PageDown') {
       this.callbacks.onLevelStep?.(e.key === 'PageUp' ? 1 : -1);
       e.preventDefault();
-    } else if (e.shiftKey && (e.key === 'S' || e.key === 'R' || e.key === 'L')) {
-      this.setTool(e.key === 'S' ? 'stair' : e.key === 'R' ? 'ramp' : 'ladder');
+    } else if (e.shiftKey && (e.key === 'S' || e.key === 'R' || e.key === 'L' || e.key === 'E')) {
+      this.setTool(e.key === 'S' ? 'stair' : e.key === 'R' ? 'ramp' : e.key === 'L' ? 'ladder' : 'escalator');
       e.preventDefault();
     } else if (e.key === 'e' || e.key === 'E') {
       this.setTool('elevator');

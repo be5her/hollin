@@ -155,6 +155,18 @@ describe('connectors on the plan', () => {
     await expect(run('building.connector.add', { connector: { kind: 'elevator', at: [0, 0], fromLevelId: ground, toLevelId: ground } })).rejects.toMatchObject({ code: 'INVALID_INPUT' });
   });
 
+  it('places an escalator from an intent form and derives its run', async () => {
+    const { ground, upper } = await twoStoreys();
+    const id = (await run<{ id: string }>('building.connector.add', { connector: { kind: 'escalator', at: [2000, 6000], direction: 180, bottomLevelId: ground, topLevelId: upper, width: 1100 } })).id;
+    expect(id.startsWith('esc_')).toBe(true);
+    expect(doc().connectors[id]).toEqual({ id, kind: 'escalator', bottom: { levelId: ground, offset: 0 }, top: { levelId: upper, offset: 0 }, at: [2000, 6000], direction: 180, width: 1100 });
+    const derived = (await run<{ connectors: { id: string; derived: { run: number; broken: unknown[] } }[] }>('building.get', {})).connectors.find((c) => c.id === id)!.derived;
+    expect(derived.run).toBeCloseTo(3000 * Math.sqrt(3) + 2400, 0);
+    expect(derived.broken).toEqual([]);
+    expect((await run<{ undo: { label: string }[] }>('edit.history', {})).undo[0].label).toBe('Add escalator');
+    await expect(run('building.connector.add', { connector: { kind: 'escalator', at: [0, 0], bottomLevelId: upper, topLevelId: ground } })).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+  });
+
   it('edits a stair axis with the path commands, and refuses a stale edit naming who changed it', async () => {
     const { stair } = await twoStoreys();
     const { seq, epoch } = await run<{ seq: number; epoch: number }>('edit.history', {});

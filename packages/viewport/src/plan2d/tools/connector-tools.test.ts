@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_RULE_LIMITS, addLevelOps, applyPatch, deriveLevels, newProjectDoc, type ProjectDoc } from '@studio/core';
 import { ColumnTool } from './column';
-import { ElevatorTool, LadderTool, RampTool, StairTool, connectorLevels } from './connectors';
+import { ElevatorTool, EscalatorTool, LadderTool, RampTool, StairTool, connectorLevels } from './connectors';
 import { DEFAULT_TOOL_OPTIONS, type ToolHost, type ToolOptions, type ToolPointer } from './tool';
 
 function storeys(): { doc: ProjectDoc; ground: string; upper: string; attic: string } {
@@ -183,6 +183,48 @@ describe('RampTool, LadderTool and ElevatorTool', () => {
     const lift = (h.calls[0].input as Added).connector;
     expect(lift).toMatchObject({ kind: 'elevator', at: [5000, 5000], shaft: { w: 2100, d: 2100 }, car: { w: 1000, d: 1300 } });
     expect(lift.stops!.map((s) => s.levelId)).toEqual([h.ground, h.upper, h.attic]);
+  });
+});
+
+describe('EscalatorTool', () => {
+  it('places an escalator by its foot and the direction it rises towards, with the width and levels from the options', () => {
+    const h = host((ids) => ({ connector: { bottomLevelId: null, topLevelId: ids.attic }, escalator: { width: 1200 } }));
+    const tool = new EscalatorTool(h);
+    expect(tool.hint()).toContain('foot of the escalator');
+    tool.pointerDown(click(1000, 1000));
+    expect(tool.busy).toBe(true);
+    expect(tool.hint()).toContain('direction it rises towards');
+    expect(h.calls.length).toBe(0);
+    tool.pointerDown(click(1000, -2000));
+    expect(tool.busy).toBe(false);
+    expect(h.calls).toHaveLength(1);
+    expect(h.calls[0].id).toBe('building.connector.add');
+    expect((h.calls[0].input as Added).connector).toEqual({ kind: 'escalator', at: [1000, 1000], direction: 270, width: 1200, bottom: { levelId: h.ground, offset: 0 }, top: { levelId: h.attic, offset: 0 } });
+  });
+
+  it('ignores a second click on the foot, drops an unfinished escalator on cancel, and needs a level above', () => {
+    const h = host();
+    const tool = new EscalatorTool(h);
+    tool.pointerDown(click(0, 0));
+    tool.pointerDown(click(0, 0));
+    expect(tool.busy).toBe(true);
+    expect(h.calls.length).toBe(0);
+    tool.cancel();
+    expect(tool.busy).toBe(false);
+    tool.pointerDown(click(0, 0, { button: 2 }));
+    expect(tool.busy).toBe(false);
+    const top = host({}, 'attic');
+    const none = new EscalatorTool(top);
+    expect(none.hint()).toContain('needs a level above');
+    none.pointerDown(click(0, 0));
+    none.pointerDown(click(3000, 0));
+    expect(top.calls.length).toBe(0);
+    // Levels chosen the wrong way round make nothing either.
+    const inverted = host((ids) => ({ connector: { bottomLevelId: ids.upper, topLevelId: ids.ground } }));
+    const down = new EscalatorTool(inverted);
+    down.pointerDown(click(0, 0));
+    down.pointerDown(click(3000, 0));
+    expect(inverted.calls.length).toBe(0);
   });
 });
 

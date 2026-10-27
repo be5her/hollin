@@ -127,4 +127,16 @@ describe('connectorFromIntent', () => {
     expect(() => connectorFromIntent({ kind: 'elevator', at: [0, 0], fromLevelId: ground, toLevelId: ground }, building, limits)).toThrow(/two stacked levels/);
     expect(dot([1, 0], [1, 0])).toBe(1);
   });
+
+  it('places an escalator by its foot, direction and levels, its top above its bottom', () => {
+    const escalator = connectorFromIntent({ kind: 'escalator', at: [1000, 2000], direction: 90, bottomLevelId: ground, topLevelId: upper, name: 'Escalator' }, building, limits);
+    expect(escalator).toEqual({ name: 'Escalator', kind: 'escalator', bottom: { levelId: ground, offset: 0 }, top: { levelId: upper, offset: 0 }, at: [1000, 2000], direction: 90, width: 1000 });
+    // Its run follows from the rise: 3000 / tan 30° with a 1200 landing at each end.
+    const derived = deriveConnector({ ...escalator, id: 'esc_0000000000000001' } as Connector, deriveLevels(building), limits) as unknown as { run: number; head: Vec2 };
+    expect(derived.run).toBeCloseTo(3000 * Math.sqrt(3) + 2400, 6);
+    expect(derived.head[0]).toBeCloseTo(1000, 6);
+    expect(connectorFromIntent({ kind: 'escalator', at: [0, 0], bottomLevelId: ground, topLevelId: mezz, width: 800 }, building, limits)).toMatchObject({ direction: 0, width: 800 });
+    expect(() => connectorFromIntent({ kind: 'escalator', at: [0, 0], bottomLevelId: upper, topLevelId: ground }, building, limits)).toThrow(/top level above/);
+    expect(() => connectorFromIntent({ kind: 'escalator', at: [0, 0], bottomLevelId: ground, topLevelId: 'lvl_0000000000000009' }, building, limits)).toThrow(/No level/);
+  });
 });

@@ -2,7 +2,7 @@ import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/cli
 import { wait, type Smoke } from './harness';
 import { canvas, canvasAttr, tab, view } from './plan-canvas';
 
-/** Stairs and elevators on the plan with real input: the stairwell and shaft cut out of the upper slab. */
+/** Stairs, elevators and an escalator on the plan with real input: the stairwell and shaft cut out of the upper slab. */
 export async function smokeConnectorsUi(smoke: Smoke, duplexId: string): Promise<void> {
   smoke.section('connectors on the plan');
   const doc = () => smoke.host.projects.session(duplexId)!.doc;
@@ -148,4 +148,41 @@ export async function smokeConnectorsUi(smoke: Smoke, duplexId: string): Promise
   await agent.close();
   smoke.check('the agent\'s stair appears on the plan', await smoke.until(async () => (await canvasAttr(smoke, 'connectors')) === '5'), await canvasAttr(smoke, 'connectors'));
   await smoke.shots('25-connectors-drawn');
+
+  smoke.section('the escalator tool');
+  known = connectorIds();
+  const hint = () => smoke.text(`${tab} [data-testid=plan-hint]`);
+  smoke.check('the toolbar offers the escalator with its shortcut', (await smoke.js<string | null>(`document.querySelector('${tab} [data-testid=tool-escalator]')?.getAttribute('title') ?? null`)) === 'Escalator (Shift+E)');
+  v = await view(smoke);
+  await smoke.clickAt(v.at(onFloor).x, v.at(onFloor).y);
+  await smoke.key('E', ['shift']);
+  smoke.check('Shift+E picks the escalator tool and shows its options', (await smoke.until(async () => (await canvasAttr(smoke, 'tool')) === 'escalator')) && (await smoke.waitFor(`${tab} [data-testid=escalator-width]`)), await canvasAttr(smoke, 'tool'));
+  smoke.check('its levels default to this floor and the one above', (await smoke.js<string>(`document.querySelector('${tab} [data-testid=connector-from]').value`)) === ground && (await smoke.js<string>(`document.querySelector('${tab} [data-testid=connector-to]').value`)) === upper);
+  // A width typed in the options bar, in any unit, is kept in the settings.
+  await smoke.js(`document.querySelector('${tab} [data-testid=escalator-width]').focus()`);
+  await smoke.fill(`${tab} [data-testid=escalator-width]`, '1.2m');
+  await smoke.js(`document.querySelector('${tab} [data-testid=escalator-width]').blur()`);
+  smoke.check('a width typed in the options is kept in the settings', await smoke.until(() => smoke.host.config.get().editor.escalatorWidth === 1200), smoke.host.config.get().editor.escalatorWidth);
+  // The options bar changed the canvas height: measure again. The foot is clicked with Alt, so it lands where the pointer is;
+  // the direction is aimed 30 mm off due north 3 m away (well within 3°), so tracking holds it at exactly 90°.
+  v = await view(smoke);
+  const foot: [number, number] = [1000, 1500];
+  await smoke.clickAt(v.at(foot).x, v.at(foot).y, { modifiers: ['alt'] });
+  smoke.check('the first click sets the foot and asks for the direction', await smoke.until(async () => (await hint())?.includes('direction it rises towards') === true), await hint());
+  const aim = v.at([1030, 4500]);
+  await smoke.mouseMove(aim.x + 1, aim.y);
+  await smoke.mouseMove(aim.x, aim.y);
+  smoke.check('the preview gives its length', await smoke.until(async () => (await hint())?.includes('mm long') === true), await hint());
+  await smoke.shots('26-escalator-tool');
+  await smoke.clickAt(aim.x, aim.y);
+  smoke.check('the second click places an escalator rising due north to the upper floor', (await smoke.until(() => newConnector()?.kind === 'escalator')) && newConnector()!.kind === 'escalator', newConnector());
+  const escalator = newConnector() as { id: string; at: readonly number[]; direction: number; width: number; bottom: { levelId: string }; top: { levelId: string } } | undefined;
+  smoke.check('at the foot clicked, tracked to exactly 90°, as wide as the options say', !!escalator && near(escalator.at, foot) && escalator.direction === 90 && escalator.width === 1200 && escalator.bottom.levelId === ground && escalator.top.levelId === upper, escalator);
+  smoke.check('the panel shows the new escalator', await smoke.waitFor(`${tab} [data-testid=properties-title]`, 3000, 'Escalator'), await smoke.text(`${tab} [data-testid=properties-title]`));
+  smoke.check('the plan draws it', await smoke.until(async () => (await canvasAttr(smoke, 'connectors')) === '6'), await canvasAttr(smoke, 'connectors'));
+  await smoke.key('Escape');
+  await smoke.until(async () => (await canvasAttr(smoke, 'tool')) === 'select');
+  // Leave the duplex as the later sections expect it: the escalator goes again.
+  if (escalator) await smoke.run('building.connector.remove', { id: escalator.id }, { projectId: duplexId });
+  smoke.check('and it goes again', await smoke.until(async () => (await canvasAttr(smoke, 'connectors')) === '5'), await canvasAttr(smoke, 'connectors'));
 }

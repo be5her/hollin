@@ -13,7 +13,8 @@ export const DUPLEX_LIFT = { at: [7500, 5500] as [number, number], shaft: { w: 2
 
 /**
  * Vertical circulation through commands and MCP: a two-storey building with a stair and an elevator,
- * their derived numbers, and the stairwell and shaft cut out of the upper slab. Returns the project
+ * their derived numbers, and the stairwell and shaft cut out of the upper slab; escalators placed by
+ * their intent form (then removed again, so the UI section starts from the stair and the elevator). Returns the project
  * for the UI section, closed.
  */
 export async function smokeConnectors(smoke: Smoke): Promise<{ duplexId: string }> {
@@ -57,6 +58,22 @@ export async function smokeConnectors(smoke: Smoke): Promise<{ duplexId: string 
   const regenerated = taller.connectors.find((c) => c.id === stair)?.derived;
   smoke.check('a taller ground floor regenerates the stair: 18 risers', regenerated?.risers === 18, regenerated);
   await run('edit.undo');
+
+  smoke.section('escalators through commands and MCP');
+  // An escalator asked for by its foot, direction and levels: 3000 of rise at 30° is 5196 of incline, plus a 1200 landing at each end.
+  const escalatorRun = 3000 * Math.sqrt(3) + 2400;
+  const byCommand = (await run<{ id: string }>('building.connector.add', { connector: { kind: 'escalator', at: [1200, 7000], direction: 0, bottomLevelId: ground, topLevelId: upper, width: 1000 } })).id;
+  const placed = smoke.host.projects.session(projectId)!.doc.connectors[byCommand];
+  smoke.check('an escalator is placed from its foot, direction and levels', placed?.kind === 'escalator' && placed.direction === 0 && placed.width === 1000 && placed.bottom.levelId === ground && placed.top.levelId === upper, placed);
+  const withEscalator = await run<Slab>('plan.slab', { levelId: upper });
+  smoke.check('it cuts its hole in the upper slab', withEscalator.openings.some((o) => o.kind === 'escalator') && withEscalator.area < upperSlab.area, withEscalator.openings);
+  const viaMcp = await client.callTool({ name: 'building_connector_add', arguments: { connector: { kind: 'escalator', at: [9000, 7500], direction: 270, bottomLevelId: ground, topLevelId: upper } } });
+  const mcpEscalator = viaMcp.isError ? '' : (text(viaMcp) as { id: string }).id;
+  const listed = (text(await client.callTool({ name: 'building_get', arguments: {} })) as { connectors: { id: string; kind: string; derived: { run?: number; broken?: unknown[] } }[] }).connectors.find((c) => c.id === mcpEscalator);
+  smoke.check('an agent places one by the intent form and reads back its derived run', !viaMcp.isError && listed?.kind === 'escalator' && Math.abs((listed.derived.run ?? 0) - escalatorRun) < 1 && listed.derived.broken?.length === 0, viaMcp.isError ? viaMcp.content : listed);
+  const refused = await client.callTool({ name: 'building_connector_add', arguments: { connector: { kind: 'escalator', at: [0, 0], bottomLevelId: upper, topLevelId: ground } } });
+  smoke.check('an escalator whose top is not above its bottom is refused', refused.isError === true, refused.content);
+  for (const id of [byCommand, mcpEscalator]) if (id) await run('building.connector.remove', { id });
   await client.close();
   await smoke.run('project.close', { id: projectId });
   return { duplexId: projectId };

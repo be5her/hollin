@@ -3,7 +3,7 @@ import { FormField, form } from '@angular/forms/signals';
 import { DEFAULT_RULE_LIMITS, deriveLevels, type DimensionKind, type GlobalConfig, type ProjectDoc, type Vec2, parseAngle } from '@studio/core';
 import { AppState, Checkbox, ContextMenu, HostBridge, Icon, IconButton, Input, LengthInput, ProjectDocs, ProjectView, Select, Toasts, Units, type ContextMenuItem } from '@studio/ui';
 import { DEFAULT_TOOL_OPTIONS, LIGHT_THEME, Plan2dEditor, drawingScale, readPlanTheme, renderLevelToPng, type Camera, type ShapeOptions, type SnapResult, type StairShape, type TextRequest, type ToolId, type UnderlayMode, type WallOptions } from '@studio/viewport';
-import { ArrowBigUp, Blinds, BrickWall, ChevronDown, ChevronsUp, Circle, CircleDot, DoorOpen, DraftingCompass, Footprints, LandPlot, Lightbulb, Magnet, Maximize, MousePointer2, Pentagon, Ruler, SeparatorVertical, Sofa, Square, TrendingUp, Type, ZoomIn, ZoomOut } from 'lucide';
+import { ArrowBigUp, Blinds, BrickWall, ChevronDown, ChevronsUp, Circle, CircleDot, DoorOpen, DraftingCompass, Footprints, LandPlot, Lightbulb, Magnet, Maximize, MousePointer2, MoveUpRight, Pentagon, Ruler, SeparatorVertical, Sofa, Square, TrendingUp, Type, ZoomIn, ZoomOut } from 'lucide';
 import { PlanGeometry } from './plan-geometry';
 import { PlanSelection } from './plan-selection';
 import { PlanTools, type ItemArm } from './plan-tools';
@@ -63,7 +63,7 @@ export class PlanView {
   private readonly container = viewChild.required<ElementRef<HTMLDivElement>>('container');
   private readonly dynamicInputEl = viewChild<ElementRef<HTMLInputElement>>('dynamicInput');
 
-  protected readonly icons = { ArrowBigUp, Blinds, BrickWall, ChevronDown, ChevronsUp, Circle, CircleDot, DoorOpen, DraftingCompass, Footprints, LandPlot, Lightbulb, Magnet, Maximize, MousePointer2, Pentagon, Ruler, SeparatorVertical, Sofa, Square, TrendingUp, Type, ZoomIn, ZoomOut };
+  protected readonly icons = { ArrowBigUp, Blinds, BrickWall, ChevronDown, ChevronsUp, Circle, CircleDot, DoorOpen, DraftingCompass, Footprints, LandPlot, Lightbulb, Magnet, Maximize, MousePointer2, MoveUpRight, Pentagon, Ruler, SeparatorVertical, Sofa, Square, TrendingUp, Type, ZoomIn, ZoomOut };
   protected readonly snapKinds = SNAP_KINDS;
   protected readonly doc = computed(() => this.docs.read(this.projectId())?.doc);
   protected readonly levels = computed(() => {
@@ -128,12 +128,12 @@ export class PlanView {
   /** The material the Paint tool paints with (armed from the Catalog panel). */
   protected readonly paintArm = computed(() => this.planTools.armedPaint(this.projectId())());
   private paintSeen = 0;
-  protected readonly isConnectorTool = computed(() => this.tool() === 'stair' || this.tool() === 'ramp' || this.tool() === 'ladder' || this.tool() === 'elevator');
+  protected readonly isConnectorTool = computed(() => this.tool() === 'stair' || this.tool() === 'ramp' || this.tool() === 'ladder' || this.tool() === 'elevator' || this.tool() === 'escalator');
   /** The levels the options show for a new connector: the chosen ones, else the active level and the stacked level above it. */
   protected readonly connectorFromShown = computed(() => this.connectorFrom() ?? this.activeLevelId() ?? '');
   protected readonly connectorToShown = computed(() => this.connectorTo() ?? this.levelAbove(this.connectorFromShown()) ?? '');
   /** The sizes of the connector and column tools, typed in display units and remembered in the settings. */
-  protected readonly sizeDraft = signal({ stairWidth: '', rampWidth: '', elevatorShaftW: '', elevatorShaftD: '', elevatorCarW: '', elevatorCarD: '', columnW: '', columnD: '', columnR: '' });
+  protected readonly sizeDraft = signal({ stairWidth: '', rampWidth: '', escalatorWidth: '', elevatorShaftW: '', elevatorShaftD: '', elevatorCarW: '', elevatorCarD: '', columnW: '', columnD: '', columnR: '' });
   protected readonly sizeForm = form(this.sizeDraft);
   protected readonly hint = signal('');
   protected readonly selection = signal<string[]>([]);
@@ -270,7 +270,7 @@ export class PlanView {
       this.showWallOptions();
       const len = (mm: number) => this.units.length(mm);
       this.openingDraft.set({ doorWidth: len(c.doorWidth), doorHeight: len(c.doorHeight), windowWidth: len(c.windowWidth), windowHeight: len(c.windowHeight), windowSill: len(c.windowSill) });
-      this.sizeDraft.set({ stairWidth: len(c.stairWidth), rampWidth: len(c.rampWidth), elevatorShaftW: len(c.elevatorShaftW), elevatorShaftD: len(c.elevatorShaftD), elevatorCarW: len(c.elevatorCarW), elevatorCarD: len(c.elevatorCarD), columnW: len(c.columnW), columnD: len(c.columnD), columnR: len(c.columnR) });
+      this.sizeDraft.set({ stairWidth: len(c.stairWidth), rampWidth: len(c.rampWidth), escalatorWidth: len(c.escalatorWidth), elevatorShaftW: len(c.elevatorShaftW), elevatorShaftD: len(c.elevatorShaftD), elevatorCarW: len(c.elevatorCarW), elevatorCarD: len(c.elevatorCarD), columnW: len(c.columnW), columnD: len(c.columnD), columnR: len(c.columnR) });
       this.gridDraft.set({ spacing: this.units.length(c.gridSpacing) });
       this.editor.invalidate();
     });
@@ -417,7 +417,7 @@ export class PlanView {
   }
 
   private toolOptions(c: EditorConfig) {
-    return { ...DEFAULT_TOOL_OPTIONS, nudge: c.gridSpacing, wall: this.wallOptions, door: { width: c.doorWidth, height: c.doorHeight }, window: { width: c.windowWidth, height: c.windowHeight, sill: c.windowSill }, shape: { kind: untracked(this.shapeKind), filled: untracked(this.shapeFilled) }, dimension: { kind: untracked(this.dimensionKind) }, label: { size: untracked(this.labelSize) }, connector: { bottomLevelId: untracked(this.connectorFrom), topLevelId: untracked(this.connectorTo) }, stair: { shape: untracked(this.stairShape), width: c.stairWidth, turn: untracked(this.stairTurn) }, ramp: { width: c.rampWidth }, elevator: { shaft: { w: c.elevatorShaftW, d: c.elevatorShaftD }, car: { w: c.elevatorCarW, d: c.elevatorCarD } }, column: { shape: untracked(this.columnShape), w: c.columnW, d: c.columnD, r: c.columnR, rotation: untracked(this.columnRotation), topLevelId: untracked(this.columnSpan) }, item: this.itemOptions(), light: { kind: untracked(this.lightKind), height: untracked(this.lightHeight), intensity: untracked(this.lightLumens) }, paint: { ref: untracked(this.paintArm)?.ref ?? null, name: untracked(this.paintArm)?.name ?? '' } };
+    return { ...DEFAULT_TOOL_OPTIONS, nudge: c.gridSpacing, wall: this.wallOptions, door: { width: c.doorWidth, height: c.doorHeight }, window: { width: c.windowWidth, height: c.windowHeight, sill: c.windowSill }, shape: { kind: untracked(this.shapeKind), filled: untracked(this.shapeFilled) }, dimension: { kind: untracked(this.dimensionKind) }, label: { size: untracked(this.labelSize) }, connector: { bottomLevelId: untracked(this.connectorFrom), topLevelId: untracked(this.connectorTo) }, stair: { shape: untracked(this.stairShape), width: c.stairWidth, turn: untracked(this.stairTurn) }, ramp: { width: c.rampWidth }, escalator: { width: c.escalatorWidth }, elevator: { shaft: { w: c.elevatorShaftW, d: c.elevatorShaftD }, car: { w: c.elevatorCarW, d: c.elevatorCarD } }, column: { shape: untracked(this.columnShape), w: c.columnW, d: c.columnD, r: c.columnR, rotation: untracked(this.columnRotation), topLevelId: untracked(this.columnSpan) }, item: this.itemOptions(), light: { kind: untracked(this.lightKind), height: untracked(this.lightHeight), intensity: untracked(this.lightLumens) }, paint: { ref: untracked(this.paintArm)?.ref ?? null, name: untracked(this.paintArm)?.name ?? '' } };
   }
 
   protected setLightKind(value: string): void {
@@ -487,7 +487,7 @@ export class PlanView {
   }
 
   /** A connector or column size typed in the options bar, in any unit: remembered in the settings. */
-  protected setToolSize(key: 'stairWidth' | 'rampWidth' | 'elevatorShaftW' | 'elevatorShaftD' | 'elevatorCarW' | 'elevatorCarD' | 'columnW' | 'columnD' | 'columnR', mm: number | null): void {
+  protected setToolSize(key: 'stairWidth' | 'rampWidth' | 'escalatorWidth' | 'elevatorShaftW' | 'elevatorShaftD' | 'elevatorCarW' | 'elevatorCarD' | 'columnW' | 'columnD' | 'columnR', mm: number | null): void {
     if (mm === null || mm <= 0) return;
     void this.updateEditorConfig({ [key]: mm });
   }

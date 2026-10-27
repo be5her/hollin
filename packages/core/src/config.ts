@@ -89,9 +89,10 @@ const SECTIONS = {
     windowWidth: z.number().positive(),
     windowHeight: z.number().positive(),
     windowSill: z.number().min(0),
-    /** The stair, ramp, elevator and column tools' sizes, mm. */
+    /** The stair, ramp, escalator, elevator and column tools' sizes, mm. */
     stairWidth: z.number().positive(),
     rampWidth: z.number().positive(),
+    escalatorWidth: z.number().positive(),
     elevatorShaftW: z.number().positive(),
     elevatorShaftD: z.number().positive(),
     elevatorCarW: z.number().positive(),
@@ -158,6 +159,7 @@ const DEFAULTS: GlobalConfig = {
     windowSill: 900,
     stairWidth: 1000,
     rampWidth: 1200,
+    escalatorWidth: 1000,
     elevatorShaftW: 2000,
     elevatorShaftD: 2200,
     elevatorCarW: 1100,

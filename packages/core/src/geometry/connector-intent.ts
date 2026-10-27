@@ -47,13 +47,27 @@ export interface ElevatorIntent {
   name?: string;
 }
 
-export type ConnectorIntent = StairIntent | RampIntent | ElevatorIntent;
+/** An escalator asked for by its foot, the direction it rises towards and its levels: its run is derived from the rise (30°, with landings). */
+export interface EscalatorIntent {
+  kind: 'escalator';
+  /** The foot: the middle of its bottom edge. */
+  at: Vec2;
+  /** Degrees counter-clockwise from +x, the way it rises (default 0). */
+  direction?: number;
+  bottomLevelId: string;
+  topLevelId: string;
+  width?: number;
+  name?: string;
+}
+
+export type ConnectorIntent = StairIntent | RampIntent | ElevatorIntent | EscalatorIntent;
 
 /** A connector record without its id, per kind (the `Omit` taken inside the union). */
 export type ConnectorRecord = { [K in Connector['kind']]: Omit<Extract<Connector, { kind: K }>, 'id'> }[Connector['kind']];
 
 export const DEFAULT_STAIR_WIDTH = 1000;
 export const DEFAULT_RAMP_WIDTH = 1200;
+export const DEFAULT_ESCALATOR_WIDTH = 1000;
 export const DEFAULT_SHAFT = { w: 2000, d: 2200 };
 export const DEFAULT_CAR = { w: 1100, d: 1400 };
 
@@ -159,6 +173,12 @@ export function connectorFromIntent(intent: ConnectorIntent, doc: Pick<ProjectDo
       const stops = doc.building.stack.map((id) => levels.find((l) => l.id === id)!).filter((l) => l && l.elevation >= low && l.elevation <= high);
       if (stops.length < 2) fail('An elevator needs two stacked levels to stop at');
       return { ...name, kind: 'elevator', at: intent.at, rotation: intent.rotation ?? 0, shaft: intent.shaft ?? { ...DEFAULT_SHAFT }, car: intent.car ?? { ...DEFAULT_CAR }, stops: stops.map((l) => ({ levelId: l.id, door: intent.door ?? 'front' })) };
+    }
+    case 'escalator': {
+      const bottom = levelOf(levels, intent.bottomLevelId, 'bottom of the escalator');
+      const top = levelOf(levels, intent.topLevelId, 'top of the escalator');
+      if (top.elevation <= bottom.elevation) fail('An escalator needs its top level above its bottom level');
+      return { ...name, kind: 'escalator', bottom: { levelId: bottom.id, offset: 0 }, top: { levelId: top.id, offset: 0 }, at: intent.at, direction: intent.direction ?? 0, width: intent.width ?? DEFAULT_ESCALATOR_WIDTH };
     }
   }
 }

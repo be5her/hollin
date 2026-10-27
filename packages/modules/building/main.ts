@@ -40,7 +40,7 @@ const NewConnectorSchema = z.discriminatedUnion(
 
 const point = z.tuple([z.number(), z.number()]).readonly();
 const turn = z.enum(['left', 'right']).optional().describe('Which way the stair turns (default left)');
-/** Intent forms: a stair, ramp or elevator asked for by its points and levels; the record is laid out from the rise and the rule limits. */
+/** Intent forms: a stair, ramp, elevator or escalator asked for by its points and levels; the record is laid out from the rise and the rule limits. */
 const StairIntentSchema = z.object({
   kind: z.literal('stair'),
   shape: z.enum(['straight', 'l', 'u', 'winder', 'spiral', 'curved']),
@@ -64,7 +64,16 @@ const ElevatorIntentSchema = z.object({
   door: z.enum(['front', 'back', 'left', 'right']).optional(),
   name: z.string().max(200).optional(),
 });
-const ConnectorIntentSchema = z.discriminatedUnion('kind', [StairIntentSchema, RampIntentSchema, ElevatorIntentSchema]);
+const EscalatorIntentSchema = z.object({
+  kind: z.literal('escalator'),
+  at: point.describe('The foot: the middle of its bottom edge'),
+  direction: z.number().optional().describe('Degrees counter-clockwise from +x, the way it rises (default 0)'),
+  bottomLevelId: levelId,
+  topLevelId: levelId.describe('A level above the bottom one'),
+  width: z.number().positive().optional().describe('mm, default 1000'),
+  name: z.string().max(200).optional(),
+});
+const ConnectorIntentSchema = z.discriminatedUnion('kind', [StairIntentSchema, RampIntentSchema, ElevatorIntentSchema, EscalatorIntentSchema]);
 
 /** The building as agents and the UI read it: levels bottom to top with derived elevations, their layers, and the connectors with their derived numbers. */
 export function describeBuilding(doc: ProjectDoc, limits: RuleLimits = DEFAULT_RULE_LIMITS) {
@@ -201,7 +210,7 @@ export const buildingModule = defineModule({
       id: 'building.connector.add',
       title: 'Add a stair, ramp, ladder, elevator or escalator',
       description:
-        'Adds a vertical connector between levels. Either the full record (stairs and ramps follow an axis path bottom to top; elevators list the levels they stop at) or an intent: a stair by shape, from, to, bottomLevelId and topLevelId (its walk line is laid out from the rise: an L turns at the right angle, a U runs two flights a width apart, a spiral sweeps around `from`), a ramp by from, to and its levels, an elevator by its shaft centre and the lowest and highest level (it stops at every stacked level between). Lengths in mm, angles in degrees. Returns its id.',
+        'Adds a vertical connector between levels. Either the full record (stairs and ramps follow an axis path bottom to top; elevators list the levels they stop at) or an intent: a stair by shape, from, to, bottomLevelId and topLevelId (its walk line is laid out from the rise: an L turns at the right angle, a U runs two flights a width apart, a spiral sweeps around `from`), a ramp by from, to and its levels, an elevator by its shaft centre and the lowest and highest level (it stops at every stacked level between), an escalator by its foot (`at`), the `direction` it rises towards and its levels (its run is derived from the rise: 30° with a 1200 mm landing at each end). Lengths in mm, angles in degrees. Returns its id.',
       scope: 'project',
       batchable: true,
       input: z.object({ connector: z.union([ConnectorIntentSchema, NewConnectorSchema]).describe('A full connector record, or an intent form (see the description)') }),

@@ -28,6 +28,9 @@
     <button xIconButton size="sm" label="Ladder (Shift+L)" [class.bg-elevated]="tool() === 'ladder'" [class.text-fg]="tool() === 'ladder'" [attr.aria-pressed]="tool() === 'ladder'" (click)="chooseTool('ladder')" data-testid="tool-ladder">
       <svg [xIcon]="icons.ChevronsUp" class="size-3.5"></svg>
     </button>
+    <button xIconButton size="sm" label="Escalator (Shift+E)" [class.bg-elevated]="tool() === 'escalator'" [class.text-fg]="tool() === 'escalator'" [attr.aria-pressed]="tool() === 'escalator'" (click)="chooseTool('escalator')" data-testid="tool-escalator">
+      <svg [xIcon]="icons.MoveUpRight" class="size-3.5"></svg>
+    </button>
     <button xIconButton size="sm" label="Elevator (E)" [class.bg-elevated]="tool() === 'elevator'" [class.text-fg]="tool() === 'elevator'" [attr.aria-pressed]="tool() === 'elevator'" (click)="chooseTool('elevator')" data-testid="tool-elevator">
       <svg [xIcon]="icons.ArrowBigUp" class="size-3.5"></svg>
     </button>
@@ -288,6 +291,29 @@
       </select>
     </label>
     <span class="text-muted">Click the foot, then the direction it leans towards</span>
+  </div>
+}
+@if (tool() === 'escalator') {
+  <div class="flex items-center gap-3 px-3 h-9 border-b border-edge bg-surface shrink-0 text-xs" data-testid="tool-options">
+    <span class="font-medium">Escalator</span>
+    <label class="flex items-center gap-1.5 text-muted">Width <input xInput xLength class="h-7 w-24 font-mono" [formField]="sizeForm.escalatorWidth" (commit)="setToolSize('escalatorWidth', $event)" aria-label="Width" data-testid="escalator-width" /></label>
+    <label class="flex items-center gap-1.5 text-muted">
+      From
+      <select xSelect class="h-7 text-xs max-w-40" [value]="connectorFromShown()" (change)="setConnectorLevel('from', $any($event.target).value)" aria-label="From level" data-testid="connector-from">
+        @for (level of levelsTopDown(); track level.id) {
+          <option [value]="level.id" [selected]="level.id === connectorFromShown()">{{ level.name }}</option>
+        }
+      </select>
+    </label>
+    <label class="flex items-center gap-1.5 text-muted">
+      To
+      <select xSelect class="h-7 text-xs max-w-40" [value]="connectorToShown()" (change)="setConnectorLevel('to', $any($event.target).value)" aria-label="To level" data-testid="connector-to">
+        @for (level of levelsTopDown(); track level.id) {
+          <option [value]="level.id" [selected]="level.id === connectorToShown()">{{ level.name }}</option>
+        }
+      </select>
+    </label>
+    <span class="text-muted">Click the foot, then its direction</span>
   </div>
 }
 @if (tool() === 'elevator') {

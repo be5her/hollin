@@ -8,7 +8,7 @@ type Stair = Extract<Connector, { kind: 'stair' }>;
 type StairShape = Stair['shape'];
 
 /** Preview ids: never stored, only derived for the active level. */
-const PREVIEW: Record<string, string> = { stair: 'str_0000000000000000', ramp: 'rmp_0000000000000000', ladder: 'lad_0000000000000000', elevator: 'elv_0000000000000000' };
+const PREVIEW: Record<string, string> = { stair: 'str_0000000000000000', ramp: 'rmp_0000000000000000', ladder: 'lad_0000000000000000', elevator: 'elv_0000000000000000', escalator: 'esc_0000000000000000' };
 
 /** The bottom and top levels a new connector gets: the options, or the active level and the stacked level above it. Null when there is no level above. */
 export function connectorLevels(host: ToolHost): { bottom: DerivedLevel; top: DerivedLevel } | null {
@@ -387,5 +387,89 @@ export class ElevatorTool implements Tool {
   private snapped(e: ToolPointer): Vec2 {
     if (e.alt) return e.world;
     return this.host.snap(e.world)?.point ?? e.world;
+  }
+}
+
+/**
+ * Places an escalator: click its foot, then the direction it rises towards (snapped and tracked from
+ * the foot, so a main angle or a wall's direction holds). Its run follows from the rise (30°, with a
+ * landing at each end), so the preview shows the whole escalator along the cursor's direction. The
+ * options give the width and the levels.
+ */
+export class EscalatorTool implements Tool {
+  readonly id = 'escalator' as const;
+  private at: Vec2 | null = null;
+  private cursor: Vec2 | null = null;
+  private startRef: TrackReference | null = null;
+
+  constructor(private readonly host: ToolHost) {}
+
+  get busy(): boolean {
+    return this.at !== null;
+  }
+
+  pointerDown(e: ToolPointer): void {
+    if (e.button !== 0) return;
+    const snap = this.snapped(e);
+    if (!this.at) {
+      this.host.select([]);
+      this.at = snap.point;
+      this.startRef = referenceFrom(snap, this.host.entities());
+      this.host.invalidate();
+      return;
+    }
+    const record = this.record(snap.point);
+    if (!record) return;
+    addAndSelect(this.host, record);
+    this.cancel();
+  }
+
+  pointerMove(e: ToolPointer): void {
+    this.cursor = this.snapped(e).point;
+    this.host.invalidate();
+  }
+
+  cancel(): void {
+    this.at = null;
+    this.cursor = null;
+    this.startRef = null;
+    this.host.invalidate();
+  }
+
+  hint(): string {
+    if (!connectorLevels(this.host)) return 'The escalator needs a level above this one: add one in the Levels panel, or choose the levels in the options';
+    if (!this.at) return 'Click the foot of the escalator · V: select';
+    const pc = this.preview();
+    const run = pc && 'run' in pc.geometry ? ` · ${Math.round((pc.geometry as { run: number }).run)} mm long` : '';
+    return `Click the direction it rises towards${run} · Escape: cancel`;
+  }
+
+  draw(ctx: CanvasRenderingContext2D, frame: RenderFrame): void {
+    if (!this.at) return;
+    const pc = this.preview();
+    if (pc) {
+      ctx.globalAlpha = 0.8;
+      drawConnectorPreview(ctx, pc, frame);
+      ctx.globalAlpha = 1;
+    }
+    dots(ctx, frame, [this.at]);
+    if (this.cursor) draws(ctx, frame, [this.at, this.cursor]);
+  }
+
+  private preview(): PlanConnector | null {
+    const record = this.cursor ? this.record(this.cursor) : null;
+    return record ? this.host.previewConnector({ ...record, id: PREVIEW.escalator } as Connector) : null;
+  }
+
+  private record(towards: Vec2): ConnectorRecord | null {
+    const levels = connectorLevels(this.host);
+    if (!levels || !this.at || distance(towards, this.at) < 1e-6 || levels.top.elevation <= levels.bottom.elevation) return null;
+    const direction = Math.atan2(towards[1] - this.at[1], towards[0] - this.at[0]) / DEG;
+    return { kind: 'escalator', bottom: { levelId: levels.bottom.id, offset: 0 }, top: { levelId: levels.top.id, offset: 0 }, at: this.at, direction: Math.round((((direction % 360) + 360) % 360) * 1000) / 1000, width: this.host.options().escalator.width };
+  }
+
+  private snapped(e: ToolPointer): Pick<SnapResult, 'point' | 'tangent'> {
+    if (e.alt) return { point: e.world };
+    return this.host.snap(e.world, { from: this.at ?? undefined, ortho: e.shift && Boolean(this.at), relativeTo: this.startRef ? [this.startRef] : [] }) ?? { point: e.world };
   }
 }

@@ -221,10 +221,13 @@ export async function smokePlanUi(smoke: Smoke, towerId: string): Promise<void> 
   await smoke.mouseMove(grab.x + 80, grab.y, ['leftbuttondown']);
   smoke.check('a drag shows its hint', await smoke.waitFor(`${tab} [data-testid=plan-hint]`, 2000, 'Release'));
   await smoke.run('plan.entity.delete', { ids: [movedArc.id] }, { projectId: towerId });
+  // The delete reaches the window as a patch: go on only once the plan has it (the wall left the selection), or the
+  // release can come first and commit a move of a wall that is gone.
+  smoke.check('the agent\'s delete reaches the plan mid-drag', await smoke.until(async () => (await selection()).length === 0, 5000), await selection());
   await smoke.mouseMove(grab.x + 120, grab.y, ['leftbuttondown']);
   await smoke.mouseUp(grab.x + 120, grab.y);
   await wait(300);
-  smoke.check('an agent deleting the dragged wall cancels the drag', wallsOnGallery().length === 4 && (await selection()).length === 0 && !(await smoke.text('body'))?.includes('No entity'), { walls: wallsOnGallery().length, selection: await selection() });
+  smoke.check('an agent deleting the dragged wall cancels the drag', wallsOnGallery().length === 4 && (await selection()).length === 0 && !(await smoke.text('body'))?.includes('No entity'), { walls: wallsOnGallery().length, selection: await selection(), toasts: await smoke.js<string[]>(`[...document.querySelectorAll('[data-testid=toast-message]')].map((t) => t.textContent.trim())`) });
   await smoke.run('edit.undo', {}, { projectId: towerId });
   await smoke.until(() => wallsOnGallery().length === 5);
 
