@@ -332,6 +332,24 @@ describe('history', () => {
     void ground;
   });
 
+  it('names no step when a merged edit cancels the step it merged into', async () => {
+    let now = 0;
+    const engine = new DocumentEngine(building(0, 0).doc, { onChange: () => {}, now: () => now });
+    const ground = engine.doc.building.groundLevelId;
+    const renamed = await engine.transact('Rename', you, (tx) => tx.apply(updateLevelOps(tx.doc, ground, { name: 'Hall' })));
+    const layer = Object.values(engine.doc.layers)[0];
+    const there = await engine.transact('Nudge', you, (tx) => tx.apply([{ t: 'upd', c: 'layer', id: layer.id, set: { opacity: 0.5 } }]), { coalesce: 'nudge' });
+    expect(there.txId).toBeTruthy();
+    now += 100;
+    const back = await engine.transact('Nudge', you, (tx) => tx.apply([{ t: 'upd', c: 'layer', id: layer.id, set: { opacity: layer.opacity } }]), { coalesce: 'nudge' });
+    // The nudge and its way back cancelled out: the step is gone, and the id it had names nothing.
+    expect(back).toMatchObject({ changed: true, txId: null });
+    expect(engine.history().undo?.id).toBe(renamed.txId);
+    expect(() => engine.undo(there.txId!)).toThrow(/not the one you meant/);
+    engine.undo(renamed.txId!);
+    expect(engine.doc.levels[ground].name).not.toBe('Hall');
+  });
+
   it('caps the history', async () => {
     const engine = new DocumentEngine(building(0, 0).doc, { onChange: () => {}, maxEntries: 3 });
     const ground = engine.doc.building.groundLevelId;

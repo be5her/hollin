@@ -34,6 +34,7 @@ function harness() {
     levelId: () => lv,
     entities: () => entities,
     assets: () => ({}),
+    layers: () => layers,
     seq: () => 7,
     epoch: () => 1,
     connectors: () => new Map(),
@@ -246,5 +247,23 @@ describe('SelectTool', () => {
     expect(apply.steps[0].as).toBe('w0');
     expect((apply.steps[0].input.entity['path'] as { v: { p: number[] }[] }).v[0].p).toEqual([1000, 2000]);
     expect(apply.steps[1].input.entity['wallId']).toBe('$w0');
+  });
+
+  it('pastes onto the layers things were copied from when the level has them', async () => {
+    const { host, a } = harness();
+    const tool = new SelectTool(host);
+    host.select([a.id]);
+    tool.key(keyOf('c', { ctrlKey: true }));
+    tool.key(keyOf('v', { ctrlKey: true }));
+    await Promise.resolve();
+    type Steps = { steps: { input: { layerId?: string } }[] };
+    const same = host.calls.filter((c) => c.id === 'plan.apply').at(-1)!.input as Steps;
+    expect(same.steps.map((s) => s.input.layerId)).toEqual([layer, layer]);
+    // A layer of another level (copied there, pasted here) is not this level's: the default layer is used.
+    host.clipboard = { ...host.clipboard!, entities: host.clipboard!.entities.map((e) => ({ ...e, layerId: 'lyr_00000000000000ff' })) };
+    tool.key(keyOf('v', { ctrlKey: true }));
+    await Promise.resolve();
+    const other = host.calls.filter((c) => c.id === 'plan.apply').at(-1)!.input as Steps;
+    expect(other.steps.map((s) => s.input.layerId)).toEqual([undefined, undefined]);
   });
 });

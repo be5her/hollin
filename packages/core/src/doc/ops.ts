@@ -197,6 +197,11 @@ export class Transaction {
     return this.touched.size > 0;
   }
 
+  /** The entities changed so far (deleted ones included), with their levels. */
+  touchedEntities(): { id: string; lv: string }[] {
+    return [...this.touched.values()].filter((t) => t.c === 'entity' && t.lv).map((t) => ({ id: t.id, lv: t.lv! }));
+  }
+
   apply(ops: readonly Op[]): void {
     for (const op of ops) {
       const lv = op.c === 'entity' ? (op.lv ?? (op.t === 'ins' ? (op.v as Entity | undefined)?.levelId : undefined)) : undefined;

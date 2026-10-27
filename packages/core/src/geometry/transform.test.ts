@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Entity } from '../doc/schema';
-import { changedFields, transformEntity, transformer } from './transform';
+import { dimensionGeometry, resolveDimension, type Dimension } from './dimensions';
+import { changedFields, transformEntity, transformer, type Transform } from './transform';
 
 const lv = 'lvl_0000000000000001';
 const layer = 'lyr_0000000000000001';
@@ -78,5 +79,60 @@ describe('transformEntity', () => {
     expect((transformEntity(angle, { mirror: { a: [0, 0], b: [1, 0] } }) as typeof angle).offset).toBe(300);
     const room: Entity = { id: 'rom_0000000000000001', type: 'room', levelId: lv, layerId: layer, name: 'Hall', boundary: { k: 'detect', seed: [10, 10] } };
     expect((transformEntity(room, { translate: [5, 5] }) as typeof room).boundary).toEqual({ k: 'detect', seed: [15, 15] });
+  });
+
+  it('mirrors a wall with its sides: alignment and face finishes swap', () => {
+    const lined = { ...wall, alignment: 'left' as const, materials: { left: 'paint:#ff0000' } };
+    const mirrored = transformEntity(lined, { mirror: { a: [0, 0], b: [1, 0] } }) as typeof lined;
+    expect(mirrored.alignment).toBe('right');
+    expect(mirrored.materials).toEqual({ right: 'paint:#ff0000' });
+    const centred = transformEntity({ ...wall, materials: { left: 'paint:#ff0000', right: 'paint:#0000ff' } }, { mirror: { a: [0, 0], b: [0, 1] } }) as typeof lined;
+    expect(centred.alignment).toBe('center');
+    expect(centred.materials).toEqual({ left: 'paint:#0000ff', right: 'paint:#ff0000' });
+    // Moved or turned, nothing swaps.
+    expect((transformEntity(lined, { rotate: { angle: 180, pivot: [0, 0] } }) as typeof lined).alignment).toBe('left');
+  });
+
+  it('keeps horizontal and vertical dimensions where the transform sends their line', () => {
+    const dim: Dimension = { id: 'dim_0000000000000002', type: 'dimension', levelId: lv, layerId: layer, kind: 'horizontal', from: [0, 0], to: [1000, 300], offset: 500 };
+    // The dimension line as drawn, transformed, against the line the transformed dimension draws.
+    const check = (xf: Transform, kind: Dimension['kind']) => {
+      const m = transformer(xf);
+      const before = dimensionGeometry(dim, resolveDimension(dim, {}), null);
+      const moved = transformEntity(dim, xf) as Dimension;
+      expect(moved.kind).toBe(kind);
+      const after = dimensionGeometry(moved, resolveDimension(moved, {}), null);
+      if (kind === 'aligned') {
+        // Turned off the axes: an aligned dimension between the same points, on the same side.
+        const mid = m.point(before.textAt);
+        const n = [-(moved.to[1] - moved.from[1]), moved.to[0] - moved.from[0]];
+        const side = (p: readonly number[]) => Math.sign((p[0] - moved.from[0]) * n[0] + (p[1] - moved.from[1]) * n[1]);
+        expect(side(after.textAt)).toBe(side(mid));
+        return;
+      }
+      expect(after.value).toBeCloseTo(before.value, 6);
+      const [a, b] = before.lines[0].map((p) => m.point(p));
+      const [c, d] = after.lines[0];
+      const same = (p: readonly number[], q: readonly number[]) => Math.hypot(p[0] - q[0], p[1] - q[1]) < 1e-6;
+      expect((same(a, c) && same(b, d)) || (same(a, d) && same(b, c))).toBe(true);
+    };
+    check({ mirror: { a: [0, 0], b: [0, 1] } }, 'horizontal');
+    check({ mirror: { a: [0, 0], b: [1, 0] } }, 'horizontal');
+    check({ rotate: { angle: 180, pivot: [200, 100] } }, 'horizontal');
+    check({ rotate: { angle: 90, pivot: [0, 0] } }, 'vertical');
+    check({ rotate: { angle: -90, pivot: [500, 0] }, translate: [10, 20] }, 'vertical');
+    check({ mirror: { a: [0, 0], b: [1, 1] } }, 'vertical');
+    check({ rotate: { angle: 30, pivot: [0, 0] } }, 'aligned');
+    const vertical = transformEntity({ ...dim, kind: 'vertical' }, { rotate: { angle: 90, pivot: [0, 0] } }) as Dimension;
+    expect(vertical.kind).toBe('horizontal');
+    // A quarter turn used to read 0: the measured axis turns with it.
+    expect(dimensionGeometry(transformEntity(dim, { rotate: { angle: 90, pivot: [0, 0] } }) as Dimension, resolveDimension(transformEntity(dim, { rotate: { angle: 90, pivot: [0, 0] } }) as Dimension, {}), null).value).toBeCloseTo(1000, 6);
+  });
+
+  it('swaps the faces a mirrored dimension is tied to', () => {
+    const dim: Dimension = { id: 'dim_0000000000000003', type: 'dimension', levelId: lv, layerId: layer, kind: 'aligned', from: [0, 100], to: [1000, 100], offset: 300, anchors: { from: { entityId: wall.id, vertex: 0, side: 'left' }, to: { entityId: wall.id, vertex: 1, side: 'axis' } } };
+    const mirrored = transformEntity(dim, { mirror: { a: [0, 0], b: [1, 0] } }) as Dimension;
+    expect(mirrored.anchors).toEqual({ from: { entityId: wall.id, vertex: 0, side: 'right' }, to: { entityId: wall.id, vertex: 1, side: 'axis' } });
+    expect((transformEntity(dim, { translate: [5, 5] }) as Dimension).anchors).toEqual(dim.anchors);
   });
 });

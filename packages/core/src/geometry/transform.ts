@@ -1,6 +1,6 @@
 import type { Entity } from '../doc/schema';
 import type { Path, Region, Segment, Vertex } from './path';
-import { DEG, add, angleOf, dot, normalize, rotate, scale, sub, type Vec2 } from './vec';
+import { DEG, add, angleOf, distance, dot, normalize, perp, rotate, scale, sub, type Vec2 } from './vec';
 
 /** A rigid transform: a mirror across the line a–b, then a rotation (degrees, counter-clockwise) about a pivot, then a move. */
 export interface Transform {
@@ -81,8 +81,14 @@ export function transformRegionBy(region: Region, m: PointMap): Region {
 export function transformEntity(entity: Entity, xf: Transform): Entity {
   const m = transformer(xf);
   switch (entity.type) {
-    case 'wall':
-      return { ...entity, path: transformPathBy(entity.path, m) };
+    case 'wall': {
+      const moved = { ...entity, path: transformPathBy(entity.path, m) };
+      if (!m.flips) return moved;
+      // Mirrored, the path runs the other way round its body: what was on its left is on its right.
+      const { left, right } = entity.materials ?? {};
+      const alignment = entity.alignment === 'left' ? 'right' : entity.alignment === 'right' ? 'left' : entity.alignment;
+      return { ...moved, alignment, ...(entity.materials ? { materials: { ...(right ? { left: right } : {}), ...(left ? { right: left } : {}) } } : {}) };
+    }
     case 'opening':
       return m.flips && entity.swing ? { ...entity, swing: { ...entity.swing, side: entity.swing.side === 'left' ? 'right' : 'left' } } : entity;
     case 'column':
@@ -102,7 +108,7 @@ export function transformEntity(entity: Entity, xf: Transform): Entity {
     case 'point':
       return { ...entity, at: m.point(entity.at), rotation: m.angle(entity.rotation) };
     case 'dimension':
-      return { ...entity, from: m.point(entity.from), to: m.point(entity.to), offset: m.flips && entity.kind !== 'angular' && entity.kind !== 'radius' ? -entity.offset : entity.offset, ...(entity.vertex ? { vertex: m.point(entity.vertex) } : {}) };
+      return transformDimension(entity, m);
     case 'label':
       return { ...entity, at: m.point(entity.at), rotation: m.angle(entity.rotation) };
     case 'item': {
@@ -119,6 +125,33 @@ export function transformEntity(entity: Entity, xf: Transform): Entity {
       return { ...entity, at: [p[0], p[1], entity.at[2]], ...(entity.target && target ? { target: [target[0], target[1], entity.target[2]] } : {}) };
     }
   }
+}
+
+type Dimension = Extract<Entity, { type: 'dimension' }>;
+
+const tidy = (x: number) => Math.round(x * 1e6) / 1e6 || 0;
+
+/**
+ * A dimension's points moved, with its line where the transform sends it: a horizontal or vertical
+ * one turned a quarter becomes the other kind, turned any other way an aligned one between the same
+ * points; the offset takes the side the line lands on. A mirror swaps the faces its ends are tied to.
+ */
+function transformDimension(e: Dimension, m: PointMap): Dimension {
+  const from = m.point(e.from);
+  const to = m.point(e.to);
+  const swap = (a: NonNullable<NonNullable<Dimension['anchors']>['from']>) => (a.side === 'left' ? { ...a, side: 'right' as const } : a.side === 'right' ? { ...a, side: 'left' as const } : a);
+  const anchors = e.anchors && m.flips ? { ...(e.anchors.from ? { from: swap(e.anchors.from) } : {}), ...(e.anchors.to ? { to: swap(e.anchors.to) } : {}) } : e.anchors;
+  const moved: Dimension = { ...e, from, to, ...(e.vertex ? { vertex: m.point(e.vertex) } : {}), ...(anchors ? { anchors } : {}) };
+  if (e.kind === 'angular' || e.kind === 'radius') return moved;
+  // The line's direction and the offset as a vector (from the points to the line), after the transform.
+  const along: Vec2 = e.kind === 'horizontal' ? [1, 0] : e.kind === 'vertical' ? [0, 1] : distance(e.from, e.to) > 1e-9 ? normalize(sub(e.to, e.from)) : [1, 0];
+  const normal: Vec2 = e.kind === 'horizontal' ? [0, 1] : e.kind === 'vertical' ? [1, 0] : perp(along);
+  const offset = m.vector(scale(normal, e.offset));
+  const u = m.vector(along);
+  if (e.kind !== 'aligned' && Math.abs(u[1]) < 1e-9) return { ...moved, kind: 'horizontal', offset: tidy(offset[1]) };
+  if (e.kind !== 'aligned' && Math.abs(u[0]) < 1e-9) return { ...moved, kind: 'vertical', offset: tidy(offset[0]) };
+  const n = distance(from, to) > 1e-9 ? perp(normalize(sub(to, from))) : perp(u);
+  return { ...moved, kind: 'aligned', offset: tidy(dot(offset, n)) };
 }
 
 /** The top-level fields that differ between two entities, for an update. */

@@ -157,6 +157,8 @@ export function wallPaths(input: { from?: Vec2; to?: Vec2; through?: Vec2; point
     paths = [{ closed: false, v: [vertex(input.from, bulge), { p: input.to }] }];
   } else if (input.points) {
     const pts = input.points;
+    // Two points closed would be two walls on top of each other (unless arcs make a round wall).
+    if (input.closed && pts.length < 3 && !pts.some((c) => c.bulge)) throw new StudioError('INVALID_INPUT', 'A closed run of walls needs at least three points, or arcs');
     if (input.single) paths = [{ closed: input.closed, v: pts.map((c) => vertex(c.p, c.bulge)) }];
     else {
       paths = [];
@@ -170,7 +172,10 @@ export function wallPaths(input: { from?: Vec2; to?: Vec2; through?: Vec2; point
   } else throw new StudioError('INVALID_INPUT', 'Give `from` and `to`, a list of `points`, or a `path`');
   for (const path of paths) {
     if (path.v.length < 2) throw new StudioError('INVALID_INPUT', 'A wall needs at least two points');
-    for (let i = 0; i < path.v.length - 1; i++) if (distance(path.v[i].p, path.v[i + 1].p) < 1) throw new StudioError('INVALID_INPUT', 'Two consecutive wall points are at the same place');
+    if (path.closed && path.v.length < 3 && !path.v.some((v) => v.s?.k === 'arc')) throw new StudioError('INVALID_INPUT', 'A closed wall needs at least three points, or arcs');
+    // A closed path's last segment runs back to the first point.
+    const n = path.closed ? path.v.length : path.v.length - 1;
+    for (let i = 0; i < n; i++) if (distance(path.v[i].p, path.v[(i + 1) % path.v.length].p) < 1) throw new StudioError('INVALID_INPUT', 'Two consecutive wall points are at the same place');
   }
   return paths;
 }
@@ -661,7 +666,7 @@ export const planModule = defineModule({
       id: 'plan.transform',
       title: 'Move, rotate, mirror or copy entities',
       description:
-        'Moves entities by `translate` [dx, dy], rotates them by `rotate.angle` degrees (counter-clockwise) about `rotate.pivot`, or mirrors them across the line from `mirror.a` to `mirror.b`; several may be combined (mirror, then rotate, then move). With `copy`, the originals stay and transformed copies are made (a wall\'s openings come along; `translate` [0, 0] copies in place). Openings are not moved on their own: they follow their wall. Stairs, ramps, ladders, elevators and escalators move the same way on the plan (their levels stay). `nudge` merges quick repeated moves into one undo step. Returns the ids of the moved entities, or of the copies.',
+        'Moves entities by `translate` [dx, dy], rotates them by `rotate.angle` degrees (counter-clockwise) about `rotate.pivot`, or mirrors them across the line from `mirror.a` to `mirror.b`; several may be combined (mirror, then rotate, then move). With `copy`, the originals stay and transformed copies are made (a wall\'s openings come along; `translate` [0, 0] copies in place). Openings follow their wall (a mirror swaps a door\'s swing side); one moved without its wall slides along it by the move\'s component along the wall, to the nearest place it fits. Horizontal and vertical dimensions turned a quarter swap kind, and turned any other way become aligned. Stairs, ramps, ladders, elevators and escalators move the same way on the plan (their levels stay). `nudge` merges quick repeated moves into one undo step. Returns the ids of the moved entities, or of the copies.',
       scope: 'project',
       batchable: true,
       input: z.object({
@@ -724,12 +729,15 @@ export const planModule = defineModule({
             }
             for (const e of selected) {
               if (e.type === 'opening') {
-                // An opening stays in its wall: a move slides it by the move's component along the wall.
-                const wall = translate && !rotate && !mirror ? tx.doc.levelData[e.levelId]?.entities[e.wallId] : undefined;
+                // An opening stays in its wall and moves with it. Moved alone, it slides by the move's component
+                // along the wall, to the nearest place it fits (within the wall, clear of the other openings).
+                const wall = translate && !rotate && !mirror && !ids.includes(e.wallId) ? tx.doc.levelData[e.levelId]?.entities[e.wallId] : undefined;
                 if (wall?.type === 'wall') {
                   const { tangent } = openingFrame(wall, e);
                   const d = translate![0] * tangent[0] + translate![1] * tangent[1];
-                  if (Math.abs(d) > 1e-9) tx.apply(updateEntityOps(tx.doc, e.id, { along: Math.max(0, e.along + d) }));
+                  const others = Object.values(tx.doc.levelData[e.levelId].entities).filter((o): o is Opening => o.type === 'opening' && o.wallId === wall.id && o.id !== e.id);
+                  const fit = Math.abs(d) > 1e-9 ? fitOpening(wall, others, e.along + d, e.width) : null;
+                  if (fit && !Number.isNaN(fit.along) && Math.abs(fit.along - e.along) > 1e-9) tx.apply(updateEntityOps(tx.doc, e.id, { along: fit.along }));
                 }
                 continue;
               }
@@ -738,12 +746,24 @@ export const planModule = defineModule({
               if (e.type === 'dimension') {
                 // A dimension moves from the points it shows; moved without what it is tied to, it lets go.
                 const points = resolveDimension(e, tx.doc.levelData[e.levelId].entities);
-                set = changedFields(e, transformEntity({ ...e, from: points.from, to: points.to }, xf));
-                const anchors = pruneAnchors(e, (target) => ids.includes(target));
+                const moved = transformEntity({ ...e, from: points.from, to: points.to }, xf) as Dimension;
+                set = changedFields(e, moved);
+                const anchors = pruneAnchors(moved, (target) => ids.includes(target));
                 if (anchors) set['anchors'] = anchors;
-                else if (anchors === null) unset.push('anchors');
+                else if (anchors === null) {
+                  delete set['anchors'];
+                  unset.push('anchors');
+                }
               } else set = changedFields(e, transformEntity(e, xf));
               if (Object.keys(set).length || unset.length) tx.apply(updateEntityOps(tx.doc, e.id, set, unset));
+              if (e.type === 'wall' && mirror) {
+                // A mirrored wall's doors swing to the mirrored side.
+                for (const o of Object.values(tx.doc.levelData[e.levelId].entities)) {
+                  if (o.type !== 'opening' || o.wallId !== e.id) continue;
+                  const swung = changedFields(o, transformEntity(o, xf));
+                  if (Object.keys(swung).length) tx.apply(updateEntityOps(tx.doc, o.id, swung));
+                }
+              }
             }
             return ids;
           },
@@ -773,7 +793,7 @@ export const planModule = defineModule({
       id: 'plan.entity.update',
       title: 'Change an entity',
       description:
-        'Sets fields of an entity (whole values: e.g. pass the complete `path`). `unset` removes optional fields. Its type and level cannot change; its layer can, within the level. Pass `baseSeq` (the change number your copy had) to be refused with CONFLICT if someone changed the entity meanwhile.',
+        'Sets fields of an entity (whole values: e.g. pass the complete `path`). `unset` removes optional fields. Its type and level cannot change; its layer can, within the level. When a wall\'s or shape\'s `path` is replaced by one with another number of vertices, a dimension tied to a vertex follows the vertex now at the same point, or lets go where it was shown. Pass `baseSeq` (the change number your copy had) to be refused with CONFLICT if someone changed the entity meanwhile.',
       scope: 'project',
       batchable: true,
       input: z.object({ id: z.string(), set: z.record(z.string(), z.unknown()).default({}), unset: z.array(z.string()).default([]), ...Stale }),
@@ -781,7 +801,29 @@ export const planModule = defineModule({
         const entity = requireEntity(ctx.project!.doc, id);
         await editProject(ctx, `Change ${entity.type}`, (tx) => {
           assertUnchanged(ctx, id, entity.type, baseSeq, epoch);
+          const before = requireEntity(tx.doc, id);
+          const level = tx.doc.levelData[before.levelId].entities;
+          // Dimensions tied to the path's vertices, with the points they show before the path is replaced.
+          const tied = 'path' in set && (before.type === 'wall' || before.type === 'shape') ? Object.values(level).filter((d): d is Dimension => d.type === 'dimension' && Boolean(d.anchors)).map((d) => ({ d, points: resolveDimension(d, level) })) : [];
           tx.apply(updateEntityOps(tx.doc, id, set, unset));
+          const after = requireEntity(tx.doc, id);
+          if (!tied.length || (before.type !== 'wall' && before.type !== 'shape') || after.type !== before.type) return;
+          const was = before.path.v;
+          const now = (after as typeof before).path.v;
+          // The same number of vertices: each is the same vertex, moved. Otherwise a tied end follows the vertex
+          // now at the point it was tied to, or lets go where it was shown.
+          if (now.length === was.length) return;
+          const remap = (v: number): number | null => {
+            const p = was[v]?.p;
+            const j = p ? now.findIndex((w) => distance(w.p, p) < 1) : -1;
+            return j < 0 ? null : j;
+          };
+          for (const { d, points } of tied) {
+            const anchors = remapAnchors(d, id, remap);
+            if (anchors === undefined) continue;
+            const fields = untiedFields(d, points, anchors);
+            tx.apply(updateEntityOps(tx.doc, d.id, fields.set, fields.unset));
+          }
         });
         return requireEntity(ctx.project!.doc, id);
       },

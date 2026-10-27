@@ -35,6 +35,7 @@ function host(options: Partial<ToolOptions> | ((ids: Ids) => Partial<ToolOptions
     levelId: () => levelId,
     entities: () => ({}),
     assets: () => ({}),
+    layers: () => ({}),
     seq: () => 0,
     epoch: () => 1,
     connectors: () => new Map(),

@@ -296,6 +296,36 @@ export function moveLayerOps(doc: ProjectDoc, layerId: string, toIndex: number):
   return ordered.flatMap((l, order) => (l.order === order ? [] : [{ t: 'upd', c: 'layer', id: l.id, set: { order } } as Op]));
 }
 
+/**
+ * Keeps the dimensions tied to changed walls and shapes in step: each tied end's stored point becomes
+ * the point the tie resolves to now, so that the dimension stays where it was shown if the tie ever
+ * stops resolving (a face that gains vertices at a bevelled corner). Run on every edit before it commits.
+ */
+export function followTiesOps(doc: ProjectDoc, changed: readonly { id: string; lv: string }[]): Op[] {
+  const byLevel = new Map<string, Set<string>>();
+  for (const { id, lv } of changed) {
+    const e = doc.levelData[lv]?.entities[id];
+    if (e?.type !== 'wall' && e?.type !== 'shape') continue;
+    const ids = byLevel.get(lv) ?? new Set<string>();
+    ids.add(id);
+    byLevel.set(lv, ids);
+  }
+  const ops: Op[] = [];
+  for (const [lv, ids] of byLevel) {
+    const entities = doc.levelData[lv].entities;
+    for (const e of Object.values(entities)) {
+      if (e.type !== 'dimension' || !e.anchors) continue;
+      const ends = (['from', 'to'] as const).filter((end) => e.anchors?.[end] && ids.has(e.anchors[end]!.entityId));
+      if (!ends.length) continue;
+      const points = resolveDimension(e, entities);
+      const set: Record<string, unknown> = {};
+      for (const end of ends) if (Math.abs(points[end][0] - e[end][0]) > 1e-6 || Math.abs(points[end][1] - e[end][1]) > 1e-6) set[end] = points[end];
+      if (Object.keys(set).length) ops.push({ t: 'upd', c: 'entity', id: e.id, lv, set });
+    }
+  }
+  return ops;
+}
+
 // ---------- entities ----------
 
 /** The first layer of the right kind on a level, for an entity that does not name one. */

@@ -773,6 +773,7 @@ export class SelectTool implements Tool {
     const names = new Map<string, string>();
     const steps: { command: string; input: unknown; as?: string }[] = [];
     const named = (e: Entity) => e.type === 'wall' || e.type === 'shape';
+    const layers = this.host.layers();
     const ordered = [...clip.entities.filter(named), ...clip.entities.filter((e) => !named(e))];
     ordered.forEach((e, i) => {
       const moved = transformEntity(e, { translate: delta }) as Entity & Record<string, unknown>;
@@ -796,7 +797,9 @@ export class SelectTool implements Tool {
       }
       const as = named(e) ? `w${i}` : undefined;
       if (as) names.set(e.id, as);
-      steps.push({ command: 'plan.entity.add', input: { levelId, entity }, ...(as ? { as } : {}) });
+      // It keeps its layer when that layer is on the level pasted to (pasted where it was copied); else the default one.
+      const layerId = layers[e.layerId]?.levelId === levelId ? e.layerId : undefined;
+      steps.push({ command: 'plan.entity.add', input: { levelId, ...(layerId ? { layerId } : {}), entity }, ...(as ? { as } : {}) });
     });
     // Stairs, ramps and the rest keep their levels; only their place on the plan moves.
     for (const c of clip.connectors ?? []) {

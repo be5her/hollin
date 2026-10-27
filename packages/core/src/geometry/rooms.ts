@@ -82,7 +82,11 @@ export function cavityAt(cavities: readonly Cavity[], p: Vec2): Cavity | null {
   return best;
 }
 
-/** A point to write a label at: the centroid when it lies inside, else the box centre, else the first vertex. */
+/**
+ * A point to write a label at: the centroid when it lies inside, else the box centre, else the middle
+ * of the widest stretch of the inside along a few horizontal lines (a ring corridor's centroid and box
+ * centre both fall in the island it runs round).
+ */
 export function labelPoint(polygon: Polygon, holes: readonly Polygon[]): Vec2 {
   const inside = (p: Vec2) => polygonContains(polygon, p) && !holes.some((h) => polygonContains(h, p));
   const centroid = polygonCentroid(polygon);
@@ -90,7 +94,30 @@ export function labelPoint(polygon: Polygon, holes: readonly Polygon[]): Vec2 {
   const box = polygonBox(polygon);
   const centre: Vec2 = [(box.minX + box.maxX) / 2, (box.minY + box.maxY) / 2];
   if (inside(centre)) return centre;
-  return polygon[0] ?? centroid;
+  let best: Vec2 | null = null;
+  let widest = 0;
+  // Lines a little off the round fractions, so they rarely pass through a vertex.
+  for (const t of [0.5, 0.25, 0.75, 0.125, 0.375, 0.625, 0.875]) {
+    const y = box.minY + (box.maxY - box.minY) * (t + 1e-4);
+    const xs: number[] = [];
+    for (const ring of [polygon, ...holes]) {
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const [x0, y0] = ring[j];
+        const [x1, y1] = ring[i];
+        if (y0 > y !== y1 > y) xs.push(x0 + ((y - y0) / (y1 - y0)) * (x1 - x0));
+      }
+    }
+    xs.sort((a, b) => a - b);
+    // Between every other pair of crossings the line is inside.
+    for (let i = 0; i + 1 < xs.length; i += 2) {
+      const p: Vec2 = [(xs[i] + xs[i + 1]) / 2, y];
+      if (xs[i + 1] - xs[i] > widest && inside(p)) {
+        widest = xs[i + 1] - xs[i];
+        best = p;
+      }
+    }
+  }
+  return best ?? polygon[0] ?? centroid;
 }
 
 /** Resolves every room of a level: detected rooms from the cavity their seed lies in, drawn rooms from their region. */

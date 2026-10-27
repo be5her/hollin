@@ -30,6 +30,7 @@ function harness(item: Partial<ToolOptions['item']> = {}) {
     levelId: () => lv,
     entities: () => entities,
     assets: () => ({}),
+    layers: () => ({}),
     seq: () => 3,
     epoch: () => 1,
     connectors: () => new Map(),

@@ -107,6 +107,7 @@ export class Plan2dEditor {
       levelId: () => this.levelId,
       entities: () => this.entities(),
       assets: () => this.doc?.assets ?? {},
+      layers: () => this.doc?.layers ?? {},
       connectors: () => this.connectorMap(),
       previewConnector: (connector) => {
         if (!this.doc || !this.levelId) return null;

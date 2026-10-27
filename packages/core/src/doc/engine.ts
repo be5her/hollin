@@ -1,5 +1,6 @@
 import { StudioError } from '../errors';
 import { newId } from '../ids';
+import { followTiesOps } from './builders';
 import { Transaction, patchOps, type Op, type RecordMap } from './ops';
 import type { ProjectDoc } from './schema';
 
@@ -120,12 +121,16 @@ export class DocumentEngine {
       },
       apply: (ops) => tx.apply(ops),
     });
+    // Dimensions tied to a changed wall or shape store the points they show now, so they stay put if a tie stops resolving.
+    tx.apply(followTiesOps(tx.doc, tx.touchedEntities()));
     const committed = tx.commit();
     // A dry run stops here: the change was built and checked, and is dropped.
     if (!committed || options.dryRun) return { result, changed: Boolean(committed), txId: null };
     const now = this.opts.now();
     const top = this.undoStack[this.undoStack.length - 1];
     let entry: Entry;
+    // Null when the change merged into the step before it and the two cancelled out: no step is left to name.
+    let txId: string | null;
     if (options.coalesce && top && top.coalesce === options.coalesce && top.author.kind === author.kind && top.author.name === author.name && now - top.atMs < this.opts.coalesceMs && this.redoStack.length === 0) {
       // Merge into the previous step: keep its "before", take the new "after".
       const before: RecordMap = new Map(top.before);
@@ -137,9 +142,11 @@ export class DocumentEngine {
       this.undoStack.pop();
       entry = { ...top, before, after, atMs: now, at: new Date(now).toISOString(), bytes: sizeOf(before) + sizeOf(after) };
       if (after.size) this.undoStack.push(entry);
+      txId = after.size ? entry.id : null;
     } else {
       entry = { id: newId('tx'), label, author, at: new Date(now).toISOString(), atMs: now, before: committed.before, after: committed.after, coalesce: options.coalesce, bytes: sizeOf(committed.before) + sizeOf(committed.after) };
       this.undoStack.push(entry);
+      txId = entry.id;
     }
     this.redoStack = [];
     this.trim();
@@ -147,7 +154,7 @@ export class DocumentEngine {
     this.seqValue++;
     for (const r of committed.after.values()) this.touchedAt.set(r.id, { seq: this.seqValue, author });
     this.emit({ id: entry.id, label, author, kind: 'do' }, patchOps(committed.before, committed.after));
-    return { result, changed: true, txId: entry.id };
+    return { result, changed: true, txId };
   }
 
   /** Undoes the newest change. With `ifTop`, only when that is the newest change (so an agent never undoes someone else's work). */

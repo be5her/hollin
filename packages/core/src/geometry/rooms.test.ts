@@ -3,7 +3,7 @@ import type { Entity } from '../doc/schema';
 import { deriveLevelGeometry, deriveWalls } from './level-geometry';
 import { rectPath, type Path } from './path';
 import { polygonContains } from './polygon';
-import { autoSlab, cavitiesOf, cavityAt, roomSolids, unclaimedCavities } from './rooms';
+import { autoSlab, cavitiesOf, cavityAt, labelPoint, roomSolids, unclaimedCavities } from './rooms';
 
 const lv = 'lvl_0000000000000001';
 const layer = 'lyr_0000000000000001';
@@ -74,6 +74,19 @@ describe('rooms', () => {
     // The right half only: the left half is claimed, the sliver between the two partitions is under 0.5 m², the shaft is skipped.
     expect(free.length).toBe(1);
     expect(polygonContains(free[0].polygon, [7000, 3000])).toBe(true);
+  });
+
+  it('labels a ring corridor inside the corridor, where a room seeded at the label is enclosed', () => {
+    // A core of four walls inside the box: the corridor runs round it, so its centroid and box centre fall in the core.
+    const core = [wall('e', line([3000, 2000], [6000, 2000])), wall('f', line([6000, 2000], [6000, 4000])), wall('g', line([6000, 4000], [3000, 4000])), wall('h', line([3000, 4000], [3000, 2000]))];
+    const g = deriveLevelGeometry(record([...box, ...core]));
+    const corridor = g.cavities.find((c) => c.islands.length === 1)!;
+    expect(corridor).toBeTruthy();
+    const at = labelPoint(corridor.polygon, corridor.islands);
+    expect(cavityAt(g.cavities, at)).toBe(corridor);
+    const seeded = deriveLevelGeometry(record([...box, ...core, room('r', [at[0], at[1]])]));
+    expect(seeded.rooms.get('r')).toMatchObject({ enclosed: true });
+    expect(seeded.rooms.get('r')!.area).toBeCloseTo(corridor.area, -2);
   });
 
   it('makes the automatic slab from walls that enclose something, holes filled', () => {

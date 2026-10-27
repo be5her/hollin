@@ -1,4 +1,4 @@
-import type { Asset, Box, Connector, Vec3, Coordinate, DerivedLevel, DimensionKind, Entity, LevelGeometry, LevelWalls, RuleLimits, Vec2 } from '@studio/core';
+import type { Asset, Box, Connector, Vec3, Coordinate, DerivedLevel, DimensionKind, Entity, Layer, LevelGeometry, LevelWalls, RuleLimits, Vec2 } from '@studio/core';
 import type { PlanConnector } from '../connectors';
 import type { VertexRef } from '../grips';
 import type { Hit } from '../hit';
@@ -32,6 +32,8 @@ export interface ToolHost {
   entities(): Record<string, Entity>;
   /** The project's asset registry: what the furniture items' models are. */
   assets(): Readonly<Record<string, Asset>>;
+  /** The project's layers, by id (each belongs to one level). */
+  layers(): Readonly<Record<string, Layer>>;
   /** The stairs, ramps, elevators and other connectors the active level shows, by id. */
   connectors(): ReadonlyMap<string, PlanConnector>;
   /** A connector as a gesture would leave it, derived for the active level (null when it would not show there). */

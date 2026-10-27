@@ -304,6 +304,60 @@ describe('path edits and conflicts', () => {
     expect(listedAngle.text).toBe('90°');
   });
 
+  it('moves an opening with its wall once, and slides one moved alone only to where it fits', async () => {
+    const ground = doc().building.groundLevelId;
+    const wall = await run<{ id: string }>('plan.wall.add', { levelId: ground, from: [0, 0], to: [5000, 0] });
+    const door = await run<{ id: string }>('plan.opening.add', { wallId: wall.id, kind: 'door', along: 1000 });
+    const window = await run<{ id: string }>('plan.opening.add', { wallId: wall.id, kind: 'window', along: 3500 });
+    const along = (id: string) => (doc().levelData[ground].entities[id] as { along: number }).along;
+    // Selected with its wall, the door goes where the wall goes and stays where it is on it.
+    await run('plan.transform', { ids: [wall.id, door.id], translate: [500, 0] });
+    expect(along(door.id)).toBe(1000);
+    // Alone, it slides along the wall, but not past the window.
+    await run('plan.transform', { ids: [door.id], translate: [2000, 300], nudge: true });
+    expect(along(door.id)).toBe(3500 - 600 - 450);
+    // Nor past the wall's end.
+    await run('plan.transform', { ids: [window.id], translate: [5000, 0] });
+    expect(along(window.id)).toBe(5000 - 600);
+    // A mirrored wall's door swings to the other side.
+    await run('plan.transform', { ids: [wall.id], mirror: { a: [0, 0], b: [1000, 0] } });
+    expect((doc().levelData[ground].entities[door.id] as { swing: { side: string } }).swing.side).toBe('right');
+  });
+
+  it('refuses a closed wall that would double back or close onto itself', async () => {
+    const ground = doc().building.groundLevelId;
+    await expect(run('plan.wall.add', { levelId: ground, points: [{ p: [0, 0] }, { p: [3000, 0] }], closed: true })).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+    await expect(run('plan.wall.add', { levelId: ground, points: [{ p: [0, 0] }, { p: [3000, 0] }], closed: true, single: true })).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+    // The closing segment of one closed wall has no length: its last point is its first.
+    await expect(run('plan.wall.add', { levelId: ground, points: [{ p: [0, 0] }, { p: [3000, 0] }, { p: [3000, 3000] }, { p: [0, 0] }], closed: true, single: true })).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+    // A round wall of two arcs is fine.
+    await run('plan.wall.add', { levelId: ground, points: [{ p: [0, 0], bulge: 1 }, { p: [3000, 0], bulge: 1 }], closed: true, single: true });
+    expect(Object.values(doc().levelData[ground].entities)).toHaveLength(1);
+  });
+
+  it('keeps a tied dimension\'s stored points in step, and remaps its ties when the path is replaced', async () => {
+    const ground = doc().building.groundLevelId;
+    const wall = await run<{ id: string }>('plan.wall.add', { levelId: ground, points: [{ p: [0, 0] }, { p: [4000, 0] }, { p: [4000, 3000] }], single: true });
+    const dim = await run<{ id: string }>('plan.dimension.add', { levelId: ground, from: [0, 0], to: [4000, 3000], anchors: { from: { entityId: wall.id, vertex: 0 }, to: { entityId: wall.id, vertex: 2 } } });
+    const stored = () => doc().levelData[ground].entities[dim.id] as unknown as { from: number[]; to: number[]; anchors?: { from?: { vertex: number }; to?: { vertex: number } } };
+    // The wall moves without the dimension: the tied ends follow, and what is stored follows too.
+    await run('plan.transform', { ids: [wall.id], translate: [1000, 0] });
+    expect(stored().from).toEqual([1000, 0]);
+    expect(stored().to).toEqual([5000, 3000]);
+    await run('plan.path.vertex.move', { id: wall.id, index: 2, to: [5000, 4000] });
+    expect(stored().to).toEqual([5000, 4000]);
+    // A replaced path with a vertex added in front: the end at the old start follows it to its new index.
+    await run('plan.entity.update', { id: wall.id, set: { path: { closed: false, v: [{ p: [-2000, 0] }, { p: [1000, 0] }, { p: [5000, 0] }, { p: [5000, 2000] }] } } });
+    expect(stored().anchors?.from?.vertex).toBe(1);
+    // The other end's vertex is gone: it lets go where it was shown.
+    expect(stored().anchors?.to).toBeUndefined();
+    expect(stored().to).toEqual([5000, 4000]);
+    // The same number of vertices: the ties stay on their indices.
+    await run('plan.entity.update', { id: wall.id, set: { path: { closed: false, v: [{ p: [-2000, 500] }, { p: [1000, 500] }, { p: [5000, 500] }, { p: [5000, 2000] }] } } });
+    expect(stored().anchors?.from?.vertex).toBe(1);
+    expect(stored().from).toEqual([1000, 500]);
+  });
+
   it('names the agent whose change made a field edit stale', async () => {
     const ground = doc().building.groundLevelId;
     const { id } = await run<{ id: string }>('plan.wall.add', { levelId: ground, from: [0, 0], to: [3000, 0] });
