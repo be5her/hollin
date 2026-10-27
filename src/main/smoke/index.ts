@@ -14,6 +14,7 @@ import { smokeDecorUi } from './decor-ui';
 import { smokeDecorSceneUi } from './decor-scene-ui';
 import { smokeDecorFinishesUi } from './decor-finishes-ui';
 import { smokeDecorAgentUi } from './decor-agent-ui';
+import { smokeExchange } from './exchange';
 import { smokeHost } from './host';
 import { smokeLibrary } from './library';
 import { smokeLibraryUi } from './library-ui';
@@ -49,6 +50,7 @@ export async function runSmoke(host: Host, openWindow: () => BrowserWindow): Pro
     const { planId } = await smokePlan(smoke);
     await smoke.run('project.close', { id: planId });
     const { duplexId } = await smokeConnectors(smoke);
+    await smokeExchange(smoke, duplexId);
     const { decorId, tableRef } = await smokeDecor(smoke);
 
     smoke.section('renderer');

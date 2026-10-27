@@ -203,9 +203,15 @@ export async function smokeSceneUi(smoke: Smoke): Promise<void> {
   smoke.check('holding W climbs the stair to the upper floor', await smoke.until(async () => (await sceneAttr(smoke, 'walkLevel')) === upper && (await walkAt())?.[2] === 3000, 15_000), await walkAt());
   // On to the north wall, whose inner face is at 5900: the walker stops a body's width short of it.
   await smoke.until(async () => ((await walkAt())?.[1] ?? 0) > 5500, 10_000);
-  await wait(600);
-  const stopped = (await walkAt())!;
-  await wait(400);
+  // Under load the last stretch can take longer than any fixed delay: wait until two reads 400 ms apart agree.
+  let stopped = (await walkAt())!;
+  await smoke.until(async () => {
+    await wait(400);
+    const now = (await walkAt())!;
+    const same = now[1] === stopped[1];
+    stopped = now;
+    return same;
+  }, 10_000, 0);
   await smoke.keyUp('W');
   const still = (await walkAt())!;
   smoke.check('the wall stops it', stopped[1] === still[1] && still[1] <= 5650 && still[1] > 5400, { stopped, still });

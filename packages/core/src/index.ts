@@ -58,3 +58,7 @@ export * from './geometry/plan-symbols';
 export * from './exchange/drawing';
 export * from './exchange/dxf';
 export * from './exchange/dxf-read';
+export * from './exchange/colors';
+export * from './exchange/paper';
+export * from './exchange/svg';
+export * from './exchange/pdf';

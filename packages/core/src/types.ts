@@ -295,6 +295,8 @@ export interface HostEvents {
   'view.snapshot.request': { id: string; projectId: string; levelId: string; width: number; height: number; view: 'plan' | '3d'; azimuth: number; elevation: number; display: 'all' | 'isolate' | 'cutaway'; explode: number; lighting: 'day' | 'night' };
   /** The assistant's chat for a project changed: the whole chat after a structural change, or a text delta while a reply streams. */
   'assistant.event': { projectId: string; event: AssistantEvent };
+  /** An export wrote files outside the library (`export.plan`): the format and the full paths written. */
+  'exchange.exported': { projectId: string; format: string; files: string[] };
 }
 
 export type HostEventName = keyof HostEvents;
