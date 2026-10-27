@@ -45,8 +45,10 @@ export interface DrawingFill {
   type: 'fill';
   rings: Vec2[][];
   color: DrawingColor;
-  /** 1 for poché (walls, columns), a tint below that. */
+  /** 1 for poché (walls, columns), slabs and marks, a tint below that. */
   opacity: number;
+  /** A small solid mark (a stair's or ramp's start dot), part of the drawing proper on any layer, so a CAD writer hatches it too. */
+  mark?: boolean;
 }
 
 /** A single line of text; `height` in drawing mm, `rotation` in degrees counter-clockwise, always kept readable (−90° to 90°). */
@@ -121,6 +123,8 @@ const PEN = { heavy: 0.5, medium: 0.35, normal: 0.25, thin: 0.18, fine: 0.13, ma
 const DASH = { swing: [1, 1], void: [2, 1.3], divider: [2.5, 1.2], aboveCut: [1.3, 1] } as const;
 /** How finely curves that cannot stay arcs (Béziers, fills) are flattened, mm. */
 const TOLERANCE = 0.5;
+/** An arc sweeping less than this (radians) is left out: the writers would take one that starts where it ends for a full circle. */
+const MIN_SWEEP = 1e-9;
 
 // ---------- primitives ----------
 
@@ -286,7 +290,7 @@ export function planDrawing(doc: ProjectDoc, levelId: string, options: PlanDrawi
         const symbol = openingSymbol(wall, e);
         for (const [a, b] of [...symbol.jambs, ...symbol.glazing]) layer.push(lineStroke(a, b, PEN.normal, { color }));
         if (symbol.leaf) layer.push(lineStroke(symbol.leaf[0], symbol.leaf[1], PEN.normal, { color }));
-        if (symbol.swing) layer.push(stroke([arcSeg(symbol.swing.center, symbol.swing.radius, symbol.swing.start, symbol.swing.sweep)], false, PEN.fine, { dash: DASH.swing, color }));
+        if (symbol.swing && Math.abs(symbol.swing.sweep) >= MIN_SWEEP) layer.push(stroke([arcSeg(symbol.swing.center, symbol.swing.radius, symbol.swing.start, symbol.swing.sweep)], false, PEN.fine, { dash: DASH.swing, color }));
         break;
       }
       case 'column': {
@@ -365,7 +369,7 @@ export function planDrawing(doc: ProjectDoc, levelId: string, options: PlanDrawi
         const dh = h * 0.8;
         const g = dimensionGeometry(e, resolveDimension(e, entities, bodyOf), units, dh * 0.5);
         for (const [p, q] of g.lines) layer.push(lineStroke(p, q, PEN.fine));
-        if (g.arc) layer.push(stroke([arcSeg(g.arc.center, g.arc.radius, g.arc.start, g.arc.sweep)], false, PEN.fine));
+        if (g.arc && Math.abs(g.arc.sweep) >= MIN_SWEEP) layer.push(stroke([arcSeg(g.arc.center, g.arc.radius, g.arc.start, g.arc.sweep)], false, PEN.fine));
         for (const [p, q] of dimensionMarks(g, dh * 0.35, dh * 0.7)) layer.push(lineStroke(p, q, PEN.thin));
         if (g.text) {
           const rotation = readableAngle(g.textAngle);
@@ -481,7 +485,7 @@ export function planDrawing(doc: ProjectDoc, levelId: string, options: PlanDrawi
       const head = way === 'up' ? arrowHeadLines(walk[walk.length - 1].b, walkTangent(segs, end), lh * 0.9) : arrowHeadLines(walk[0].a, scale(walkTangent(segs, 0), -1), lh * 0.9);
       for (const [a, b] of head) layer.push(lineStroke(a, b, PEN.thin, { color }));
       const dot = way === 'up' ? walk[0].a : walk[walk.length - 1].b;
-      layer.push(fill([circleRing(dot, lh * 0.27)], color ?? 'connector', 1));
+      layer.push({ ...fill([circleRing(dot, lh * 0.27)], color ?? 'connector', 1), mark: true });
       const n = perp(walkTangent(segs, way === 'up' ? 0 : total));
       label(way === 'up' ? 'UP' : 'DN', add(dot, scale(n, lh * 1.27)));
       if (extra) label(extra, sub(dot, scale(n, lh * 1.27)));
@@ -552,17 +556,29 @@ function segmentExtent(box: Box, s: DrawingSegment): Box {
   return box;
 }
 
-/** The extent of everything in the layers; a text counts its anchor and a rough box around it. */
+/** The corners of a rough box round a text (0.6 of the height per character, one height tall), placed by its alignment and baseline and turned with it. */
+export function textCorners(t: DrawingText): Vec2[] {
+  const w = t.text.length * t.height * 0.6;
+  const x0 = t.align === 'left' ? 0 : t.align === 'right' ? -w : -w / 2;
+  const y0 = t.baseline === 'bottom' ? 0 : t.baseline === 'top' ? -t.height : -t.height / 2;
+  const along: Vec2 = [Math.cos(t.rotation * DEG), Math.sin(t.rotation * DEG)];
+  const up = upOf(t.rotation);
+  return [
+    [x0, y0],
+    [x0 + w, y0],
+    [x0 + w, y0 + t.height],
+    [x0, y0 + t.height],
+  ].map(([x, y]): Vec2 => add(t.at, add(scale(along, x), scale(up, y))));
+}
+
+/** The extent of everything in the layers; a text counts a rough box round it, on the side its alignment puts it. */
 export function drawingBounds(layers: readonly DrawingLayer[]): Box {
   let box = emptyBox();
   for (const layer of layers) {
     for (const p of layer.primitives) {
       if (p.type === 'stroke') for (const s of p.segs) box = segmentExtent(box, s);
       else if (p.type === 'fill') for (const ring of p.rings) for (const q of ring) box = extendBox(box, q);
-      else {
-        const half = Math.max(p.height, p.text.length * p.height * 0.6) / 2;
-        box = extendBox(extendBox(box, [p.at[0] - half, p.at[1] - half]), [p.at[0] + half, p.at[1] + half]);
-      }
+      else for (const q of textCorners(p)) box = extendBox(box, q);
     }
   }
   return box;

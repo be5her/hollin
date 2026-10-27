@@ -25,6 +25,7 @@ import {
   readPngHeader,
   svgLayout,
   today,
+  UnitSettingsSchema,
   type DxfFile,
   type PlanDrawing,
 } from '@studio/core';
@@ -110,7 +111,7 @@ export const exchangeModule = defineModule({
       id: 'export.plan',
       title: 'Export plan drawing',
       description:
-        'Writes levels of the open project as plan drawings to `path` (a full file path), as DXF (AutoCAD R2000, millimetres, one CAD layer per drawing layer), SVG or PDF (vector, on a paper sheet at a drawing scale, with a title block). DXF and SVG write one file per level: with several levels the level name is put before the extension (`Plan - Ground floor.svg`); PDF writes one file with a page per level. `levelIds` defaults to every level, bottom to top; `scale` is the 1:N denominator (default 100); `page` and `orientation` set the SVG/PDF sheet (default A3 landscape); `fit` picks, per level, the largest of 1:20 ... 1:1000 that fits the sheet; `layers` limits the drawing to some layer kinds. Writes outside the library, so it is gated. Returns the files written (path, bytes, level) and the scale used for each level.',
+        'Writes levels of the open project as plan drawings to `path` (a full file path), as DXF (AutoCAD R2000, millimetres, one CAD layer per drawing layer), SVG or PDF (vector, on a paper sheet at a drawing scale, with a title block). DXF and SVG write one file per level: with several levels the level name is put before the extension (`Plan - Ground floor.svg`); PDF writes one file with a page per level. `levelIds` defaults to every level, bottom to top; `scale` is the 1:N denominator (default 100); `page` and `orientation` set the SVG/PDF sheet (default A3 landscape); `fit` picks, per level, the largest of 1:20 ... 1:1000 that fits the sheet; `layers` limits the drawing to some layer kinds; `units` sets how lengths and areas are written (any of the Settings fields; the rest from Settings). Writes outside the library, so it is gated. Returns the files written (path, bytes, level) and, per level, the scale used and `fits`: false when the level is larger than the sheet at a fixed scale (it is cut off at the margins; use `fit` or a smaller scale).',
       scope: 'project',
       mutating: true,
       input: z.object({
@@ -123,6 +124,7 @@ export const exchangeModule = defineModule({
         fit: z.boolean().default(false).describe('SVG and PDF: pick the largest standard scale (1:20 to 1:1000) that fits the sheet, instead of `scale`'),
         layers: z.array(z.enum(DRAWING_LAYER_KINDS)).optional().describe('Which layer kinds to draw; all by default'),
         title: z.boolean().default(true).describe('SVG and PDF: a title block with the project, the level, the scale and the date'),
+        units: UnitSettingsSchema.partial().strict().optional().describe("The units lengths and areas are written in, e.g. { system: 'imperial' }; the fields left out come from Settings"),
       }),
       handler: async (input, ctx) => {
         if (!nodePath.isAbsolute(input.path)) throw new StudioError('INVALID_INPUT', 'path must be a full (absolute) file path.');
@@ -131,13 +133,15 @@ export const exchangeModule = defineModule({
         const levelIds = input.levelIds ?? doc.building.stack;
         const missing = levelIds.filter((id) => !doc.levels[id]);
         if (missing.length) throw new StudioError('NOT_FOUND', `No level ${missing.join(', ')} in this project. building_get lists the levels.`);
-        const { units, rules } = ctx.host.config.get();
+        const config = ctx.host.config.get();
+        const units = { ...config.units, ...input.units };
+        const rules = config.rules;
         const drawings: PlanDrawing[] = levelIds.map((id) => planDrawing(doc, id, { units, limits: rules, layers: input.layers }));
         const scale = input.fit ? ('fit' as const) : input.scale;
         const title = input.title ? project.name : undefined;
         const date = today();
         const files: { path: string; levelId?: string; bytes: number }[] = [];
-        const levels: { levelId: string; name: string; scale: number }[] = [];
+        const levels: { levelId: string; name: string; scale: number; fits: boolean }[] = [];
 
         if (input.format === 'pdf') {
           const pages = drawings.map((drawing) => ({ drawing, title }));
@@ -145,22 +149,23 @@ export const exchangeModule = defineModule({
           const data = drawingToPdf(pages, options);
           await writeFileAtomic(input.path, data);
           files.push({ path: input.path, bytes: data.length });
-          pdfLayouts(pages, options).forEach((l, i) => levels.push({ levelId: drawings[i].levelId, name: drawings[i].levelName, scale: l.scale }));
+          pdfLayouts(pages, options).forEach((l, i) => levels.push({ levelId: drawings[i].levelId, name: drawings[i].levelName, scale: l.scale, fits: l.fits }));
         } else {
           const paths = levelPaths(input.path, drawings.map((d) => d.levelName));
           for (const [i, drawing] of drawings.entries()) {
             let data: string;
             let used = input.scale;
+            let fits = true;
             if (input.format === 'dxf') data = drawingToDxf(drawing, { scale: input.scale });
             else {
               const options = { page: input.page, orientation: input.orientation, scale, title, date };
-              used = svgLayout(drawing, options).scale;
+              ({ scale: used, fits } = svgLayout(drawing, options));
               data = drawingToSvg(drawing, options);
             }
             const bytes = Buffer.from(data, 'utf8');
             await writeFileAtomic(paths[i], bytes);
             files.push({ path: paths[i], levelId: drawing.levelId, bytes: bytes.length });
-            levels.push({ levelId: drawing.levelId, name: drawing.levelName, scale: used });
+            levels.push({ levelId: drawing.levelId, name: drawing.levelName, scale: used, fits });
           }
         }
         ctx.host.emit('exchange.exported', { projectId: project.id, format: input.format, files: files.map((f) => f.path) });

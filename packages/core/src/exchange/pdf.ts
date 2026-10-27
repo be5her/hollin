@@ -2,7 +2,7 @@ import { BRANDING } from '../branding';
 import type { Vec2 } from '../geometry/vec';
 import { PRINT_COLORS, hexToRgb } from './colors';
 import type { DrawingColor, DrawingFill, DrawingLayer, DrawingSegment, DrawingStroke, DrawingText, PlanDrawing } from './drawing';
-import { baselineDrop, halfTurns, layoutPage, titleBlock, toPaper, type PageLayout, type PaperOrientation, type PaperSize } from './paper';
+import { baselineDrop, halfTurns, layoutPage, textWidthEm, titleBlock, toPaper, winAnsi, type PageLayout, type PaperOrientation, type PaperSize } from './paper';
 
 /*
  * Plan drawings as a hand-written PDF 1.4, one page per drawing: true vectors at a drawing scale,
@@ -31,39 +31,6 @@ export interface PdfPage {
 
 const PT = 72 / 25.4;
 
-/** The code points of Windows-1252's 0x80–0x9F, the rest of WinAnsiEncoding matching Latin-1. */
-const CP1252: Record<number, number> = {
-  0x20ac: 0x80, 0x201a: 0x82, 0x0192: 0x83, 0x201e: 0x84, 0x2026: 0x85, 0x2020: 0x86, 0x2021: 0x87, 0x02c6: 0x88, 0x2030: 0x89, 0x0160: 0x8a, 0x2039: 0x8b, 0x0152: 0x8c, 0x017d: 0x8e,
-  0x2018: 0x91, 0x2019: 0x92, 0x201c: 0x93, 0x201d: 0x94, 0x2022: 0x95, 0x2013: 0x96, 0x2014: 0x97, 0x02dc: 0x98, 0x2122: 0x99, 0x0161: 0x9a, 0x203a: 0x9b, 0x0153: 0x9c, 0x017e: 0x9e, 0x0178: 0x9f,
-};
-
-/** A string as WinAnsiEncoding bytes; anything the encoding lacks becomes `?`. */
-export function winAnsi(text: string): number[] {
-  const out: number[] = [];
-  for (const ch of text) {
-    const c = ch.codePointAt(0)!;
-    if ((c >= 32 && c < 127) || (c >= 0xa0 && c <= 0xff)) out.push(c);
-    else if (CP1252[c] !== undefined) out.push(CP1252[c]);
-    else out.push(63);
-  }
-  return out;
-}
-
-/** Helvetica's advance widths (per 1000 em) for WinAnsi codes 32–126, from the standard AFM. */
-const HELVETICA_ASCII = [
-  278, 278, 355, 556, 556, 889, 667, 191, 333, 333, 389, 584, 278, 333, 278, 278, 556, 556, 556, 556, 556, 556, 556, 556, 556, 556, 278, 278, 584, 584, 584, 556, 1015, 667, 667, 722, 722, 667, 611, 778, 722, 278, 500, 667, 556, 833, 722, 778, 667, 778, 722, 667, 611, 722, 667, 944, 667, 667, 611, 278, 278, 278, 469, 556, 333, 556, 556, 500, 556, 556, 278, 556, 556, 222, 222, 500, 222, 833, 556, 556, 556, 556, 333, 500, 278, 556, 500, 722, 500, 500, 500, 334, 260, 334, 584,
-];
-/** A few common codes above 127; the rest count as 556. */
-const HELVETICA_HIGH: Record<number, number> = { 0xb0: 400, 0xb2: 333, 0xb3: 333, 0xb9: 333, 0xd7: 584, 0xb5: 556, 0x96: 556, 0x97: 1000, 0x91: 222, 0x92: 222, 0x93: 333, 0x94: 333, 0x85: 1000, 0x80: 556 };
-
-/** The width of WinAnsi bytes in Helvetica (or Courier), in em. */
-export function textWidthEm(bytes: readonly number[], mono = false): number {
-  if (mono) return bytes.length * 0.6;
-  let w = 0;
-  for (const b of bytes) w += b >= 32 && b <= 126 ? HELVETICA_ASCII[b - 32] : (HELVETICA_HIGH[b] ?? 556);
-  return w / 1000;
-}
-
 /** WinAnsi bytes as a PDF literal string, ASCII only: parentheses and backslashes escaped, the rest of the bytes outside printable ASCII as octal. */
 function pdfString(bytes: readonly number[]): string {
   let s = '(';
@@ -73,6 +40,13 @@ function pdfString(bytes: readonly number[]): string {
     else s += String.fromCharCode(b);
   }
   return s + ')';
+}
+
+/** A PDF text string (the document information) in UTF-16BE with its byte order mark, written as hex, so any name comes through. */
+export function pdfTextString(text: string): string {
+  let hex = '<FEFF';
+  for (let i = 0; i < text.length; i++) hex += text.charCodeAt(i).toString(16).toUpperCase().padStart(4, '0');
+  return hex + '>';
 }
 
 const n = (v: number): string => {
@@ -211,7 +185,7 @@ export function drawingToPdf(pages: readonly PdfPage[], options: PdfOptions = {}
   objects.push([`<< /Type /Pages /Kids [${pages.map((_, i) => `${pageObj(i)} 0 R`).join(' ')}] /Count ${pages.length} >>`]);
   objects.push([`<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>`]);
   objects.push([`<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>`]);
-  objects.push([`<< /Title ${pdfString(winAnsi(titleText))} /Producer ${pdfString(winAnsi(BRANDING.productName))} /CreationDate (${pdfDate(new Date())}) >>`]);
+  objects.push([`<< /Title ${pdfTextString(titleText)} /Producer ${pdfTextString(BRANDING.productName)} /CreationDate (${pdfDate(new Date())}) >>`]);
   const gsEntries = [...alphas.entries()].map(([, name], i) => `/${name} ${firstGs + i} 0 R`).join(' ');
   objects.push([`<< /ProcSet [/PDF /Text] /Font << /F1 3 0 R /F2 4 0 R >>${gsEntries ? ` /ExtGState << ${gsEntries} >>` : ''} >>`]);
   for (const [alpha] of alphas) objects.push([`<< /Type /ExtGState /ca ${alpha} /CA ${alpha} >>`]);

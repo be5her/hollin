@@ -1,13 +1,13 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
-import { inspectGlb, readDxfEntities, readGlbChunks, readGlbTriangles, xmlEscape, type OpenProject } from '@studio/core';
+import { inspectGlb, readDxfEntities, readGlbChunks, readGlbTriangles, rectPath, xmlEscape, type OpenProject } from '@studio/core';
 import type { Smoke } from './harness';
 
 const text = (result: unknown) => JSON.parse((result as { content: { text: string }[] }).content[0].text) as Record<string, unknown>;
 const exists = (file: string) => fs.stat(file).then(() => true, () => false);
 
-type Exported = { format: string; files: { path: string; levelId?: string; bytes: number }[]; levels: { levelId: string; name: string; scale: number }[] };
+type Exported = { format: string; files: { path: string; levelId?: string; bytes: number }[]; levels: { levelId: string; name: string; scale: number; fits: boolean }[] };
 type GlbExported = { path: string; bytes: number; nodes: number; triangles: number; skipped: string[] };
 
 /** The node names of a GLB file. */
@@ -54,6 +54,32 @@ export async function smokeExchange(smoke: Smoke, duplexId: string): Promise<voi
   smoke.check('its content streams are compressed', pdfText.match(/\/Filter \/FlateDecode/g)?.length === 2);
   const announced = smoke.eventsSince(from, 'exchange.exported').filter((e) => e.projectId === duplexId);
   smoke.check('every export is announced with its files', announced.map((e) => `${e.format}:${e.files.length}`).join() === 'dxf:2,svg:2,pdf:1', announced);
+  smoke.check('levels that fit their sheet say so', [...svg.levels, ...dxf.levels].every((l) => l.fits === true), { svg: svg.levels, dxf: dxf.levels });
+  const tooBig = await run<Exported>({ path: path.join(out, 'Too big.svg'), format: 'svg', levelIds: [doc.building.stack[0]], page: 'A4', orientation: 'portrait', scale: 10 });
+  smoke.check('a level larger than the sheet at a fixed scale is written and reported as not fitting', tooBig.files.length === 1 && tooBig.levels[0]?.fits === false && tooBig.levels[0].scale === 10, tooBig.levels);
+  // The duplex has no room to write an area for: a throwaway project with one.
+  const room = await smoke.run<OpenProject>('project.create', { name: 'Units' });
+  try {
+    const levelId = smoke.host.projects.session(room.id)!.doc.building.groundLevelId;
+    await smoke.run('plan.apply', {
+      label: 'A room',
+      steps: [
+        { command: 'plan.entity.add', input: { levelId, entity: { type: 'wall', path: rectPath(0, 0, 5000, 4000), thickness: 200 } } },
+        { command: 'plan.entity.add', input: { levelId, entity: { type: 'room', name: 'Study', boundary: { k: 'detect', seed: [2500, 2000] } } } },
+      ],
+    }, { projectId: room.id });
+    const exportRoom = async (name: string, units?: unknown) => {
+      const r = await smoke.run<Exported>('export.plan', { path: path.join(out, name), format: 'dxf', ...(units ? { units } : {}) }, { projectId: room.id });
+      return fs.readFile(r.files[0].path, 'utf8');
+    };
+    const metricDxf = await exportRoom('Units metric.dxf');
+    const imperialDxf = await exportRoom('Units imperial.dxf', { system: 'imperial' });
+    smoke.check('units writes areas in other units than Settings, Settings by default', imperialDxf.includes('ft\\U+00B2') && !metricDxf.includes('ft\\U+00B2') && metricDxf.includes('m\\U+00B2'));
+  } finally {
+    await smoke.run('project.trash', { id: room.id });
+    await smoke.run('project.delete', { id: room.id });
+  }
+  await smoke.expectError('an unknown units field is refused', 'export.plan', { path: path.join(out, 'x.dxf'), format: 'dxf', units: { system: 'metric', colour: 'red' } }, 'INVALID_INPUT', { projectId: duplexId });
 
   const glbPath = path.join(out, 'Duplex.glb');
   const glbFrom = smoke.events.length;

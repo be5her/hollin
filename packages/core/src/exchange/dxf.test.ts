@@ -70,7 +70,7 @@ describe('drawingToDxf', () => {
     let hatches = 0;
     for (const layer of drawing.layers) {
       for (const p of layer.primitives) {
-        if (p.type === 'fill') hatches += layer.hatch ? 1 : 0;
+        if (p.type === 'fill') hatches += layer.hatch || p.mark ? 1 : 0;
         else if (p.type === 'text') expected.push('TEXT');
         else if (p.segs.length === 1 && p.segs[0].k === 'line' && !p.closed) expected.push('LINE');
         else if (p.segs.length === 1 && p.segs[0].k === 'arc') expected.push(Math.abs(p.segs[0].sweep) >= 2 * Math.PI - 1e-9 ? 'CIRCLE' : 'ARC');
@@ -79,7 +79,7 @@ describe('drawingToDxf', () => {
     }
     expect(read.entities.map((e) => e.type)).toEqual(expected);
     expect(read.skipped).toEqual({ HATCH: hatches });
-    expect(hatches).toBe(2); // the walls' poché and the column's
+    expect(hatches).toBe(3); // the walls' poché, the column's and the stair's start dot
 
     let i = 0;
     for (const layer of drawing.layers) {
@@ -90,7 +90,7 @@ describe('drawingToDxf', () => {
         if (p.type === 'text') {
           if (e.type !== 'TEXT') throw new Error('expected a text');
           expect(e.text).toBe(p.text);
-          expect(e.height).toBeCloseTo(p.height, 6);
+          expect(e.height).toBeCloseTo(p.height * 0.72, 6);
           expect(near(e.at, p.at)).toBe(true);
           continue;
         }
@@ -166,6 +166,42 @@ describe('drawingToDxf', () => {
     expect(dxfLineweight(0.5)).toBe(50);
     expect(dxfLineweight(0.18)).toBe(18);
     expect(dxfLineweight(0.7)).toBe(70);
+  });
+
+  it('writes a text cap height of 0.72 the font size, aligned on its baseline, middle or top', () => {
+    const at = (align: 'left' | 'center' | 'right', baseline: 'bottom' | 'middle' | 'top') => ({ type: 'text' as const, at: [100, 200] as Vec2, text: 'A', height: 250, rotation: 0, align, baseline });
+    const text = drawingToDxf(drawingOf([at('left', 'bottom'), at('center', 'bottom'), at('right', 'middle'), at('center', 'top')]));
+    const pairs = dxfPairs(text);
+    const texts: Record<number, string>[] = [];
+    pairs.forEach((p, i) => {
+      if (p.code !== 0 || p.value !== 'TEXT') return;
+      const fields: Record<number, string> = {};
+      for (let j = i + 1; j < pairs.length && pairs[j].code !== 0; j++) fields[pairs[j].code] = pairs[j].value;
+      texts.push(fields);
+    });
+    expect(texts.map((t) => Number(t[40]))).toEqual([180, 180, 180, 180]);
+    // 72: 0 left, 1 centre, 2 right; 73: 0 baseline (1 would hang it from the descender), 2 middle, 3 top.
+    expect(texts.map((t) => [Number(t[72] ?? 0), Number(t[73] ?? 0)])).toEqual([
+      [0, 0],
+      [1, 0],
+      [2, 2],
+      [1, 3],
+    ]);
+    const read = readDxfEntities(text).entities;
+    expect(read.every((e) => e.type === 'TEXT' && near(e.at, [100, 200]))).toBe(true);
+  });
+
+  it('hatches a solid mark on any layer, but not a tint', () => {
+    const ring: Vec2[] = [
+      [0, 0],
+      [100, 0],
+      [100, 100],
+    ];
+    const text = drawingToDxf(drawingOf([
+      { type: 'fill', rings: [ring], color: 'connector', opacity: 1, mark: true },
+      { type: 'fill', rings: [ring], color: 'muted', opacity: 0.16 },
+    ]));
+    expect(readDxfEntities(text).skipped).toEqual({ HATCH: 1 });
   });
 
   it('writes an empty drawing as a valid file', () => {

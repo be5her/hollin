@@ -2,7 +2,8 @@ import { deflateSync, inflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import { drawingBounds, planDrawing, type DrawingLayer, type PlanDrawing } from './drawing';
 import { drawingHouse } from './house.fixture';
-import { arcToBeziers, drawingToPdf, pdfLayouts, textWidthEm, winAnsi } from './pdf';
+import { textWidthEm, winAnsi } from './paper';
+import { arcToBeziers, drawingToPdf, pdfLayouts, pdfTextString } from './pdf';
 
 /** The file as one byte per character, so string indices are byte offsets. */
 const latin1 = (bytes: Uint8Array) => Buffer.from(bytes).toString('latin1');
@@ -136,11 +137,48 @@ describe('drawingToPdf', () => {
     expect(/[^\x00-\x7f]/.test(p.text.slice(15))).toBe(false);
   });
 
+  it('writes control characters in a text as spaces, not ?', () => {
+    expect(winAnsi('a\tb\u0007c\u0085d')).toEqual([97, 32, 98, 32, 99, 32, 100]);
+    const content = pageContents(parse(drawingToPdf([{ drawing: drawingOf([{ type: 'text', at: [0, 0], text: 'Hall\tway\r\nB', height: 200, rotation: 0, align: 'center', baseline: 'middle' }]) }])))[0];
+    expect(content).toContain('(Hall way  B) Tj');
+  });
+
+  it('writes the document title in UTF-16BE with a byte order mark, whatever it holds', () => {
+    expect(pdfTextString('Aé☃')).toBe('<FEFF004100E92603>');
+    expect(pdfTextString('🏠')).toBe('<FEFFD83CDFE0>');
+    const p = parse(drawingToPdf([{ drawing: drawingOf([], 'Ground'), title: 'Дом (☃)' }]));
+    const info = p.objects.get(5)!;
+    expect(info).toContain(`/Title ${pdfTextString('Дом (☃)')}`);
+    expect(info).toMatch(/\/Producer <FEFF[0-9A-F]+>/);
+  });
+
+  it('writes an empty drawing as a valid page with its title block', () => {
+    const p = parse(drawingToPdf([{ drawing: drawingOf([], 'Empty'), title: 'House' }], { date: '2026-10-27' }));
+    p.offsets.forEach((o, i) => expect(p.text.slice(o, o + `${i + 1} 0 obj`.length)).toBe(`${i + 1} 0 obj`));
+    const content = pageContents(p)[0];
+    expect(content).toContain('(Empty) Tj');
+    expect(content).toContain('(Scale 1:100) Tj');
+    expect(content).not.toMatch(/NaN|Infinity/);
+  });
+
+  it('says when a drawing does not fit the sheet at a fixed scale', () => {
+    // 50 m wide: 500 mm on paper at 1:100, wider than A3 landscape's 400 mm drawing area.
+    const wide = drawingOf([{ type: 'stroke', segs: [{ k: 'line', a: [0, 0], b: [50000, 0] }], closed: false, width: 0.25 }]);
+    expect(pdfLayouts([{ drawing: wide }], { scale: 100 })[0].fits).toBe(false);
+    expect(pdfLayouts([{ drawing: wide }], { scale: 200 })[0].fits).toBe(true);
+    expect(pdfLayouts([{ drawing: wide }], { scale: 'fit' })[0]).toMatchObject({ scale: 200, fits: true });
+    expect(pdfLayouts([{ drawing: drawingOf([]) }], { scale: 100 })[0].fits).toBe(true);
+  });
+
   it('centres texts from Helvetica widths', () => {
     expect(textWidthEm(winAnsi('Living'))).toBeCloseTo((556 + 222 + 500 + 222 + 556 + 556) / 1000, 9);
     expect(textWidthEm(winAnsi('abc'), true)).toBeCloseTo(1.8, 9);
     const at = (align: 'left' | 'center' | 'right') => {
-      const d = drawingOf([{ type: 'text', at: [0, 0], text: 'MM', height: 1000, rotation: 0, align, baseline: 'bottom' }]);
+      // A line round it keeps the sheet's centre in place: the bounds follow the alignment.
+      const d = drawingOf([
+        { type: 'stroke', segs: [{ k: 'line', a: [-5000, -5000], b: [5000, 5000] }], closed: false, width: 0.25 },
+        { type: 'text', at: [0, 0], text: 'MM', height: 1000, rotation: 0, align, baseline: 'bottom' },
+      ]);
       const content = pageContents(parse(drawingToPdf([{ drawing: d }], { scale: 100 })))[0];
       return Number(/1 0 -?0 1 ([\d.-]+) [\d.-]+ Tm/.exec(content)![1]);
     };

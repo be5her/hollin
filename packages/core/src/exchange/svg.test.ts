@@ -70,6 +70,22 @@ describe('drawingToSvg', () => {
     expect(box[3]).toBe(2 * PAGE_MARGIN + TITLE_BLOCK.height + 4);
   });
 
+  it('writes an empty drawing as a well-formed sheet', () => {
+    const empty = drawingOf([]);
+    const svg = drawingToSvg(empty, { title: 'House', date: '2026-10-27' });
+    expect(balanced(svg)).toBe(true);
+    expect(svg).not.toMatch(/NaN|Infinity/);
+    expect(svg).toContain('>Scale 1:100</text>');
+    expect(svgLayout(empty).fits).toBe(true);
+    expect(balanced(drawingToSvg(empty, { page: 'A4', scale: 'fit' }))).toBe(true);
+  });
+
+  it('says when a drawing does not fit the sheet at a fixed scale; a sheet sized from the drawing always does', () => {
+    expect(svgLayout(drawing, { page: 'A4', orientation: 'portrait', scale: 20 }).fits).toBe(false);
+    expect(svgLayout(drawing, { page: 'A4', orientation: 'portrait', scale: 'fit' }).fits).toBe(true);
+    expect(svgLayout(drawing, { scale: 20 }).fits).toBe(true);
+  });
+
   it('writes one group per layer, named, back to front', () => {
     const svg = drawingToSvg(drawing);
     const groups = [...svg.matchAll(/<g id="layer-([\w-]+)" data-layer="([^"]*)">/g)].map((m) => [m[1], m[2]]);

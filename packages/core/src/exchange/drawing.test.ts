@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_RULE_LIMITS } from '../config';
 import { deriveConnector } from '../geometry/connectors';
 import { deriveLevels } from '../doc/derive';
+import { addEntityOps } from '../doc/builders';
+import { Transaction } from '../doc/ops';
 import { drawingHouse } from './house.fixture';
-import { drawingCounts, planDrawing, readableAngle, type DrawingLayerKind, type DrawingPrimitive, type DrawingStroke, type DrawingText, type PlanDrawing } from './drawing';
+import { drawingBounds, drawingCounts, planDrawing, readableAngle, type DrawingFill, type DrawingLayerKind, type DrawingPrimitive, type DrawingStroke, type DrawingText, type PlanDrawing } from './drawing';
 
 const layerOf = (d: PlanDrawing, kind: DrawingLayerKind) => d.layers.find((l) => l.kind === kind);
 const strokes = (prims: readonly DrawingPrimitive[] | undefined) => (prims ?? []).filter((p): p is DrawingStroke => p.type === 'stroke');
@@ -131,6 +133,35 @@ describe('planDrawing', () => {
     const imperial = planDrawing(doc, ground, { units: { system: 'imperial', metricUnit: 'mm', imperialStyle: 'ft-in', precision: 0, fraction: 16 }, layers: ['rooms', 'dimensions'] });
     expect(texts(layerOf(imperial, 'rooms')?.primitives).some((t) => t.endsWith('ft²'))).toBe(true);
     expect(texts(layerOf(imperial, 'dimensions')?.primitives)[0]).toMatch(/'/);
+  });
+
+  it('leaves out the arc of an angular dimension that sweeps nothing (writers would take it for a full circle)', () => {
+    const add = (from: [number, number], to: [number, number]) => {
+      const r = addEntityOps(doc, { levelId: ground, entity: { type: 'dimension', kind: 'angular', from, to, vertex: [0, 0], offset: 400 } });
+      const tx = new Transaction(doc);
+      tx.apply(r.ops);
+      const dims = layerOf(planDrawing(tx.commit()!.doc, ground, { layers: ['dimensions'] }), 'dimensions')!;
+      return strokes(dims.primitives).filter((s) => s.segs.some((g) => g.k === 'arc'));
+    };
+    expect(add([1000, 0], [0, 1000])).toHaveLength(1);
+    expect(add([1000, 0], [2000, 0])).toHaveLength(0);
+  });
+
+  it("marks the stair's start dot, a solid fill on a layer that is not poché", () => {
+    const fills = (layerOf(drawing, 'connectors')?.primitives ?? []).filter((p): p is DrawingFill => p.type === 'fill');
+    expect(fills.length).toBeGreaterThan(0);
+    expect(fills.every((f) => f.mark && f.opacity === 1)).toBe(true);
+    expect(layerOf(drawing, 'slabs')!.primitives.some((p) => p.type === 'fill' && p.mark)).toBe(false);
+  });
+
+  it('bounds a text on the side its alignment and baseline put it', () => {
+    const box = (t: Partial<DrawingText>) => drawingBounds([{ kind: 'labels', name: 'Labels', color: 'fg', hatch: false, primitives: [{ type: 'text', at: [0, 0], text: 'ABCDEFGHIJ', height: 100, rotation: 0, align: 'center', baseline: 'middle', ...t }] }]);
+    // Ten characters at 0.6 of the height: 600 mm long, 100 mm tall.
+    expect(box({ align: 'left', baseline: 'bottom' })).toEqual({ minX: 0, minY: 0, maxX: 600, maxY: 100 });
+    expect(box({ align: 'right', baseline: 'top' })).toEqual({ minX: -600, minY: -100, maxX: 0, maxY: 0 });
+    expect(box({})).toEqual({ minX: -300, minY: -50, maxX: 300, maxY: 50 });
+    const turned = box({ align: 'left', baseline: 'bottom', rotation: 90 });
+    expect([turned.minX, turned.minY, turned.maxX, turned.maxY].map((v) => Math.round(v))).toEqual([-100, 0, 0, 600]);
   });
 
   it('is empty for an unknown level', () => {

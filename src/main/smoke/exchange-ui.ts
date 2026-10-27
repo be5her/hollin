@@ -196,6 +196,18 @@ export async function smokeExchangeDialogs(smoke: Smoke, duplexId: string): Prom
   smoke.check('a glTF of the building is written', await exportTo(glbPath));
   const glb = await fs.readFile(glbPath).catch(() => Buffer.alloc(0));
   smoke.check('it is a GLB, named after the project', glb.subarray(0, 4).toString('latin1') === 'glTF' && smoke.dialogs.asked.at(-1)?.options.defaultPath === 'Duplex.glb');
+
+  // The duplex is 10.2 m wide: at 1:50 it is wider than A4 portrait's 190 mm drawing area.
+  const svgPath = path.join(out, 'Dialog.svg');
+  await openExport();
+  await smoke.click('[data-testid=export-format-svg]');
+  await smoke.waitFor('[data-testid=export-sheet]', 2000);
+  await smoke.click('[data-testid=export-levels-current]');
+  await smoke.fill('[data-testid=export-page]', 'A4');
+  await smoke.fill('[data-testid=export-orientation]', 'portrait');
+  await smoke.fill('[data-testid=export-scale]', '50');
+  smoke.check('an SVG of the level on screen at 1:50 on A4 portrait is written', await exportTo(svgPath));
+  smoke.check('the toast says the level does not fit the sheet at that scale', ((await smoke.text('[data-testid=toast-message]')) ?? '').includes('does not fit the sheet at 1:50'), await smoke.text('[data-testid=toast-message]'));
   await dismissToasts(smoke);
 
   smoke.section('exchange: the DXF import dialog');

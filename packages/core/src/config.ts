@@ -123,6 +123,8 @@ const SECTIONS = {
 type Sections = typeof SECTIONS;
 export type GlobalConfig = { [K in keyof Sections]: z.infer<Sections[K]> };
 export type UnitSettings = GlobalConfig['units'];
+/** The display units' fields, for commands that take units of their own (`export.plan`). */
+export const UnitSettingsSchema = SECTIONS.units;
 export type ThemePreference = GlobalConfig['appearance']['theme'];
 /** A patch: any subset of sections, each with any subset of its fields. */
 export type ConfigPatch = { [K in keyof GlobalConfig]?: Partial<GlobalConfig[K]> };

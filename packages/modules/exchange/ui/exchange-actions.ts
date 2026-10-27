@@ -4,7 +4,7 @@ import { AppState, Dialogs, HostBridge, OpenProjects, ProjectDocs, ProjectView, 
 import { ExportDialog, FORMATS, type ExportChoice } from './export-dialog';
 import { ImportDxfDialog, type DxfProbe } from './import-dxf-dialog';
 
-type Exported = { files?: { path: string }[]; path?: string };
+type Exported = { files?: { path: string }[]; path?: string; levels?: { name: string; scale: number; fits: boolean }[] };
 type Imported = { levelId: string; counts: { shapes: number; separators: number; labels: number; layers: number }; skipped: Record<string, number> };
 type View3d = { orbit?: { azimuth?: number; elevation?: number }; mode?: string; explode?: number; lighting?: string };
 
@@ -101,7 +101,9 @@ export class ExchangeActions {
     try {
       const result = await this.host.invoke<Exported>(id, input, projectId);
       const files = result.files?.map((f) => f.path) ?? (result.path ? [result.path] : [path]);
-      this.toasts.notify(`Exported ${plural(files.length, 'file')} to ${folderOf(files[0])}`, 'success', { label: 'Show', run: () => void this.reveal(files[0]) });
+      const cut = result.levels?.filter((l) => !l.fits) ?? [];
+      const notice = cut.length ? `; ${cut.map((l) => l.name).join(', ')} ${cut.length === 1 ? 'does' : 'do'} not fit the sheet at 1:${cut[0].scale}` : '';
+      this.toasts.notify(`Exported ${plural(files.length, 'file')} to ${folderOf(files[0])}${notice}`, 'success', { label: 'Show', run: () => void this.reveal(files[0]) });
     } catch (err) {
       this.toasts.error(err);
     }

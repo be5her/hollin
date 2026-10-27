@@ -1,10 +1,11 @@
 import type { DrawingColor, DrawingFill, DrawingLayer, DrawingSegment, DrawingStroke, DrawingText, PlanDrawing } from './drawing';
+import { CAP_HEIGHT } from './paper';
 
 /*
  * A plan drawing as an AutoCAD R2000 (AC1015) DXF: millimetres ($INSUNITS 4), one layer per drawing
  * layer, lines as LINE / ARC / CIRCLE / LWPOLYLINE (arcs as bulges: tan of a quarter of the sweep,
- * positive counter-clockwise, as in the model's paths), texts as single-line TEXT, poché as solid
- * HATCH. The tables, blocks and objects are the minimum AutoCAD and LibreCAD need to open a file.
+ * positive counter-clockwise, as in the model's paths), texts as single-line TEXT (group 40 the cap
+ * height, 0.72 of the font size the other writers use), poché and marks as solid HATCH. The tables, blocks and objects are the minimum AutoCAD and LibreCAD need to open a file.
  * Lines end with LF; non-ASCII characters are written as \U+XXXX.
  */
 
@@ -419,11 +420,12 @@ export function drawingToDxf(drawing: PlanDrawing, options: DxfOptions = {}): st
 
   const writeText = (layer: DrawingLayer, x: DrawingText) => {
     const halign = x.align === 'center' ? 1 : x.align === 'right' ? 2 : 0;
-    const valign = x.baseline === 'bottom' ? 1 : x.baseline === 'middle' ? 2 : 3;
+    // 0 is the baseline (1 would be the descender line), 2 the middle and 3 the top of the capitals.
+    const valign = x.baseline === 'bottom' ? 0 : x.baseline === 'middle' ? 2 : 3;
     entity('TEXT', layer, x.color);
     e.pair(100, 'AcDbText');
     e.point(10, x.at);
-    e.num(40, x.height);
+    e.num(40, x.height * CAP_HEIGHT);
     e.pair(1, dxfString(x.text));
     if (x.rotation) e.num(50, x.rotation);
     e.pair(7, 'Standard');
@@ -437,7 +439,7 @@ export function drawingToDxf(drawing: PlanDrawing, options: DxfOptions = {}): st
     for (const p of layer.primitives) {
       if (p.type === 'stroke') writeStroke(layer, p);
       else if (p.type === 'fill') {
-        if (layer.hatch) writeHatch(layer, p);
+        if (layer.hatch || p.mark) writeHatch(layer, p);
       } else writeText(layer, p);
     }
   }

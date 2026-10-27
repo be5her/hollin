@@ -52,7 +52,7 @@ export function svgLayout(drawing: PlanDrawing, options: SvgOptions = {}): PageL
   const width = Math.max(w + 2 * PAGE_MARGIN, titled ? TITLE_BLOCK.width + 2 * PAGE_MARGIN : 0);
   const height = h + 2 * PAGE_MARGIN + below;
   const worldCenter: Vec2 = isEmpty(b) ? [0, 0] : [(b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2];
-  return { width, height, scale, worldCenter, paperCenter: [width / 2, PAGE_MARGIN + below + h / 2] };
+  return { width, height, scale, fits: true, worldCenter,paperCenter: [width / 2, PAGE_MARGIN + below + h / 2] };
 }
 
 /** Writes a plan drawing as an SVG document (a string). */

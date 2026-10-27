@@ -83,7 +83,7 @@ describe('dxfToOps', () => {
     const swing = entities.filter((e): e is Separator => e.type === 'separator' && e.layerId === layerNamed('DXF Doors and windows').id && e.path.v[0].s?.k === 'arc');
     expect(swing).toHaveLength(1);
     expect(result.counts.layers).toBe(new Set(entities.map((e) => e.layerId)).size);
-    expect(result.skipped).toEqual({ HATCH: 2 });
+    expect(result.skipped).toEqual({ HATCH: 3 }); // the poché of the walls and the column, the stair's start dot
     expect(dxfLayerSummary(file).find((l) => l.name === 'Walls')?.entities).toBe(walls.length);
   });
 
