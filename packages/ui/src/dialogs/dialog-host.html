@@ -1,86 +1,99 @@
 @for (pending of open(); track pending) {
-  <div class="fixed inset-0 z-50 flex items-start justify-center bg-black/40 pt-[18vh]" (mousedown)="cancel(pending)">
-    <div class="w-[440px] max-w-[90vw] rounded-lg border border-edge bg-canvas shadow-xl p-4" (mousedown)="$event.stopPropagation()">
-      @if (pending.kind === 'prompt') {
-        <form (submit)="submitPrompt($event, pending)" (keydown)="promptKeys($event, pending)">
-          <h2 class="text-sm font-semibold mb-3">{{ pending.options.title }}</h2>
-          @if (pending.options.label) {
-            <label xLabel>{{ pending.options.label }}</label>
-          }
-          @if (pending.options.multiline) {
-            <textarea xTextarea xAutofocus rows="8" [formField]="answerForm.text" [placeholder]="pending.options.placeholder ?? ''"></textarea>
-          } @else {
-            <input xInput xAutofocus [formField]="answerForm.text" [placeholder]="pending.options.placeholder ?? ''" (focus)="selectAll($event)" />
-          }
-          @if (pending.options.choice; as choice) {
-            <div class="flex items-center gap-2 mt-3">
-              <label xLabel class="mb-0">{{ choice.label }}</label>
-              <select xSelect [formField]="answerForm.choice" [attr.aria-label]="choice.label">
-                @for (o of choice.options; track o.value) {
-                  <option [value]="o.value">{{ o.label }}</option>
-                }
-              </select>
-              @if (hint(); as hint) {
-                <span class="text-xs text-muted">{{ hint }}</span>
-              }
-            </div>
-          }
-          <div class="flex justify-end gap-2 mt-4">
-            <button xButton variant="ghost" (click)="cancel(pending)">Cancel</button>
-            <button xButton variant="primary" type="submit">{{ pending.options.confirmLabel ?? 'OK' }}</button>
-          </div>
-        </form>
-      } @else if (pending.kind === 'form') {
-        <form (submit)="submitForm($event, pending)" (keydown.escape)="cancel(pending)" data-testid="form-dialog">
-          <h2 class="text-sm font-semibold mb-1">{{ pending.options.title }}</h2>
-          @if (pending.options.message) {
-            <p class="text-sm text-muted mb-2">{{ pending.options.message }}</p>
-          }
-          <div class="grid grid-cols-2 gap-x-3 gap-y-2">
-            @for (field of pending.options.fields; track field.key; let i = $index) {
-              <div [class.col-span-2]="!field.mono">
-                <label xLabel [for]="'dialog-field-' + field.key">{{ field.label }}</label>
-                @if (field.options; as options) {
-                  <select xSelect [id]="'dialog-field-' + field.key" [formField]="valuesForm[i]" [attr.data-testid]="'dialog-field-' + field.key">
-                    @for (o of options; track o.value) {
-                      <option [value]="o.value">{{ o.label }}</option>
-                    }
-                  </select>
-                } @else if (i === 0) {
-                  <input xInput xAutofocus [id]="'dialog-field-' + field.key" [class.font-mono]="field.mono" [formField]="valuesForm[i]" [attr.aria-invalid]="errors()[i] ? true : null" [class.!border-danger]="!!errors()[i]" (focus)="selectAll($event)" [attr.data-testid]="'dialog-field-' + field.key" />
-                } @else {
-                  <input xInput [id]="'dialog-field-' + field.key" [class.font-mono]="field.mono" [formField]="valuesForm[i]" [attr.aria-invalid]="errors()[i] ? true : null" [class.!border-danger]="!!errors()[i]" (focus)="selectAll($event)" [attr.data-testid]="'dialog-field-' + field.key" />
-                }
-                @if (errors()[i]; as error) {
-                  <p class="text-[11px] text-danger mt-0.5">{{ error }}</p>
+  <div class="fixed inset-0 z-50 flex items-start justify-center bg-black/40" [class]="pending.kind === 'component' ? 'pt-[6vh]' : 'pt-[18vh]'" (mousedown)="cancel(pending)">
+    @if (pending.kind === 'component') {
+      <div
+        class="w-[560px] max-w-[92vw] max-h-[88vh] overflow-y-auto rounded-lg border border-edge bg-canvas shadow-xl p-4"
+        role="dialog"
+        aria-modal="true"
+        data-testid="component-dialog"
+        (mousedown)="$event.stopPropagation()"
+        (keydown.escape)="cancel(pending)"
+      >
+        <ng-container *ngComponentOutlet="pending.component; inputs: { data: pending.data, close: pending.resolve }" />
+      </div>
+    } @else {
+      <div class="w-[440px] max-w-[90vw] rounded-lg border border-edge bg-canvas shadow-xl p-4" (mousedown)="$event.stopPropagation()">
+        @if (pending.kind === 'prompt') {
+          <form (submit)="submitPrompt($event, pending)" (keydown)="promptKeys($event, pending)">
+            <h2 class="text-sm font-semibold mb-3">{{ pending.options.title }}</h2>
+            @if (pending.options.label) {
+              <label xLabel>{{ pending.options.label }}</label>
+            }
+            @if (pending.options.multiline) {
+              <textarea xTextarea xAutofocus rows="8" [formField]="answerForm.text" [placeholder]="pending.options.placeholder ?? ''"></textarea>
+            } @else {
+              <input xInput xAutofocus [formField]="answerForm.text" [placeholder]="pending.options.placeholder ?? ''" (focus)="selectAll($event)" />
+            }
+            @if (pending.options.choice; as choice) {
+              <div class="flex items-center gap-2 mt-3">
+                <label xLabel class="mb-0">{{ choice.label }}</label>
+                <select xSelect [formField]="answerForm.choice" [attr.aria-label]="choice.label">
+                  @for (o of choice.options; track o.value) {
+                    <option [value]="o.value">{{ o.label }}</option>
+                  }
+                </select>
+                @if (hint(); as hint) {
+                  <span class="text-xs text-muted">{{ hint }}</span>
                 }
               </div>
             }
-          </div>
-          <div class="flex justify-end gap-2 mt-4">
-            <button xButton variant="ghost" type="button" (click)="cancel(pending)">Cancel</button>
-            <button xButton variant="primary" type="submit" [disabled]="invalid()" data-testid="form-dialog-confirm">{{ pending.options.confirmLabel ?? 'OK' }}</button>
-          </div>
-        </form>
-      } @else {
-        <div (keydown.escape)="cancel(pending)">
-          <h2 class="text-sm font-semibold mb-1">{{ pending.options.title }}</h2>
-          @if (pending.options.message) {
-            <p class="text-sm text-muted">{{ pending.options.message }}</p>
-          }
-          @if (pending.options.details?.length) {
-            <ul class="mt-2 ml-4 list-disc text-sm text-fg/85 space-y-0.5" data-testid="confirm-details">
-              @for (line of pending.options.details; track $index) {
-                <li>{{ line }}</li>
+            <div class="flex justify-end gap-2 mt-4">
+              <button xButton variant="ghost" (click)="cancel(pending)">Cancel</button>
+              <button xButton variant="primary" type="submit">{{ pending.options.confirmLabel ?? 'OK' }}</button>
+            </div>
+          </form>
+        } @else if (pending.kind === 'form') {
+          <form (submit)="submitForm($event, pending)" (keydown.escape)="cancel(pending)" data-testid="form-dialog">
+            <h2 class="text-sm font-semibold mb-1">{{ pending.options.title }}</h2>
+            @if (pending.options.message) {
+              <p class="text-sm text-muted mb-2">{{ pending.options.message }}</p>
+            }
+            <div class="grid grid-cols-2 gap-x-3 gap-y-2">
+              @for (field of pending.options.fields; track field.key; let i = $index) {
+                <div [class.col-span-2]="!field.mono">
+                  <label xLabel [for]="'dialog-field-' + field.key">{{ field.label }}</label>
+                  @if (field.options; as options) {
+                    <select xSelect [id]="'dialog-field-' + field.key" [formField]="valuesForm[i]" [attr.data-testid]="'dialog-field-' + field.key">
+                      @for (o of options; track o.value) {
+                        <option [value]="o.value">{{ o.label }}</option>
+                      }
+                    </select>
+                  } @else if (i === 0) {
+                    <input xInput xAutofocus [id]="'dialog-field-' + field.key" [class.font-mono]="field.mono" [formField]="valuesForm[i]" [attr.aria-invalid]="errors()[i] ? true : null" [class.!border-danger]="!!errors()[i]" (focus)="selectAll($event)" [attr.data-testid]="'dialog-field-' + field.key" />
+                  } @else {
+                    <input xInput [id]="'dialog-field-' + field.key" [class.font-mono]="field.mono" [formField]="valuesForm[i]" [attr.aria-invalid]="errors()[i] ? true : null" [class.!border-danger]="!!errors()[i]" (focus)="selectAll($event)" [attr.data-testid]="'dialog-field-' + field.key" />
+                  }
+                  @if (errors()[i]; as error) {
+                    <p class="text-[11px] text-danger mt-0.5">{{ error }}</p>
+                  }
+                </div>
               }
-            </ul>
-          }
-          <div class="flex justify-end gap-2 mt-4">
-            <button xButton variant="ghost" xAutofocus (click)="cancel(pending)">Cancel</button>
-            <button xButton [variant]="pending.options.danger ? 'danger' : 'primary'" [class]="pending.options.danger ? 'border-danger/40' : ''" (click)="pending.resolve(true)">{{ pending.options.confirmLabel ?? 'Confirm' }}</button>
+            </div>
+            <div class="flex justify-end gap-2 mt-4">
+              <button xButton variant="ghost" type="button" (click)="cancel(pending)">Cancel</button>
+              <button xButton variant="primary" type="submit" [disabled]="invalid()" data-testid="form-dialog-confirm">{{ pending.options.confirmLabel ?? 'OK' }}</button>
+            </div>
+          </form>
+        } @else {
+          <div (keydown.escape)="cancel(pending)">
+            <h2 class="text-sm font-semibold mb-1">{{ pending.options.title }}</h2>
+            @if (pending.options.message) {
+              <p class="text-sm text-muted">{{ pending.options.message }}</p>
+            }
+            @if (pending.options.details?.length) {
+              <ul class="mt-2 ml-4 list-disc text-sm text-fg/85 space-y-0.5" data-testid="confirm-details">
+                @for (line of pending.options.details; track $index) {
+                  <li>{{ line }}</li>
+                }
+              </ul>
+            }
+            <div class="flex justify-end gap-2 mt-4">
+              <button xButton variant="ghost" xAutofocus (click)="cancel(pending)">Cancel</button>
+              <button xButton [variant]="pending.options.danger ? 'danger' : 'primary'" [class]="pending.options.danger ? 'border-danger/40' : ''" (click)="pending.resolve(true)">{{ pending.options.confirmLabel ?? 'Confirm' }}</button>
+            </div>
           </div>
-        </div>
-      }
-    </div>
+        }
+      </div>
+    }
   </div>
 }

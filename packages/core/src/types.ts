@@ -163,6 +163,8 @@ export interface HostApi {
     pickFile(options?: FileDialogOptions): Promise<string | undefined>;
     pickSavePath(options?: FileDialogOptions): Promise<string | undefined>;
     pickFolder(options?: { title?: string; defaultPath?: string }): Promise<string | undefined>;
+    /** Shows a file in the system's file manager (Explorer, Finder), selected. */
+    reveal(path: string): void;
   };
   /** Broadcast an event to every window. */
   emit<E extends HostEventName>(event: E, payload: HostEvents[E]): void;

@@ -2,6 +2,7 @@ import { Component, computed, inject, input } from '@angular/core';
 import { LAYER_KINDS, type Layer, type LayerKind } from '@studio/core';
 import { ContextMenu, Dialogs, Icon, IconButton, ProjectDocs, SectionHeader } from '@studio/ui';
 import { Eye, EyeOff, Lock, LockOpen, Plus } from 'lucide';
+import { ExchangeActions } from '../../exchange/ui/exchange-actions';
 import { BuildingActions } from './building-actions';
 
 const KIND_LABEL: Record<LayerKind, string> = { structure: 'Structure', interior: 'Interior', decor: 'Decor' };
@@ -63,6 +64,7 @@ export class LayersPanel {
   private readonly menu = inject(ContextMenu);
   private readonly dialogs = inject(Dialogs);
   private readonly actions = inject(BuildingActions);
+  private readonly exchange = inject(ExchangeActions);
 
   readonly projectId = input.required<string>();
 
@@ -97,10 +99,12 @@ export class LayersPanel {
   protected showAddMenu(event: MouseEvent): void {
     const levelId = this.active();
     if (!levelId) return;
-    this.menu.open(
-      event,
-      LAYER_KINDS.map((kind) => ({ label: `${KIND_LABEL[kind]} layer`, select: () => void this.actions.run(this.projectId(), 'plan.layer.add', { levelId, kind }), testId: `layer-add-${kind}` })),
-    );
+    this.menu.open(event, [
+      ...LAYER_KINDS.map((kind) => ({ label: `${KIND_LABEL[kind]} layer`, select: () => void this.actions.run(this.projectId(), 'plan.layer.add', { levelId, kind }), testId: `layer-add-${kind}` })),
+      'separator',
+      // A DXF comes in on layers of its own (`DXF <layer>`), on this level unless the dialog says otherwise.
+      { label: 'Import DXF…', select: () => void this.exchange.importDxf(this.projectId()), testId: 'layer-add-dxf' },
+    ]);
   }
 
   protected showMenu(event: MouseEvent, layer: Layer): void {

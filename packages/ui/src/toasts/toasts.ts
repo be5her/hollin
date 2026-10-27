@@ -5,6 +5,13 @@ export interface Toast {
   id: number;
   kind: 'info' | 'success' | 'error';
   message: string;
+  /** A button on the toast (Show, for an exported file), which also dismisses it. */
+  action?: ToastAction;
+}
+
+export interface ToastAction {
+  label: string;
+  run(): void;
 }
 
 /** Short notices in the corner. Errors stay a little longer. */
@@ -15,10 +22,17 @@ export class Toasts {
 
   readonly toasts = this.list.asReadonly();
 
-  notify(message: string, kind: Toast['kind'] = 'info'): void {
+  /** Show a notice; one with an action stays as long as an error, so there is time to use it. */
+  notify(message: string, kind: Toast['kind'] = 'info', action?: ToastAction): void {
     const id = ++this.seq;
-    this.list.update((toasts) => [...toasts, { id, kind, message }]);
-    setTimeout(() => this.dismiss(id), kind === 'error' ? 6000 : 3000);
+    this.list.update((toasts) => [...toasts, { id, kind, message, ...(action ? { action } : {}) }]);
+    setTimeout(() => this.dismiss(id), kind === 'error' || action ? 6000 : 3000);
+  }
+
+  /** Runs a toast's action and dismisses the toast. */
+  act(toast: Toast): void {
+    this.dismiss(toast.id);
+    toast.action?.run();
   }
 
   /** Show what went wrong, whatever was thrown. */

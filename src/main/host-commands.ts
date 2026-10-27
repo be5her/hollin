@@ -1,3 +1,4 @@
+import nodePath from 'node:path';
 import { BRANDING, ConfigPatchSchema, StudioError, defineCommand, toolInputSchema, type ConfigPatch } from '@studio/core';
 import { z } from 'zod';
 import type { Host } from './host';
@@ -125,6 +126,20 @@ export function hostCommands(host: Host) {
       handler: async (options, ctx) => {
         if (ctx.caller !== 'ui' || !host.api.dialogs) throw new StudioError('INVALID_INPUT', 'Folder pickers are only available in the app window');
         return { path: (await host.api.dialogs.pickFolder(options)) ?? null };
+      },
+    }),
+    defineCommand({
+      id: 'app.revealPath',
+      title: 'Show in folder',
+      description: "Shows a file in the system's file manager, selected (the Show action of an export's toast).",
+      scope: 'global',
+      hidden: true,
+      input: z.object({ path: z.string().min(1) }),
+      handler: async ({ path }, ctx) => {
+        if (ctx.caller !== 'ui' || !host.api.dialogs) throw new StudioError('INVALID_INPUT', 'Showing files is only available in the app window');
+        if (!nodePath.isAbsolute(path)) throw new StudioError('INVALID_INPUT', 'path must be a full (absolute) file path.');
+        host.api.dialogs.reveal(path);
+        return { path };
       },
     }),
     defineCommand({

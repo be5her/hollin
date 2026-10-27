@@ -1,4 +1,4 @@
-import { Service, signal } from '@angular/core';
+import { Service, signal, type InputSignal, type Type } from '@angular/core';
 
 export interface PromptOptions {
   title: string;
@@ -53,10 +53,21 @@ export interface FormDialogOptions {
   confirmLabel?: string;
 }
 
+/**
+ * A dialog of its own (`Dialogs.open`): a component drawn in the dialog frame with two inputs, `data`
+ * (what the caller passed) and `close` (call it with the answer, or null to cancel). Escape and a click
+ * outside cancel it.
+ */
+export interface DialogComponent<D, T> {
+  readonly data: InputSignal<D>;
+  readonly close: InputSignal<(value: T | null) => void>;
+}
+
 export type PendingDialog =
   | { kind: 'prompt'; options: PromptOptions; resolve(value: string | null, choice?: string): void }
   | { kind: 'confirm'; options: ConfirmOptions; resolve(value: boolean): void }
-  | { kind: 'form'; options: FormDialogOptions; resolve(value: Record<string, string> | null): void };
+  | { kind: 'form'; options: FormDialogOptions; resolve(value: Record<string, string> | null): void }
+  | { kind: 'component'; component: Type<unknown>; data: unknown; resolve(value: unknown): void };
 
 /** Prompt and confirm dialogs as promises. The shell's dialog host draws the pending one. */
 @Service()
@@ -101,6 +112,21 @@ export class Dialogs {
         resolve: (value) => {
           this.current.set(null);
           resolve(value);
+        },
+      });
+    });
+  }
+
+  /** A dialog component of a module's own (see `DialogComponent`); resolves with what it closes with, or null when cancelled. */
+  open<D, T>(component: Type<DialogComponent<D, T>>, data: D): Promise<T | null> {
+    return new Promise((resolve) => {
+      this.current.set({
+        kind: 'component',
+        component,
+        data,
+        resolve: (value) => {
+          this.current.set(null);
+          resolve((value ?? null) as T | null);
         },
       });
     });

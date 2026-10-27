@@ -6,7 +6,10 @@
         [class]="t.kind === 'error' ? 'border-danger/50' : t.kind === 'success' ? 'border-success/50' : 'border-edge'"
       >
         <svg [xIcon]="icons[t.kind]" class="size-4 mt-0.5 shrink-0" [class]="t.kind === 'error' ? 'text-danger' : t.kind === 'success' ? 'text-success' : 'text-muted'"></svg>
-        <span class="flex-1 break-words">{{ t.message }}</span>
+        <span class="flex-1 break-words" data-testid="toast-message">{{ t.message }}</span>
+        @if (t.action; as action) {
+          <button type="button" class="shrink-0 text-xs font-medium text-accent hover:text-accent-hover" (click)="toasts.act(t)" data-testid="toast-action">{{ action.label }}</button>
+        }
         <button type="button" class="text-muted hover:text-fg" (click)="toasts.dismiss(t.id)" aria-label="Dismiss"><svg [xIcon]="closeIcon" class="size-3.5"></svg></button>
       </div>
     }

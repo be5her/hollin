@@ -32,7 +32,7 @@
     </div>
     <div class="w-px h-5 bg-edge"></div>
     <button xButton size="sm" variant="ghost" [icon]="icons.Save" (click)="saveNow()" data-testid="project-save">Save</button>
-    <button xButton size="sm" variant="ghost" [icon]="icons.Download" (click)="actions.exportProject(p)" data-testid="project-export">Export…</button>
+    <button xButton size="sm" variant="ghost" [icon]="icons.Download" (click)="actions.exportProject(p)" data-testid="project-export">Export project…</button>
     <button xButton size="sm" variant="ghost" [icon]="icons.Copy" (click)="actions.duplicate(p)">Duplicate</button>
     <button xButton size="sm" variant="danger" [icon]="icons.Trash2" (click)="actions.trash(p)" data-testid="project-trash">Trash</button>
   </div>
@@ -61,6 +61,9 @@
               </button>
             }
             <div class="flex-1"></div>
+            <button xButton size="sm" variant="ghost" [icon]="icons.FileOutput" (click)="exchange.export(p.id)" title="Export the plan as PDF, SVG or DXF, the building as glTF, or an image" data-testid="exchange-export">Export…</button>
+            <button xButton size="sm" variant="ghost" [icon]="icons.FileInput" (click)="exchange.importDxf(p.id)" title="Import a DXF drawing onto a level, to trace over" data-testid="exchange-import-dxf">Import DXF…</button>
+            <div class="w-px h-4 bg-edge mx-1"></div>
             <button
               xIconButton
               size="sm"

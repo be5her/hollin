@@ -4,7 +4,7 @@ The project library: one folder the app owns, where every project lives. Users n
 
 - **Home** lists projects as cards (thumbnail or a coloured placeholder, name, when it changed, levels, tags), with search (name, description, tags; case and accents ignored), tag filters and sorting. New project, Import, and the trash (restore, delete permanently, empty).
 - **Project tabs:** each open project has a tab. Several can be open at once; they reopen on the next start. The tab on screen is the project agents act on by default. A project opened anywhere (Home, the palette, an MCP agent) gets a tab; closing the tab saves and closes the project.
-- **The project tab** (until the editors arrive): name, description and tags (saved when a field loses focus), save state, Save now, Export, Duplicate, Move to trash, and snapshots (save, restore, delete).
+- **The project tab** (until the editors arrive): name, description and tags (saved when a field loses focus), save state, Save now, Export project (the package), Duplicate, Move to trash, and snapshots (save, restore, delete). Next to the view switch, Export… and Import DXF… open the exchange module's dialogs.
 - **Settings > Library:** the folder, Move (to an empty folder; or switch to a library already in the chosen folder), Rescan.
 - **Palette:** New project (Ctrl+N), Import project, and "Open project: <name>" for the 20 most recently opened.
 

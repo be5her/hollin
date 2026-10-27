@@ -2,7 +2,8 @@ import { NgComponentOutlet } from '@angular/common';
 import { Component, computed, inject, input, linkedSignal, untracked } from '@angular/core';
 import { FormField, form, required } from '@angular/forms/signals';
 import { Badge, Button, EmptyState, HostBridge, Icon, IconButton, OpenProjects, ProjectDocs, ProjectPanels, ProjectView, Toasts, UiActions, relativeTime, type Tab, type TabComponent } from '@studio/ui';
-import { Columns2, Copy, Download, Redo2, Save, Trash2, Undo2 } from 'lucide';
+import { Columns2, Copy, Download, FileInput, FileOutput, Redo2, Save, Trash2, Undo2 } from 'lucide';
+import { ExchangeActions } from '../../exchange/ui/exchange-actions';
 import { LibraryActions } from './library-actions';
 
 /**
@@ -25,10 +26,12 @@ export class ProjectTab implements TabComponent {
   private readonly view = inject(ProjectView);
   private readonly ui = inject(UiActions);
   protected readonly actions = inject(LibraryActions);
+  /** Export… and Import DXF… next to the view switch. */
+  protected readonly exchange = inject(ExchangeActions);
 
   readonly tab = input.required<Tab>();
 
-  protected readonly icons = { Columns2, Copy, Download, Redo2, Save, Trash2, Undo2 };
+  protected readonly icons = { Columns2, Copy, Download, FileInput, FileOutput, Redo2, Save, Trash2, Undo2 };
   protected readonly projectId = computed(() => this.tab().projectId ?? null);
   protected readonly project = computed(() => {
     const id = this.projectId();

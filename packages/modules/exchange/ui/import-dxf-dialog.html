@@ -1,0 +1,91 @@
+<form (submit)="submit($event)" novalidate>
+  <h2 class="text-sm font-semibold">Import DXF</h2>
+  <p class="text-xs text-muted mb-3 truncate" data-testid="import-dxf-file">{{ data().fileName }}</p>
+
+  <div class="grid grid-cols-[auto_1fr] items-center gap-x-4 gap-y-2 text-sm">
+    <span class="text-xs font-medium text-muted">Units</span>
+    <span data-testid="import-dxf-units">{{ unitsLabel() }}</span>
+
+    <label class="text-xs font-medium text-muted" for="import-dxf-scale">Scale</label>
+    <div class="flex items-center gap-2">
+      <input xInput id="import-dxf-scale" type="number" step="any" class="!w-28 font-mono" [formField]="f.scale" [class.!border-danger]="f.scale().invalid()" data-testid="import-dxf-scale" />
+      <span class="text-xs text-muted">mm per drawing unit</span>
+    </div>
+    @if (f.scale().errors()[0]; as error) {
+      <span></span>
+      <p class="-mt-1 text-[11px] text-danger">{{ error.message }}</p>
+    }
+
+    <span class="text-xs font-medium text-muted">Extent</span>
+    <span class="tabular-nums" data-testid="import-dxf-extent">
+      @if (extent(); as e) {
+        {{ e.width }} × {{ e.height }}
+      } @else {
+        <span class="text-muted">Nothing in model space</span>
+      }
+    </span>
+  </div>
+
+  <div class="mt-4">
+    <div class="flex items-center justify-between mb-1">
+      <span xLabel class="!mb-0">Layers <span class="font-normal">({{ ticked() }} of {{ data().probe.layers.length }}, {{ entities() }} entities)</span></span>
+      <span class="flex gap-2 text-[11px]">
+        <button type="button" class="text-accent hover:text-accent-hover" (click)="all(true)">All</button>
+        <button type="button" class="text-accent hover:text-accent-hover" (click)="all(false)">None</button>
+      </span>
+    </div>
+    <div class="max-h-44 overflow-y-auto rounded-md border border-edge bg-surface py-1" role="list" aria-label="DXF layers" data-testid="import-dxf-layers">
+      @for (layer of data().probe.layers; track layer.name; let i = $index) {
+        <label class="flex items-center gap-2 px-2.5 py-1 text-sm cursor-pointer hover:bg-elevated" role="listitem" data-testid="import-dxf-layer" [attr.data-name]="layer.name">
+          <input xCheckbox type="checkbox" [formField]="f.layers[i]" [attr.aria-label]="'Import ' + layer.name" />
+          <span class="flex-1 truncate" [class.text-muted]="!layer.entities">{{ layer.name }}</span>
+          @if (layer.hidden) {
+            <span class="rounded border border-edge px-1 text-[10px] uppercase tracking-wide text-muted" title="Off or frozen in the file: it comes in hidden">Hidden</span>
+          }
+          <span class="w-10 text-right text-xs tabular-nums text-muted" data-testid="import-dxf-count">{{ layer.entities }}</span>
+        </label>
+      } @empty {
+        <p class="px-2.5 py-1 text-xs text-muted">The file has no layers.</p>
+      }
+    </div>
+    @if (f.layers().errors()[0]; as error) {
+      <p class="mt-0.5 text-[11px] text-danger">{{ error.message }}</p>
+    }
+    @if (skipped(); as skipped) {
+      <p class="mt-1.5 text-[11px] text-muted" data-testid="import-dxf-skipped">Skipped: {{ skipped }}</p>
+    }
+  </div>
+
+  <div class="mt-4 grid grid-cols-4 gap-3">
+    <div class="col-span-2">
+      <label xLabel for="import-dxf-level">Level</label>
+      <select xSelect id="import-dxf-level" class="w-full" [formField]="f.levelId" data-testid="import-dxf-level">
+        @for (l of data().levels; track l.id) {
+          <option [value]="l.id">{{ l.name }}</option>
+        }
+      </select>
+    </div>
+    <div>
+      <label xLabel for="import-dxf-x">Origin X (mm)</label>
+      <input xInput id="import-dxf-x" type="number" step="any" class="font-mono" [formField]="f.originX" data-testid="import-dxf-origin-x" />
+    </div>
+    <div>
+      <label xLabel for="import-dxf-y">Origin Y (mm)</label>
+      <input xInput id="import-dxf-y" type="number" step="any" class="font-mono" [formField]="f.originY" data-testid="import-dxf-origin-y" />
+    </div>
+    <div class="col-span-2">
+      <label xLabel for="import-dxf-prefix">Layer prefix</label>
+      <input xInput id="import-dxf-prefix" [formField]="f.layerPrefix" data-testid="import-dxf-prefix" />
+    </div>
+    <p class="col-span-2 self-end pb-1 text-[11px] text-muted">
+      @if (exampleLayer(); as first) {
+        e.g. “{{ model().layerPrefix }}{{ first.name }}”, an interior layer
+      }
+    </p>
+  </div>
+
+  <div class="flex justify-end gap-2 mt-5">
+    <button xButton variant="ghost" type="button" (click)="cancel()">Cancel</button>
+    <button xButton variant="primary" type="submit" [disabled]="invalid()" data-testid="import-dxf-confirm">Import</button>
+  </div>
+</form>

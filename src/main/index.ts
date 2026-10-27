@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { BRANDING, type HostEventMessage } from '@studio/core';
 import type { Cipher } from '@studio/core/node';
-import { BrowserWindow, app, dialog, safeStorage } from 'electron';
+import { BrowserWindow, app, dialog, safeStorage, shell } from 'electron';
 import { Host } from './host';
 import { CHANNELS, registerIpc } from './ipc';
 import { handleLibraryProtocol, registerLibraryScheme } from './library-protocol';
@@ -64,6 +64,9 @@ const dialogs = {
     const result = await dialog.showOpenDialog(parentWindow(), { properties: ['openDirectory', 'createDirectory'], ...options });
     return result.canceled ? undefined : result.filePaths[0];
   },
+  reveal(file: string) {
+    shell.showItemInFolder(file);
+  },
 };
 
 /** A project package passed on the command line (a double-clicked file, or a second launch). */
@@ -117,7 +120,8 @@ async function main(): Promise<void> {
     broadcast,
     setTitleBarColors,
     extraModules: smokeModules,
-    dialogs: smoke ? undefined : dialogs,
+    // The smoke answers the pickers itself (smoke/dialogs.ts), so no native dialog ever opens.
+    dialogs: smoke ? (await import('./smoke/dialogs')).smokeDialogs : dialogs,
     // Smoke runs check autosave without waiting the full interval.
     autosave: smoke ? { debounceMs: 150, maxWaitMs: 1000 } : undefined,
   });

@@ -4,6 +4,7 @@ import { inflateSync } from 'node:zlib';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import { pngTopLeftPixel, readPngHeader } from '@studio/core';
 import type { Smoke } from './harness';
+import { canvasAttr, openProjectTab, tab } from './plan-canvas';
 
 type Rendered = { path: string; bytes: number; width: number; height: number; view: string; levelId: string; levelName: string };
 
@@ -97,5 +98,150 @@ export async function smokeExchangeUi(smoke: Smoke, duplexId: string): Promise<v
   } finally {
     await smoke.run('config.update', { patch: { mcp: { allowMutations: false } } });
     await agent.close();
+  }
+}
+
+/** Clicks away the toasts stacked over the bottom-right corner. */
+const dismissToasts = (smoke: Smoke) => smoke.js("[...document.querySelectorAll('[aria-label=Dismiss]')].forEach((b) => b.click())");
+
+/**
+ * The Export dialog and the DXF import as a user drives them, with the native pickers answered by the
+ * smoke's stand-in (`smoke.nextDialogPath`): the dialog opens from the project tab's toolbar and
+ * shows only the chosen format's fields; a PDF of every level fitted to the page, a dark 320 × 240
+ * PNG and a glTF are written where the picker said, each with a toast whose Show reveals the file; the
+ * DXF import dialog shows the probe (units, layers with counts, what is skipped), imports onto the
+ * level on screen (the Layers panel lists `DXF Walls`, the canvas draws more entities) and one undo
+ * takes it back. The import goes into a throwaway project, deleted at the end.
+ */
+export async function smokeExchangeDialogs(smoke: Smoke, duplexId: string): Promise<void> {
+  smoke.section('exchange: the Export dialog');
+  const out = path.join(smoke.host.opts.userDataDir, 'exports');
+  const dialog = '[data-testid=export-dialog]';
+  const has = (selector: string) => smoke.js<boolean>(`!!document.querySelector(${JSON.stringify(selector)})`);
+  const checked = (testId: string) => smoke.js<boolean>(`document.querySelector('[data-testid=${testId}]')?.checked === true`);
+  const openExport = async () => {
+    await dismissToasts(smoke);
+    await smoke.click(`${tab} [data-testid=exchange-export]`);
+    return smoke.waitFor(dialog);
+  };
+  /** Confirms the open dialog with the picker answering `file`, then waits for the file and the toast. */
+  const exportTo = async (file: string) => {
+    await fs.rm(file, { force: true });
+    await dismissToasts(smoke);
+    smoke.nextDialogPath(file);
+    await smoke.click('[data-testid=export-confirm]');
+    const written = await smoke.until(() => exists(file), 30_000);
+    const toast = await smoke.waitFor('[data-testid=toast-message]', 10_000, 'Exported 1 file to');
+    return written && toast;
+  };
+
+  smoke.check('the duplex tab opens', await openProjectTab(smoke, duplexId));
+  smoke.check('Export… on the project toolbar opens the Export dialog', await openExport());
+  smoke.check('it starts on PDF, every level, fitted to the page', (await checked('export-format-pdf')) && (await checked('export-levels-all')) && (await smoke.js<string>(`document.querySelector('[data-testid=export-scale]').value`)) === 'fit');
+  const fields = async () => ({ levels: await has('[data-testid=export-levels]'), sheet: await has('[data-testid=export-sheet]'), glb: await has('[data-testid=export-glb]'), png: await has('[data-testid=export-png]') });
+  const shown: Record<string, unknown> = {};
+  for (const format of ['svg', 'dxf', 'glb', 'png', 'pdf']) {
+    await smoke.click(`[data-testid=export-format-${format}]`);
+    await smoke.until(() => checked(`export-format-${format}`), 2000);
+    shown[format] = await fields();
+  }
+  const expected = {
+    svg: { levels: true, sheet: true, glb: false, png: false },
+    dxf: { levels: true, sheet: false, glb: false, png: false },
+    glb: { levels: false, sheet: false, glb: true, png: false },
+    png: { levels: false, sheet: false, glb: false, png: true },
+    pdf: { levels: true, sheet: true, glb: false, png: false },
+  };
+  smoke.check('each format shows only its own fields', JSON.stringify(shown) === JSON.stringify(expected), shown);
+  smoke.check('PDF of every level says one file with a page per level', ((await smoke.text('[data-testid=export-levels-hint]')) ?? '').includes('a page per level (2)'));
+  await smoke.shots('36-export-dialog-pdf');
+
+  const asked = smoke.dialogs.asked.length;
+  await smoke.click(`${dialog} button`, 'Cancel');
+  smoke.check('Cancel closes the dialog without asking where to save', (await smoke.gone(dialog)) && smoke.dialogs.asked.length === asked);
+
+  const pdfPath = path.join(out, 'Dialog.pdf');
+  await openExport();
+  smoke.check('a PDF of every level, fitted, is written where the save dialog said', await exportTo(pdfPath));
+  const save = smoke.dialogs.asked.at(-1);
+  smoke.check('the save dialog was asked with the project name and the PDF filter', save?.kind === 'pickSavePath' && save.options.defaultPath === 'Duplex.pdf' && save.options.filters?.[0]?.extensions.join() === 'pdf', save);
+  const pdfText = (await fs.readFile(pdfPath).catch(() => Buffer.alloc(0))).toString('latin1');
+  smoke.check('the PDF has a page per level', pdfText.startsWith('%PDF-') && /\/Count 2 /.test(pdfText));
+  smoke.check('the toast names the folder', ((await smoke.text('[data-testid=toast-message]')) ?? '').includes(out));
+  await smoke.click('[data-testid=toast-action]', 'Show');
+  smoke.check('its Show action reveals the file in the file manager', smoke.dialogs.revealed.at(-1) === pdfPath, smoke.dialogs.revealed);
+
+  const pngPath = path.join(out, 'Dialog.png');
+  smoke.check('the dialog opens again', await openExport());
+  await smoke.click('[data-testid=export-format-png]');
+  await smoke.waitFor('[data-testid=export-size]');
+  await smoke.fill('[data-testid=export-size]', 'custom');
+  smoke.check('a custom size shows width and height', await smoke.waitFor('[data-testid=export-width]', 2000));
+  await smoke.fill('[data-testid=export-width]', '20');
+  smoke.check('a width under 64 px is refused', await smoke.until(() => smoke.js<boolean>(`document.querySelector('[data-testid=export-confirm]').disabled`), 2000));
+  await smoke.fill('[data-testid=export-width]', '320');
+  await smoke.fill('[data-testid=export-height]', '240');
+  await smoke.fill('[data-testid=export-theme]', 'dark');
+  await smoke.until(() => smoke.js<boolean>(`!document.querySelector('[data-testid=export-confirm]').disabled`), 2000);
+  await smoke.shots('36-export-dialog-png');
+  smoke.check('a dark 320 × 240 PNG is written', await exportTo(pngPath));
+  const pngBytes = new Uint8Array(await fs.readFile(pngPath).catch(() => Buffer.alloc(0)));
+  const head = readPngHeader(pngBytes);
+  smoke.check('its IHDR says 320 × 240 and its corner is the dark paper', head?.width === 320 && head.height === 240 && corner(pngBytes) === '#17181a/255', { head, corner: corner(pngBytes) });
+
+  const glbPath = path.join(out, 'Dialog.glb');
+  await openExport();
+  await smoke.click('[data-testid=export-format-glb]');
+  smoke.check('glTF offers furniture and finishes, both ticked', (await smoke.waitFor('[data-testid=export-include-items]', 2000)) && (await checked('export-include-items')) && (await checked('export-include-finishes')));
+  smoke.check('a glTF of the building is written', await exportTo(glbPath));
+  const glb = await fs.readFile(glbPath).catch(() => Buffer.alloc(0));
+  smoke.check('it is a GLB, named after the project', glb.subarray(0, 4).toString('latin1') === 'glTF' && smoke.dialogs.asked.at(-1)?.options.defaultPath === 'Duplex.glb');
+  await dismissToasts(smoke);
+
+  smoke.section('exchange: the DXF import dialog');
+  const dxfFile = path.join(out, 'Duplex - Ground floor.dxf');
+  const project = await smoke.run<{ id: string }>('project.create', { name: 'DXF dialog', open: true });
+  const projectId = project.id;
+  try {
+    smoke.check('a throwaway project opens', await openProjectTab(smoke, projectId));
+    await smoke.until(async () => (await canvasAttr(smoke, 'entities')) !== undefined, 10_000);
+    const before = Number(await canvasAttr(smoke, 'entities'));
+
+    // The Layers panel's add menu offers it too: here the picker is cancelled, so nothing follows.
+    const pickedBefore = smoke.dialogs.asked.length;
+    await smoke.click(`${tab} [data-testid=layer-add]`);
+    smoke.check('the Layers panel add menu has Import DXF…', await smoke.waitFor('[data-testid=layer-add-dxf]', 2000));
+    smoke.nextDialogPath(undefined);
+    await smoke.click('[data-testid=layer-add-dxf]');
+    const picked = await smoke.until(() => smoke.dialogs.asked.length > pickedBefore, 3000);
+    const pick = smoke.dialogs.asked.at(-1);
+    smoke.check('which asks for a DXF file, and a cancelled picker stops there', picked && pick?.kind === 'pickFile' && pick.options.filters?.[0]?.extensions.join() === 'dxf' && !(await has('[data-testid=import-dxf-dialog]')), pick);
+
+    await dismissToasts(smoke);
+    smoke.nextDialogPath(dxfFile);
+    await smoke.click(`${tab} [data-testid=exchange-import-dxf]`);
+    smoke.check('Import DXF… shows the import dialog after probing the file', await smoke.waitFor('[data-testid=import-dxf-dialog]', 10_000));
+    smoke.check('it shows the units, millimetres', (await smoke.text('[data-testid=import-dxf-units]')) === 'millimetres');
+    const layers = await smoke.js<{ name: string; count: number; checked: boolean }[]>(
+      `[...document.querySelectorAll('[data-testid=import-dxf-layer]')].map((r) => ({ name: r.dataset.name, count: Number(r.querySelector('[data-testid=import-dxf-count]').textContent), checked: r.querySelector('input').checked }))`,
+    );
+    smoke.check('and the layers with their entity counts, all ticked', layers.some((l) => l.name === 'Walls' && l.count > 0) && layers.some((l) => l.name === 'Stairs and lifts' && l.count > 0) && layers.every((l) => l.checked), layers);
+    smoke.check('what it skips (the hatch) and the extent', ((await smoke.text('[data-testid=import-dxf-skipped]')) ?? '').includes('HATCH') && ((await smoke.text('[data-testid=import-dxf-extent]')) ?? '').includes('×'));
+    smoke.check('the level on screen is the target', (await smoke.js<string>(`document.querySelector('[data-testid=import-dxf-level]').value`)) === smoke.host.projects.session(projectId)?.doc.building.groundLevelId);
+    await smoke.shots('36-import-dxf-dialog');
+    await smoke.click('[data-testid=import-dxf-confirm]');
+    smoke.check('the import says what it brought in', await smoke.waitFor('[data-testid=toast-message]', 15_000, 'Imported'));
+    const message = (await smoke.text('[data-testid=toast-message]')) ?? '';
+    smoke.check('with shapes, dividers and labels', /\d+ shapes?, \d+ dividers? and \d+ labels? on \d+ layers?/.test(message), message);
+    smoke.check('the Layers panel lists DXF Walls', await smoke.waitFor(`${tab} [data-testid=layer-row][data-name="DXF Walls"]`, 5000));
+    smoke.check('and the canvas draws the drawing', await smoke.until(async () => Number(await canvasAttr(smoke, 'entities')) > before, 5000), { before, after: await canvasAttr(smoke, 'entities') });
+    await dismissToasts(smoke);
+    await smoke.click(`${tab} [data-testid=project-undo]`);
+    smoke.check('one undo removes the import and its layers', (await smoke.gone(`${tab} [data-testid=layer-row][data-name="DXF Walls"]`)) && (await smoke.until(async () => Number(await canvasAttr(smoke, 'entities')) === before, 5000)));
+  } finally {
+    await smoke.run('project.close', { id: projectId });
+    await smoke.run('project.trash', { id: projectId });
+    await smoke.run('project.delete', { id: projectId });
+    await dismissToasts(smoke);
   }
 }

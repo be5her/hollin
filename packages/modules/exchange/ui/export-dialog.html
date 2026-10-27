@@ -1,0 +1,148 @@
+<form (submit)="submit($event)" novalidate>
+  <h2 class="text-sm font-semibold">Export</h2>
+  <p class="text-xs text-muted mb-3 truncate">{{ data().projectName }}</p>
+
+  <div class="grid grid-cols-5 gap-1.5" role="radiogroup" aria-label="Format">
+    @for (o of formats; track o.value) {
+      <label class="cursor-pointer">
+        <input type="radio" class="peer sr-only" [value]="o.value" [formField]="f.format" [attr.data-testid]="'export-format-' + o.value" />
+        <span
+          class="flex h-full flex-col gap-0.5 rounded-md border border-edge bg-surface px-2 py-1.5 transition-colors hover:bg-elevated peer-checked:border-accent peer-checked:bg-accent/10 peer-focus-visible:ring-2 peer-focus-visible:ring-accent/30"
+        >
+          <span class="text-sm font-semibold text-fg">{{ o.label }}</span>
+          <span class="text-[11px] leading-tight text-muted">{{ o.hint }}</span>
+        </span>
+      </label>
+    }
+  </div>
+
+  <div class="mt-4 flex flex-col gap-3">
+    @if (isDrawing()) {
+      <div data-testid="export-levels">
+        <span xLabel>Levels</span>
+        <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm" role="radiogroup" aria-label="Levels">
+          <label class="flex items-center gap-1.5 cursor-pointer">
+            <input type="radio" value="current" class="accent-accent" [formField]="f.levels" data-testid="export-levels-current" />
+            Current level <span class="text-muted">({{ data().levelName }})</span>
+          </label>
+          <label class="flex items-center gap-1.5 cursor-pointer">
+            <input type="radio" value="all" class="accent-accent" [formField]="f.levels" data-testid="export-levels-all" />
+            All levels <span class="text-muted">({{ data().levelCount }})</span>
+          </label>
+        </div>
+        <p class="mt-1 text-[11px] text-muted" data-testid="export-levels-hint">{{ levelsHint() }}</p>
+      </div>
+    }
+
+    @if (onSheet()) {
+      <div class="grid grid-cols-3 gap-3" data-testid="export-sheet">
+        <div>
+          <label xLabel for="export-page">Page</label>
+          <select xSelect id="export-page" class="w-full" [formField]="f.page" data-testid="export-page">
+            @for (p of pages; track p) {
+              <option [value]="p">{{ p }}</option>
+            }
+          </select>
+        </div>
+        <div>
+          <label xLabel for="export-orientation">Orientation</label>
+          <select xSelect id="export-orientation" class="w-full" [formField]="f.orientation" data-testid="export-orientation">
+            <option value="landscape">Landscape</option>
+            <option value="portrait">Portrait</option>
+          </select>
+        </div>
+        <div>
+          <label xLabel for="export-scale">Scale</label>
+          <select xSelect id="export-scale" class="w-full" [formField]="f.scale" data-testid="export-scale">
+            @for (s of scales; track s.value) {
+              <option [value]="s.value">{{ s.label }}</option>
+            }
+          </select>
+        </div>
+      </div>
+    }
+
+    @if (format() === 'dxf') {
+      <p class="text-[11px] text-muted">Millimetres, AutoCAD R2000, a CAD layer per drawing layer.</p>
+    }
+
+    @if (format() === 'glb') {
+      <div class="flex flex-col gap-1.5 text-sm" data-testid="export-glb">
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input xCheckbox type="checkbox" [formField]="f.includeItems" data-testid="export-include-items" />
+          Include furniture
+        </label>
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input xCheckbox type="checkbox" [formField]="f.includeFinishes" data-testid="export-include-finishes" />
+          Include finishes (floors, wall faces, ceilings)
+        </label>
+        <p class="text-[11px] text-muted">One self-contained .glb in metres, y up, with every level.</p>
+      </div>
+    }
+
+    @if (format() === 'png') {
+      <div class="flex flex-col gap-3" data-testid="export-png">
+        <div>
+          <span xLabel>View</span>
+          <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm" role="radiogroup" aria-label="View">
+            <label class="flex items-center gap-1.5 cursor-pointer">
+              <input type="radio" value="plan" class="accent-accent" [formField]="f.view" data-testid="export-view-plan" />
+              Plan <span class="text-muted">({{ data().levelName }})</span>
+            </label>
+            <label class="flex items-center gap-1.5 cursor-pointer">
+              <input type="radio" value="3d" class="accent-accent" [formField]="f.view" data-testid="export-view-3d" />
+              3D
+            </label>
+          </div>
+          @if (model().view === '3d') {
+            <p class="mt-1 text-[11px] text-muted" data-testid="export-view3d-hint">{{ data().view3dSummary }}</p>
+          }
+        </div>
+        <div class="grid grid-cols-3 gap-3">
+          <div>
+            <label xLabel for="export-size">Size</label>
+            <select xSelect id="export-size" class="w-full" [formField]="f.size" data-testid="export-size">
+              @for (s of sizes; track s.value) {
+                <option [value]="s.value">{{ s.label }}</option>
+              }
+            </select>
+          </div>
+          @if (custom()) {
+            <div>
+              <label xLabel for="export-width">Width (px)</label>
+              <input xInput id="export-width" type="number" step="1" class="font-mono" [formField]="f.width" [class.!border-danger]="f.width().invalid()" data-testid="export-width" />
+              @if (f.width().errors()[0]; as error) {
+                <p class="mt-0.5 text-[11px] text-danger">{{ error.message }}</p>
+              }
+            </div>
+            <div>
+              <label xLabel for="export-height">Height (px)</label>
+              <input xInput id="export-height" type="number" step="1" class="font-mono" [formField]="f.height" [class.!border-danger]="f.height().invalid()" data-testid="export-height" />
+              @if (f.height().errors()[0]; as error) {
+                <p class="mt-0.5 text-[11px] text-danger">{{ error.message }}</p>
+              }
+            </div>
+          }
+        </div>
+        <div class="flex flex-wrap items-end gap-x-6 gap-y-2">
+          <div>
+            <label xLabel for="export-theme">Theme</label>
+            <select xSelect id="export-theme" class="w-32" [formField]="f.theme" data-testid="export-theme">
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+            </select>
+          </div>
+          <label class="flex h-8 items-center gap-2 text-sm cursor-pointer">
+            <input xCheckbox type="checkbox" [formField]="f.transparent" data-testid="export-transparent" />
+            Transparent background
+          </label>
+        </div>
+      </div>
+    }
+  </div>
+
+  <div class="flex justify-end gap-2 mt-5">
+    <button xButton variant="ghost" type="button" (click)="cancel()">Cancel</button>
+    <button xButton variant="primary" type="submit" [disabled]="invalid()" data-testid="export-confirm">Export…</button>
+  </div>
+</form>

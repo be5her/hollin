@@ -4,6 +4,7 @@ import path from 'node:path';
 import type { ErrorCode, HostEventMessage, HostEventName } from '@studio/core';
 import type { BrowserWindow } from 'electron';
 import type { Host, InvokeOptions } from '../host';
+import { smokeDialogs } from './dialogs';
 
 export const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -42,6 +43,14 @@ export class Smoke {
     readonly shotsDir: string | undefined,
   ) {
     host.onEvent((message) => this.events.push(message));
+  }
+
+  /** The host's stand-in for the native pickers: what they were asked and what was revealed. */
+  readonly dialogs = smokeDialogs;
+
+  /** The path the next file picker or save dialog answers with (`undefined` cancels it); no native dialog opens in a smoke run. */
+  nextDialogPath(path: string | undefined): void {
+    smokeDialogs.answerNext(path);
   }
 
   section(name: string): void {
