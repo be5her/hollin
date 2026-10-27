@@ -31,6 +31,8 @@ export async function smokeMcp(smoke: Smoke): Promise<void> {
     smoke.check(`${era}: hidden commands are not tools`, !names.has('config_update') && !names.has('ai_key_set') && !names.has('ai_key_status'));
     const destroy = tools.find((t) => t.name === 'smoke_destroy');
     smoke.check(`${era}: mutating tools say so`, destroy?.annotations?.destructiveHint === true && /Gated/.test(destroy.description ?? ''), destroy);
+    const hints = (name: string) => tools.find((t) => t.name === name)?.annotations;
+    smoke.check(`${era}: queries are read-only, edits neither read-only nor destructive`, hints('plan_describe')?.readOnlyHint === true && hints('rules_check')?.readOnlyHint === true && hints('plan_wall_add')?.readOnlyHint === false && hints('plan_wall_add')?.destructiveHint === false, [hints('plan_describe'), hints('plan_wall_add')]);
 
     const before = smoke.events.length;
     const echo = text(await client.callTool({ name: 'smoke_echo', arguments: { text: 'hi' } }));
@@ -61,6 +63,8 @@ export async function smokeMcp(smoke: Smoke): Promise<void> {
     const prompt = await reader.getPrompt({ name: 'design-house', arguments: { storeys: '3' } });
     smoke.check('the design-house prompt asks for a 3-storey house with a central stair', prompts.some((p) => p.name === 'design-house') && /3-storey house .* central stair/.test((prompt.messages[0].content as { text: string }).text));
     smoke.check('and the furnish-room prompt is offered', prompts.some((p) => p.name === 'furnish-room'));
+    const instructions = reader.getInstructions() ?? '';
+    smoke.check('the server instructions point to the guidelines resource and every prompt', instructions.includes('studio://guidelines') && prompts.every((p) => instructions.includes(p.name)), instructions);
     await reader.close();
   }
 

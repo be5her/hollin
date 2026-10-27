@@ -141,6 +141,7 @@ export const rulesModule = defineModule({
       description:
         'The warnings the design raises right now: stairs and ramps outside the limits in the settings, elevators with bad stops, connectors whose top is not above their bottom or whose opening lies outside a floor slab, doors and windows that do not fit their wall, detected rooms that are not enclosed, and walls, shapes or regions that cross themselves. Each warning names its rule, its severity, a message, the entity or connector it is about and its level. Filter with levelId or rule. Returns the warnings, the total count and the count per level; the host announces rules.changed with the count after every change that alters the set.',
       scope: 'project',
+      readOnly: true,
       input: z.object({ levelId: z.string().optional().describe('Only this level'), rule: z.string().optional().describe('Only this rule, e.g. stair-limits, room-open') }),
       handler: async ({ levelId, rule }, ctx) => {
         const all = (watcher ?? new RulesWatcher(ctx.host)).warnings(ctx.project!);

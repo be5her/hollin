@@ -43,6 +43,21 @@ const write = (res: ServerResponse, event: string, data: unknown) => res.write(`
 
 let turnCounter = 0;
 
+/** The real API's 400 for a `tool_use` without its `tool_result` in the message right after it, or null when every call is answered. */
+export function unansweredToolUse(messages: FakeMessagesBody['messages']): string | null {
+  for (let i = 0; i < messages.length; i++) {
+    const message = messages[i];
+    if (message.role !== 'assistant' || typeof message.content === 'string') continue;
+    const ids = message.content.filter((b) => b.type === 'tool_use').map((b) => b.id as string);
+    if (!ids.length) continue;
+    const next = messages[i + 1];
+    const answered = new Set(next?.role === 'user' && Array.isArray(next.content) ? next.content.filter((b) => b.type === 'tool_result').map((b) => b.tool_use_id as string) : []);
+    const missing = ids.filter((id) => !answered.has(id));
+    if (missing.length) return `messages.${i + 1}: \`tool_use\` ids were found without \`tool_result\` blocks immediately after: ${missing.join(', ')}. Each \`tool_use\` block must have a corresponding \`tool_result\` block in the next message.`;
+  }
+  return null;
+}
+
 export class FakeClaude {
   readonly requests: FakeRequest[] = [];
   private readonly queue: FakeTurn[] = [];
@@ -114,6 +129,12 @@ export class FakeClaude {
     this.requests.push({ headers: req.headers as FakeRequest['headers'], body });
     for (const wake of this.waiters.splice(0)) wake();
 
+    // As the real API does: every tool_use must be answered by a tool_result in the next message. The scripted turn is failed, not kept.
+    const unanswered = unansweredToolUse(body.messages);
+    if (unanswered) {
+      this.queue.shift();
+      return this.fail(res, 400, 'invalid_request_error', unanswered);
+    }
     const turn = this.queue.shift() ?? { text: 'Nothing scripted for this request.' };
     if (turn.error) return this.fail(res, turn.error.status, turn.error.type, turn.error.message);
     const id = `msg_fake_${++turnCounter}`;

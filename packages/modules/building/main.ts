@@ -98,6 +98,7 @@ export const buildingModule = defineModule({
       description:
         'The levels from bottom to top with their elevation (mm, negative below ground), floor-to-floor height, slab thickness and layers, plus the stairs, ramps, elevators and other connectors between levels. Each connector has derived: its bottom, top and rise (mm), the levels whose slab it cuts, the limits it breaks (roken), and for a stair its risers, riser height, tread depth and flights, for a ramp its slope (%), for an elevator its stops bottom to top. Derived numbers follow level heights and are never stored.',
       scope: 'project',
+      readOnly: true,
       input: z.object({}),
       handler: async (_input, ctx) => describeBuilding(ctx.project!.doc, ctx.host.config.get().rules),
     }),
@@ -180,13 +181,14 @@ export const buildingModule = defineModule({
       description:
         'Read-only. What building.level.remove would do to a level: the mezzanines that block it, its entities counted by type, entities on other levels whose span is cut short, connectors removed with it and elevators that lose a stop.',
       scope: 'project',
+      readOnly: true,
       input: z.object({ levelId }),
       handler: async ({ levelId: id }, ctx) => levelRemovalImpact(ctx.project!.doc, id),
     }),
     defineCommand({
       id: 'building.level.remove',
       title: 'Remove a level',
-      description: 'Removes a level and everything on it. Levels above it drop by its height. Stairs and ramps ending on it are removed; elevators stop skipping it. Can be undone.',
+      description: 'Removes a level and everything on it; refused while a mezzanine is placed from it. Levels above it drop by its height. Stairs, ramps, ladders and escalators arriving at it are removed; elevators lose the stop (one left with fewer than two stops is removed); columns, voids and shafts on other levels that ran up to it stop at their own level. building_level_impact says what it would remove. Can be undone.',
       scope: 'project',
       batchable: true,
       input: z.object({ levelId }),

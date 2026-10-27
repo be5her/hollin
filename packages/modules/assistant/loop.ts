@@ -73,19 +73,26 @@ export async function runLoop(options: LoopOptions, messages: Anthropic.MessageP
       if (message.stop_reason === 'max_tokens') events.note(options.newId('msg'), 'The reply was cut short by the length limit.');
       return;
     }
+    // Every tool_use is answered with a tool_result, even when the call never runs: the API refuses a conversation with an unanswered call.
+    const notRun = (call: Anthropic.ToolUseBlock, message: string): Anthropic.ToolResultBlockParam => ({ type: 'tool_result', tool_use_id: call.id, content: JSON.stringify({ code: 'UNAVAILABLE', message }), is_error: true });
     if (round >= MAX_TOOL_ROUNDS) {
+      messages.push({ role: 'user', content: calls.map((call) => notRun(call, `Not run: the limit of ${MAX_TOOL_ROUNDS} rounds of tool calls was reached.`)) });
       events.note(options.newId('msg'), `Stopped after ${MAX_TOOL_ROUNDS} rounds of tool calls. Send another message to go on.`);
       return;
     }
     const results: Anthropic.ToolResultBlockParam[] = [];
     for (const call of calls) {
-      if (signal.aborted) return;
+      if (signal.aborted) {
+        results.push(notRun(call, 'Not run: the user stopped the assistant.'));
+        continue;
+      }
       events.toolStart(call.id, call.name, call.input);
       const outcome = await execute(call.name, call.input);
       events.toolEnd(call.id, outcome);
       results.push({ type: 'tool_result', tool_use_id: call.id, content: toolResultContent(outcome), ...(outcome.ok ? {} : { is_error: true }) });
     }
     messages.push({ role: 'user', content: results });
+    if (signal.aborted) return;
   }
 }
 

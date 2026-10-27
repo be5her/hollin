@@ -93,6 +93,7 @@ export const decorModule = defineModule({
       description:
         "Searches the catalog: furniture and other models (kind 'item', the default: built-in ones and models imported into the library, which decor_item_place takes), materials (kind 'material': paints, timber, tiles, stone, carpet, brick, fabrics, metals, glass, for decor_material_set and item slots; any colour is also `paint:#rrggbb`) or door and window styles (kind 'style', for an opening's `style`). `query` ranks by name, then category and tags; `category` keeps one category (items: living, dining, bedroom, kitchen, bathroom, office, lighting, outdoor, imported). Returns entries with `ref`, name, category, tags, size [width, depth, height] in mm (items), material slots, the colour (materials), whether a lamp can bring its light, and where it comes from (builtin, the library, or only this project).",
       scope: 'global',
+      readOnly: true,
       input: z.object({
         query: z.string().max(200).optional(),
         kind: z.enum(['item', 'material', 'style']).default('item'),
@@ -109,6 +110,7 @@ export const decorModule = defineModule({
       title: 'Catalog entry',
       description: 'One catalog entry by its `ref` (from catalog_search): an item with its size in mm and material slots, a material with its colour, or a style.',
       scope: 'global',
+      readOnly: true,
       input: z.object({ ref: z.string().min(1).max(200) }),
       handler: async ({ ref }, ctx) => {
         const entry = allEntries(ctx).find((e) => e.ref === ref);

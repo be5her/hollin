@@ -11,6 +11,7 @@ export function hostCommands(host: Host) {
       title: 'App info',
       description: `Name, version and platform of ${BRANDING.productName}, and the state of its MCP server.`,
       scope: 'global',
+      readOnly: true,
       input: z.object({}),
       handler: async () => ({
         productName: BRANDING.productName,
@@ -27,6 +28,7 @@ export function hostCommands(host: Host) {
       title: 'Read settings',
       description: 'Returns the app settings: appearance, display units and precision, MCP server, assistant model. Secrets are never included.',
       scope: 'global',
+      readOnly: true,
       input: z.object({}),
       handler: async () => host.config.get(),
     }),
@@ -66,6 +68,7 @@ export function hostCommands(host: Host) {
       title: 'MCP server status',
       description: 'Whether the MCP server is running, and its URL.',
       scope: 'global',
+      readOnly: true,
       input: z.object({}),
       handler: async () => host.mcpStatus(),
     }),

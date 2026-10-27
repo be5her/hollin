@@ -295,7 +295,8 @@ function claudeCodeProvider(host: HostApi, chat: Chat): ClaudeCodeProvider {
       return mcp.running ? mcp.url : null;
     },
     projectId: chat.projectId,
-    systemPrompt: () => `${STABLE_PROMPT}\n\n${livePrompt(host, chat.project)}`,
+    systemPrompt: () => STABLE_PROMPT,
+    liveContext: () => livePrompt(host, chat.project),
     sessionId: () => chat.sessionId,
     tokens: {
       issue: () => {
@@ -352,9 +353,11 @@ function rememberSession(host: HostApi, chat: Chat, sessionId: string | null): v
 
 const isItem = (value: unknown): value is TranscriptItem => typeof value === 'object' && value !== null && typeof (value as { kind?: unknown }).kind === 'string' && typeof (value as { id?: unknown }).id === 'string';
 
+/** Loads the stored Claude Code chat, only while Claude Code is the provider: an API chat starts empty. */
 async function loadChat(host: HostApi, chat: Chat): Promise<void> {
   try {
-    const stored = (await host.projects.uiState(chat.projectId))[UI_KEY] as Partial<StoredChat> | undefined;
+    const raw = (await host.projects.uiState(chat.projectId))[UI_KEY] as Partial<StoredChat> | undefined;
+    const stored = host.config.get().ai.provider === 'claude-code' && (raw?.provider ?? 'claude-code') === 'claude-code' ? raw : undefined;
     chat.sessionId = typeof stored?.sessionId === 'string' ? stored.sessionId : null;
     chat.items = Array.isArray(stored?.items) ? stored.items.filter(isItem) : [];
     chat.restored = chat.items.length > 0;
@@ -559,7 +562,8 @@ export const assistantModule = defineModule({
         chat.error = null;
         chat.sessionId = null;
         chat.restored = false;
-        storeChat(ctx.host, chat);
+        // Whichever provider runs now: a stored Claude Code chat goes too.
+        ctx.host.projects.setUiState(chat.projectId, { [UI_KEY]: null }).catch((err) => console.warn('[assistant] could not remove the stored chat', err));
         changed(ctx.host, chat);
         return { cleared: true };
       },

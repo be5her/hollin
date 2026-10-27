@@ -300,6 +300,7 @@ export const planModule = defineModule({
       description:
         "Lists the entities on a level (including columns, shafts and voids that pass through it), optionally only one layer, one type, or given ids. With `levelId`, the stairs, ramps, ladders, elevators and escalators that reach the level follow, as `{ type: 'connector', role, ...connector }` where role is bottom, top, stop (an elevator stops there) or crosses (it only passes through); `type: 'connector'` lists only those.",
       scope: 'project',
+      readOnly: true,
       input: z.object({ levelId: levelId.optional(), layerId: layerId.optional(), type: z.string().optional(), ids: z.array(z.string()).optional() }),
       handler: async ({ levelId: lv, layerId: layer, type, ids }, ctx) => {
         const doc = ctx.project!.doc;
@@ -321,6 +322,7 @@ export const planModule = defineModule({
       description:
         "The whole design as a reader would describe it, derived right now (all lengths mm, areas mm²): every level bottom to top with its elevation and height, the count of entities by type, its rooms (name, number, net area, perimeter, whether enclosed), each room's openings with the room they lead to (or `outside`), which rooms are adjacent and how (a shared wall, a door, a window, an opening), the connectors landing in each room, the furniture standing in it (name, model ref, position, turn, size as placed and the area it covers), its lights and its finishes (floor, walls and ceiling materials), and enclosed spaces no room names yet (with furniture and lights in no room under `outside`); then the vertical circulation: for each stair, ramp, ladder, escalator or elevator the levels it connects bottom to top with the room it opens into on each, the slabs it cuts and its derived numbers (risers, slope, stops, broken limits). Call it first to understand a project, and after a change to check the result.",
       scope: 'project',
+      readOnly: true,
       input: z.object({}),
       handler: async (_input, ctx) => describeDesign(ctx.project!.doc, ctx.host.config.get().rules),
     }),
@@ -330,6 +332,7 @@ export const planModule = defineModule({
       description:
         "Draws a picture fitted into a PNG and returns it as an image, with the level's id and name, the view and the image size. `view: 'plan'` (the default): one level's plan from above (walls joined, openings cut, rooms with their names and areas, stairs and elevators with their symbols, columns, slabs, furniture and lights, dimensions and labels). `view: '3d'`: the whole building in 3D (every level at its elevation, walls with the openings cut through, doors and windows with their frames and leaves, slabs with their stairwells, columns, stairs, ramps and elevators, furniture and finishes), `lighting` by `day` (the sky and the sun, the default) or at `night` (the design's own lights), seen from `azimuth` (degrees counter-clockwise from east on the plan: 270 looks from the south) and `elevation` (degrees above the horizon), the default a three-quarter view from the south-west; `display` shows every level, the level alone (`isolate`), or the level and those below it with its walls cut at the plan cut height (`cutaway`, to see into its rooms from above); `explode` (0 to 1) spreads the levels apart. `levelId` is the level drawn, or the level isolate and cutaway work on; the ground level by default. `theme` picks the light palette (the default) or the dark one; `transparent` leaves the background out (no paper colour on the plan, no sky in 3D). Use it to look at the result of a change. Needs the app window: it fails with UNAVAILABLE when no window can draw, and with NOT_FOUND when there is nothing to draw yet.",
       scope: 'project',
+      readOnly: true,
       output: 'image',
       input: z.object({
         levelId: levelId.optional().describe('Default: the ground level'),
@@ -545,6 +548,7 @@ export const planModule = defineModule({
       title: 'List rooms with their areas',
       description: "The rooms of a level as the walls enclose them right now: name, number, whether the room is enclosed (a detected room whose walls opened is not), whether it shares its space with another room, the net floor area in mm², the perimeter in mm, where its label sits and its outline.",
       scope: 'project',
+      readOnly: true,
       input: z.object({ levelId }),
       handler: async ({ levelId: lv }, ctx) => {
         const entities = ctx.project!.doc.levelData[lv]?.entities;
@@ -562,6 +566,7 @@ export const planModule = defineModule({
       description:
         "A level's floor slab as derived right now: the automatic slab (the outline of the walls that enclose something) and each drawn slab, with the openings that stairs, ramps, elevators and other connectors passing through its floor cut out. Returns the polygons, the total area in mm², and each opening with the connector that makes it.",
       scope: 'project',
+      readOnly: true,
       input: z.object({ levelId }),
       handler: async ({ levelId: lv }, ctx) => {
         const doc = ctx.project!.doc;
@@ -648,6 +653,7 @@ export const planModule = defineModule({
       title: 'List dimensions with their values',
       description: "The dimensions of a level as they read right now: kind, the points as resolved (an end tied to a wall or shape follows it), what each one measures (`value` in mm, or degrees for an angle) and the text it shows in the display units, with its anchors.",
       scope: 'project',
+      readOnly: true,
       input: z.object({ levelId }),
       handler: async ({ levelId: lv }, ctx) => {
         const entities = ctx.project!.doc.levelData[lv]?.entities;

@@ -213,6 +213,11 @@ export interface CommandDefinition<S extends AnyZodObject = AnyZodObject, O = un
   mutating?: boolean | ((input: z.infer<S>, ctx: CommandContext) => boolean | Promise<boolean>);
   /** Plumbing for the UI: kept out of the palette and MCP. */
   hidden?: boolean;
+  /**
+   * Changes nothing at all (a query, a description, a list, a probe, a picture of the design), so MCP
+   * marks it `readOnlyHint`. Ordinary edits are neither read-only nor mutating. Never with `mutating`.
+   */
+  readOnly?: boolean;
   /** An editing command that can run as a step of `plan.apply` (one transaction for many edits). */
   batchable?: boolean;
   /**
@@ -233,6 +238,8 @@ export interface CommandMeta {
   mutating: boolean;
   conditional: boolean;
   hidden: boolean;
+  /** True when the command changes nothing (`readOnly` in its definition). */
+  readOnly: boolean;
   /** True when an empty input is valid, so the palette can run it directly. */
   noInput: boolean;
   batchable: boolean;

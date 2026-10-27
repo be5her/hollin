@@ -10,6 +10,7 @@ const echo = defineCommand({
   title: 'Echo',
   description: 'Returns its input.',
   scope: 'global',
+  readOnly: true,
   input: z.object({ text: z.string(), count: z.number().int().min(1).default(1) }),
   handler: async ({ text, count }) => text.repeat(count),
 });
@@ -108,8 +109,8 @@ describe('CommandRegistry', () => {
   it('lists metadata for the palette and MCP', () => {
     const list = registry().list();
     expect(list.map((c) => c.id)).toEqual(['test.echo', 'test.wipe', 'test.query', 'test.hidden']);
-    expect(list.find((c) => c.id === 'test.echo')).toMatchObject({ module: 'test', mutating: false, conditional: false, hidden: false, noInput: false });
-    expect(list.find((c) => c.id === 'test.wipe')).toMatchObject({ scope: 'project', mutating: true, conditional: false, noInput: true });
+    expect(list.find((c) => c.id === 'test.echo')).toMatchObject({ module: 'test', mutating: false, conditional: false, hidden: false, readOnly: true, noInput: false });
+    expect(list.find((c) => c.id === 'test.wipe')).toMatchObject({ scope: 'project', mutating: true, conditional: false, readOnly: false, noInput: true });
     expect(list.find((c) => c.id === 'test.query')).toMatchObject({ mutating: true, conditional: true });
     expect(list.find((c) => c.id === 'test.hidden')).toMatchObject({ hidden: true });
   });
@@ -117,6 +118,7 @@ describe('CommandRegistry', () => {
   it('rejects duplicate commands and modules', () => {
     const r = registry();
     expect(() => r.register('other', echo)).toThrow(/twice/);
+    expect(() => r.register('other', { ...wipe, id: 'test.both', readOnly: true })).toThrow(/both read-only and mutating/);
     expect(() => r.registerModule({ id: 'test', commands: [] })).toThrow(/twice/);
   });
 });

@@ -4,11 +4,11 @@ The engine. Everything here is pure TypeScript with no Electron, Node I/O or UI 
 
 ## Commands
 
-- `defineCommand({ id, title, description, scope, input, mutating?, hidden?, handler })` is a typed identity helper: the handler infers its input type from the zod schema.
+- `defineCommand({ id, title, description, scope, input, mutating?, hidden?, readOnly?, handler })` is a typed identity helper: the handler infers its input type from the zod schema. `readOnly` marks a command that changes nothing at all (a query, a description, a list, a probe, a snapshot): MCP gives it `readOnlyHint`. Ordinary edits are neither read-only nor mutating; registering a command that is both throws.
 - `defineModule({ id, commands, onStart?, onStop?, onProjectOpen?, onProjectClose? })` groups a feature's commands.
 - `CommandRegistry.execute(id, rawInput, ctx)` checks, in order: unknown id → `UNKNOWN_COMMAND`; a project-scope command without a project → `NO_PROJECT`; `safeParse` failure → `INVALID_INPUT` (each issue as "path: message", also in `details`); the mutating gate; then the handler.
 - The mutating gate never applies to the UI. MCP callers are refused (`MUTATION_BLOCKED`) unless `config.mcp.allowMutations` is on. The assistant goes through `host.confirmMutation`, which asks the user (`MUTATION_DECLINED` when they say no; refused while no host provides it). A function-valued `mutating` decides per call, after validation.
-- `registry.list()` gives `{ id, module, title, description, scope, mutating, conditional, hidden, noInput }` for the palette and MCP.
+- `registry.list()` gives `{ id, module, title, description, scope, mutating, conditional, hidden, readOnly, noInput }` for the palette and MCP.
 - `StudioError(code, message, details?)` is the one error type; `toErrorPayload` turns anything thrown into `{ code, message, details? }`.
 
 ## Other pieces

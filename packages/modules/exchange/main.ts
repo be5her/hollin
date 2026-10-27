@@ -244,6 +244,7 @@ export const exchangeModule = defineModule({
       description:
         "Reads a DXF file at `path` (a full file path) without importing anything, so its units and layers can be checked first. Returns { insUnits, units, scale, layers, skipped, paperSpace, extents }: `insUnits` is the file's $INSUNITS code (null when it does not say), `units` its name, `scale` the millimetres per drawing unit import_dxf would use by default (1 when unitless or unknown), `layers` every DXF layer with how many model-space entities it holds (block references expanded), its colour index and whether it is off or frozen (`hidden`: it would be imported hidden), `skipped` the entity types import_dxf would leave out with their counts, `paperSpace` how many paper-space entities it ignores, `extents` the drawing's extent in drawing units ({ min, max }, null when empty; multiply by `scale` for mm).",
       scope: 'global',
+      readOnly: true,
       input: z.object({ path: z.string().min(1).describe('A full file path to a .dxf file') }),
       handler: async ({ path }) => {
         const file = await readDxfFile(path);

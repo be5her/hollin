@@ -7,8 +7,10 @@
  * the app's real MCP server over HTTP for every scripted tool call (the calls are never short-circuited).
  *
  * Environment:
- *   FAKE_CLAUDE_SCRIPT      a JSON file { sessionId?, expectResume?, failResume?, replay?: [events],
- *                           messages: [[turn, ...], ...] }: each stdin message consumes the next entry
+ *   FAKE_CLAUDE_SCRIPT      a JSON file { sessionId?, expectResume?, failResume?, crashResume?, replay?: [events],
+ *                           messages: [[turn, ...], ...] }: `failResume` answers a resume with the lost
+ *                           session's error, `crashResume` (a message) dies with that message instead;
+ *                           each stdin message consumes the next entry
  *                           (the file is rewritten, so a queue outlives a process); a turn is
  *                           { text?, tools?: [{ name, input }], error? }.
  *   FAKE_CLAUDE_LOG         a JSONL file this script appends to: what it was started with, every
@@ -65,6 +67,11 @@ log({ type: 'start', argv, resume, model: typeof flags.model === 'string' ? flag
 
 if (resume && script.failResume) {
   process.stderr.write(`No conversation found with session ID: ${resume}\n`);
+  process.exit(1);
+}
+if (resume && script.crashResume) {
+  process.stderr.write(`${script.crashResume}
+`);
   process.exit(1);
 }
 if (script.expectResume && resume !== script.expectResume) {

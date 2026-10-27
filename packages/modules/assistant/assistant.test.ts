@@ -8,7 +8,7 @@ import { startMcpServer, type RunningMcpServer } from '@studio/mcp';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { findClaude, probeClaudeCode } from './claude-code';
-import { FakeClaude } from './fake-api';
+import { FakeClaude, unansweredToolUse } from './fake-api';
 import { assistantModule } from './main';
 import { ANTHROPIC_KEY } from '../settings/main';
 
@@ -227,6 +227,53 @@ describe('assistant', () => {
     expect(final.error).toBeNull();
     expect(calls).toEqual([]);
   });
+
+  it('answers every pending call when stopped with several calls left, so the next message is accepted', async () => {
+    const { run, host, state, idle } = setup();
+    await assistantModule.onStart!(host);
+    await host.secrets.set(ANTHROPIC_KEY, 'sk-test-key');
+    fake.script({ tools: [{ name: 'test_wipe', input: {}, id: 'toolu_w' }, { name: 'test_add', input: { length: 1 }, id: 'toolu_a' }] }, { text: 'Fine.' });
+    await run('assistant.send', { text: 'Wipe, then add' });
+    for (let i = 0; i < 100 && (await state()).status !== 'waiting'; i++) await new Promise((r) => setTimeout(r, 25));
+    await run('assistant.cancel');
+    await idle();
+    expect(calls).toEqual([]);
+    await run('assistant.send', { text: 'Go on' });
+    const final = await idle();
+    expect(final.error).toBeNull();
+    const messages = fake.requests.at(-1)!.body.messages;
+    const results = (messages[2].content as { type: string; tool_use_id: string; content: string }[]).map((b) => [b.tool_use_id, JSON.parse(b.content).message]);
+    expect(results).toEqual([
+      ['toolu_w', expect.stringContaining('declined')],
+      ['toolu_a', 'Not run: the user stopped the assistant.'],
+    ]);
+    expect(messages.at(-1)).toEqual({ role: 'user', content: 'Go on' });
+  });
+
+  it('answers the calls of the last round at the round limit, so the next message is accepted', async () => {
+    const { run, host, idle } = setup();
+    await assistantModule.onStart!(host);
+    await host.secrets.set(ANTHROPIC_KEY, 'sk-test-key');
+    fake.script(...Array.from({ length: 26 }, () => ({ tools: [{ name: 'test_add', input: { length: 1 } }] })), { text: 'Going on.' });
+    await run('assistant.send', { text: 'Add walls forever' });
+    const capped = await idle();
+    expect(fake.requests).toHaveLength(26);
+    expect(calls).toHaveLength(25);
+    expect((capped.items.at(-1) as { text: string }).text).toContain('Stopped after 25 rounds');
+    await run('assistant.send', { text: 'Go on' });
+    const final = await idle();
+    expect(final.error).toBeNull();
+    const messages = fake.requests.at(-1)!.body.messages;
+    const last = messages.at(-2)!.content as { type: string; content: string }[];
+    expect(last[0].type).toBe('tool_result');
+    expect(JSON.parse(last[0].content).message).toContain('limit of 25 rounds');
+  });
+
+  it('the fake API refuses a tool_use left without its tool_result, as the real one does', async () => {
+    const call = { role: 'assistant' as const, content: [{ type: 'tool_use', id: 'toolu_1', name: 'x', input: {} }] };
+    expect(unansweredToolUse([{ role: 'user', content: 'a' }, call, { role: 'user', content: 'b' }])).toContain('toolu_1');
+    expect(unansweredToolUse([{ role: 'user', content: 'a' }, call, { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_1', content: '1' }] }])).toBeNull();
+  });
 });
 
 /*
@@ -250,8 +297,8 @@ function freePort(): Promise<number> {
 }
 
 type FakeTurn = { text?: string; tools?: { name: string; input?: unknown }[]; error?: string };
-type FakeScript = { sessionId?: string; expectResume?: string; failResume?: boolean; replay?: unknown[]; messages: FakeTurn[][] };
-type LogEntry = { type: string; pid: number; resume?: string | null; model?: string | null; effort?: string | null; mcpUrl?: string; systemPrompt?: string; allowedTools?: string; disallowedTools?: string; tools?: string; strict?: boolean; name?: string; isError?: boolean; result?: { type: string; text?: string }[] };
+type FakeScript = { sessionId?: string; expectResume?: string; failResume?: boolean; crashResume?: string; replay?: unknown[]; messages: FakeTurn[][] };
+type LogEntry = { type: string; pid: number; resume?: string | null; model?: string | null; effort?: string | null; mcpUrl?: string; systemPrompt?: string; allowedTools?: string; disallowedTools?: string; tools?: string; strict?: boolean; name?: string; text?: string; isError?: boolean; result?: { type: string; text?: string }[] };
 
 const alive = (pid: number): boolean => {
   try {
@@ -455,6 +502,38 @@ describe('assistant with Claude Code', { timeout: 30_000 }, () => {
     expect((await t.state()).sessionId).toBeNull();
   });
 
+  it('keeps the stored session when a resumed process fails without saying the session is gone', async () => {
+    const t = await setupClaudeCode();
+    await t.host.projects.setUiState(t.project.id, { assistant: { provider: 'claude-code', sessionId: 'sess-k', items: [] } });
+    await assistantModule.onProjectOpen!(t.project, t.host);
+    writeScript({ crashResume: 'fake-claude: out of memory', messages: [[{ text: 'Never sent.' }]] });
+    await t.run('assistant.send', { text: 'Hello' });
+    const failed = await t.idle();
+    expect(failed.error).toContain('out of memory');
+    expect(failed.sessionId).toBe('sess-k');
+    expect(t.ui).toMatchObject({ assistant: { sessionId: 'sess-k' } });
+    expect(readLog().filter((e) => e.type === 'start').map((e) => e.resume)).toEqual(['sess-k']);
+    expect(failed.items.some((i) => i.kind === 'assistant' && i.text.includes('could not be resumed'))).toBe(false);
+  });
+
+  it('tells the echo of the new message from a replayed earlier message with the same text by isReplay', async () => {
+    const t = await setupClaudeCode();
+    await t.host.projects.setUiState(t.project.id, { assistant: { provider: 'claude-code', sessionId: 'sess-e', items: [] } });
+    await assistantModule.onProjectOpen!(t.project, t.host);
+    writeScript({
+      expectResume: 'sess-e',
+      replay: [
+        { type: 'user', message: { role: 'user', content: [{ type: 'text', text: 'Continue' }] } },
+        { type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: 'Earlier answer' }] } },
+      ],
+      messages: [[{ text: 'Back again.' }]],
+    });
+    await t.run('assistant.send', { text: 'Continue' });
+    const final = await t.idle();
+    expect(final.error).toBeNull();
+    expect(final.items.map((i) => (i.kind === 'tool' ? i.name : `${i.kind}:${i.text}`))).toEqual(['user:Continue', 'assistant:Earlier answer', 'user:Continue', 'assistant:Back again.']);
+  });
+
   it('closing the project kills the process; reopening it restores the session and the transcript, and replayed history is then ignored', async () => {
     const t = await setupClaudeCode();
     writeScript({ sessionId: 'sess-c', messages: [[{ text: 'Hi.' }]] });
@@ -506,11 +585,44 @@ describe('assistant with Claude Code', { timeout: 30_000 }, () => {
     expect(final.items.map((i) => (i.kind === 'tool' ? i.name : i.text))).toEqual(['First', 'One.', 'Second', 'Two.', 'Third', 'Three.']);
   });
 
+  it('tells a running process about changed levels with the next message, and only then', async () => {
+    const t = await setupClaudeCode();
+    writeScript({ sessionId: 'sess-l', messages: [[{ text: 'One.' }], [{ text: 'Two.' }], [{ text: 'Three.' }]] });
+    await t.run('assistant.send', { text: 'First' });
+    await t.idle();
+    const ground = t.project.doc.levels[t.project.doc.building.stack[0]] as { name: string };
+    expect(readLog().find((e) => e.type === 'start')!.systemPrompt).toContain(`- ${ground.name} (id`);
+    ground.name = 'Piano nobile';
+    await t.run('assistant.send', { text: 'Second' });
+    await t.idle();
+    await t.run('assistant.send', { text: 'Third' });
+    const final = await t.idle();
+    const messages = readLog().filter((e) => e.type === 'message').map((e) => e.text!);
+    expect(messages[0]).toBe('First');
+    expect(messages[1]).toMatch(/^<app-context>[\s\S]*- Piano nobile \(id [\s\S]*<\/app-context>\n\nSecond$/);
+    expect(messages[2]).toBe('Third');
+    // One process throughout, and the transcript shows the user's own words.
+    expect(readLog().filter((e) => e.type === 'start')).toHaveLength(1);
+    expect(final.items.map((i) => (i.kind === 'tool' ? i.name : i.text))).toEqual(['First', 'One.', 'Second', 'Two.', 'Third', 'Three.']);
+  });
+
   it('refuses a model name that would read as a flag', async () => {
     const { host } = setup();
     expect(() => ConfigPatchSchema.parse({ ai: { claudeCodeModel: '--dangerously-skip-permissions' } })).toThrow();
     expect(ConfigPatchSchema.parse({ ai: { claudeCodeModel: 'claude-opus-5-5[1m]' } })).toEqual({ ai: { claudeCodeModel: 'claude-opus-5-5[1m]' } });
     expect(host.config.get().ai.claudeCodeEffort).toBe('');
+  });
+
+  it('does not restore a stored Claude Code chat into an API chat, and Clear removes it there too', async () => {
+    const { run, host, state, project, ui } = setup();
+    await assistantModule.onStart!(host);
+    const stored = { provider: 'claude-code', sessionId: 'sess-x', items: [{ kind: 'user', id: 'msg_1', text: 'From Claude Code', at: '2026-10-27T00:00:00.000Z' }] };
+    await host.projects.setUiState(project.id, { assistant: stored });
+    await assistantModule.onProjectOpen!(project, host);
+    expect((await state()).items).toEqual([]);
+    expect(ui).toEqual({ assistant: stored });
+    await run('assistant.clear');
+    expect(ui).toEqual({});
   });
 
   it('stores nothing for the API provider', async () => {

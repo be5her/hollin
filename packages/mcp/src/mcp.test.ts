@@ -4,7 +4,7 @@ import { CommandRegistry, StudioError, defineCommand, testHost, type AssistantCa
 import { afterEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { agentFromUserAgent, decodeAgentSession, encodeAgentSession, identifyAgent } from './agent';
-import { DOCUMENT_SCHEMA_URI, GUIDELINES_URI, startMcpServer, toolDescription, toolNameFor, type RunningMcpServer } from './index';
+import { DOCUMENT_SCHEMA_URI, GUIDELINES_URI, serverInstructions, startMcpServer, toolDescription, toolNameFor, type RunningMcpServer } from './index';
 
 function freePort(): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -24,7 +24,7 @@ function registry(): CommandRegistry {
   r.registerModule({
     id: 'test',
     commands: [
-      defineCommand({ id: 'test.add', title: 'Add', description: 'Adds two numbers.', scope: 'global', input: z.object({ a: z.number(), b: z.number() }), handler: async ({ a, b }) => ({ sum: a + b }) }),
+      defineCommand({ id: 'test.add', title: 'Add', description: 'Adds two numbers.', scope: 'global', readOnly: true, input: z.object({ a: z.number(), b: z.number() }), handler: async ({ a, b }) => ({ sum: a + b }) }),
       defineCommand({
         id: 'test.where',
         title: 'Where',
@@ -33,6 +33,7 @@ function registry(): CommandRegistry {
         input: z.object({}),
         handler: async (_input, ctx) => ({ project: ctx.project!.id, agent: ctx.agent, caller: ctx.caller }),
       }),
+      defineCommand({ id: 'test.edit', title: 'Edit', description: 'An undoable edit.', scope: 'global', input: z.object({}), handler: async () => 'edited' }),
       defineCommand({ id: 'test.wipe', title: 'Wipe', description: 'Deletes data.', scope: 'global', mutating: true, input: z.object({}), handler: async () => 'wiped' }),
       defineCommand({ id: 'test.hidden', title: 'Hidden', description: 'Plumbing.', scope: 'global', hidden: true, input: z.object({}), handler: async () => 'ok' }),
       defineCommand({ id: 'test.picture', title: 'Picture', description: 'A tiny PNG.', scope: 'global', output: 'image', input: z.object({}), handler: async () => ({ mimeType: 'image/png', data: 'iVBORw0KGgo=', width: 1, height: 1 }) }),
@@ -69,6 +70,7 @@ describe('MCP server over HTTP', () => {
       port,
       name: 'studio-test',
       version: '1.0.0',
+      instructions: serverInstructions('Studio Test'),
       resolveProject: async (hint) => {
         if (!hint) return projects.prj_a;
         if (!projects[hint]) throw new StudioError('NOT_FOUND', `No project ${hint}`);
@@ -142,11 +144,13 @@ describe('MCP server over HTTP', () => {
 
       const { tools } = await client.listTools();
       const names = tools.map((t) => t.name).sort();
-      expect(names).toEqual(['test_add', 'test_fail', 'test_picture', 'test_where', 'test_wipe']);
+      expect(names).toEqual(['test_add', 'test_edit', 'test_fail', 'test_picture', 'test_where', 'test_wipe']);
       const wipe = tools.find((t) => t.name === 'test_wipe')!;
       expect(wipe.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: true });
       expect(wipe.description).toContain('Gated');
-      expect(tools.find((t) => t.name === 'test_add')!.annotations).toMatchObject({ readOnlyHint: true });
+      // A query is read-only; an ordinary edit is neither read-only nor destructive.
+      expect(tools.find((t) => t.name === 'test_add')!.annotations).toMatchObject({ readOnlyHint: true, destructiveHint: false });
+      expect(tools.find((t) => t.name === 'test_edit')!.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: false });
       expect(Object.keys((tools.find((t) => t.name === 'test_where')!.inputSchema as { properties: object }).properties)).toContain('projectId');
 
       expect(text(await client.callTool({ name: 'test_add', arguments: { a: 2, b: 3 } }))).toEqual({ sum: 5 });
@@ -210,6 +214,11 @@ describe('MCP server over HTTP', () => {
     expect((guidelines.contents[0] as { text: string }).text).toMatch(/export_plan.*export_building.*export_image.*gated[\s\S]*import_dxf.*import_dxf_probe/);
     const { prompts } = await client.listPrompts();
     expect(prompts.map((p) => p.name)).toEqual(['furnish-room', 'design-house']);
+    // The instructions point an agent at the guidelines and at every prompt the server offers.
+    const instructions = client.getInstructions() ?? '';
+    expect(instructions).toContain('Studio Test');
+    expect(instructions).toContain(GUIDELINES_URI);
+    for (const p of prompts) expect(instructions).toContain(p.name);
     const prompt = await client.getPrompt({ name: 'design-house', arguments: { storeys: '4' } });
     expect((prompt.messages[0].content as { text: string }).text).toContain('4-storey house');
     const furnish = await client.getPrompt({ name: 'furnish-room', arguments: { room: 'Lounge' } });
@@ -264,7 +273,7 @@ describe('agent identity', () => {
 
   it('names tools and describes gating', () => {
     expect(toolNameFor('plan.wall.add')).toBe('plan_wall_add');
-    const base = { id: 'x', module: 'm', title: 'X', description: 'Does x.', scope: 'global', hidden: false, noInput: true, batchable: false, output: 'json' } as const;
+    const base = { id: 'x', module: 'm', title: 'X', description: 'Does x.', scope: 'global', hidden: false, readOnly: false, noInput: true, batchable: false, output: 'json' } as const;
     expect(toolDescription({ ...base, mutating: false, conditional: false })).toBe('Does x.');
     expect(toolDescription({ ...base, mutating: true, conditional: true })).toMatch(/Read-only calls always work/);
   });

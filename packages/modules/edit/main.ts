@@ -40,6 +40,7 @@ export const editModule = defineModule({
       title: 'Change history',
       description: 'The changes that can be undone (newest first) and redone, with who made each one: you, the assistant, or an agent by name.',
       scope: 'project',
+      readOnly: true,
       input: z.object({}),
       handler: async (_input, ctx) => ctx.project!.history(),
     }),

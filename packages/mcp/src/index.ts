@@ -47,6 +47,15 @@ export const DOCUMENT_SCHEMA_URI = 'studio://schema/document';
 export const GUIDELINES_URI = 'studio://guidelines';
 let documentSchema: string | undefined;
 
+/** The server's instructions: what the app is, and where an agent starts (the guidelines resource and the prompts this server offers). */
+export function serverInstructions(productName: string): string {
+  return [
+    `${productName} is a desktop app for designing buildings, floor plans and interiors. Lengths are in millimetres. Project tools act on the project open in the app unless you pass projectId.`,
+    `Read the ${GUIDELINES_URI} resource before you change a design: how the model is organised and how to work on it well. ${DOCUMENT_SCHEMA_URI} is the JSON Schema of a project document.`,
+    'The prompts design-house (a house of N storeys around a central stair) and furnish-room (furnish, light and finish one room) are worked examples to start from.',
+  ].join('\n\n');
+}
+
 /** The tool description: the command's own, plus the project it runs against and whether it is gated (in Settings for MCP agents, in the chat for the assistant's own Claude Code). */
 export function toolDescription(meta: CommandMeta, gate: 'settings' | 'chat' = 'settings'): string {
   const refused = gate === 'chat' ? 'the user is asked in the chat first and may decline' : 'it is refused unless the user has allowed it in Settings > MCP';
@@ -152,7 +161,7 @@ export function buildMcpServer(opts: McpServerOptions, scope: CallScope): McpSer
         title: meta.title,
         description: toolDescription(meta, scope.assistant ? 'chat' : 'settings'),
         inputSchema,
-        annotations: { title: meta.title, readOnlyHint: !meta.mutating, destructiveHint: meta.mutating, openWorldHint: false },
+        annotations: { title: meta.title, readOnlyHint: meta.readOnly, destructiveHint: meta.mutating, openWorldHint: false },
       },
       async (args: Record<string, unknown>) => {
         const started = performance.now();

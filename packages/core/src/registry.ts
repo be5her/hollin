@@ -16,6 +16,7 @@ export class CommandRegistry {
 
   register(moduleId: string, command: CommandDefinition): void {
     if (this.commands.has(command.id)) throw new Error(`Command "${command.id}" is registered twice`);
+    if (command.readOnly && command.mutating) throw new Error(`Command "${command.id}" cannot be both read-only and mutating`);
     this.commands.set(command.id, { module: moduleId, command });
   }
 
@@ -99,6 +100,7 @@ function toMeta({ module, command }: Registered): CommandMeta {
     mutating: Boolean(command.mutating),
     conditional: typeof command.mutating === 'function',
     hidden: Boolean(command.hidden),
+    readOnly: Boolean(command.readOnly),
     noInput: command.input.safeParse({}).success,
     batchable: Boolean(command.batchable),
     output: command.output ?? 'json',

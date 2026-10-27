@@ -142,7 +142,10 @@ export interface ClaudeCodeOptions {
   serverName: string;
   mcpUrl(): string | null;
   projectId: string;
+  /** The stable part of the prompt, appended to Claude Code's own when a process starts. */
   systemPrompt(): string;
+  /** The live part (the project's name, its levels, the display units), read again for every message. */
+  liveContext(): string;
   sessionId(): string | null;
   /** A per-process token the MCP server recognises; revoked when the process ends. */
   tokens: { issue(): string; revoke(token: string): void };
@@ -184,6 +187,22 @@ interface Block {
 /** What a logged-out Claude Code says (checked against 2.1.283: "Failed to authenticate: OAuth session expired and could not be refreshed"). */
 const AUTH_PATTERN = /not logged in|please run \/login|login expired|failed to authenticate|authentication|invalid api key|oauth/i;
 
+/** How a message carries the live context when it changed since the process was told it, and how a replayed message loses it again. */
+const CONTEXT_OPEN = '<app-context>';
+const CONTEXT_CLOSE = '</app-context>';
+const withContext = (context: string, text: string): string => `${CONTEXT_OPEN}\nThe project changed since you were last told about it; this is how it stands now.\n${context}\n${CONTEXT_CLOSE}\n\n${text}`;
+const withoutContext = (text: string): string => (text.startsWith(CONTEXT_OPEN) && text.includes(CONTEXT_CLOSE) ? text.slice(text.indexOf(CONTEXT_CLOSE) + CONTEXT_CLOSE.length).replace(/^\s+/, '') : text);
+
+/**
+ * Whether a failure says the resumed session could not be found. What the real binary prints for a
+ * lost session was never checked by hand (see the module README), so only an error that names the
+ * session id counts ("No conversation found with session ID: <id>" is what the fake prints); a crash,
+ * a refused connection or anything else keeps the stored session.
+ */
+export function sessionNotFound(text: string, sessionId: string): boolean {
+  return text.includes(sessionId);
+}
+
 /** The text of a user or tool-result content: a string, or the text blocks joined. */
 function contentText(content: unknown): string {
   if (typeof content === 'string') return content;
@@ -222,10 +241,13 @@ export class ClaudeCodeProvider {
   private stderrTail = '';
   private stopped = false;
   private resumed: string | null = null;
-  private sawResult = false;
+  /** A turn of this process ended with a successful result: its session was found. */
+  private answered = false;
   private echoed = false;
   private replay: HistoryItem[] = [];
   private textId: string | null = null;
+  /** The live context this process was last told: in its prompt at start, then with any message after which it had changed. */
+  private context = '';
   private deltas = 0;
   private toolNames = new Map<string, string>();
   /** Resolves when the current process has reported its exit, so a killed one is never written to. */
@@ -299,6 +321,7 @@ export class ClaudeCodeProvider {
     const name = this.opts.serverName;
     const { model, effort } = this.opts.modelAndEffort();
     this.startedWith = `${model}|${effort}`;
+    this.context = this.opts.liveContext();
     const args = [
       ...launch.prefix,
       '-p',
@@ -313,7 +336,7 @@ export class ClaudeCodeProvider {
       '--strict-mcp-config',
       '--allowedTools', `mcp__${name}__*`,
       '--disallowedTools', DISALLOWED_TOOLS,
-      '--append-system-prompt', this.opts.systemPrompt(),
+      '--append-system-prompt', `${this.opts.systemPrompt()}\n\n${this.context}`,
       // Passed on every start, resumes included: a model or effort changed in Settings applies from the next process.
       ...(model ? ['--model', model] : []),
       ...(effort ? ['--effort', effort] : []),
@@ -328,7 +351,7 @@ export class ClaudeCodeProvider {
     this.token = token;
     this.url = base;
     this.resumed = resume;
-    this.sawResult = false;
+    this.answered = false;
     this.stopped = false;
     this.echoed = false;
     this.replay = [];
@@ -352,9 +375,13 @@ export class ClaudeCodeProvider {
   }
 
   private turnOn(text: string): Promise<TurnEnd> {
+    // The levels (or the name, or the units) changed since this process was told them: the message carries the new state, so the process and its prompt cache are kept.
+    const context = this.opts.liveContext();
+    const sent = context === this.context ? text : withContext(context, text);
+    this.context = context;
     return new Promise<TurnEnd>((resolve, reject) => {
       this.turn = { text, resolve, reject };
-      const line = JSON.stringify({ type: 'user', message: { role: 'user', content: [{ type: 'text', text }] } });
+      const line = JSON.stringify({ type: 'user', message: { role: 'user', content: [{ type: 'text', text: sent }] } });
       this.proc!.stdin!.write(`${line}\n`, (err) => {
         if (err) this.fail(`Could not write to Claude Code: ${err.message}`);
       });
@@ -375,8 +402,8 @@ export class ClaudeCodeProvider {
     if (this.stopped) return turn.resolve('stopped');
     const auth = AUTH_PATTERN.test(err.message) || AUTH_PATTERN.test(this.stderrTail);
     if (auth) this.events?.authFailure();
-    // A resumed process that dies before its first result most likely lost its session ("No conversation found…"); the caller retries once without --resume.
-    if (this.resumed && !this.sawResult && !auth) return turn.resolve('resume-failed');
+    // A resumed process that fails before its first answer with an error naming its session lost that session; the caller retries once without --resume. Any other failure keeps the session.
+    if (this.resumed && !this.answered && !auth && sessionNotFound(`${err.message}\n${this.stderrTail}`, this.resumed)) return turn.resolve('resume-failed');
     turn.reject(err);
   }
 
@@ -452,16 +479,16 @@ export class ClaudeCodeProvider {
           return;
         }
         const text = contentText(content);
-        if (!this.echoed && this.turn && text === this.turn.text) {
-          // Our own message, echoed back: everything before it was the resumed session's history.
+        if (!this.echoed && this.turn && msg.isReplay === true) {
+          // Our own message, echoed back (`isReplay`, even when a replayed earlier message has the same text): everything before it was the resumed session's history.
           this.echoed = true;
           if (this.replay.length) events.history(this.replay);
           this.replay = [];
-        } else if (!this.echoed && text) this.replay.push({ kind: 'user', text });
+        } else if (!this.echoed && text) this.replay.push({ kind: 'user', text: withoutContext(text) });
         return;
       }
       case 'result': {
-        this.sawResult = true;
+        if (!msg.is_error) this.answered = true;
         if (msg.subtype === 'error_max_turns') events.note(newId('msg'), `Stopped after ${MAX_TURNS} rounds of tool calls. Send another message to go on.`);
         if (msg.is_error) {
           const detail = (Array.isArray(msg.errors) ? msg.errors.map(String).join('; ') : '') || (typeof msg.result === 'string' ? msg.result : '') || msg.subtype || 'Claude Code reported an error.';

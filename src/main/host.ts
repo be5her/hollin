@@ -17,7 +17,7 @@ import {
   type ProjectApi,
 } from '@studio/core';
 import { ConfigStore, ProjectService, SecretStore, type Cipher } from '@studio/core/node';
-import { startMcpServer, type RunningMcpServer } from '@studio/mcp';
+import { serverInstructions, startMcpServer, type RunningMcpServer } from '@studio/mcp';
 import { mainModules } from '@studio/modules/main';
 import { hostCommands } from './host-commands';
 
@@ -212,7 +212,7 @@ export class Host {
         port,
         name: BRANDING.mcpServerName,
         version: this.opts.version,
-        instructions: `${BRANDING.productName} is a desktop app for designing buildings, floor plans and interiors. Lengths are in millimetres. Project tools act on the project open in the app unless you pass projectId.`,
+        instructions: serverInstructions(BRANDING.productName),
         resolveProject: (hint) => this.resolveProject(hint),
         identifyAssistant: (token) => this.api.identifyAssistant?.(token),
         onCall: (entry) => {
