@@ -102,8 +102,8 @@ export class LayersPanel {
     this.menu.open(event, [
       ...LAYER_KINDS.map((kind) => ({ label: `${KIND_LABEL[kind]} layer`, select: () => void this.actions.run(this.projectId(), 'plan.layer.add', { levelId, kind }), testId: `layer-add-${kind}` })),
       'separator',
-      // A DXF comes in on layers of its own (`DXF <layer>`), on this level unless the dialog says otherwise.
-      { label: 'Import DXF…', select: () => void this.exchange.importDxf(this.projectId()), testId: 'layer-add-dxf' },
+      // A DXF comes in on layers of its own (`DXF <layer>`), on the panel's level unless the dialog says otherwise.
+      { label: 'Import DXF…', select: () => void this.exchange.importDxf(this.projectId(), levelId), testId: 'layer-add-dxf' },
     ]);
   }
 

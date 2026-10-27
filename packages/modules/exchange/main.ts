@@ -73,15 +73,41 @@ export function levelPaths(path: string, names: readonly string[]): string[] {
   });
 }
 
+/** Whether `path` is the folder `root` or inside it, compared without case on Windows (whose file names ignore it). */
+export function isInside(path: string, root: string, platform: string = process.platform): boolean {
+  const paths = platform === 'win32' ? nodePath.win32 : nodePath.posix;
+  const fold = (p: string) => (platform === 'win32' ? paths.resolve(p).toLowerCase() : paths.resolve(p));
+  const target = fold(path);
+  const folder = fold(root).replace(/[\\/]+$/, '');
+  return target === folder || target.startsWith(`${folder}${paths.sep}`);
+}
+
+/** Refuses an export path inside the project library, whose folders the library owns (a file there could be taken for, or clobber, a project's own). */
+export function checkOutsideLibrary(path: string, libraryRoot: string, platform?: string): void {
+  if (isInside(path, libraryRoot, platform)) throw new StudioError('INVALID_INPUT', `Exports cannot be written inside the project library (${libraryRoot}); choose another folder.`);
+}
+
+/** The files of a several-file export that are there already (a single file's path was confirmed by whoever named it). */
+export async function existingFiles(paths: readonly string[]): Promise<string[]> {
+  if (paths.length < 2) return [];
+  const found = await Promise.all(paths.map((p) => fs.stat(p).then(() => true, () => false)));
+  return paths.filter((_, i) => found[i]);
+}
+
+/** The largest DXF `import.dxf` and `import.dxf.probe` read: past it the file is refused before reading. */
+export const MAX_DXF_BYTES = 200 * 1024 * 1024;
+
 /**
  * Reads a DXF file for import: an absolute path (INVALID_INPUT otherwise), NOT_FOUND when missing,
- * decoded as UTF-8 (a BOM dropped by the reader), or as Latin-1 when it is not valid UTF-8 (older
- * ANSI files); a binary DXF or a file without sections is refused.
+ * refused when larger than `maxBytes` (200 MB), decoded as UTF-8 (a BOM dropped by the reader), or as
+ * Latin-1 when it is not valid UTF-8 (older ANSI files); a binary DXF or a file without sections is refused.
  */
-export async function readDxfFile(path: string): Promise<DxfFile> {
+export async function readDxfFile(path: string, maxBytes = MAX_DXF_BYTES): Promise<DxfFile> {
   if (!nodePath.isAbsolute(path)) throw new StudioError('INVALID_INPUT', 'path must be a full (absolute) file path.');
   let bytes: Buffer;
   try {
+    const { size } = await fs.stat(path);
+    if (size > maxBytes) throw new StudioError('INVALID_INPUT', `${nodePath.basename(path)} is ${Math.round(size / 1024 / 1024)} MB; DXF files over ${Math.round(maxBytes / 1024 / 1024)} MB are not imported.`);
     bytes = await fs.readFile(path);
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code;
@@ -112,7 +138,7 @@ export const exchangeModule = defineModule({
       id: 'export.plan',
       title: 'Export plan drawing',
       description:
-        'Writes levels of the open project as plan drawings to `path` (a full file path), as DXF (AutoCAD R2000, millimetres, one CAD layer per drawing layer), SVG or PDF (vector, on a paper sheet at a drawing scale, with a title block). DXF and SVG write one file per level: with several levels the level name is put before the extension (`Plan - Ground floor.svg`); PDF writes one file with a page per level. `levelIds` defaults to every level, bottom to top; `scale` is the 1:N denominator (default 100); `page` and `orientation` set the SVG/PDF sheet (default A3 landscape); `fit` picks, per level, the largest of 1:20 ... 1:1000 that fits the sheet; `layers` limits the drawing to some layer kinds; `units` sets how lengths and areas are written (any of the Settings fields; the rest from Settings). Writes outside the library, so it is gated. Returns the files written (path, bytes, level) and, per level, the scale used and `fits`: false when the level is larger than the sheet at a fixed scale (it is cut off at the margins; use `fit` or a smaller scale).',
+        'Writes levels of the open project as plan drawings to `path` (a full file path), as DXF (AutoCAD R2000, millimetres, one CAD layer per drawing layer), SVG or PDF (vector, on a paper sheet at a drawing scale, with a title block). DXF and SVG write one file per level: with several levels the level name is put before the extension (`Plan - Ground floor.svg`); PDF writes one file with a page per level. When several level files would replace files that are there already, nothing is written and it fails with CONFLICT listing them (`details.existing`, full paths) unless `overwrite` is true; a single file at `path` itself is always replaced. `levelIds` defaults to every level, bottom to top; `scale` is the 1:N denominator (default 100); `page` and `orientation` set the SVG/PDF sheet (default A3 landscape); `fit` picks, per level, the largest of 1:20 ... 1:1000 that fits the sheet; `layers` limits the drawing to some layer kinds; `units` sets how lengths and areas are written (any of the Settings fields; the rest from Settings). Writes outside the library (a path inside the project library is refused), so it is gated. Returns the files written (path, bytes, level) and, per level, the scale used and `fits`: false when the level is larger than the sheet at a fixed scale (it is cut off at the margins; use `fit` or a smaller scale).',
       scope: 'project',
       mutating: true,
       input: z.object({
@@ -126,9 +152,11 @@ export const exchangeModule = defineModule({
         layers: z.array(z.enum(DRAWING_LAYER_KINDS)).optional().describe('Which layer kinds to draw; all by default'),
         title: z.boolean().default(true).describe('SVG and PDF: a title block with the project, the level, the scale and the date'),
         units: UnitSettingsSchema.partial().strict().optional().describe("The units lengths and areas are written in, e.g. { system: 'imperial' }; the fields left out come from Settings"),
+        overwrite: z.boolean().default(false).describe('DXF and SVG of several levels: replace files of the derived names that are there already (refused with CONFLICT otherwise)'),
       }),
       handler: async (input, ctx) => {
         if (!nodePath.isAbsolute(input.path)) throw new StudioError('INVALID_INPUT', 'path must be a full (absolute) file path.');
+        checkOutsideLibrary(input.path, ctx.host.projects.info().path);
         const project = ctx.project!;
         const doc = project.doc;
         const levelIds = input.levelIds ?? doc.building.stack;
@@ -153,6 +181,11 @@ export const exchangeModule = defineModule({
           pdfLayouts(pages, options).forEach((l, i) => levels.push({ levelId: drawings[i].levelId, name: drawings[i].levelName, scale: l.scale, fits: l.fits }));
         } else {
           const paths = levelPaths(input.path, drawings.map((d) => d.levelName));
+          const existing = input.overwrite ? [] : await existingFiles(paths);
+          if (existing.length) {
+            const names = existing.map((p) => nodePath.basename(p));
+            throw new StudioError('CONFLICT', `These files are there already: ${names.join(', ')}. Export again with overwrite: true to replace them.`, { existing });
+          }
           for (const [i, drawing] of drawings.entries()) {
             let data: string;
             let used = input.scale;
@@ -177,7 +210,7 @@ export const exchangeModule = defineModule({
       id: 'export.building',
       title: 'Export building as glTF',
       description:
-        "Writes the open project's building in 3D to `path` (a full file path, usually ending in .glb) as one self-contained glTF 2.0 binary (GLB): geometry, materials and imported furniture models are all inside the file, in metres with y up as glTF requires, so Blender, SketchUp, game engines and web viewers open it as it is. The node tree is a root named after the project, a node per level named after it holding a node per kind of solid (Walls, Slabs, Columns, Glass, Frames, Leaves, Finishes, ...), a node per stair, ramp, ladder, escalator or elevator starting on that level (named by its type), and a node per furniture item named after its model. Colours are those of the 3D view (materials' colour, roughness and metalness, paints, see-through glass); patterns are written as their material's plain colour and lights are not written. `levelIds` defaults to every level; `includeItems` (default true) adds the furniture; `includeFinishes` (default true) the floor, wall and ceiling finishes. Writes outside the library, so it is gated. Returns { path, bytes, nodes, triangles, skipped }, where `skipped` lists the items left out (an imported model whose file is missing).",
+        "Writes the open project's building in 3D to `path` (a full file path, usually ending in .glb) as one self-contained glTF 2.0 binary (GLB): geometry, materials and imported furniture models are all inside the file, in metres with y up as glTF requires, so Blender, SketchUp, game engines and web viewers open it as it is. The node tree is a root named after the project, a node per level named after it holding a node per kind of solid (Walls, Slabs, Columns, Glass, Frames, Leaves, Finishes, ...), a node per stair, ramp, ladder, escalator or elevator starting on that level (named by its type), and a node per furniture item named after its model. Colours are those of the 3D view (materials' colour, roughness and metalness, paints, see-through glass); patterns are written as their material's plain colour and lights are not written. `levelIds` defaults to every level; `includeItems` (default true) adds the furniture; `includeFinishes` (default true) the floor, wall and ceiling finishes. Writes outside the library (a path inside the project library is refused), so it is gated. Returns { path, bytes, nodes, triangles, skipped }, where `skipped` lists the items left out (an imported model whose file is missing).",
       scope: 'project',
       mutating: true,
       input: z.object({
@@ -188,6 +221,7 @@ export const exchangeModule = defineModule({
       }),
       handler: async (input, ctx) => {
         if (!nodePath.isAbsolute(input.path)) throw new StudioError('INVALID_INPUT', 'path must be a full (absolute) file path.');
+        checkOutsideLibrary(input.path, ctx.host.projects.info().path);
         const project = ctx.project!;
         const doc = project.doc;
         const missing = (input.levelIds ?? []).filter((id) => !doc.levels[id]);
@@ -214,7 +248,7 @@ export const exchangeModule = defineModule({
       id: 'export.image',
       title: 'Export image (PNG)',
       description:
-        "Renders a picture of the open project and writes it to `path` (a full file path, usually ending in .png) as a PNG of exactly `width` × `height` pixels (64 to 4096 a side, 1600 × 1200 by default). It draws what `view_snapshot` draws, larger and to a file: `view: 'plan'` (the default) one level's plan from above, `view: '3d'` the whole building in 3D seen from `azimuth` and `elevation` with `display` (every level, one isolated, or cut away at `levelId`), `explode` and `lighting` (day or night). `theme` picks the light palette (the default) or the dark one; `transparent` leaves the background out (no paper colour on the plan, no sky in 3D), for laying the picture over something else. `levelId` defaults to the ground level. Needs the app window, like view_snapshot: fails with UNAVAILABLE when no window draws it in time or when the window cannot draw that large (WebGL caps the 3D size at the GPU's limit; ask for a smaller image then), and with NOT_FOUND when there is nothing to draw yet. Writes outside the library, so it is gated. Returns { path, bytes, width, height, view, levelId, levelName }; it does not return the image itself (use view_snapshot to look).",
+        "Renders a picture of the open project and writes it to `path` (a full file path, usually ending in .png) as a PNG of exactly `width` × `height` pixels (64 to 4096 a side, 1600 × 1200 by default). It draws what `view_snapshot` draws, larger and to a file: `view: 'plan'` (the default) one level's plan from above, `view: '3d'` the whole building in 3D seen from `azimuth` and `elevation` with `display` (every level, one isolated, or cut away at `levelId`), `explode` and `lighting` (day or night). `theme` picks the light palette (the default) or the dark one; `transparent` leaves the background out (no paper colour on the plan, no sky in 3D), for laying the picture over something else. `levelId` defaults to the ground level. Needs the app window, like view_snapshot: fails with UNAVAILABLE when no window draws it in time or when the window cannot draw that large (WebGL caps the 3D size at the GPU's limit; ask for a smaller image then), and with NOT_FOUND when there is nothing to draw yet. Writes outside the library (a path inside the project library is refused), so it is gated. Returns { path, bytes, width, height, view, levelId, levelName }; it does not return the image itself (use view_snapshot to look).",
       scope: 'project',
       mutating: true,
       input: z.object({
@@ -233,6 +267,7 @@ export const exchangeModule = defineModule({
       }),
       handler: async ({ path, levelId: lv, ...render }, ctx) => {
         if (!nodePath.isAbsolute(path)) throw new StudioError('INVALID_INPUT', 'path must be a full (absolute) file path.');
+        checkOutsideLibrary(path, ctx.host.projects.info().path);
         const project = ctx.project!;
         const doc = project.doc;
         const levelId = lv ?? doc.building.groundLevelId;
@@ -248,7 +283,7 @@ export const exchangeModule = defineModule({
       id: 'import.dxf.probe',
       title: 'Inspect a DXF file',
       description:
-        "Reads a DXF file at `path` (a full file path) without importing anything, so its units and layers can be checked first. Returns { insUnits, measurement, units, scale, layers, skipped, paperSpace, extents }: `insUnits` is the file's $INSUNITS code (null when it does not say), `measurement` its $MEASUREMENT (0 imperial, 1 metric, null when it does not say), `units` the name of the units import_dxf takes the drawing in (inches for an imperial $MEASUREMENT without $INSUNITS; null when neither says), `scale` the millimetres per drawing unit import_dxf would use by default (1 when unitless or unknown), `layers` every DXF layer with how many model-space entities it holds (block references expanded; names compared without case, as DXF does), its colour index and whether it is off or frozen (`hidden`: it would be imported hidden), `skipped` the entity types import_dxf would leave out with their counts, `paperSpace` how many paper-space entities it ignores, `extents` the drawing's extent in drawing units ({ min, max }, null when empty; multiply by `scale` for mm).",
+        "Reads a DXF file at `path` (a full file path, at most 200 MB) without importing anything, so its units and layers can be checked first. Returns { insUnits, measurement, units, scale, layers, skipped, paperSpace, extents }: `insUnits` is the file's $INSUNITS code (null when it does not say), `measurement` its $MEASUREMENT (0 imperial, 1 metric, null when it does not say), `units` the name of the units import_dxf takes the drawing in (inches for an imperial $MEASUREMENT without $INSUNITS; null when neither says), `scale` the millimetres per drawing unit import_dxf would use by default (1 when unitless or unknown), `layers` every DXF layer with how many model-space entities it holds (block references expanded; names compared without case, as DXF does), its colour index and whether it is off or frozen (`hidden`: it would be imported hidden), `skipped` the entity types import_dxf would leave out with their counts, `paperSpace` how many paper-space entities it ignores, `extents` the drawing's extent in drawing units ({ min, max }, null when empty; multiply by `scale` for mm).",
       scope: 'global',
       readOnly: true,
       input: z.object({ path: z.string().min(1).describe('A full file path to a .dxf file') }),
@@ -271,7 +306,7 @@ export const exchangeModule = defineModule({
       id: 'import.dxf',
       title: 'Import DXF',
       description:
-        "Imports the model space of a DXF file at `path` (a full file path) onto a level of the open project as a drawing to trace over: one new interior layer per DXF layer that has something to import, named `layerPrefix` + the DXF layer's name (`DXF Walls`; DXF layer names are compared without case, as DXF does, and a layer of that name, in any case, already on the level is reused; DXF layers that are off or frozen come in hidden), closed polylines, circles, closed ellipses and splines as unfilled `shape`s keeping their arcs, arcs and elliptical arcs as open unfilled `shape`s (which do not split rooms), lines and open polylines and splines as room dividers (`separator`s, which also split rooms), texts, MTEXT (formatting stripped) and the visible attribute values of block references as `label`s (a label's size is the font size: the DXF text height, the capitals', divided by 0.72). Block references (INSERT, and MINSERT arrays) are expanded (one nesting deep); hatches, dimensions, points, solids, images, invisible attributes and other entities are skipped and counted. `scale` is millimetres per drawing unit (default from the file's $INSUNITS: 25.4 for inches, 1000 for metres, 1 when unitless; without $INSUNITS, 25.4 when $MEASUREMENT says imperial, else 1), `origin` an offset in mm added after scaling, `layers` limits the import to some DXF layers, `levelId` defaults to the ground level. One undoable change named `Import <file name>`; it does not change existing walls or rooms. Afterwards use plan_query with the returned layer ids to find the shapes, then trace walls over them with plan_wall_add or plan_apply (and remove or hide the DXF layers with plan_layer_remove or plan_layer_update). Returns { levelId, scale, counts: { shapes, separators, labels, layers }, skipped, layers: [{ id, name, dxfLayer, created, visible }] }.",
+        "Imports the model space of a DXF file at `path` (a full file path, at most 200 MB) onto a level of the open project as a drawing to trace over: one new interior layer per DXF layer that has something to import, named `layerPrefix` + the DXF layer's name (`DXF Walls`; DXF layer names are compared without case, as DXF does, and a layer of that name, in any case, already on the level is reused; DXF layers that are off or frozen come in hidden), closed polylines, circles, closed ellipses and splines as unfilled `shape`s keeping their arcs, arcs and elliptical arcs as open unfilled `shape`s (which do not split rooms), lines and open polylines and splines as room dividers (`separator`s, which also split rooms), texts, MTEXT (formatting stripped) and the visible attribute values of block references as `label`s (a label's size is the font size: the DXF text height, the capitals', divided by 0.72). Block references (INSERT, and MINSERT arrays) are expanded (one nesting deep); hatches, dimensions, points, solids, images, invisible attributes and other entities are skipped and counted. `scale` is millimetres per drawing unit (default from the file's $INSUNITS: 25.4 for inches, 1000 for metres, 1 when unitless; without $INSUNITS, 25.4 when $MEASUREMENT says imperial, else 1), `origin` an offset in mm added after scaling, `layers` limits the import to some DXF layers, `levelId` defaults to the ground level. One undoable change named `Import <file name>`; it does not change existing walls or rooms. Afterwards use plan_query with the returned layer ids to find the shapes, then trace walls over them with plan_wall_add or plan_apply (and remove or hide the DXF layers with plan_layer_remove or plan_layer_update). Returns { levelId, scale, counts: { shapes, separators, labels, layers }, skipped, layers: [{ id, name, dxfLayer, created, visible }] }.",
       scope: 'project',
       input: z.object({
         path: z.string().min(1).describe('A full file path to a .dxf file'),

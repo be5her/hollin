@@ -1,5 +1,5 @@
-import { Service, inject, untracked } from '@angular/core';
-import type { ProjectDoc } from '@studio/core';
+import { Service, inject, signal, untracked } from '@angular/core';
+import { StudioError, type ProjectDoc } from '@studio/core';
 import { AppState, Dialogs, HostBridge, OpenProjects, ProjectDocs, ProjectView, Toasts } from '@studio/ui';
 import { ExportDialog, FORMATS, type ExportChoice } from './export-dialog';
 import { ImportDxfDialog, type DxfProbe } from './import-dxf-dialog';
@@ -29,8 +29,23 @@ export class ExchangeActions {
   private readonly docs = inject(ProjectDocs);
   private readonly projects = inject(OpenProjects);
   private readonly view = inject(ProjectView);
-  /** The last answer of the Export dialog in this session, so a second export starts from it. */
+  /** The last answer of the Export dialog in this session, so a second export starts from it (but for the PNG theme, which follows the app's). */
   private last: ExportChoice | null = null;
+  private readonly running = signal<ReadonlySet<string>>(new Set());
+
+  /** Whether an export of this project is being written: its Export… button shows a spinner and is disabled until the command returns. */
+  exporting(projectId: string): boolean {
+    return this.running().has(projectId);
+  }
+
+  private setRunning(projectId: string, on: boolean): void {
+    this.running.update((ids) => {
+      const next = new Set(ids);
+      if (on) next.add(projectId);
+      else next.delete(projectId);
+      return next;
+    });
+  }
 
   private doc(projectId: string): ProjectDoc | undefined {
     return untracked(() => this.docs.read(projectId)?.doc);
@@ -58,11 +73,11 @@ export class ExchangeActions {
 
   async export(projectId: string): Promise<void> {
     const doc = this.doc(projectId);
-    if (!doc) return;
+    if (!doc || untracked(() => this.exporting(projectId))) return;
     const projectName = untracked(this.projects.projects).find((p) => p.id === projectId)?.name ?? 'Project';
     const levelId = this.activeLevel(projectId, doc);
     const view3d = this.view3d(projectId, doc);
-    const initial: ExportChoice = this.last ?? {
+    const defaults: ExportChoice = {
       format: 'pdf',
       levels: 'all',
       page: 'A3',
@@ -74,9 +89,10 @@ export class ExchangeActions {
       size: '1600x1200',
       width: 1600,
       height: 1200,
-      theme: untracked(this.app.resolvedTheme),
+      theme: 'light',
       transparent: false,
     };
+    const initial: ExportChoice = { ...(this.last ?? defaults), theme: untracked(this.app.resolvedTheme) };
     const choice = await this.dialogs.open(ExportDialog, { projectName, levelName: doc.levels[levelId]?.name ?? '', levelCount: doc.building.stack.length, view3dSummary: view3d.summary, initial });
     if (!choice) return;
     this.last = choice;
@@ -86,9 +102,10 @@ export class ExchangeActions {
 
     let id: string;
     let input: Record<string, unknown>;
+    const levelIds = choice.levels === 'current' ? [levelId] : doc.building.stack;
     if (choice.format === 'glb') {
       id = 'export.building';
-      input = { path, includeItems: choice.includeItems, includeFinishes: choice.includeFinishes };
+      input = { path, levelIds, includeItems: choice.includeItems, includeFinishes: choice.includeFinishes };
     } else if (choice.format === 'png') {
       const [w, h] = choice.size === 'custom' ? [choice.width, choice.height] : choice.size.split('x').map(Number);
       id = 'export.image';
@@ -96,20 +113,46 @@ export class ExchangeActions {
     } else {
       const fit = choice.scale === 'fit';
       id = 'export.plan';
-      input = { path, format: choice.format, levelIds: choice.levels === 'current' ? [levelId] : doc.building.stack, scale: fit ? 100 : Number(choice.scale), fit, page: choice.page, orientation: choice.orientation };
+      input = { path, format: choice.format, levelIds, scale: fit ? 100 : Number(choice.scale), fit, page: choice.page, orientation: choice.orientation };
     }
+    this.setRunning(projectId, true);
     try {
-      const result = await this.host.invoke<Exported>(id, input, projectId);
+      const result = await this.invokeExport(id, input, projectId);
+      if (!result) return;
       const files = result.files?.map((f) => f.path) ?? (result.path ? [result.path] : [path]);
       const cut = result.levels?.filter((l) => !l.fits) ?? [];
       const notice = cut.length ? `; ${cut.map((l) => l.name).join(', ')} ${cut.length === 1 ? 'does' : 'do'} not fit the sheet at 1:${cut[0].scale}` : '';
       this.toasts.notify(`Exported ${plural(files.length, 'file')} to ${folderOf(files[0])}${notice}`, 'success', { label: 'Show', run: () => void this.reveal(files[0]) });
     } catch (err) {
       this.toasts.error(err);
+    } finally {
+      this.setRunning(projectId, false);
     }
   }
 
-  async importDxf(projectId: string): Promise<void> {
+  /**
+   * Runs an export; when it would replace files of several levels that are there already (CONFLICT
+   * with their paths), asks first and runs it again with `overwrite`. Null when the user declined.
+   */
+  private async invokeExport(id: string, input: Record<string, unknown>, projectId: string): Promise<Exported | null> {
+    try {
+      return await this.host.invoke<Exported>(id, input, projectId);
+    } catch (err) {
+      const existing = err instanceof StudioError && err.code === 'CONFLICT' ? (err.details as { existing?: string[] } | undefined)?.existing : undefined;
+      if (!existing?.length) throw err;
+      const replace = await this.dialogs.confirm({
+        title: `Replace ${plural(existing.length, 'file')}?`,
+        message: `A file per level is written next to the name you chose. These are in ${folderOf(existing[0])} already:`,
+        details: existing.map((p) => p.slice(Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\')) + 1)),
+        confirmLabel: 'Replace',
+        danger: true,
+      });
+      return replace ? this.host.invoke<Exported>(id, { ...input, overwrite: true }, projectId) : null;
+    }
+  }
+
+  /** The DXF import: a file from the picker, probed, then the import dialog, onto `levelId` (the level on screen by default). */
+  async importDxf(projectId: string, levelId?: string): Promise<void> {
     const doc = this.doc(projectId);
     if (!doc) return;
     const path = await this.pick('app.pickFile', { title: 'Import DXF', filters: DXF_FILTER });
@@ -123,7 +166,7 @@ export class ExchangeActions {
     }
     const levels = [...doc.building.stack].reverse().map((id) => ({ id, name: doc.levels[id].name }));
     const fileName = path.slice(Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\')) + 1);
-    const choice = await this.dialogs.open(ImportDxfDialog, { fileName, probe, levels, levelId: this.activeLevel(projectId, doc) });
+    const choice = await this.dialogs.open(ImportDxfDialog, { fileName, probe, levels, levelId: levelId && doc.levels[levelId] ? levelId : this.activeLevel(projectId, doc) });
     if (!choice) return;
     try {
       const result = await this.host.invoke<Imported>(
@@ -134,7 +177,8 @@ export class ExchangeActions {
       // Show the level the drawing went to, so it is on screen.
       this.view.setActiveLevel(projectId, result.levelId);
       const { shapes, separators, labels, layers } = result.counts;
-      const skipped = Object.values(result.skipped).reduce((n, v) => n + v, 0);
+      // Only what the import does not support: `<TYPE> (degenerate)` and `<TYPE> (empty)` made nothing to skip.
+      const skipped = Object.entries(result.skipped).reduce((n, [type, v]) => (/ \((degenerate|empty)\)$/.test(type) ? n : n + v), 0);
       this.toasts.notify(`Imported ${plural(shapes, 'shape')}, ${plural(separators, 'divider')} and ${plural(labels, 'label')} on ${plural(layers, 'layer')}${skipped ? ` (${skipped} skipped)` : ''}`, 'success');
     } catch (err) {
       this.toasts.error(err);

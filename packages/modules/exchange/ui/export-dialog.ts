@@ -8,7 +8,7 @@ export type ExportFormat = 'pdf' | 'svg' | 'dxf' | 'glb' | 'png';
 /** What the Export dialog asks; `ExchangeActions` turns it into `export.plan`, `export.building` or `export.image`. */
 export interface ExportChoice {
   format: ExportFormat;
-  /** DXF, SVG and PDF: the level on screen, or every level. */
+  /** DXF, SVG, PDF and glTF: the level on screen, or every level. */
   levels: 'current' | 'all';
   page: PaperSize;
   orientation: 'landscape' | 'portrait';
@@ -60,7 +60,7 @@ export const SIZES = [
 
 /**
  * The Export dialog: the format first, then only what that format takes (levels, sheet and scale for
- * the drawings; furniture and finishes for glTF; view, size, theme and background for PNG).
+ * the drawings; levels, furniture and finishes for glTF; view, size, theme and background for PNG).
  */
 @Component({
   selector: 'x-export-dialog',
@@ -90,12 +90,15 @@ export class ExportDialog implements DialogComponent<ExportDialogData, ExportCho
 
   protected readonly format = computed(() => this.model().format);
   protected readonly isDrawing = computed(() => ['pdf', 'svg', 'dxf'].includes(this.format()));
+  /** The drawings and glTF take the level on screen or every level. */
+  protected readonly hasLevels = computed(() => this.isDrawing() || this.format() === 'glb');
   protected readonly onSheet = computed(() => this.format() === 'pdf' || this.format() === 'svg');
   protected readonly custom = computed(() => this.model().size === 'custom');
-  /** What the chosen levels make: one file per level (DXF, SVG) or one PDF with a page per level. */
+  /** What the chosen levels make: one file per level (DXF, SVG), one PDF with a page per level, or one model. */
   protected readonly levelsHint = computed(() => {
     const { format, levels } = this.model();
     const n = levels === 'all' ? this.data().levelCount : 1;
+    if (format === 'glb') return n === 1 ? 'One model of this level and the stairs starting on it' : 'One model of the whole building';
     if (format === 'pdf') return n === 1 ? 'One page' : `One file, a page per level (${n})`;
     return n === 1 ? 'One file' : `A file per level (${n}), named after it`;
   });

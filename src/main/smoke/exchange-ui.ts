@@ -104,12 +104,22 @@ export async function smokeExchangeUi(smoke: Smoke, duplexId: string): Promise<v
 /** Clicks away the toasts stacked over the bottom-right corner. */
 const dismissToasts = (smoke: Smoke) => smoke.js("[...document.querySelectorAll('[aria-label=Dismiss]')].forEach((b) => b.click())");
 
+/** Where keyboard focus is: inside the component dialog or not, and the focused element's test id. */
+const focusInfo = (smoke: Smoke) =>
+  smoke.js<{ inside: boolean; testId: string | null }>(`(() => { const a = document.activeElement; return { inside: !!a?.closest('[data-testid=component-dialog]'), testId: a?.getAttribute('data-testid') ?? null }; })()`);
+/** The text of the heading that labels the component dialog (`aria-labelledby`). */
+const dialogLabel = (smoke: Smoke) => smoke.js<string | null>(`(() => { const id = document.querySelector('[data-testid=component-dialog]')?.getAttribute('aria-labelledby'); return id ? document.getElementById(id)?.textContent?.trim() ?? null : null; })()`);
+/** The node names in a GLB's JSON chunk. */
+const glbNodeNames = (glb: Buffer): string[] => (glb.length < 20 ? [] : ((JSON.parse(glb.subarray(20, 20 + glb.readUInt32LE(12)).toString('utf8')) as { nodes?: { name?: string }[] }).nodes ?? []).map((n) => n.name ?? ''));
+
 /**
  * The Export dialog and the DXF import as a user drives them, with the native pickers answered by the
  * smoke's stand-in (`smoke.nextDialogPath`): the dialog opens from the project tab's toolbar and
- * shows only the chosen format's fields; a PDF of every level fitted to the page, a dark 320 × 240
- * PNG and a glTF are written where the picker said, each with a toast whose Show reveals the file; the
- * DXF import dialog shows the probe (units, layers with counts, what is skipped), imports onto the
+ * shows only the chosen format's fields, takes focus and keeps Tab inside, and closes with Cancel or
+ * Escape giving focus back; a PDF of every level fitted to the page, a dark 320 × 240 PNG and a glTF of
+ * the current level are written where the picker said, each with a toast whose Show reveals the file;
+ * replacing level files asks first; Export… is busy while a render runs; a non-DXF pick is an error
+ * toast; the DXF import dialog closes with Escape or Cancel, shows the probe (units, layers with counts, what is skipped), imports onto the
  * level on screen (the Layers panel lists `DXF Walls`, the canvas draws more entities) and one undo
  * takes it back. The import goes into a throwaway project, deleted at the end.
  */
@@ -119,11 +129,16 @@ export async function smokeExchangeDialogs(smoke: Smoke, duplexId: string): Prom
   const dialog = '[data-testid=export-dialog]';
   const has = (selector: string) => smoke.js<boolean>(`!!document.querySelector(${JSON.stringify(selector)})`);
   const checked = (testId: string) => smoke.js<boolean>(`document.querySelector('[data-testid=${testId}]')?.checked === true`);
+  const exportButton = `${tab} [data-testid=exchange-export]`;
+  /** Opens the Export dialog from the toolbar button, focused first as a click would, so focus has somewhere to return to. */
   const openExport = async () => {
     await dismissToasts(smoke);
-    await smoke.click(`${tab} [data-testid=exchange-export]`);
+    await smoke.js(`document.querySelector(${JSON.stringify(exportButton)})?.focus()`);
+    await smoke.click(exportButton);
     return smoke.waitFor(dialog);
   };
+  const buttonFocused = () => smoke.js<boolean>(`document.activeElement === document.querySelector(${JSON.stringify(exportButton)})`);
+  const idle = () => smoke.until(() => smoke.js<boolean>(`(() => { const b = document.querySelector(${JSON.stringify(exportButton)}); return !!b && !b.disabled && !b.hasAttribute('aria-busy') && b.textContent.trim() === 'Export…'; })()`), 30_000);
   /** Confirms the open dialog with the picker answering `file`, then waits for the file and the toast. */
   const exportTo = async (file: string) => {
     await fs.rm(file, { force: true });
@@ -137,6 +152,21 @@ export async function smokeExchangeDialogs(smoke: Smoke, duplexId: string): Prom
 
   smoke.check('the duplex tab opens', await openProjectTab(smoke, duplexId));
   smoke.check('Export… on the project toolbar opens the Export dialog', await openExport());
+  // Focus moves in, to the first field (the chosen format), the heading labels the dialog, and Tab stays inside.
+  smoke.check('focus moves into the dialog, onto its first field', await smoke.until(async () => (await focusInfo(smoke)).testId === 'export-format-pdf', 2000), await focusInfo(smoke));
+  smoke.check('the dialog is labelled by its heading', (await dialogLabel(smoke)) === 'Export', await dialogLabel(smoke));
+  await smoke.key('Tab', ['shift']);
+  const wrappedBack = await focusInfo(smoke);
+  await smoke.key('Tab');
+  const wrappedOn = await focusInfo(smoke);
+  smoke.check('Shift+Tab on the first field goes round to the last button, and Tab back to the first', wrappedBack.testId === 'export-confirm' && wrappedOn.testId === 'export-format-pdf', { wrappedBack, wrappedOn });
+  const stops: (string | null)[] = [];
+  for (let i = 0; i < 12; i++) {
+    await smoke.key('Tab');
+    const at = await focusInfo(smoke);
+    stops.push(at.inside ? at.testId ?? '(inside)' : null);
+  }
+  smoke.check('Tab never leaves the dialog', stops.every((s) => s !== null) && stops.includes('export-confirm'), stops);
   smoke.check('it starts on PDF, every level, fitted to the page', (await checked('export-format-pdf')) && (await checked('export-levels-all')) && (await smoke.js<string>(`document.querySelector('[data-testid=export-scale]').value`)) === 'fit');
   const fields = async () => ({ levels: await has('[data-testid=export-levels]'), sheet: await has('[data-testid=export-sheet]'), glb: await has('[data-testid=export-glb]'), png: await has('[data-testid=export-png]') });
   const shown: Record<string, unknown> = {};
@@ -148,7 +178,7 @@ export async function smokeExchangeDialogs(smoke: Smoke, duplexId: string): Prom
   const expected = {
     svg: { levels: true, sheet: true, glb: false, png: false },
     dxf: { levels: true, sheet: false, glb: false, png: false },
-    glb: { levels: false, sheet: false, glb: true, png: false },
+    glb: { levels: true, sheet: false, glb: true, png: false },
     png: { levels: false, sheet: false, glb: false, png: true },
     pdf: { levels: true, sheet: true, glb: false, png: false },
   };
@@ -159,6 +189,11 @@ export async function smokeExchangeDialogs(smoke: Smoke, duplexId: string): Prom
   const asked = smoke.dialogs.asked.length;
   await smoke.click(`${dialog} button`, 'Cancel');
   smoke.check('Cancel closes the dialog without asking where to save', (await smoke.gone(dialog)) && smoke.dialogs.asked.length === asked);
+  smoke.check('and focus goes back to Export…', await smoke.until(buttonFocused, 2000));
+  await openExport();
+  await smoke.until(async () => (await focusInfo(smoke)).inside, 2000);
+  await smoke.key('Escape');
+  smoke.check('Escape closes the Export dialog without asking where to save, focus back on Export…', (await smoke.gone(dialog)) && smoke.dialogs.asked.length === asked && (await smoke.until(buttonFocused, 2000)));
 
   const pdfPath = path.join(out, 'Dialog.pdf');
   await openExport();
@@ -191,11 +226,25 @@ export async function smokeExchangeDialogs(smoke: Smoke, duplexId: string): Prom
 
   const glbPath = path.join(out, 'Dialog.glb');
   await openExport();
+  // The last answer was a dark PNG, but the theme starts as the app's each time.
+  await smoke.click('[data-testid=export-format-png]');
+  await smoke.waitFor('[data-testid=export-theme]', 2000);
+  const appTheme = (await smoke.js<boolean>(`document.documentElement.classList.contains('dark')`)) ? 'dark' : 'light';
+  const startTheme = await smoke.js<string>(`document.querySelector('[data-testid=export-theme]').value`);
+  smoke.check("the PNG theme starts as the app's (light), not the last answer (dark)", appTheme === 'light' && startTheme === 'light', { appTheme, startTheme });
   await smoke.click('[data-testid=export-format-glb]');
   smoke.check('glTF offers furniture and finishes, both ticked', (await smoke.waitFor('[data-testid=export-include-items]', 2000)) && (await checked('export-include-items')) && (await checked('export-include-finishes')));
-  smoke.check('a glTF of the building is written', await exportTo(glbPath));
+  smoke.check('and the levels', await has('[data-testid=export-levels-current]'));
+  await smoke.click('[data-testid=export-levels-current]');
+  smoke.check('the current level makes one model of it', await smoke.waitFor('[data-testid=export-levels-hint]', 2000, 'One model of this level'));
+  smoke.check('a glTF of the level on screen is written', await exportTo(glbPath));
   const glb = await fs.readFile(glbPath).catch(() => Buffer.alloc(0));
   smoke.check('it is a GLB, named after the project', glb.subarray(0, 4).toString('latin1') === 'glTF' && smoke.dialogs.asked.at(-1)?.options.defaultPath === 'Duplex.glb');
+  const duplex = smoke.host.projects.session(duplexId)!.doc;
+  const onScreen = duplex.levels[(await canvasAttr(smoke, 'level')) ?? '']?.name;
+  const glbNodes = glbNodeNames(glb);
+  const levelNodes = duplex.building.stack.map((id) => duplex.levels[id].name).filter((name) => glbNodes.includes(name));
+  smoke.check('with the level on screen only', onScreen !== undefined && levelNodes.join() === onScreen, { onScreen, levelNodes });
 
   // The duplex is 10.2 m wide: at 1:50 it is wider than A4 portrait's 190 mm drawing area.
   const svgPath = path.join(out, 'Dialog.svg');
@@ -208,6 +257,50 @@ export async function smokeExchangeDialogs(smoke: Smoke, duplexId: string): Prom
   await smoke.fill('[data-testid=export-scale]', '50');
   smoke.check('an SVG of the level on screen at 1:50 on A4 portrait is written', await exportTo(svgPath));
   smoke.check('the toast says the level does not fit the sheet at that scale', ((await smoke.text('[data-testid=toast-message]')) ?? '').includes('does not fit the sheet at 1:50'), await smoke.text('[data-testid=toast-message]'));
+  await dismissToasts(smoke);
+
+  // A DXF of every level writes `Duplex - <level>.dxf` files, which the command smoke wrote already: the UI asks first.
+  const dxfBase = path.join(out, 'Duplex.dxf');
+  const levelFiles = duplex.building.stack.map((id) => path.join(out, `Duplex - ${duplex.levels[id].name}.dxf`));
+  const marked = levelFiles.at(-1)!;
+  await fs.writeFile(marked, 'not replaced');
+  const askReplace = async () => {
+    await openExport();
+    await smoke.click('[data-testid=export-format-dxf]');
+    await smoke.waitFor('[data-testid=export-levels-all]', 2000);
+    await smoke.click('[data-testid=export-levels-all]');
+    await dismissToasts(smoke);
+    smoke.nextDialogPath(dxfBase);
+    await smoke.click('[data-testid=export-confirm]');
+    return smoke.waitFor('x-dialog-host [data-testid=confirm-details]', 10_000);
+  };
+  const listed = (await askReplace()) ? ((await smoke.text('x-dialog-host [data-testid=confirm-details]')) ?? '') : '';
+  smoke.check('a DXF of every level over files already there asks before replacing them, naming each', levelFiles.every((f) => listed.includes(path.basename(f))), listed);
+  await smoke.shots('46-export-overwrite');
+  await smoke.click('x-dialog-host button', 'Cancel');
+  smoke.check('Cancel writes nothing and the button is ready again', (await smoke.gone('x-dialog-host [data-testid=confirm-details]')) && (await idle()) && (await fs.readFile(marked, 'utf8')) === 'not replaced' && !(await smoke.waitFor('[data-testid=toast-message]', 500, 'Exported')));
+  smoke.check('asked again', await askReplace());
+  await smoke.click('x-dialog-host button', 'Replace');
+  smoke.check('Replace writes both files', (await smoke.waitFor('[data-testid=toast-message]', 15_000, 'Exported 2 files to')) && (await fs.readFile(marked, 'utf8')).includes('SECTION'));
+  await dismissToasts(smoke);
+
+  // While the command runs, the toolbar's Export… is disabled and shows a spinner and "Exporting…" (watched by an observer, since a render may be quick).
+  const busyPath = path.join(out, 'Busy.png');
+  await openExport();
+  await smoke.click('[data-testid=export-format-png]');
+  await smoke.waitFor('[data-testid=export-size]', 2000);
+  await smoke.fill('[data-testid=export-size]', '2560x1920');
+  await smoke.js(`(() => {
+    const b = document.querySelector(${JSON.stringify(exportButton)});
+    window.__exportBusy = [];
+    window.__exportObserver?.disconnect();
+    window.__exportObserver = new MutationObserver(() => { if (b.getAttribute('aria-busy') === 'true') window.__exportBusy.push({ disabled: b.disabled, text: b.textContent.trim(), spinner: !!b.querySelector('.animate-spin') }); });
+    window.__exportObserver.observe(b, { attributes: true, childList: true, subtree: true, characterData: true });
+  })()`);
+  smoke.check('a 2560 × 1920 PNG is written', await exportTo(busyPath));
+  const busy = await smoke.js<{ disabled: boolean; text: string; spinner: boolean }[]>('(() => { window.__exportObserver?.disconnect(); return window.__exportBusy; })()');
+  smoke.check('while it ran, Export… was disabled with a spinner and said Exporting…', busy.some((b) => b.disabled && b.spinner && b.text === 'Exporting…'), busy);
+  smoke.check('and is ready again once it returned', await idle());
   await dismissToasts(smoke);
 
   smoke.section('exchange: the DXF import dialog');
@@ -229,10 +322,41 @@ export async function smokeExchangeDialogs(smoke: Smoke, duplexId: string): Prom
     const pick = smoke.dialogs.asked.at(-1);
     smoke.check('which asks for a DXF file, and a cancelled picker stops there', picked && pick?.kind === 'pickFile' && pick.options.filters?.[0]?.extensions.join() === 'dxf' && !(await has('[data-testid=import-dxf-dialog]')), pick);
 
+    // A file that is not a DXF: the probe refuses it, the error shows in a toast, and no dialog opens.
+    await dismissToasts(smoke);
+    smoke.nextDialogPath(pngPath);
+    await smoke.click(`${tab} [data-testid=exchange-import-dxf]`);
+    smoke.check('a picked file that is not a DXF gives an error toast and no dialog', (await smoke.waitFor('[data-testid=toast-message]', 10_000, 'is not a DXF file')) && !(await has('[data-testid=import-dxf-dialog]')), await smoke.text('[data-testid=toast-message]'));
+    await dismissToasts(smoke);
+
+    const openImport = async () => {
+      smoke.nextDialogPath(dxfFile);
+      await smoke.click(`${tab} [data-testid=exchange-import-dxf]`);
+      return smoke.waitFor('[data-testid=import-dxf-dialog]', 10_000);
+    };
+    const untouched = async () => Number(await canvasAttr(smoke, 'entities')) === before && !(await has(`${tab} [data-testid=layer-row][data-name="DXF Walls"]`));
+    smoke.check('the import dialog opens', await openImport());
+    smoke.check('with focus on its first field, the scale', await smoke.until(async () => (await focusInfo(smoke)).testId === 'import-dxf-scale', 2000), await focusInfo(smoke));
+    smoke.check('labelled by its heading', (await dialogLabel(smoke)) === 'Import DXF');
+    await smoke.key('Escape');
+    smoke.check('Escape closes it and imports nothing', (await smoke.gone('[data-testid=import-dxf-dialog]')) && (await untouched()));
+    await openImport();
+    await smoke.click('[data-testid=import-dxf-dialog] button', 'Cancel');
+    smoke.check('so does Cancel', (await smoke.gone('[data-testid=import-dxf-dialog]')) && (await untouched()));
+
     await dismissToasts(smoke);
     smoke.nextDialogPath(dxfFile);
     await smoke.click(`${tab} [data-testid=exchange-import-dxf]`);
     smoke.check('Import DXF… shows the import dialog after probing the file', await smoke.waitFor('[data-testid=import-dxf-dialog]', 10_000));
+    // The scale comes from the file's units (millimetres: 1) and the extent follows an edit of it.
+    const scaleValue = () => smoke.js<string>(`document.querySelector('[data-testid=import-dxf-scale]').value`);
+    const extentText = () => smoke.text('[data-testid=import-dxf-extent]');
+    const extent1 = await extentText();
+    smoke.check('the scale is prefilled from the units', (await scaleValue()) === '1', await scaleValue());
+    await smoke.fill('[data-testid=import-dxf-scale]', '10');
+    smoke.check('editing it rescales the extent', await smoke.until(async () => (await extentText()) !== extent1, 2000), { extent1, extent10: await extentText() });
+    await smoke.fill('[data-testid=import-dxf-scale]', '1');
+    smoke.check('and back', await smoke.until(async () => (await extentText()) === extent1, 2000));
     smoke.check('it shows the units, millimetres', (await smoke.text('[data-testid=import-dxf-units]')) === 'millimetres');
     const layers = await smoke.js<{ name: string; count: number; checked: boolean }[]>(
       `[...document.querySelectorAll('[data-testid=import-dxf-layer]')].map((r) => ({ name: r.dataset.name, count: Number(r.querySelector('[data-testid=import-dxf-count]').textContent), checked: r.querySelector('input').checked }))`,
@@ -250,6 +374,20 @@ export async function smokeExchangeDialogs(smoke: Smoke, duplexId: string): Prom
     await dismissToasts(smoke);
     await smoke.click(`${tab} [data-testid=project-undo]`);
     smoke.check('one undo removes the import and its layers', (await smoke.gone(`${tab} [data-testid=layer-row][data-name="DXF Walls"]`)) && (await smoke.until(async () => Number(await canvasAttr(smoke, 'entities')) === before, 5000)));
+
+    // From the Layers panel, the import goes to the panel's level: here an upper one.
+    const upper = (await smoke.run<{ id: string }>('building.level.add', { name: 'Upper' }, { projectId })).id;
+    await smoke.waitFor(`${tab} [data-testid=plan-level] option[value="${upper}"]`);
+    await smoke.fill(`${tab} [data-testid=plan-level]`, upper);
+    await smoke.until(async () => (await canvasAttr(smoke, 'level')) === upper, 5000);
+    await smoke.click(`${tab} [data-testid=layer-add]`);
+    await smoke.waitFor('[data-testid=layer-add-dxf]', 2000);
+    smoke.nextDialogPath(dxfFile);
+    await smoke.click('[data-testid=layer-add-dxf]');
+    smoke.check('Import DXF… in the Layers panel of an upper level opens the dialog', await smoke.waitFor('[data-testid=import-dxf-dialog]', 10_000));
+    smoke.check('targeting that level', (await smoke.js<string>(`document.querySelector('[data-testid=import-dxf-level]').value`)) === upper);
+    await smoke.key('Escape');
+    await smoke.gone('[data-testid=import-dxf-dialog]');
   } finally {
     await smoke.run('project.close', { id: projectId });
     await smoke.run('project.trash', { id: projectId });

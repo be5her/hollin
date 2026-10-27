@@ -17,7 +17,7 @@
   </div>
 
   <div class="mt-4 flex flex-col gap-3">
-    @if (isDrawing()) {
+    @if (hasLevels()) {
       <div data-testid="export-levels">
         <span xLabel>Levels</span>
         <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm" role="radiogroup" aria-label="Levels">
@@ -76,7 +76,7 @@
           <input xCheckbox type="checkbox" [formField]="f.includeFinishes" data-testid="export-include-finishes" />
           Include finishes (floors, wall faces, ceilings)
         </label>
-        <p class="text-[11px] text-muted">One self-contained .glb in metres, y up, with every level.</p>
+        <p class="text-[11px] text-muted">One self-contained .glb in metres, y up.</p>
       </div>
     }
 

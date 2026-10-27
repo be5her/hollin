@@ -4,12 +4,13 @@ import { FormField, form } from '@angular/forms/signals';
 import { Autofocus } from '../controls/autofocus';
 import { Button } from '../controls/button';
 import { Input, Label, Select, TextArea } from '../controls/native-controls';
+import { DialogFocus } from './dialog-focus';
 import { Dialogs, type PendingDialog } from './dialogs';
 
 /** Renders the pending prompt, confirm, form or component dialog. Mount once in the shell. */
 @Component({
   selector: 'x-dialog-host',
-  imports: [Autofocus, Button, FormField, Input, Label, NgComponentOutlet, Select, TextArea],
+  imports: [Autofocus, Button, DialogFocus, FormField, Input, Label, NgComponentOutlet, Select, TextArea],
   templateUrl: './dialog-host.html',
   host: { class: 'contents' },
 })

@@ -138,7 +138,7 @@ export async function smokeExchange(smoke: Smoke, duplexId: string): Promise<voi
   await smoke.run('project.close', { id: duplexId });
 }
 
-type Probe = { insUnits: number | null; units: string | null; scale: number; layers: { name: string; entities: number; color: number; hidden: boolean }[]; skipped: Record<string, number>; paperSpace: number; extents: { min: [number, number]; max: [number, number] } | null };
+type Probe = { insUnits: number | null; measurement: number | null; units: string | null; scale: number; layers: { name: string; entities: number; color: number; hidden: boolean }[]; skipped: Record<string, number>; paperSpace: number; extents: { min: [number, number]; max: [number, number] } | null };
 type Imported = { levelId: string; scale: number; counts: { shapes: number; separators: number; labels: number; layers: number }; skipped: Record<string, number>; layers: { id: string; name: string; dxfLayer: string; created: boolean; visible: boolean }[] };
 
 /**

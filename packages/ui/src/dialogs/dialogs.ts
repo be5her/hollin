@@ -56,7 +56,8 @@ export interface FormDialogOptions {
 /**
  * A dialog of its own (`Dialogs.open`): a component drawn in the dialog frame with two inputs, `data`
  * (what the caller passed) and `close` (call it with the answer, or null to cancel). Escape and a click
- * outside cancel it.
+ * outside cancel it. Focus moves to its first field on open, Tab stays inside, its first heading labels
+ * it, and focus returns to the opener on close (`DialogFocus`).
  */
 export interface DialogComponent<D, T> {
   readonly data: InputSignal<D>;
