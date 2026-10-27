@@ -1,4 +1,4 @@
-import { DEG, add, columnPolygon, itemFootprint, itemModel, itemSize, dimensionGeometry, dimensionOutline, flatten, formatArea, formatLength, normalize, openingFrame, openingMisfits, perp, polygonCentroid, resolveDimension, resolvePath, scale as vscale, sub, wallBody, type DimensionGeometry, type Entity, type EntityType, type Layer, type LevelGeometry, type LevelWalls, type Path, type Region, type UnitSettings, type Vec2 } from '@studio/core';
+import { add, columnPolygon, DEG, dimensionGeometry, dimensionMarks, dimensionOutline, flatten, formatArea, formatLength, itemFootprint, itemModel, itemSize, openingFrame, openingMisfits, openingSymbol, perp, PLAN_GLYPHS, polygonCentroid, resolveDimension, resolvePath, scale as vscale, wallBody, type DimensionGeometry, type Entity, type EntityType, type Layer, type LevelGeometry, type LevelWalls, type Path, type Region, type UnitSettings, type Vec2 } from '@studio/core';
 import { visibleBox, worldToScreen, type Camera, type Size } from './camera';
 import { drawConnector, traceConnector, type PlanConnector } from './connectors';
 import { tracePath, tracePolygon, traceRegion, traceSegments } from './draw';
@@ -91,53 +91,27 @@ function openingsByWall(scene: LevelScene): Map<string, Extract<Entity, { type: 
  * The cut itself is part of the drawn walls. With `outline`, the cut's outline is drawn too (previews).
  */
 export function drawOpeningSymbol(ctx: CanvasRenderingContext2D, frame: RenderFrame, wall: Extract<Entity, { type: 'wall' }>, e: Pick<Extract<Entity, { type: 'opening' }>, 'kind' | 'along' | 'width' | 'swing'>, color: string, outline = false): void {
-  const { jambs, normal: n, cut, across } = openingFrame(wall, e);
-  const [jambA, jambB] = jambs;
+  const symbol = openingSymbol(wall, e);
   ctx.strokeStyle = color;
   ctx.lineWidth = px(frame, 1);
   if (outline) {
     ctx.fillStyle = withAlpha(color, 0.12);
     ctx.beginPath();
-    tracePolygon(ctx, cut);
+    tracePolygon(ctx, openingFrame(wall, e).cut);
     ctx.fill();
     ctx.stroke();
   }
   ctx.beginPath();
-  ctx.moveTo(cut[0][0], cut[0][1]);
-  ctx.lineTo(cut[3][0], cut[3][1]);
-  ctx.moveTo(cut[1][0], cut[1][1]);
-  ctx.lineTo(cut[2][0], cut[2][1]);
-  if (e.kind === 'window') {
-    const mid = (across.left + across.right) / 2;
-    const quarter = (across.left - across.right) / 4;
-    for (const k of [mid - quarter, mid + quarter]) {
-      const a = add(jambA, vscale(n, k));
-      const b = add(jambB, vscale(n, k));
-      ctx.moveTo(a[0], a[1]);
-      ctx.lineTo(b[0], b[1]);
-    }
-    ctx.stroke();
-    return;
+  for (const [a, b] of [...symbol.jambs, ...symbol.glazing, ...(symbol.leaf ? [symbol.leaf] : [])]) {
+    ctx.moveTo(a[0], a[1]);
+    ctx.lineTo(b[0], b[1]);
   }
-  if (e.kind !== 'door') {
-    ctx.stroke();
-    return;
-  }
-  const hinge = e.swing?.hinge === 'end' ? jambB : jambA;
-  const other = hinge === jambA ? jambB : jambA;
-  const side = e.swing?.side === 'right' ? -1 : 1;
-  const leafEnd = add(hinge, vscale(n, side * e.width));
-  ctx.moveTo(hinge[0], hinge[1]);
-  ctx.lineTo(leafEnd[0], leafEnd[1]);
   ctx.stroke();
+  if (!symbol.swing) return;
+  const { center, radius, start, sweep } = symbol.swing;
   ctx.beginPath();
-  const a0 = Math.atan2(leafEnd[1] - hinge[1], leafEnd[0] - hinge[0]);
-  const a1 = Math.atan2(other[1] - hinge[1], other[0] - hinge[0]);
-  let sweep = a1 - a0;
-  while (sweep > Math.PI) sweep -= 2 * Math.PI;
-  while (sweep < -Math.PI) sweep += 2 * Math.PI;
   ctx.setLineDash([px(frame, 3), px(frame, 3)]);
-  ctx.arc(hinge[0], hinge[1], e.width, a0, a0 + sweep, sweep < 0);
+  ctx.arc(center[0], center[1], radius, start, start + sweep, sweep < 0);
   ctx.stroke();
   ctx.setLineDash([]);
 }
@@ -584,7 +558,7 @@ function regionPath(item: SceneItem, region: Region): Path2D | null {
   return p;
 }
 
-const GLYPH = 100;
+const GLYPH = PLAN_GLYPHS.point;
 
 function drawEntity(ctx: CanvasRenderingContext2D, item: SceneItem, frame: RenderFrame, texts: TextOp[]): void {
   const { theme } = frame;
@@ -724,7 +698,7 @@ function drawEntity(ctx: CanvasRenderingContext2D, item: SceneItem, frame: Rende
 }
 
 /** How far a light's symbol reaches on the plan, mm. */
-export const LIGHT_GLYPH = 150;
+export const LIGHT_GLYPH = PLAN_GLYPHS.light;
 
 /** A furniture item: its footprint (the model's outline) filled lightly and outlined, its name when there is room for it. */
 function drawItem(ctx: CanvasRenderingContext2D, item: SceneItem, frame: RenderFrame, texts: TextOp[]): void {
@@ -827,26 +801,10 @@ export function drawDimensionGeometry(ctx: CanvasRenderingContext2D, frame: Rend
     ctx.moveTo(center[0] + Math.cos(start) * radius, center[1] + Math.sin(start) * radius);
     ctx.arc(center[0], center[1], radius, start, start + sweep, sweep < 0);
   }
-  // Tick marks: short slashes at 45° to the line (or to the arc's radius).
-  const tick = px(frame, 4);
-  if (g.ticks.length === 2) {
-    const [a, b] = g.ticks;
-    for (const p of g.ticks) {
-      const dir = g.arc ? normalize(sub(p, g.arc.center)) : normalize(sub(b, a));
-      const slash = normalize(add(dir, perp(dir)));
-      ctx.moveTo(p[0] - slash[0] * tick, p[1] - slash[1] * tick);
-      ctx.lineTo(p[0] + slash[0] * tick, p[1] + slash[1] * tick);
-    }
-  }
-  if (g.arrow) {
-    const head = px(frame, 8);
-    const back = vscale(g.arrow.direction, -head);
-    const side = vscale(perp(g.arrow.direction), head * 0.35);
-    const tip = g.arrow.at;
-    for (const s of [side, vscale(side, -1)]) {
-      ctx.moveTo(tip[0], tip[1]);
-      ctx.lineTo(tip[0] + back[0] + s[0], tip[1] + back[1] + s[1]);
-    }
+  // Tick marks (short slashes at 45° to the line or to the arc's radius) and a radius's arrow head.
+  for (const [p, q] of dimensionMarks(g, px(frame, 4), px(frame, 8))) {
+    ctx.moveTo(p[0], p[1]);
+    ctx.lineTo(q[0], q[1]);
   }
   ctx.stroke();
   if (!g.text) return;

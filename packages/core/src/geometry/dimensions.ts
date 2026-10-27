@@ -235,3 +235,27 @@ export function pruneAnchors(e: Dimension, keep: (entityId: string) => boolean):
   if (!changed) return undefined;
   return next.from || next.to ? next : null;
 }
+
+/**
+ * A dimension's marks as line pieces: a slash at 45° to the line (or to the arc's radius) of
+ * half-length `tick` at each end, and a radius's open arrow head `head` long. Sizes are in mm (the
+ * plan passes a few pixels' worth, an export a fraction of its text height).
+ */
+export function dimensionMarks(g: DimensionGeometry, tick: number, head: number): [Vec2, Vec2][] {
+  const out: [Vec2, Vec2][] = [];
+  if (g.ticks.length === 2) {
+    const [a, b] = g.ticks;
+    for (const p of g.ticks) {
+      const dir = g.arc ? normalize(sub(p, g.arc.center)) : normalize(sub(b, a));
+      const slash = normalize(add(dir, perp(dir)));
+      out.push([sub(p, scale(slash, tick)), add(p, scale(slash, tick))]);
+    }
+  }
+  if (g.arrow) {
+    const back = scale(g.arrow.direction, -head);
+    const side = scale(perp(g.arrow.direction), head * 0.35);
+    const tip = g.arrow.at;
+    for (const s of [side, scale(side, -1)]) out.push([tip, add(add(tip, back), s)]);
+  }
+  return out;
+}

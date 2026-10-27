@@ -54,3 +54,7 @@ export * from './decor/catalog';
 export * from './decor/builtin';
 export * from './decor/recipes';
 export * from './decor/items';
+export * from './geometry/plan-symbols';
+export * from './exchange/drawing';
+export * from './exchange/dxf';
+export * from './exchange/dxf-read';

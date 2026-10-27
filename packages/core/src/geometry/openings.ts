@@ -103,3 +103,49 @@ export function columnPolygon(column: Extract<Entity, { type: 'column' }>, toler
   const at = column.at;
   return [add(add(at, scale(u, -s.w / 2)), scale(v, -s.d / 2)), add(add(at, scale(u, s.w / 2)), scale(v, -s.d / 2)), add(add(at, scale(u, s.w / 2)), scale(v, s.d / 2)), add(add(at, scale(u, -s.w / 2)), scale(v, s.d / 2))];
 }
+
+/** An opening's plan symbol, in mm: what the plan and the exports draw over the cut in the walls. */
+export interface OpeningSymbol {
+  /** The jamb lines across the wall's body. */
+  jambs: [Vec2, Vec2][];
+  /** A window's two glazing lines along the wall. */
+  glazing: [Vec2, Vec2][];
+  /** A door's leaf, open at 90° from its hinge. */
+  leaf: [Vec2, Vec2] | null;
+  /** A door's swing: the arc the leaf's end sweeps from the open leaf to the far jamb (radians, counter-clockwise positive). */
+  swing: { center: Vec2; radius: number; start: number; sweep: number } | null;
+}
+
+/** The plan symbol of an opening in its wall: jambs; a window's glazing lines; a door's leaf and swing on its hinge side. */
+export function openingSymbol(wall: WallLike, e: { kind: 'door' | 'window' | 'opening'; along: number; width: number; swing?: { hinge: 'start' | 'end'; side: 'left' | 'right' } }): OpeningSymbol {
+  const { jambs, normal: n, cut, across } = openingFrame(wall, e);
+  const [jambA, jambB] = jambs;
+  const out: OpeningSymbol = {
+    jambs: [
+      [cut[0], cut[3]],
+      [cut[1], cut[2]],
+    ],
+    glazing: [],
+    leaf: null,
+    swing: null,
+  };
+  if (e.kind === 'window') {
+    const mid = (across.left + across.right) / 2;
+    const quarter = (across.left - across.right) / 4;
+    for (const k of [mid - quarter, mid + quarter]) out.glazing.push([add(jambA, scale(n, k)), add(jambB, scale(n, k))]);
+    return out;
+  }
+  if (e.kind !== 'door') return out;
+  const hinge = e.swing?.hinge === 'end' ? jambB : jambA;
+  const other = hinge === jambA ? jambB : jambA;
+  const side = e.swing?.side === 'right' ? -1 : 1;
+  const leafEnd = add(hinge, scale(n, side * e.width));
+  out.leaf = [hinge, leafEnd];
+  const a0 = Math.atan2(leafEnd[1] - hinge[1], leafEnd[0] - hinge[0]);
+  const a1 = Math.atan2(other[1] - hinge[1], other[0] - hinge[0]);
+  let sweep = a1 - a0;
+  while (sweep > Math.PI) sweep -= 2 * Math.PI;
+  while (sweep < -Math.PI) sweep += 2 * Math.PI;
+  out.swing = { center: hinge, radius: e.width, start: a0, sweep };
+  return out;
+}

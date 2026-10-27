@@ -237,7 +237,7 @@ export function segmentBox(s: Seg): Box {
 }
 
 /** Points along a segment, `tolerance` mm at most from the true curve, excluding its end point. */
-function flattenSegment(s: Seg, tolerance: number, out: Vec2[]): void {
+export function flattenSegment(s: Seg, tolerance: number, out: Vec2[]): void {
   if (s.k === 'line') {
     out.push(s.a);
     return;

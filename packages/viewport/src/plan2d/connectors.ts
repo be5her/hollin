@@ -1,4 +1,4 @@
-import { add, arcGeometry, connectorRole, deriveConnector, deriveLevels, normalize, perp, polygonBox, polygonContains, polygonEdgeDistance, resolvePath, scale, segmentLength, segmentPoint, segmentTangent, sub, type Box, type Connector, type ConnectorGeometry, type ConnectorRole, type DerivedLevel, type Path, type Polygon, type ProjectDoc, type RuleLimits, type Seg, type Vec2 } from '@studio/core';
+import { add, arrowHeadLines, breakLinePoints, connectorRole, deriveConnector, deriveLevels, normalize, perp, polygonBox, polygonContains, polygonEdgeDistance, resolvePath, scale, sub, walkPoints, walkTangent, type Box, type Connector, type ConnectorGeometry, type ConnectorRole, type DerivedLevel, type Path, type Polygon, type ProjectDoc, type RuleLimits, type Seg, type Vec2 } from '@studio/core';
 import { tracePolygon, traceSegments } from './draw';
 import type { RenderFrame, TextOp } from './render';
 import { withAlpha } from './theme';
@@ -53,34 +53,6 @@ export function connectorDistance(pc: PlanConnector, p: Vec2, tolerance: number)
 
 const px = (frame: RenderFrame, n: number) => n / frame.camera.scale;
 
-/** Points along walk-line segments between two distances, arcs sampled finely enough to look round. */
-function walkPoints(segs: readonly Seg[], from: number, to: number): Vec2[] {
-  const out: Vec2[] = [];
-  let start = 0;
-  for (const s of segs) {
-    const len = segmentLength(s);
-    const a = Math.max(from, start);
-    const b = Math.min(to, start + len);
-    if (b > a + 1e-9 && len > 0) {
-      const steps = s.k === 'line' ? 1 : Math.max(4, Math.ceil(Math.abs(s.k === 'arc' ? arcGeometry(s.a, s.b, s.bulge).sweep : 1) / 0.15));
-      for (let i = out.length ? 1 : 0; i <= steps; i++) out.push(segmentPoint(s, ((a - start) + ((b - a) * i) / steps) / len));
-    }
-    start += len;
-  }
-  return out;
-}
-
-function tangentAt(segs: readonly Seg[], along: number): Vec2 {
-  let start = 0;
-  for (const s of segs) {
-    const len = segmentLength(s);
-    if (along <= start + len + 1e-9) return normalize(segmentTangent(s, len > 0 ? Math.min(1, Math.max(0, (along - start) / len)) : 0));
-    start += len;
-  }
-  const last = segs[segs.length - 1];
-  return last ? normalize(segmentTangent(last, 1)) : [1, 0];
-}
-
 function polyline(ctx: CanvasRenderingContext2D, pts: readonly Vec2[]): void {
   if (!pts.length) return;
   ctx.moveTo(pts[0][0], pts[0][1]);
@@ -94,24 +66,7 @@ function line(ctx: CanvasRenderingContext2D, a: Vec2, b: Vec2): void {
 
 /** An open arrowhead at `tip`, pointing along `dir`, sized in screen pixels. */
 function arrowHead(ctx: CanvasRenderingContext2D, frame: RenderFrame, tip: Vec2, dir: Vec2): void {
-  const len = px(frame, 10);
-  const back = scale(dir, -len);
-  const side = scale(perp(dir), len * 0.45);
-  line(ctx, tip, add(add(tip, back), side));
-  line(ctx, tip, add(sub(tip, side), back));
-}
-
-/** A break line across the stair at a distance along it: the zigzag that marks where the plan cuts it. */
-function breakLine(ctx: CanvasRenderingContext2D, segs: readonly Seg[], along: number, width: number, centre: Vec2): void {
-  const t = tangentAt(segs, along);
-  const n = perp(t);
-  // Slanted across the flight, with a zigzag in the middle.
-  const skew = width * 0.25;
-  const a = add(add(centre, scale(n, width / 2)), scale(t, skew));
-  const b = sub(sub(centre, scale(n, width / 2)), scale(t, skew));
-  const mid1 = add(centre, add(scale(n, width * 0.08), scale(t, width * 0.12)));
-  const mid2 = sub(centre, add(scale(n, width * 0.08), scale(t, width * 0.12)));
-  polyline(ctx, [a, mid1, mid2, b]);
+  for (const [a, b] of arrowHeadLines(tip, dir, px(frame, 10))) line(ctx, a, b);
 }
 
 export interface ConnectorDrawOptions {
@@ -166,7 +121,7 @@ export function drawConnector(ctx: CanvasRenderingContext2D, pc: PlanConnector, 
         const centre = t ? scale(add(t.a, t.b), 0.5) : g.axis[0].a;
         ctx.lineWidth = px(frame, 1.5);
         ctx.beginPath();
-        breakLine(ctx, g.axis, cut, Math.max(1, t ? Math.hypot(t.a[0] - t.b[0], t.a[1] - t.b[1]) : 1000), centre);
+        polyline(ctx, breakLinePoints(g.axis, cut, Math.max(1, t ? Math.hypot(t.a[0] - t.b[0], t.a[1] - t.b[1]) : 1000), centre));
         ctx.stroke();
         ctx.lineWidth = px(frame, 1);
       }
@@ -178,7 +133,7 @@ export function drawConnector(ctx: CanvasRenderingContext2D, pc: PlanConnector, 
         drawWalkArrow(ctx, frame, g.axis, g.walkLength, pc.role === 'top' ? 'down' : 'up', null, label, null);
         const mid = walkPoints(g.axis, g.walkLength / 2, g.walkLength / 2 + 1)[0];
         if (mid) {
-          const n = perp(tangentAt(g.axis, g.walkLength / 2));
+          const n = perp(walkTangent(g.axis, g.walkLength / 2));
           label(`${(Math.round(g.slope * 10) / 10).toFixed(1)} %`, add(mid, scale(n, px(frame, 12))));
         }
       }
@@ -246,15 +201,15 @@ function drawWalkArrow(ctx: CanvasRenderingContext2D, frame: RenderFrame, segs: 
   if (pts.length < 2) return;
   ctx.beginPath();
   polyline(ctx, pts);
-  if (way === 'up') arrowHead(ctx, frame, pts[pts.length - 1], tangentAt(segs, end));
-  else arrowHead(ctx, frame, pts[0], scale(tangentAt(segs, 0), -1));
+  if (way === 'up') arrowHead(ctx, frame, pts[pts.length - 1], walkTangent(segs, end));
+  else arrowHead(ctx, frame, pts[0], scale(walkTangent(segs, 0), -1));
   ctx.stroke();
   const startDot = way === 'up' ? pts[0] : pts[pts.length - 1];
   ctx.beginPath();
   ctx.arc(startDot[0], startDot[1], px(frame, 3), 0, Math.PI * 2);
   ctx.fillStyle = ctx.strokeStyle;
   ctx.fill();
-  const n = perp(tangentAt(segs, way === 'up' ? 0 : total));
+  const n = perp(walkTangent(segs, way === 'up' ? 0 : total));
   label(way === 'up' ? 'UP' : 'DN', add(startDot, scale(n, px(frame, 14))));
   if (extra) label(extra, sub(startDot, scale(n, px(frame, 14))));
 }
