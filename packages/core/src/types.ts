@@ -120,6 +120,8 @@ export interface ProjectsApi {
   setUiState(id: string, state: Record<string, unknown>): Promise<void>;
   /** Keeps an open project as it is in an automatic snapshot, e.g. before a large batch by an agent. */
   autoSnapshot?(id: string, name: string, createdBy: string): Promise<void>;
+  /** The bytes of a file in a project's `assets/` (a content-addressed name from its registry, `<sha256>.<ext>`), or undefined when it is not there. */
+  readAsset(id: string, file: string): Promise<Uint8Array | undefined>;
   /** The library's catalog of imported furniture models. */
   readonly catalog: CatalogApi;
 }

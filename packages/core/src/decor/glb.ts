@@ -41,6 +41,7 @@ interface GltfBufferView {
   byteStride?: number;
 }
 interface GltfNode {
+  name?: string;
   mesh?: number;
   children?: number[];
   matrix?: number[];
@@ -249,6 +250,12 @@ export const fromGltf = (p: readonly number[]): Vec3 => [p[0] * 1000, -p[2] * 10
 /** The app's millimetres, Z up, to glTF metres, Y up. */
 export const toGltf = (p: readonly number[]): [number, number, number] => [p[0] / 1000, p[2] / 1000, -p[1] / 1000];
 
+const TO_GLTF: Mat4 = [0.001, 0, 0, 0, 0, 0, -0.001, 0, 0, 0.001, 0, 0, 0, 0, 0, 1];
+const FROM_GLTF: Mat4 = [1000, 0, 0, 0, 0, 0, 1000, 0, 0, -1000, 0, 0, 0, 0, 0, 1];
+
+/** A placement in the app's terms (column-major 4 × 4, mm, z up) as the same placement in glTF space (metres, y up), for points already put through `toGltf`. */
+export const matrixToGltf = (m: readonly number[]): number[] => multiply(multiply(TO_GLTF, [...m]), FROM_GLTF);
+
 /**
  * Checks a parsed glTF and measures it: the extent of every mesh primitive's positions through the
  * node transforms of the default scene (every root node when it names none), in mm with z up.
@@ -358,14 +365,34 @@ export interface GlbMesh {
   positions: Float32Array;
   normals?: Float32Array;
   indices?: Uint32Array;
-  /** Linear RGBA, 0–1. */
+  /** Linear RGBA, 0–1. An alpha below 1 is written with `alphaMode: 'BLEND'`. */
   color: readonly [number, number, number, number];
   metallic?: number;
   roughness?: number;
+  /** Drawn from both sides (glass). */
+  doubleSided?: boolean;
+  /** The material's name (what an importer shows and an item can repaint); `name` when left out. */
+  material?: string;
 }
 
-/** Writes meshes as a GLB file: one node per mesh, each with its own base-colour material. */
-export function writeGlb(meshes: readonly GlbMesh[], options: { generator?: string } = {}): Uint8Array {
+/**
+ * A node of the scene to write: a name, its own transform (column-major 4 × 4, glTF space) and
+ * children. Its meshes become one glTF mesh named after the node, with a primitive per `GlbMesh`.
+ */
+export interface GlbNode {
+  name?: string;
+  children?: readonly GlbNode[];
+  meshes?: readonly GlbMesh[];
+  matrix?: readonly number[];
+}
+
+/**
+ * Writes a node tree as a GLB file: every root is a node of the one scene, every array of a node's
+ * meshes one glTF mesh, all of it in one binary buffer (each view on a 4-byte boundary, positions
+ * with their min and max). Materials with the same values (name, colour, metalness, roughness,
+ * sides) are written once.
+ */
+export function writeGlbScene(roots: GlbNode | readonly GlbNode[], options: { generator?: string } = {}): Uint8Array {
   const parts: Uint8Array[] = [];
   let length = 0;
   const bufferViews: GltfBufferView[] = [];
@@ -383,10 +410,29 @@ export function writeGlb(meshes: readonly GlbMesh[], options: { generator?: stri
     accessors.push({ ...accessor, bufferView: bufferViews.length - 1 });
     return accessors.length - 1;
   };
-  const gltfMeshes: GltfJson['meshes'] = [];
-  const materials: { name?: string; pbrMetallicRoughness: unknown }[] = [];
-  for (const [i, mesh] of meshes.entries()) {
+  const gltfMeshes: NonNullable<GltfJson['meshes']> = [];
+  const materials: Record<string, unknown>[] = [];
+  const materialIndex = new Map<string, number>();
+  const material = (mesh: GlbMesh): number => {
+    const name = mesh.material ?? mesh.name;
+    const blend = mesh.color[3] < 1;
+    const value = {
+      ...(name ? { name } : {}),
+      pbrMetallicRoughness: { baseColorFactor: [...mesh.color], metallicFactor: mesh.metallic ?? 0, roughnessFactor: mesh.roughness ?? 0.8 },
+      ...(blend ? { alphaMode: 'BLEND' } : {}),
+      ...(mesh.doubleSided ? { doubleSided: true } : {}),
+    };
+    const key = JSON.stringify(value);
+    let index = materialIndex.get(key);
+    if (index === undefined) {
+      index = materials.push(value) - 1;
+      materialIndex.set(key, index);
+    }
+    return index;
+  };
+  const primitive = (mesh: GlbMesh): GltfPrimitive | null => {
     const count = mesh.positions.length / 3;
+    if (count < 1) return null;
     const min = [Infinity, Infinity, Infinity];
     const max = [-Infinity, -Infinity, -Infinity];
     for (let v = 0; v < count; v++) {
@@ -398,11 +444,23 @@ export function writeGlb(meshes: readonly GlbMesh[], options: { generator?: stri
     }
     const attributes: Record<string, number> = { POSITION: add(mesh.positions, 34962, { componentType: 5126, count, type: 'VEC3', min, max }) };
     if (mesh.normals) attributes.NORMAL = add(mesh.normals, 34962, { componentType: 5126, count, type: 'VEC3' });
-    const primitive: GltfPrimitive = { attributes, material: i, mode: 4 };
-    if (mesh.indices) primitive.indices = add(mesh.indices, 34963, { componentType: 5125, count: mesh.indices.length, type: 'SCALAR' });
-    gltfMeshes.push({ ...(mesh.name ? { name: mesh.name } : {}), primitives: [primitive] });
-    materials.push({ ...(mesh.name ? { name: mesh.name } : {}), pbrMetallicRoughness: { baseColorFactor: [...mesh.color], metallicFactor: mesh.metallic ?? 0, roughnessFactor: mesh.roughness ?? 0.8 } });
-  }
+    const out: GltfPrimitive = { attributes, material: material(mesh), mode: 4 };
+    if (mesh.indices) out.indices = add(mesh.indices, 34963, { componentType: 5125, count: mesh.indices.length, type: 'SCALAR' });
+    return out;
+  };
+  const nodes: GltfNode[] = [];
+  const visit = (node: GlbNode): number => {
+    const index = nodes.push({}) - 1;
+    const out: GltfNode = node.name ? { name: node.name } : {};
+    const prims = (node.meshes ?? []).map(primitive).filter((p): p is GltfPrimitive => p !== null);
+    if (prims.length) out.mesh = gltfMeshes.push({ ...(node.name ? { name: node.name } : {}), primitives: prims }) - 1;
+    if (node.matrix) out.matrix = [...node.matrix];
+    const children = (node.children ?? []).map(visit);
+    if (children.length) out.children = children;
+    nodes[index] = out;
+    return index;
+  };
+  const sceneNodes = (Array.isArray(roots) ? (roots as readonly GlbNode[]) : [roots as GlbNode]).map(visit);
   const bin = new Uint8Array(length);
   let at = 0;
   for (const p of parts) {
@@ -412,8 +470,8 @@ export function writeGlb(meshes: readonly GlbMesh[], options: { generator?: stri
   const json: GltfJson = {
     asset: { version: '2.0', generator: options.generator ?? 'studio' },
     scene: 0,
-    scenes: [{ nodes: meshes.map((_, i) => i) }],
-    nodes: meshes.map((m, i) => ({ mesh: i, ...(m.name ? { name: m.name } : {}) })),
+    scenes: [{ nodes: sceneNodes }],
+    nodes,
     meshes: gltfMeshes,
     materials,
     accessors,
@@ -421,6 +479,14 @@ export function writeGlb(meshes: readonly GlbMesh[], options: { generator?: stri
     buffers: length ? [{ byteLength: length }] : [],
   };
   return packGlb(json, length ? bin : null);
+}
+
+/** Writes meshes as a GLB file: one root node per mesh (named after it), each with its own base-colour material named after it. */
+export function writeGlb(meshes: readonly GlbMesh[], options: { generator?: string } = {}): Uint8Array {
+  return writeGlbScene(
+    meshes.map((m) => ({ ...(m.name ? { name: m.name } : {}), meshes: [m] })),
+    options,
+  );
 }
 
 /** A core mesh (mm, z up, flat triangles) in glTF space, with a normal per vertex from its triangle. */

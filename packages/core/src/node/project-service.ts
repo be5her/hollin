@@ -3,6 +3,7 @@ import path from 'node:path';
 import { newProjectDoc } from '../doc/defaults';
 import { DocumentEngine, type Author, type EditContext } from '../doc/engine';
 import type { CatalogApi } from '../decor/catalog';
+import { ASSET_FILE } from '../decor/refs';
 import type { ProjectDoc } from '../doc/schema';
 import { StudioError } from '../errors';
 import type { LibraryInfo, ListQuery, OpenProject, ProjectSummary, SaveStatus, SnapshotInfo } from '../projects';
@@ -462,6 +463,17 @@ export class ProjectService implements ProjectsApi {
       history: () => ({ ...engine().entries(), seq: engine().seq, epoch: engine().epoch }),
       lastTouched: (entityId) => engine().lastTouched(entityId),
     };
+  }
+
+  // ---------- assets ----------
+
+  async readAsset(id: string, file: string): Promise<Uint8Array | undefined> {
+    this.library.require(id, { trashed: false });
+    if (!ASSET_FILE.test(file)) return undefined;
+    return fs.readFile(path.join(this.library.projectDir(id), 'assets', file)).then(
+      (b) => new Uint8Array(b.buffer, b.byteOffset, b.byteLength),
+      () => undefined,
+    );
   }
 
   // ---------- view state ----------

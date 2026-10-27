@@ -62,3 +62,4 @@ export * from './exchange/colors';
 export * from './exchange/paper';
 export * from './exchange/svg';
 export * from './exchange/pdf';
+export * from './exchange/gltf';

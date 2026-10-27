@@ -1,4 +1,4 @@
-import type { SolidKind } from '@studio/core';
+import { SOLID_COLORS, type SolidKind } from '@studio/core';
 
 /** The colours the 3D view is drawn with. The renderer reads them from the CSS variables in styles.css, so they follow the theme. */
 export interface SceneTheme {
@@ -14,17 +14,17 @@ export interface SceneTheme {
   car: string;
 }
 
-/** The light placeholder palette, used when no document is available (tests, snapshots). */
+/** The light placeholder palette, used when no document is available (tests, snapshots); its solid colours are core's `SOLID_COLORS`, which the glTF export writes. */
 export const LIGHT_SCENE_THEME: SceneTheme = {
   background: '#f7f7f5',
   edge: '#3b3e44',
-  wall: '#e9e6df',
-  slab: '#c9c6bf',
-  column: '#d9d5cc',
-  glass: '#8fb8de',
-  connector: '#d8cfc0',
-  rail: '#5a5e66',
-  car: '#2f6fda',
+  wall: SOLID_COLORS.wall,
+  slab: SOLID_COLORS.slab,
+  column: SOLID_COLORS.column,
+  glass: SOLID_COLORS.glass,
+  connector: SOLID_COLORS.connector,
+  rail: SOLID_COLORS.rail,
+  car: SOLID_COLORS.car,
 };
 
 const VARIABLES: Record<keyof SceneTheme, string> = {

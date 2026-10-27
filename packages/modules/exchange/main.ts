@@ -1,9 +1,12 @@
 import { deflateSync } from 'node:zlib';
 import nodePath from 'node:path';
 import {
+  BRANDING,
   DRAWING_LAYER_KINDS,
   PAPER_SIZES,
   StudioError,
+  assetFileOf,
+  buildingToGlb,
   defineCommand,
   defineModule,
   drawingToDxf,
@@ -44,8 +47,9 @@ export function levelPaths(path: string, names: readonly string[]): string[] {
 
 /**
  * Exports and imports. `export.plan` writes levels' plans as DXF, SVG or PDF from the pure writers in
- * `@studio/core` (`planDrawing`, `drawingToDxf`, `drawingToSvg`, `drawingToPdf`). Writing files
- * outside the library is gated for agents.
+ * `@studio/core` (`planDrawing`, `drawingToDxf`, `drawingToSvg`, `drawingToPdf`); `export.building`
+ * writes the building in 3D as a GLB (`buildingToGlb`). Writing files outside the library is gated
+ * for agents.
  */
 export const exchangeModule = defineModule({
   id: 'exchange',
@@ -109,6 +113,43 @@ export const exchangeModule = defineModule({
         }
         ctx.host.emit('exchange.exported', { projectId: project.id, format: input.format, files: files.map((f) => f.path) });
         return { format: input.format, files, levels };
+      },
+    }),
+    defineCommand({
+      id: 'export.building',
+      title: 'Export building as glTF',
+      description:
+        "Writes the open project's building in 3D to `path` (a full file path, usually ending in .glb) as one self-contained glTF 2.0 binary (GLB): geometry, materials and imported furniture models are all inside the file, in metres with y up as glTF requires, so Blender, SketchUp, game engines and web viewers open it as it is. The node tree is a root named after the project, a node per level named after it holding a node per kind of solid (Walls, Slabs, Columns, Glass, Frames, Leaves, Finishes, ...), a node per stair, ramp, ladder, escalator or elevator starting on that level (named by its type), and a node per furniture item named after its model. Colours are those of the 3D view (materials' colour, roughness and metalness, paints, see-through glass); patterns are written as their material's plain colour and lights are not written. `levelIds` defaults to every level; `includeItems` (default true) adds the furniture; `includeFinishes` (default true) the floor, wall and ceiling finishes. Writes outside the library, so it is gated. Returns { path, bytes, nodes, triangles, skipped }, where `skipped` lists the items left out (an imported model whose file is missing).",
+      scope: 'project',
+      mutating: true,
+      input: z.object({
+        path: z.string().min(1).describe('A full file path for the .glb file'),
+        levelIds: z.array(z.string()).min(1).optional().describe('Levels to export, from building_get; every level by default. A connector goes with the level it starts on'),
+        includeItems: z.boolean().default(true).describe('Include the furniture'),
+        includeFinishes: z.boolean().default(true).describe('Include floor, wall and ceiling finishes'),
+      }),
+      handler: async (input, ctx) => {
+        if (!nodePath.isAbsolute(input.path)) throw new StudioError('INVALID_INPUT', 'path must be a full (absolute) file path.');
+        const project = ctx.project!;
+        const doc = project.doc;
+        const missing = (input.levelIds ?? []).filter((id) => !doc.levels[id]);
+        if (missing.length) throw new StudioError('NOT_FOUND', `No level ${missing.join(', ')} in this project. building_get lists the levels.`);
+        // The imported models the items use, read from the project's assets/ before the (synchronous) build.
+        const assets = new Map<string, Uint8Array>();
+        if (input.includeItems) {
+          const refs = new Set<string>();
+          for (const level of Object.values(doc.levelData)) for (const e of Object.values(level.entities)) if (e.type === 'item' && e.asset.startsWith('asset:')) refs.add(e.asset);
+          for (const ref of refs) {
+            const file = assetFileOf(ref);
+            const bytes = file && doc.assets[file] ? await ctx.host.projects.readAsset(project.id, file) : undefined;
+            if (bytes) assets.set(ref, bytes);
+          }
+        }
+        const { rules } = ctx.host.config.get();
+        const built = buildingToGlb(doc, { limits: rules, levelIds: input.levelIds, includeItems: input.includeItems, includeFinishes: input.includeFinishes, assetBytes: (ref) => assets.get(ref), generator: BRANDING.productName });
+        await writeFileAtomic(input.path, built.glb);
+        ctx.host.emit('exchange.exported', { projectId: project.id, format: 'glb', files: [input.path] });
+        return { path: input.path, bytes: built.glb.length, nodes: built.nodes, triangles: built.triangles, skipped: built.skipped };
       },
     }),
   ],
