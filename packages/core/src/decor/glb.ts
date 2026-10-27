@@ -375,12 +375,16 @@ export interface GlbMesh {
   positions: Float32Array;
   normals?: Float32Array;
   indices?: Uint32Array;
-  /** Linear RGBA, 0–1. An alpha below 1 is written with `alphaMode: 'BLEND'`. */
+  /** Linear RGBA, 0–1. An alpha below 1 is written with `alphaMode: 'BLEND'` unless `alphaMode` says otherwise. */
   color: readonly [number, number, number, number];
   metallic?: number;
   roughness?: number;
   /** Drawn from both sides (glass). */
   doubleSided?: boolean;
+  /** glTF's alpha mode, when it is not what the colour's alpha implies (a model read back keeps its own). */
+  alphaMode?: GltfAlphaMode;
+  /** The cut-off of `alphaMode: 'MASK'`. */
+  alphaCutoff?: number;
   /** The material's name (what an importer shows and an item can repaint); `name` when left out. */
   material?: string;
 }
@@ -425,11 +429,12 @@ export function writeGlbScene(roots: GlbNode | readonly GlbNode[], options: { ge
   const materialIndex = new Map<string, number>();
   const material = (mesh: GlbMesh): number => {
     const name = mesh.material ?? mesh.name;
-    const blend = mesh.color[3] < 1;
+    const alphaMode = mesh.alphaMode ?? (mesh.color[3] < 1 ? 'BLEND' : 'OPAQUE');
     const value = {
       ...(name ? { name } : {}),
       pbrMetallicRoughness: { baseColorFactor: [...mesh.color], metallicFactor: mesh.metallic ?? 0, roughnessFactor: mesh.roughness ?? 0.8 },
-      ...(blend ? { alphaMode: 'BLEND' } : {}),
+      ...(alphaMode !== 'OPAQUE' ? { alphaMode } : {}),
+      ...(alphaMode === 'MASK' && mesh.alphaCutoff !== undefined ? { alphaCutoff: mesh.alphaCutoff } : {}),
       ...(mesh.doubleSided ? { doubleSided: true } : {}),
     };
     const key = JSON.stringify(value);
@@ -518,18 +523,27 @@ export function meshToGlb(mesh: Mesh, color: GlbMesh['color'], name?: string): G
   return { ...(name ? { name } : {}), positions, normals, color };
 }
 
-/** One primitive's triangles in the app's terms (mm, z up, non-indexed) with its material's name and base colour (linear RGB, 0–1). */
+export type GltfAlphaMode = 'OPAQUE' | 'MASK' | 'BLEND';
+
+/** One primitive's triangles in the app's terms (mm, z up, non-indexed, counter-clockwise) with its material's name and base colour (linear RGB, 0–1). */
 export interface GlbTriangles {
   positions: Float32Array;
   /** The repaint slot of its material (`gltfMaterialSlots`), or empty without one. */
   material: string;
   color: [number, number, number];
+  /** The base colour factor's alpha, and how the material uses it. */
+  alpha: number;
+  alphaMode: GltfAlphaMode;
+  alphaCutoff?: number;
+  doubleSided: boolean;
 }
 
 /**
  * The triangles of a GLB file in the default scene, through the node transforms, for drawing a
- * thumbnail without a 3D engine. Primitives that are not triangle lists or whose positions are
- * not floats are skipped. Assumes `inspectGlb` already accepted the file.
+ * thumbnail or writing them into another file without a 3D engine. A node mirrored by its transform
+ * (a negative determinant) has its triangles' winding reversed, so they still face outwards.
+ * Primitives that are not triangle lists or whose positions are not floats are skipped. Assumes
+ * `inspectGlb` already accepted the file.
  */
 export function readGlbTriangles(bytes: Uint8Array): GlbTriangles[] {
   const { json, bin } = readGlbChunks(bytes);
@@ -558,6 +572,9 @@ export function readGlbTriangles(bytes: Uint8Array): GlbTriangles[] {
     if (depth > 64) return;
     const node = nodes[index];
     const world = multiply(parent, localMatrix(node));
+    const w = world;
+    // The determinant of the linear part. A mirroring transform turns counter-clockwise triangles clockwise: swap two corners back.
+    const mirrored = w[0] * (w[5] * w[10] - w[9] * w[6]) - w[4] * (w[1] * w[10] - w[9] * w[2]) + w[8] * (w[1] * w[6] - w[5] * w[2]) < 0;
     for (const p of node.mesh !== undefined ? (json.meshes?.[node.mesh]?.primitives ?? []) : []) {
       if ((p.mode ?? 4) !== 4) continue;
       const pos = read(p.attributes.POSITION, 3);
@@ -567,11 +584,21 @@ export function readGlbTriangles(bytes: Uint8Array): GlbTriangles[] {
       const tri = new Float32Array(Math.floor(count / 3) * 9);
       for (let i = 0; i < tri.length / 3; i++) {
         const v = order ? order[i] : i;
-        tri.set(fromGltf(apply(world, [pos[v * 3], pos[v * 3 + 1], pos[v * 3 + 2]])), i * 3);
+        const corner = mirrored && i % 3 ? 3 - (i % 3) : i % 3;
+        tri.set(fromGltf(apply(world, [pos[v * 3], pos[v * 3 + 1], pos[v * 3 + 2]])), (i - (i % 3) + corner) * 3);
       }
-      const m = p.material !== undefined ? (json.materials?.[p.material] as { name?: string; pbrMetallicRoughness?: { baseColorFactor?: number[] } } | undefined) : undefined;
+      const m = p.material !== undefined ? (json.materials?.[p.material] as { pbrMetallicRoughness?: { baseColorFactor?: number[] }; alphaMode?: string; alphaCutoff?: number; doubleSided?: boolean } | undefined) : undefined;
       const f = m?.pbrMetallicRoughness?.baseColorFactor ?? [0.8, 0.8, 0.8, 1];
-      out.push({ positions: tri, material: p.material !== undefined ? (slots[p.material] ?? '') : '', color: [f[0], f[1], f[2]] });
+      const alphaMode: GltfAlphaMode = m?.alphaMode === 'BLEND' || m?.alphaMode === 'MASK' ? m.alphaMode : 'OPAQUE';
+      out.push({
+        positions: tri,
+        material: p.material !== undefined ? (slots[p.material] ?? '') : '',
+        color: [f[0], f[1], f[2]],
+        alpha: f[3] ?? 1,
+        alphaMode,
+        ...(alphaMode === 'MASK' && typeof m?.alphaCutoff === 'number' ? { alphaCutoff: m.alphaCutoff } : {}),
+        doubleSided: m?.doubleSided === true,
+      });
     }
     for (const child of node.children ?? []) visit(child, world, depth + 1);
   };

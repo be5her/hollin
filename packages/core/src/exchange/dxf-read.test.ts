@@ -13,6 +13,39 @@ const dxfText = (s: string, eol = '\n') =>
 const only = <T extends DxfEntity['type']>(entities: DxfEntity[], type: T) => entities.filter((e): e is Extract<DxfEntity, { type: T }> => e.type === type);
 const near = (a: Vec2, b: Vec2, tolerance = 1e-6) => Math.abs(a[0] - b[0]) <= tolerance && Math.abs(a[1] - b[1]) <= tolerance;
 
+/** A DXF from a template string of `code value` lines (the value may be empty), indentation dropped. */
+const pairText = (s: string) =>
+  s
+    .trim()
+    .split('\n')
+    .filter((l) => l.trim())
+    .map((l) => /^\s*(-?\d+)\s?(.*)$/.exec(l)!)
+    .map((m) => `${m[1]}\n${m[2]}`)
+    .join('\n') + '\n';
+
+/** A drawing with one block, `B`, at base (0, 0), and some model-space records. */
+const blockDxf = (block: string, entities: string, header = '') =>
+  pairText(`
+    0 SECTION
+    2 HEADER
+    ${header.trim() || '999 none'}
+    0 ENDSEC
+    0 SECTION
+    2 BLOCKS
+    0 BLOCK
+    2 B
+    10 0
+    20 0
+    ${block.trim()}
+    0 ENDBLK
+    0 ENDSEC
+    0 SECTION
+    2 ENTITIES
+    ${entities.trim()}
+    0 ENDSEC
+    0 EOF
+  `);
+
 describe('readDxf', () => {
   it('reads the header units and extents, the layer table with its flags, and drops a BOM', () => {
     const file = readDxf(
@@ -484,7 +517,7 @@ describe('readDxf', () => {
     expect(file.skipped).toEqual({ 'INSERT (nested)': 1, 'INSERT (no block)': 1 });
   });
 
-  it('turns arcs under a non-uniform block scale into points, and mirrors one whose extrusion faces down', () => {
+  it('turns arcs under a non-uniform block scale into elliptical points, and mirrors one whose extrusion faces down', () => {
     const file = readDxf(
       dxfText(`
         0
@@ -545,7 +578,7 @@ describe('readDxf', () => {
         ENDSEC
       `),
     );
-    const [ellipse] = only(file.entities, 'POLYLINE');
+    const [ellipse] = only(file.entities, 'ELLIPSE');
     expect(ellipse.closed).toBe(true);
     expect(Math.max(...ellipse.points.map((p) => p[0]))).toBeCloseTo(20, 9);
     expect(Math.max(...ellipse.points.map((p) => p[1]))).toBeCloseTo(10, 9);
@@ -669,5 +702,159 @@ describe('readDxf', () => {
     expect(file.paperSpace).toBe(1);
     expect(file.skipped).toEqual({ HATCH: 2, WIPEOUT: 1 });
     expect(readDxfEntities(text)).toEqual({ insUnits: null, layers: [], entities: file.entities, skipped: file.skipped });
+  });
+
+  it('mirrors a block under a negative X scale: arcs run the other way, bulges change sign, texts stay readable', () => {
+    const file = readDxf(
+      blockDxf(
+        `
+          0 ARC
+          10 100
+          20 0
+          40 50
+          50 0
+          51 90
+          0 LWPOLYLINE
+          90 2
+          70 0
+          10 0
+          20 0
+          42 0.5
+          10 100
+          20 0
+          0 TEXT
+          10 10
+          20 20
+          40 72
+          1 Tag
+        `,
+        `
+          0 INSERT
+          8 M
+          2 B
+          10 1000
+          20 0
+          41 -1
+        `,
+      ),
+    );
+    const [arc] = only(file.entities, 'ARC');
+    // The arc around (100, 0) from 0° to 90°, seen in a mirror at x = 0, then moved 1000 along x:
+    // around (900, 0), counter-clockwise from 90° to 180°.
+    expect(near(arc.center, [900, 0])).toBe(true);
+    expect(arc.start).toBeCloseTo(90, 9);
+    expect(arc.end).toBeCloseTo(180, 9);
+    const [poly] = only(file.entities, 'LWPOLYLINE');
+    expect(poly.points.map((p) => [Math.round(p[0]), Math.round(p[1])])).toEqual([[1000, 0], [900, 0]]);
+    expect(poly.bulges[0]).toBeCloseTo(-0.5, 9);
+    const [text] = only(file.entities, 'TEXT');
+    expect(near(text.at, [990, 20])).toBe(true);
+    expect(text.height).toBeCloseTo(72, 9);
+    expect(file.entities.every((e) => e.layer === 'M')).toBe(true);
+  });
+
+  it('reads the visible attribute values of an INSERT as texts where they stand, and counts the invisible ones', () => {
+    const file = readDxf(
+      blockDxf(
+        `
+          0 LINE
+          10 0
+          20 0
+          11 10
+          21 0
+          0 ATTDEF
+          2 ROOM
+          1 ?
+        `,
+        `
+          0 INSERT
+          8 Doors
+          2 B
+          66 1
+          10 500
+          20 500
+          50 90
+          0 ATTRIB
+          8 0
+          10 480
+          20 510
+          40 100
+          1 D01
+          2 NUMBER
+          70 0
+          50 90
+          72 1
+          74 2
+          11 500
+          21 520
+          0 ATTRIB
+          8 Doors
+          10 0
+          20 0
+          40 100
+          1 secret
+          2 COST
+          70 1
+          0 SEQEND
+          0 LINE
+          8 After
+          10 0
+          20 0
+          11 1
+          21 1
+        `,
+      ),
+    );
+    expect(only(file.entities, 'LINE').map((l) => l.layer)).toEqual(['Doors', 'After']);
+    const texts = only(file.entities, 'TEXT');
+    // In model space already: not moved by the reference; centred (72 = 1) and middle (74 = 2) about its alignment point.
+    expect(texts).toEqual([{ type: 'TEXT', layer: '0', at: [500, 520], height: 100, rotation: 90, text: 'D01', halign: 1, valign: 2 }]);
+    expect(file.skipped).toEqual({ 'ATTRIB (invisible)': 1 });
+  });
+
+  it('expands a MINSERT into its columns and rows, spaced along its rotated axes', () => {
+    const file = readDxf(
+      blockDxf(
+        `
+          0 LINE
+          10 0
+          20 0
+          11 10
+          21 0
+        `,
+        `
+          0 MINSERT
+          8 Seats
+          2 B
+          10 100
+          20 200
+          41 2
+          42 2
+          50 90
+          70 3
+          71 2
+          44 1000
+          45 500
+          0 MINSERT
+          8 Huge
+          2 B
+          70 1000
+          71 1000
+        `,
+      ),
+    );
+    const lines = only(file.entities, 'LINE');
+    expect(lines).toHaveLength(6);
+    // Turned 90°: the columns run along y, the rows along -x; the spacing is not scaled, the block is.
+    const starts = lines.map((l) => [Math.round(l.a[0]), Math.round(l.a[1])]);
+    expect(starts).toEqual([[100, 200], [100, 1200], [100, 2200], [-400, 200], [-400, 1200], [-400, 2200]]);
+    expect(lines.every((l) => Math.round(l.b[1] - l.a[1]) === 20 && Math.abs(l.b[0] - l.a[0]) < 1e-9)).toBe(true);
+    expect(file.skipped).toEqual({ 'MINSERT (too many copies)': 1 });
+  });
+
+  it('reads $MEASUREMENT next to $INSUNITS', () => {
+    expect(readDxf(blockDxf('', '', '9 $MEASUREMENT\n70 0'))).toMatchObject({ insUnits: null, measurement: 0 });
+    expect(readDxf(blockDxf('', '', '9 $INSUNITS\n70 4\n9 $MEASUREMENT\n70 1'))).toMatchObject({ insUnits: 4, measurement: 1 });
+    expect(readDxf(blockDxf('', '')).measurement).toBeNull();
   });
 });

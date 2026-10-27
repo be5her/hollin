@@ -4,11 +4,13 @@ import type { ProjectDoc } from '../doc/schema';
 import type { Path, Vertex } from '../geometry/path';
 import { roundMm, type Vec2 } from '../geometry/vec';
 import type { DxfEntity, DxfFile } from './dxf-read';
+import { CAP_HEIGHT } from './paper';
 
 /*
  * A DXF drawing as edits of one level: a layer per DXF layer (`DXF <name>`, interior kind so it can
- * hold room dividers), closed outlines as unfilled shapes with their arcs, open lines as separators,
- * texts as labels. The result is a list of ops for one transaction; nothing is applied here.
+ * hold room dividers; layer names compared without case, as DXF does), closed outlines and arcs as
+ * unfilled shapes with their arcs, other open lines as separators, texts as labels. The result is a
+ * list of ops for one transaction; nothing is applied here.
  */
 
 /** Millimetres per drawing unit for each `$INSUNITS` code (0, unitless, is taken as millimetres). */
@@ -74,8 +76,13 @@ export function dxfUnitScale(insUnits: number | null): number {
   return insUnits === null ? 1 : (DXF_UNIT_MM[insUnits] ?? 1);
 }
 
+/** The `$INSUNITS` code a file's drawing units are taken as: its own, else inches (1) for an imperial `$MEASUREMENT` (0), else null. */
+export function dxfUnits(file: Pick<DxfFile, 'insUnits' | 'measurement'>): number | null {
+  return file.insUnits ?? (file.measurement === 0 ? 1 : null);
+}
+
 export interface DxfImportOptions {
-  /** Millimetres per drawing unit; default from `$INSUNITS`. */
+  /** Millimetres per drawing unit; default from `$INSUNITS` (or `$MEASUREMENT` without it, `dxfUnits`). */
   scale?: number;
   /** Added after scaling, mm. */
   origin?: Vec2;
@@ -83,7 +90,7 @@ export interface DxfImportOptions {
   layerPrefix?: string;
   /** Only these DXF layers (names compared without case). */
   layers?: readonly string[];
-  /** Every label's height in mm, instead of the texts' own. */
+  /** Every label's height in mm, instead of the texts' own (whose DXF height is the capitals', `CAP_HEIGHT` of the font size). */
   textHeight?: number;
 }
 
@@ -116,7 +123,7 @@ export interface DxfLayerSummary {
   hidden: boolean;
 }
 
-/** The layers of the table and those entities name without a table entry, with how many entities each holds (table order first). */
+/** The layers of the table and those entities name without a table entry, with how many entities each holds (table order first; names compared without case, the first spelling kept). */
 export function dxfLayerSummary(file: DxfFile): DxfLayerSummary[] {
   const byKey = new Map<string, DxfLayerSummary>();
   for (const l of file.layers) if (!byKey.has(l.name.toLowerCase())) byKey.set(l.name.toLowerCase(), { name: l.name, entities: 0, color: l.color, hidden: l.off || l.frozen });
@@ -176,7 +183,7 @@ type Draft = { kind: 'shape' | 'separator'; layer: string; path: Path } | { kind
 /** Turns a parsed DXF into the ops that add its drawing to a level, in one transaction. */
 export function dxfToOps(file: DxfFile, doc: ProjectDoc, levelId: string, options: DxfImportOptions = {}): DxfImportResult {
   requireLevel(doc, levelId);
-  const scale = options.scale ?? dxfUnitScale(file.insUnits);
+  const scale = options.scale ?? dxfUnitScale(dxfUnits(file));
   const [ox, oy] = options.origin ?? [0, 0];
   const prefix = options.layerPrefix ?? 'DXF ';
   const only = options.layers ? new Set(options.layers.map((l) => l.toLowerCase())) : null;
@@ -185,9 +192,15 @@ export function dxfToOps(file: DxfFile, doc: ProjectDoc, levelId: string, option
     skipped[key] = (skipped[key] ?? 0) + 1;
   };
   const mm = (p: Vec2): Vec2 => [roundMm(p[0] * scale + ox), roundMm(p[1] * scale + oy)];
-  // An entity's layer as the table spells it.
-  const table = new Map(file.layers.map((l) => [l.name.toLowerCase(), l]));
-  const canonical = (name: string) => table.get(name.toLowerCase())?.name ?? name;
+  // DXF layer names are compared without case: an entity's layer as the table spells it first, else as the first entity on it does.
+  const table = new Map<string, DxfFile['layers'][number]>();
+  for (const l of file.layers) if (!table.has(l.name.toLowerCase())) table.set(l.name.toLowerCase(), l);
+  const spelling = new Map([...table].map(([key, l]) => [key, l.name]));
+  const canonical = (name: string) => {
+    const key = name.toLowerCase();
+    if (!spelling.has(key)) spelling.set(key, name);
+    return spelling.get(key)!;
+  };
 
   const drafts: Draft[] = [];
   for (const e of file.entities) {
@@ -207,10 +220,10 @@ export function dxfToOps(file: DxfFile, doc: ProjectDoc, levelId: string, option
   for (const d of drafts) {
     if (layerFor.has(d.layer)) continue;
     const name = `${prefix}${d.layer}`.trim().slice(0, 120).trim() || 'DXF';
-    const reuse = existing.find((l) => l.name === name);
+    const reuse = existing.find((l) => l.name.toLowerCase() === name.toLowerCase());
     if (reuse) {
       layerFor.set(d.layer, { id: reuse.id, interior: reuse.kind === 'interior' });
-      layers.push({ id: reuse.id, name, dxfLayer: d.layer, created: false, visible: reuse.visible });
+      layers.push({ id: reuse.id, name: reuse.name, dxfLayer: d.layer, created: false, visible: reuse.visible });
       continue;
     }
     const source = table.get(d.layer.toLowerCase());
@@ -251,6 +264,8 @@ function toDraft(e: DxfEntity, layer: string, mm: (p: Vec2) => Vec2, scale: numb
     case 'POLYLINE':
       return polyDraft(layer, e.points.map(mm), e.bulges, e.closed);
     case 'ELLIPSE':
+      // An elliptical arc is a curve, not a divider: an open shape, as an arc is.
+      return polyDraft(layer, e.points.map(mm), e.points.map(() => 0), e.closed, 'shape');
     case 'SPLINE':
       return polyDraft(layer, e.points.map(mm), e.points.map(() => 0), e.closed);
     case 'CIRCLE': {
@@ -264,15 +279,16 @@ function toDraft(e: DxfEntity, layer: string, mm: (p: Vec2) => Vec2, scale: numb
       if (sweep < 1e-9) sweep = 360;
       if (sweep >= 360 - 1e-9) return toDraft({ type: 'CIRCLE', layer: e.layer, center: e.center, radius: e.radius }, layer, mm, scale, textHeight);
       const at = (deg: number): Vec2 => mm([e.center[0] + e.radius * Math.cos(deg * DEG), e.center[1] + e.radius * Math.sin(deg * DEG)]);
-      return polyDraft(layer, [at(e.start), at(e.start + sweep)], [Math.tan((sweep * DEG) / 4), 0], false);
+      return polyDraft(layer, [at(e.start), at(e.start + sweep)], [Math.tan((sweep * DEG) / 4), 0], false, 'shape');
     }
     case 'TEXT':
     case 'MTEXT': {
       const text = e.text.replace(/\s*\n\s*/g, ' ').replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 500).trim();
       if (!text) return 'empty';
-      const height = e.height > 0 ? e.height : 250 / scale;
+      // DXF heights are the capitals' (what the writer puts in 40); a label's size is the font's.
+      const height = e.height > 0 ? e.height : (250 * CAP_HEIGHT) / scale;
       const center = textCenter(e, height, text);
-      const size = textHeight ?? height * scale;
+      const size = textHeight ?? (height / CAP_HEIGHT) * scale;
       return { kind: 'label', layer, text, at: mm(center), size: Math.max(roundMm(size), 0.001), rotation: normDeg(e.rotation) };
     }
   }
@@ -280,7 +296,7 @@ function toDraft(e: DxfEntity, layer: string, mm: (p: Vec2) => Vec2, scale: numb
 
 /**
  * Where a text's middle lies, in drawing units: labels are drawn centred on their point, DXF texts
- * hang from a corner or an edge. The width is estimated (0.6 of the height per character).
+ * hang from a corner or an edge. `height` is the capitals'; the width is estimated (0.6 of the font size per character).
  */
 function textCenter(e: Extract<DxfEntity, { type: 'TEXT' | 'MTEXT' }>, height: number, text: string): Vec2 {
   let col: number;
@@ -296,17 +312,17 @@ function textCenter(e: Extract<DxfEntity, { type: 'TEXT' | 'MTEXT' }>, height: n
     dy = e.halign === 4 ? 0 : e.valign === 2 ? 0 : e.valign === 3 ? -height / 2 : height / 2;
   }
   const longest = Math.max(...(e.type === 'MTEXT' ? e.text.split('\n') : [text]).map((l) => l.length));
-  const dx = (1 - col) * (longest * height * 0.6) / 2;
+  const dx = (1 - col) * (longest * (height / CAP_HEIGHT) * 0.6) / 2;
   const r = e.rotation * DEG;
   return [e.at[0] + dx * Math.cos(r) - dy * Math.sin(r), e.at[1] + dx * Math.sin(r) + dy * Math.cos(r)];
 }
 
 /**
- * A polyline in mm as a shape (closed) or a separator (open) with its arcs, repeated points removed
- * (a removed point hands its outgoing arc to the point before it), or 'degenerate' under two
- * distinct points.
+ * A polyline in mm as a shape (closed) or `open` (a separator, or an open shape for an arc) with its
+ * arcs, repeated points removed (a removed point hands its outgoing arc to the point before it), or
+ * 'degenerate' under two distinct points.
  */
-function polyDraft(layer: string, points: readonly Vec2[], bulges: readonly number[], closed: boolean): Draft | 'degenerate' {
+function polyDraft(layer: string, points: readonly Vec2[], bulges: readonly number[], closed: boolean, open: 'shape' | 'separator' = 'separator'): Draft | 'degenerate' {
   const kept: { p: Vec2; bulge: number }[] = [];
   points.forEach((p, i) => {
     const bulge = bulges[i] ?? 0;
@@ -323,5 +339,5 @@ function polyDraft(layer: string, points: readonly Vec2[], bulges: readonly numb
     const last = !closed && i === kept.length - 1;
     return !last && isArc(k.bulge) ? { p: k.p, s: { k: 'arc', bulge: Math.max(-MAX_BULGE, Math.min(MAX_BULGE, k.bulge)) } } : { p: k.p };
   });
-  return { kind: closed ? 'shape' : 'separator', layer, path: { closed, v } };
+  return { kind: closed ? 'shape' : open, layer, path: { closed, v } };
 }

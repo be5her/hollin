@@ -5,6 +5,8 @@ import { Button, Checkbox, Input, Label, Select, Units, type DialogComponent } f
 /** What `import.dxf.probe` returns. */
 export interface DxfProbe {
   insUnits: number | null;
+  /** $MEASUREMENT: 0 imperial, 1 metric. */
+  measurement: number | null;
   units: string | null;
   scale: number;
   layers: { name: string; entities: number; color: number; hidden: boolean }[];
@@ -63,8 +65,8 @@ export class ImportDxfDialog implements DialogComponent<ImportDxfData, ImportDxf
   });
 
   protected readonly unitsLabel = computed(() => {
-    const { units, insUnits } = this.data().probe;
-    if (insUnits === null) return 'Not stated in the file';
+    const { units, insUnits, measurement } = this.data().probe;
+    if (insUnits === null) return measurement === 0 ? 'Inches (an imperial drawing without stated units)' : 'Not stated in the file';
     if (insUnits === 0) return 'Unitless';
     return units ?? `Unknown (code ${insUnits})`;
   });

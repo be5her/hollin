@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { addLayerOps, addLevelOps } from '../doc/builders';
 import { newProjectDoc } from '../doc/defaults';
+import { DocumentEngine } from '../doc/engine';
 import { Transaction, type Op } from '../doc/ops';
 import type { Entity, ProjectDoc } from '../doc/schema';
 import { arcGeometry, signedArea } from '../geometry/path';
 import { planDrawing } from './drawing';
 import { drawingToDxf } from './dxf';
-import { dxfLayerSummary, dxfToOps, dxfUnitScale, type DxfImportOptions } from './dxf-import';
+import { dxfLayerSummary, dxfToOps, dxfUnits, dxfUnitScale, type DxfImportOptions } from './dxf-import';
 import { readDxf } from './dxf-read';
 import { drawingHouse } from './house.fixture';
 
@@ -79,8 +80,8 @@ describe('dxfToOps', () => {
     // The house's shape keeps its arc.
     const shapes = entities.filter((e): e is Shape => e.type === 'shape' && e.layerId === layerNamed('DXF Shapes').id);
     expect(shapes.some((s) => s.path.v.some((v) => v.s?.k === 'arc' && Math.abs(v.s.bulge - 0.5) < 1e-6))).toBe(true);
-    // The door's swing is an open arc: a separator with one arc segment.
-    const swing = entities.filter((e): e is Separator => e.type === 'separator' && e.layerId === layerNamed('DXF Doors and windows').id && e.path.v[0].s?.k === 'arc');
+    // The door's swing is an open arc: an open shape with one arc segment, which does not split rooms.
+    const swing = entities.filter((e): e is Shape => e.type === 'shape' && !e.path.closed && e.layerId === layerNamed('DXF Doors and windows').id && e.path.v[0].s?.k === 'arc');
     expect(swing).toHaveLength(1);
     expect(result.counts.layers).toBe(new Set(entities.map((e) => e.layerId)).size);
     expect(result.skipped).toEqual({ HATCH: 3 }); // the poché of the walls and the column, the stair's start dot
@@ -129,7 +130,7 @@ describe('dxfToOps', () => {
     expect(signedArea(shape.path)).toBeCloseTo(1000 * 1000 + (Math.PI * 500 * 500) / 2, 0);
   });
 
-  it('makes a closed POLYLINE a shape, an ARC and a LINE separators, a CIRCLE a shape', () => {
+  it('makes a closed POLYLINE a shape, an ARC an open shape, a LINE a separator, a CIRCLE a shape', () => {
     const { result, entities } = importInto(
       entitiesDxf(`
         0
@@ -196,10 +197,10 @@ describe('dxfToOps', () => {
         250
       `),
     );
-    expect(result.counts).toEqual({ shapes: 2, separators: 2, labels: 0, layers: 1 });
-    const [triangle, arc, line, circle] = entities as [Shape, Separator, Separator, Shape];
+    expect(result.counts).toEqual({ shapes: 3, separators: 1, labels: 0, layers: 1 });
+    const [triangle, arc, line, circle] = entities as [Shape, Shape, Separator, Shape];
     expect(triangle.path.v.map((v) => v.p)).toEqual([[0, 0], [100, 0], [100, 100]]);
-    expect(arc.type).toBe('separator');
+    expect(arc).toMatchObject({ type: 'shape', filled: false, path: { closed: false } });
     expect(arc.path.v.map((v) => v.p)).toEqual([[500, 0], [0, 500]]);
     expect(arc.path.v[0].s).toEqual({ k: 'arc', bulge: expect.closeTo(Math.tan(Math.PI / 8), 9) });
     expect(line.path).toEqual({ closed: false, v: [{ p: [0, 0] }, { p: [10, 0] }] });
@@ -231,7 +232,85 @@ describe('dxfToOps', () => {
     expect(dxfUnitScale(null)).toBe(1);
   });
 
-  it('makes labels of texts, MTEXT stripped, empty ones skipped', () => {
+  it('takes a file without $INSUNITS as inches when its $MEASUREMENT is imperial', () => {
+    const line = '0\nLINE\n8\nA\n10\n0\n20\n0\n11\n1\n21\n0';
+    const imperial = importInto(entitiesDxf(line, `9\n$MEASUREMENT\n70\n0`));
+    expect(imperial.result.scale).toBe(25.4);
+    expect((imperial.entities[0] as Separator).path.v[1].p).toEqual([25.4, 0]);
+    // $INSUNITS wins; a metric $MEASUREMENT alone leaves millimetres.
+    expect(importInto(entitiesDxf(line, `9\n$INSUNITS\n70\n6\n9\n$MEASUREMENT\n70\n0`)).result.scale).toBe(1000);
+    expect(importInto(entitiesDxf(line, `9\n$MEASUREMENT\n70\n1`)).result.scale).toBe(1);
+    expect(dxfUnits({ insUnits: null, measurement: 0 })).toBe(1);
+    expect(dxfUnits({ insUnits: 0, measurement: 0 })).toBe(0);
+    expect(dxfUnits({ insUnits: null, measurement: null })).toBeNull();
+  });
+
+  it('compares layer names without case: the table\u2019s spelling, else the first entity\u2019s, one project layer each', () => {
+    const line = (layer: string, y: number) => `0\nLINE\n8\n${layer}\n10\n0\n20\n${y}\n11\n1000\n21\n${y}`;
+    const body = [line('WALLS', 0), line('walls', 100), line('notes', 200), line('NOTES', 300)].join('\n');
+    const tables = '0\nLAYER\n2\nWalls\n70\n0\n62\n7\n0\nLAYER\n2\nWALLS\n70\n1\n62\n1';
+    let base = newProjectDoc({ name: 'Import' });
+    const existing = addLayerOps(base, { levelId: base.building.groundLevelId, kind: 'interior', name: 'dxf notes' });
+    base = commit(base, existing.ops);
+    const { result, doc } = importInto(entitiesDxf(body, '', tables), { layers: ['walls', 'Notes'] }, base);
+    expect(result.layers.map((l) => [l.name, l.dxfLayer, l.created, l.visible])).toEqual([
+      ['DXF Walls', 'Walls', true, true],
+      ['dxf notes', 'notes', false, true],
+    ]);
+    expect(result.counts).toMatchObject({ separators: 4, layers: 2 });
+    expect(Object.values(doc.layers).filter((l) => l.name.toLowerCase() === 'dxf walls')).toHaveLength(1);
+    expect(dxfLayerSummary(readDxf(entitiesDxf(body, '', tables))).map((l) => [l.name, l.entities])).toEqual([
+      ['Walls', 2],
+      ['notes', 2],
+    ]);
+  });
+
+  it('makes an elliptical arc an open shape and a full ellipse a closed one', () => {
+    const ellipse = (end: number) => `0\nELLIPSE\n8\nE\n10\n0\n20\n0\n11\n1000\n21\n0\n40\n0.5\n41\n0\n42\n${end}`;
+    const { result, entities } = importInto(entitiesDxf([ellipse(Math.PI / 2), ellipse(2 * Math.PI)].join('\n')));
+    expect(result.counts).toMatchObject({ shapes: 2, separators: 0 });
+    const [arc, full] = entities as [Shape, Shape];
+    expect(arc).toMatchObject({ type: 'shape', filled: false, path: { closed: false } });
+    expect(full).toMatchObject({ type: 'shape', filled: false, path: { closed: true } });
+  });
+
+  it('keeps a label\u2019s size through the writer and back: group 40 is the capitals\u2019 height', () => {
+    const { doc: house, ground } = drawingHouse();
+    const added = addLevelOps(house, { position: 'top', name: 'Traced' });
+    const base = commit(house, added.ops);
+    const { result } = { result: dxfToOps(readDxf(drawingToDxf(planDrawing(house, ground))), base, added.levelId) };
+    const doc = commit(base, result.ops);
+    const original = Object.values(house.levelData[ground].entities).find((e): e is Label => e.type === 'label' && e.text === 'Entrance')!;
+    const back = Object.values(doc.levelData[added.levelId].entities).find((e): e is Label => e.type === 'label' && e.text === 'Entrance')!;
+    expect(back.size).toBeCloseTo(original.size, 3);
+  });
+
+  it('adds an import in one change: a single undo removes every layer and entity it added', async () => {
+    const base = newProjectDoc({ name: 'Import' });
+    const levelId = base.building.groundLevelId;
+    const engine = new DocumentEngine(base, { onChange: () => {} });
+    const before = engine.doc;
+    const text = entitiesDxf(
+      [
+        '0\nLINE\n8\nA\n10\n0\n20\n0\n11\n1000\n21\n0',
+        '0\nCIRCLE\n8\nB\n10\n0\n20\n0\n40\n500',
+        '0\nTEXT\n8\nC\n10\n0\n20\n0\n40\n100\n1\nHello',
+      ].join('\n'),
+    );
+    const { result } = await engine.transact('Import plan.dxf', { kind: 'user', name: 'You' }, (tx) => {
+      const imported = dxfToOps(readDxf(text), tx.doc, levelId);
+      tx.apply(imported.ops);
+      return imported;
+    });
+    expect(result.counts).toEqual({ shapes: 1, separators: 1, labels: 1, layers: 3 });
+    expect(Object.keys(engine.doc.levelData[levelId].entities)).toHaveLength(3);
+    expect(engine.history().undo).toMatchObject({ label: 'Import plan.dxf' });
+    engine.undo();
+    expect(engine.doc).toEqual(before);
+    expect(() => engine.undo()).toThrow(/nothing to undo/);
+  });
+
+  it('makes labels of texts, MTEXT stripped, empty ones skipped, their size the font size of the capitals’ height', () => {
     const { result, entities } = importInto(
       entitiesDxf(`
         0
@@ -249,7 +328,7 @@ describe('dxfToOps', () => {
         20
         0
         40
-        200
+        144
         71
         5
         1
@@ -263,7 +342,7 @@ describe('dxfToOps', () => {
         20
         0
         40
-        100
+        72
         50
         -90
         72

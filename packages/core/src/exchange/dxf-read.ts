@@ -5,8 +5,9 @@ import type { Vec2 } from '../geometry/vec';
  * A tolerant DXF reader: group-code pairs in, the drawing units, the layer table, the block
  * definitions and the model-space entities out, in the file's own units (the caller scales).
  * LF or CRLF, a UTF-8 byte order mark, \U+XXXX escapes. Curves the model has no exact form for
- * (ellipses, splines) come out flattened to points; block references come out expanded with their
- * transform (nested references one level deep). Anything it does not know is counted and skipped.
+ * (ellipses, splines) come out flattened to points; block references (INSERT, and MINSERT's arrays)
+ * come out expanded with their transform (nested references one level deep), their attribute values
+ * (ATTRIB) as texts. Anything it does not know is counted and skipped.
  */
 
 export type DxfEntity =
@@ -47,6 +48,8 @@ export interface DxfBlockInfo {
 export interface DxfFile {
   /** `$INSUNITS` (4 = millimetres), or null when the header does not say. */
   insUnits: number | null;
+  /** `$MEASUREMENT` (0 imperial, 1 metric), or null when the header does not say: what the units are when `$INSUNITS` is absent. */
+  measurement: number | null;
   /** `$EXTMIN` / `$EXTMAX` from the header, when present and set. */
   extents: { min: Vec2; max: Vec2 } | null;
   /** The LAYER table, in file order. */
@@ -308,7 +311,14 @@ function records(pairs: readonly DxfPair[]): DxfRecord[] {
 }
 
 /** What one entity record becomes before blocks are expanded. */
-type Raw = { kind: 'entity'; entity: DxfEntity } | { kind: 'insert'; layer: string; block: string; at: Vec2; sx: number; sy: number; rotation: number; mirror: boolean } | { kind: 'skip'; type: string };
+type Raw =
+  | { kind: 'entity'; entity: DxfEntity }
+  /** A block reference; a MINSERT's `columns` × `rows` copies are `spacing` apart along the reference's rotated axes. */
+  | { kind: 'insert'; layer: string; block: string; at: Vec2; sx: number; sy: number; rotation: number; mirror: boolean; columns: number; rows: number; spacing: Vec2 }
+  | { kind: 'skip'; type: string };
+
+/** The most block copies MINSERT arrays expand to in one file (nested ones multiplied); an array past it is skipped and counted. */
+const MAX_ARRAY_COPIES = 10_000;
 
 const firstOf = (body: readonly DxfPair[]) => (code: number) => body.find((q) => q.code === code)?.value;
 const allOf = (body: readonly DxfPair[], code: number) => body.filter((q) => q.code === code).map((q) => num(q.value));
@@ -336,7 +346,7 @@ function readStream(recs: readonly DxfRecord[], paper: { count: number } | null)
     const { type, body } = recs[i];
     // A POLYLINE's vertices (or an INSERT's attributes) follow it up to SEQEND.
     let tail: DxfRecord[] = [];
-    if (type === 'POLYLINE' || (type === 'INSERT' && Math.trunc(num(firstOf(body)(66))) === 1)) {
+    if (type === 'POLYLINE' || ((type === 'INSERT' || type === 'MINSERT') && Math.trunc(num(firstOf(body)(66))) === 1)) {
       let j = i + 1;
       while (j < recs.length && recs[j].type !== 'SEQEND' && (recs[j].type === 'VERTEX' || recs[j].type === 'ATTRIB')) j++;
       tail = recs.slice(i + 1, j);
@@ -350,6 +360,8 @@ function readStream(recs: readonly DxfRecord[], paper: { count: number } | null)
     }
     const raw = readEntity(type, body, tail);
     if (raw) out.push(raw);
+    // A reference's attribute values stand where they are drawn, in the space that holds the reference.
+    for (const a of tail) if (a.type === 'ATTRIB') out.push(readEntity('ATTRIB', a.body, [])!);
   }
   return out;
 }
@@ -414,14 +426,18 @@ function readEntity(type: string, body: readonly DxfPair[], tail: readonly DxfRe
       if (closed && points.length > 2 && Math.hypot(points[0][0] - points[points.length - 1][0], points[0][1] - points[points.length - 1][1]) < 1e-9) points.pop();
       return { kind: 'entity', entity: { type, layer, points, closed } };
     }
-    case 'TEXT': {
+    case 'TEXT':
+    case 'ATTRIB': {
+      // An invisible attribute is data, not drawing.
+      if (type === 'ATTRIB' && Math.trunc(num(first(70))) & 1) return { kind: 'skip', type: 'ATTRIB (invisible)' };
       const halign = Math.trunc(num(first(72)));
-      const valign = Math.trunc(num(first(73)));
+      // An attribute keeps its vertical alignment in 74.
+      const valign = Math.trunc(num(first(type === 'ATTRIB' ? 74 : 73)));
       const aligned = (halign !== 0 || valign !== 0) && first(11) !== undefined;
       // Aligned and fit texts run between their two points: the middle stands for them.
       const point: Vec2 = !aligned ? at(10) : halign === 3 || halign === 5 ? [(at(10)[0] + at(11)[0]) / 2, (at(10)[1] + at(11)[1]) / 2] : at(11);
       const text = decodeDxfControlCodes(decodeDxfString(first(1) ?? ''));
-      return entity({ type, layer, at: point, height: num(first(40)), rotation: num(first(50)), text, halign, valign });
+      return entity({ type: 'TEXT', layer, at: point, height: num(first(40)), rotation: num(first(50)), text, halign, valign });
     }
     case 'MTEXT': {
       const raw = [...body.filter((q) => q.code === 3).map((q) => q.value), first(1) ?? ''].join('');
@@ -430,13 +446,19 @@ function readEntity(type: string, body: readonly DxfPair[], tail: readonly DxfRe
       return { kind: 'entity', entity: { type, layer, at: at(10), height: num(first(40)), rotation, text: stripMtext(raw), attach: Math.trunc(num(first(71), 1)) || 1 } };
     }
     case 'INSERT':
-      return { kind: 'insert', layer, block: decodeDxfString((first(2) ?? '').trim()), at: at(10), sx: num(first(41), 1), sy: num(first(42), 1), rotation: num(first(50)), mirror: ocsMirror };
+    case 'MINSERT': {
+      const grid = type === 'MINSERT';
+      const columns = grid ? Math.max(1, Math.trunc(num(first(70), 1))) : 1;
+      const rows = grid ? Math.max(1, Math.trunc(num(first(71), 1))) : 1;
+      const spacing: Vec2 = grid ? [num(first(44)), num(first(45))] : [0, 0];
+      return { kind: 'insert', layer, block: decodeDxfString((first(2) ?? '').trim()), at: at(10), sx: num(first(41), 1), sy: num(first(42), 1), rotation: num(first(50)), mirror: ocsMirror, columns, rows, spacing };
+    }
     default:
       return { kind: 'skip', type };
   }
 }
 
-/** An entity moved by an affine transform: arcs stay arcs under a similarity, become points otherwise. */
+/** An entity moved by an affine transform: arcs stay arcs under a similarity, become elliptical ones (points) otherwise. */
 function transformEntity(e: DxfEntity, m: Affine): DxfEntity {
   const flip = det(m) < 0;
   const similar = isSimilarity(m);
@@ -460,12 +482,12 @@ function transformEntity(e: DxfEntity, m: Affine): DxfEntity {
       let sweep = e.end - e.start;
       while (sweep <= 0) sweep += 360;
       const points = ellipsePoints(e.center, [e.radius, 0], [0, e.radius], e.start * DEG, sweep * DEG, false).map((p) => apply(m, p));
-      return { type: 'POLYLINE', layer: e.layer, points, bulges: points.map(() => 0), closed: false };
+      return { type: 'ELLIPSE', layer: e.layer, points, closed: false };
     }
     case 'CIRCLE': {
       if (similar) return { ...e, center: apply(m, e.center), radius: e.radius * s };
       const points = ellipsePoints(e.center, [e.radius, 0], [0, e.radius], 0, TAU, true).map((p) => apply(m, p));
-      return { type: 'POLYLINE', layer: e.layer, points, bulges: points.map(() => 0), closed: true };
+      return { type: 'ELLIPSE', layer: e.layer, points, closed: true };
     }
     case 'ELLIPSE':
     case 'SPLINE':
@@ -478,12 +500,18 @@ function transformEntity(e: DxfEntity, m: Affine): DxfEntity {
   }
 }
 
-/** The transform of a block reference: the block's base point to the origin, scaled, rotated, moved to the insertion point. */
-function insertTransform(ins: Extract<Raw, { kind: 'insert' }>, base: Vec2): Affine {
+/**
+ * The transform of a block reference: the block's base point to the origin, scaled, rotated, moved
+ * to the insertion point (and, for copy `column`, `row` of a MINSERT, along the rotated axes by the
+ * spacing, which is not scaled).
+ */
+function insertTransform(ins: Extract<Raw, { kind: 'insert' }>, base: Vec2, column = 0, row = 0): Affine {
   const cos = Math.cos(ins.rotation * DEG);
   const sin = Math.sin(ins.rotation * DEG);
+  const dx = column * ins.spacing[0];
+  const dy = row * ins.spacing[1];
   const toOrigin: Affine = [1, 0, 0, 1, -base[0], -base[1]];
-  const scaleRotate: Affine = [cos * ins.sx, sin * ins.sx, -sin * ins.sy, cos * ins.sy, ins.at[0], ins.at[1]];
+  const scaleRotate: Affine = [cos * ins.sx, sin * ins.sx, -sin * ins.sy, cos * ins.sy, ins.at[0] + cos * dx - sin * dy, ins.at[1] + sin * dx + cos * dy];
   const m = compose(scaleRotate, toOrigin);
   return ins.mirror ? compose(MIRROR_X, m) : m;
 }
@@ -495,7 +523,7 @@ const count = (skipped: Record<string, number>, type: string) => {
 /** Reads a whole DXF file: header, layer table, blocks and the model-space entities with block references expanded. */
 export function readDxf(text: string): DxfFile {
   const recs = records(dxfPairs(text));
-  const file: DxfFile = { insUnits: null, extents: null, layers: [], blocks: [], entities: [], skipped: {}, paperSpace: 0 };
+  const file: DxfFile = { insUnits: null, measurement: null, extents: null, layers: [], blocks: [], entities: [], skipped: {}, paperSpace: 0 };
   const blocks = new Map<string, { base: Vec2; raws: Raw[] }>();
   const top: DxfRecord[] = [];
   let section = '';
@@ -533,7 +561,9 @@ export function readDxf(text: string): DxfFile {
   }
 
   const paper = { count: 0 };
-  const expand = (raws: readonly Raw[], m: Affine, layerOf0: string | null, depth: number): void => {
+  let arrayCopies = 0;
+  // `copies`: how many times the enclosing arrays repeat this stream.
+  const expand = (raws: readonly Raw[], m: Affine, layerOf0: string | null, depth: number, copies = 1): void => {
     for (const raw of raws) {
       if (raw.kind === 'skip') {
         count(file.skipped, raw.type);
@@ -553,8 +583,16 @@ export function readDxf(text: string): DxfFile {
         count(file.skipped, 'INSERT (no block)');
         continue;
       }
+      const k = raw.columns * raw.rows;
+      if (k > 1) {
+        if (arrayCopies + k * copies > MAX_ARRAY_COPIES) {
+          count(file.skipped, 'MINSERT (too many copies)');
+          continue;
+        }
+        arrayCopies += k * copies;
+      }
       const layer = layerOf0 !== null && raw.layer === '0' ? layerOf0 : raw.layer;
-      expand(def.raws, compose(m, insertTransform(raw, def.base)), layer, depth + 1);
+      for (let row = 0; row < raw.rows; row++) for (let column = 0; column < raw.columns; column++) expand(def.raws, compose(m, insertTransform(raw, def.base, column, row)), layer, depth + 1, copies * k);
     }
   };
   expand(readStream(top, paper), IDENTITY, null, 0);
@@ -571,6 +609,7 @@ function readHeader(body: readonly DxfPair[], file: DxfFile): void {
       continue;
     }
     if (name === '$INSUNITS' && p.code === 70) file.insUnits = Math.trunc(num(p.value));
+    if (name === '$MEASUREMENT' && p.code === 70) file.measurement = Math.trunc(num(p.value));
     if ((name === '$EXTMIN' || name === '$EXTMAX') && (p.code === 10 || p.code === 20)) {
       ext[name] ??= [Number.NaN, Number.NaN];
       ext[name][p.code === 10 ? 0 : 1] = num(p.value, Number.NaN);

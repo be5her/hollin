@@ -1,6 +1,6 @@
 import type { RuleLimits } from '../config';
 import { builtinMaterial } from '../decor/builtin';
-import { matrixToGltf, meshToGlb, readGlbTriangles, writeGlbScene, type GlbMesh, type GlbNode, type GlbTriangles } from '../decor/glb';
+import { matrixToGltf, meshToGlb, readGlbTriangles, writeGlbScene, type GlbMesh, type GlbNode, type GlbTriangles, type GltfAlphaMode } from '../decor/glb';
 import { itemMatrix, itemModel } from '../decor/items';
 import { recipeMeshes } from '../decor/recipes';
 import { parseRef } from '../decor/refs';
@@ -66,6 +66,9 @@ interface Look {
   metallic: number;
   roughness: number;
   doubleSided?: boolean;
+  /** An imported model's own alpha mode, kept as its file has it. */
+  alphaMode?: GltfAlphaMode;
+  alphaCutoff?: number;
 }
 
 const look = (name: string, hex: string, roughness: number, metallic = 0, opacity = 1): Look => ({
@@ -94,7 +97,15 @@ function partLook(part: SolidPart): Look {
 }
 
 function glbMesh(mesh: Mesh, l: Look): GlbMesh {
-  return { ...meshToGlb(mesh, l.color), material: l.name, metallic: l.metallic, roughness: l.roughness, ...(l.doubleSided ? { doubleSided: true } : {}) };
+  return {
+    ...meshToGlb(mesh, l.color),
+    material: l.name,
+    metallic: l.metallic,
+    roughness: l.roughness,
+    ...(l.doubleSided ? { doubleSided: true } : {}),
+    ...(l.alphaMode ? { alphaMode: l.alphaMode } : {}),
+    ...(l.alphaCutoff !== undefined ? { alphaCutoff: l.alphaCutoff } : {}),
+  };
 }
 
 export interface BuildingGlbOptions {
@@ -115,7 +126,7 @@ export interface BuildingGlb {
   /** Nodes written, the root included. */
   nodes: number;
   triangles: number;
-  /** What was left out and why (an imported model whose file is missing). */
+  /** What was left out and why (an imported model whose file is missing, unreadable or without triangles). */
   skipped: string[];
 }
 
@@ -126,7 +137,8 @@ export interface BuildingGlb {
  * starting on it (named by its type, `Stair`, `Elevator` ..., and its name when it has one) and a node
  * per furniture item (named after its model, placed by its 4 × 4 `itemMatrix`). Materials are what
  * the 3D view draws: builtin materials' colour, roughness, metalness and opacity, paints, each kind's
- * colour otherwise; see-through ones blend and are double-sided. Lights are not written.
+ * colour otherwise; see-through ones blend and are double-sided. An imported model keeps its own
+ * materials' alpha, alpha mode and sides. Lights are not written.
  */
 export function buildingToGlb(doc: ProjectDoc, options: BuildingGlbOptions): BuildingGlb {
   const includeItems = options.includeItems ?? true;
@@ -193,9 +205,15 @@ export function buildingToGlb(doc: ProjectDoc, options: BuildingGlbOptions): Bui
             .filter((t) => t.positions.length)
             .map((t) => {
               const repaint = e.materials[t.material];
-              const l = repaint ? materialLook(repaint) : { name: t.material || model.name, color: [...t.color, 1] as Look['color'], metallic: 0, roughness: 0.8 };
+              const l: Look = repaint
+                ? materialLook(repaint)
+                : { name: t.material || model.name, color: [...t.color, t.alpha], metallic: 0, roughness: 0.8, alphaMode: t.alphaMode, ...(t.alphaCutoff !== undefined ? { alphaCutoff: t.alphaCutoff } : {}), ...(t.doubleSided ? { doubleSided: true } : {}) };
               return glbMesh({ positions: t.positions }, l);
             });
+          if (!meshes.length) {
+            skipped.push(`${model.name} (${e.id}): its model file ${e.asset} has no triangles to write`);
+            continue;
+          }
         } else {
           skipped.push(`${model.name} (${e.id}): ${e.asset} is not registered in the project`);
           continue;

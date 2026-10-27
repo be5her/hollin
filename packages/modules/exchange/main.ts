@@ -16,6 +16,7 @@ import {
   dxfExtents,
   dxfLayerSummary,
   dxfToOps,
+  dxfUnits,
   dxfUnitScale,
   DXF_UNIT_NAMES,
   editProject,
@@ -247,16 +248,18 @@ export const exchangeModule = defineModule({
       id: 'import.dxf.probe',
       title: 'Inspect a DXF file',
       description:
-        "Reads a DXF file at `path` (a full file path) without importing anything, so its units and layers can be checked first. Returns { insUnits, units, scale, layers, skipped, paperSpace, extents }: `insUnits` is the file's $INSUNITS code (null when it does not say), `units` its name, `scale` the millimetres per drawing unit import_dxf would use by default (1 when unitless or unknown), `layers` every DXF layer with how many model-space entities it holds (block references expanded), its colour index and whether it is off or frozen (`hidden`: it would be imported hidden), `skipped` the entity types import_dxf would leave out with their counts, `paperSpace` how many paper-space entities it ignores, `extents` the drawing's extent in drawing units ({ min, max }, null when empty; multiply by `scale` for mm).",
+        "Reads a DXF file at `path` (a full file path) without importing anything, so its units and layers can be checked first. Returns { insUnits, measurement, units, scale, layers, skipped, paperSpace, extents }: `insUnits` is the file's $INSUNITS code (null when it does not say), `measurement` its $MEASUREMENT (0 imperial, 1 metric, null when it does not say), `units` the name of the units import_dxf takes the drawing in (inches for an imperial $MEASUREMENT without $INSUNITS; null when neither says), `scale` the millimetres per drawing unit import_dxf would use by default (1 when unitless or unknown), `layers` every DXF layer with how many model-space entities it holds (block references expanded; names compared without case, as DXF does), its colour index and whether it is off or frozen (`hidden`: it would be imported hidden), `skipped` the entity types import_dxf would leave out with their counts, `paperSpace` how many paper-space entities it ignores, `extents` the drawing's extent in drawing units ({ min, max }, null when empty; multiply by `scale` for mm).",
       scope: 'global',
       readOnly: true,
       input: z.object({ path: z.string().min(1).describe('A full file path to a .dxf file') }),
       handler: async ({ path }) => {
         const file = await readDxfFile(path);
+        const units = dxfUnits(file);
         return {
           insUnits: file.insUnits,
-          units: file.insUnits === null ? null : (DXF_UNIT_NAMES[file.insUnits] ?? null),
-          scale: dxfUnitScale(file.insUnits),
+          measurement: file.measurement,
+          units: units === null ? null : (DXF_UNIT_NAMES[units] ?? null),
+          scale: dxfUnitScale(units),
           layers: dxfLayerSummary(file),
           skipped: file.skipped,
           paperSpace: file.paperSpace,
@@ -268,15 +271,15 @@ export const exchangeModule = defineModule({
       id: 'import.dxf',
       title: 'Import DXF',
       description:
-        "Imports the model space of a DXF file at `path` (a full file path) onto a level of the open project as a drawing to trace over: one new interior layer per DXF layer that has something to import, named `layerPrefix` + the DXF layer's name (`DXF Walls`; a layer of that exact name already on the level is reused; DXF layers that are off or frozen come in hidden), closed polylines, circles, closed ellipses and splines as unfilled `shape`s keeping their arcs, lines, open polylines and arcs as room dividers (`separator`s, which also split rooms), texts and MTEXT (formatting stripped) as `label`s. Block references are expanded (one nesting deep); hatches, dimensions, points, solids, images and other entities are skipped and counted. `scale` is millimetres per drawing unit (default from the file's $INSUNITS: 25.4 for inches, 1000 for metres, 1 when unitless), `origin` an offset in mm added after scaling, `layers` limits the import to some DXF layers, `levelId` defaults to the ground level. One undoable change named `Import <file name>`; it does not change existing walls or rooms. Afterwards use plan_query with the returned layer ids to find the shapes, then trace walls over them with plan_wall_add or plan_apply (and remove or hide the DXF layers with plan_layer_remove or plan_layer_update). Returns { levelId, scale, counts: { shapes, separators, labels, layers }, skipped, layers: [{ id, name, dxfLayer, created, visible }] }.",
+        "Imports the model space of a DXF file at `path` (a full file path) onto a level of the open project as a drawing to trace over: one new interior layer per DXF layer that has something to import, named `layerPrefix` + the DXF layer's name (`DXF Walls`; DXF layer names are compared without case, as DXF does, and a layer of that name, in any case, already on the level is reused; DXF layers that are off or frozen come in hidden), closed polylines, circles, closed ellipses and splines as unfilled `shape`s keeping their arcs, arcs and elliptical arcs as open unfilled `shape`s (which do not split rooms), lines and open polylines and splines as room dividers (`separator`s, which also split rooms), texts, MTEXT (formatting stripped) and the visible attribute values of block references as `label`s (a label's size is the font size: the DXF text height, the capitals', divided by 0.72). Block references (INSERT, and MINSERT arrays) are expanded (one nesting deep); hatches, dimensions, points, solids, images, invisible attributes and other entities are skipped and counted. `scale` is millimetres per drawing unit (default from the file's $INSUNITS: 25.4 for inches, 1000 for metres, 1 when unitless; without $INSUNITS, 25.4 when $MEASUREMENT says imperial, else 1), `origin` an offset in mm added after scaling, `layers` limits the import to some DXF layers, `levelId` defaults to the ground level. One undoable change named `Import <file name>`; it does not change existing walls or rooms. Afterwards use plan_query with the returned layer ids to find the shapes, then trace walls over them with plan_wall_add or plan_apply (and remove or hide the DXF layers with plan_layer_remove or plan_layer_update). Returns { levelId, scale, counts: { shapes, separators, labels, layers }, skipped, layers: [{ id, name, dxfLayer, created, visible }] }.",
       scope: 'project',
       input: z.object({
         path: z.string().min(1).describe('A full file path to a .dxf file'),
         levelId: z.string().optional().describe('Default: the ground level'),
-        scale: z.number().positive().max(1e9).optional().describe('Millimetres per drawing unit; default from the file\'s $INSUNITS (import_dxf_probe reports it)'),
+        scale: z.number().positive().max(1e9).optional().describe('Millimetres per drawing unit; default from the file\'s $INSUNITS, or $MEASUREMENT without it (import_dxf_probe reports it)'),
         origin: z.tuple([z.number(), z.number()]).optional().describe('An offset in mm added to every point after scaling'),
         layerPrefix: z.string().max(60).default('DXF ').describe('Put before each DXF layer\'s name to name its project layer'),
-        layers: z.array(z.string().min(1)).min(1).optional().describe('Only these DXF layers (names as import_dxf_probe lists them); all by default'),
+        layers: z.array(z.string().min(1)).min(1).optional().describe('Only these DXF layers (names as import_dxf_probe lists them, compared without case); all by default'),
         textHeight: z.number().positive().max(100000).optional().describe('Every label\'s height in mm instead of the texts\' own'),
       }),
       handler: async ({ path, levelId: lv, ...options }, ctx) => {

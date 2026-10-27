@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_RULE_LIMITS } from '../config';
-import { inspectGlb, meshToGlb, readGlbChunks, readGlbTriangles, writeGlb } from '../decor/glb';
+import { inspectGlb, meshToGlb, packGlb, readGlbChunks, readGlbTriangles, writeGlb } from '../decor/glb';
 import { recipeMeshes } from '../decor/recipes';
 import { builtinRecipe } from '../decor/builtin';
 import type { ProjectDoc } from '../doc/schema';
@@ -136,5 +136,30 @@ describe('buildingToGlb', () => {
     expect(missing.skipped[0]).toContain('Imported table');
     expect(nodeNames(missing.glb)).not.toContain('Imported table');
     expect(nodeNames(missing.glb)).toContain('Coffee table');
+  });
+
+  it('keeps an imported model’s alpha, alpha mode and sides', () => {
+    const { json, bin } = readGlbChunks(bytes);
+    Object.assign(json.materials![0], { pbrMetallicRoughness: { baseColorFactor: [0.5, 0.6, 0.7, 0.5] }, alphaMode: 'BLEND', doubleSided: true });
+    Object.assign(json.materials![1], { alphaMode: 'MASK', alphaCutoff: 0.25 });
+    const clear = packGlb(json, bin);
+    const out = buildingToGlb(doc, { limits: DEFAULT_RULE_LIMITS, assetBytes: (ref) => (ref === TABLE_REF ? clear : undefined) });
+    const materials = readGlbChunks(out.glb).json.materials as { name?: string; alphaMode?: string; alphaCutoff?: number; doubleSided?: boolean; pbrMetallicRoughness: { baseColorFactor: number[] } }[];
+    const top = materials.find((m) => m.name === 'top');
+    expect(top?.alphaMode).toBe('BLEND');
+    expect(top?.doubleSided).toBe(true);
+    expect(top?.pbrMetallicRoughness.baseColorFactor[3]).toBeCloseTo(0.5, 5);
+    expect(materials.find((m) => m.name === 'base')).toMatchObject({ alphaMode: 'MASK', alphaCutoff: 0.25 });
+  });
+
+  it('lists an imported model without triangles as skipped', () => {
+    const { json, bin } = readGlbChunks(bytes);
+    // Its primitives as points: nothing to write.
+    for (const m of json.meshes!) for (const p of m.primitives) p.mode = 0;
+    const points = packGlb(json, bin);
+    const out = buildingToGlb(doc, { limits: DEFAULT_RULE_LIMITS, assetBytes: (ref) => (ref === TABLE_REF ? points : undefined) });
+    expect(out.skipped).toHaveLength(1);
+    expect(out.skipped[0]).toMatch(/Imported table .*no triangles/);
+    expect(nodeNames(out.glb)).not.toContain('Imported table');
   });
 });

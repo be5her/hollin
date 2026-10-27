@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { MeshBuilder } from '../solids/mesh';
-import { gltfToGlb, inspectGlb, inspectGltf, meshToGlb, packGlb, readGlbChunks, writeGlb, writeGlbScene, type GltfJson } from './glb';
+import { MeshBuilder, meshVolume } from '../solids/mesh';
+import { gltfToGlb, inspectGlb, inspectGltf, meshToGlb, packGlb, readGlbChunks, readGlbTriangles, writeGlb, writeGlbScene, type GltfJson } from './glb';
 
 /** A box in the app's terms: x0..x1, y0..y1, z0..z1 mm. */
 const box = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number) =>
@@ -147,5 +147,27 @@ describe('GLB', () => {
     const plain = readGlbChunks(writeGlb([{ ...a, name: 'one' }, { ...a, name: 'two' }])).json;
     expect(plain.scenes![0].nodes).toEqual([0, 1]);
     expect(plain.materials!.map((m) => m.name)).toEqual(['one', 'two']);
+  });
+
+  it('keeps a mirrored node facing outwards: its triangles are wound back counter-clockwise', () => {
+    const { json, bin } = readGlbChunks(writeGlb([meshToGlb(box(0, 0, 0, 1000, 1000, 1000), [1, 1, 1, 1])]));
+    const volume = (j: GltfJson) => meshVolume({ positions: readGlbTriangles(packGlb(j, bin)).at(0)!.positions });
+    expect(volume(json)).toBeCloseTo(1e9, -3);
+    // Mirrored along glTF x by its scale, then by a matrix; mirrored twice is not mirrored.
+    expect(volume({ ...json, nodes: [{ mesh: 0, scale: [-1, 1, 1] }] })).toBeCloseTo(1e9, -3);
+    expect(volume({ ...json, nodes: [{ mesh: 0, matrix: [1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1] }] })).toBeCloseTo(1e9, -3);
+    expect(volume({ ...json, nodes: [{ children: [1], scale: [1, 1, -1] }, { mesh: 0, scale: [-1, 1, 1] }], scenes: [{ nodes: [0] }] })).toBeCloseTo(1e9, -3);
+  });
+
+  it('reads a material’s alpha, alpha mode and sides with its triangles', () => {
+    const clear = { ...meshToGlb(box(0, 0, 0, 100, 100, 100), [0, 0, 1, 0.4]), doubleSided: true, material: 'glass' };
+    const leaves = { ...meshToGlb(box(0, 0, 0, 100, 100, 100), [0, 1, 0, 0.8]), alphaMode: 'MASK' as const, alphaCutoff: 0.3, material: 'leaves' };
+    const solid = meshToGlb(box(0, 0, 0, 100, 100, 100), [1, 0, 0, 1], 'solid');
+    const read = readGlbTriangles(writeGlb([clear, leaves, solid]));
+    expect(read.map(({ material, alpha, alphaMode, alphaCutoff, doubleSided }) => ({ material, alpha: Math.round(alpha * 10) / 10, alphaMode, alphaCutoff, doubleSided }))).toEqual([
+      { material: 'glass', alpha: 0.4, alphaMode: 'BLEND', alphaCutoff: undefined, doubleSided: true },
+      { material: 'leaves', alpha: 0.8, alphaMode: 'MASK', alphaCutoff: 0.3, doubleSided: false },
+      { material: 'solid', alpha: 1, alphaMode: 'OPAQUE', alphaCutoff: undefined, doubleSided: false },
+    ]);
   });
 });
