@@ -2,7 +2,7 @@ import { NgComponentOutlet, NgTemplateOutlet } from '@angular/common';
 import { Component, ElementRef, afterRenderEffect, computed, effect, inject, input, linkedSignal, signal, untracked } from '@angular/core';
 import { FormField, form, max, min, required } from '@angular/forms/signals';
 import { AI_MODELS, AI_PROVIDERS, BRANDING, CLAUDE_CODE_EFFORTS, CLAUDE_CODE_MODEL_ALIASES, clientSnippets, defaultConfig, type AiProvider, type AssistantStatus, type ClaudeCodeEffort, type ConfigPatch, type GlobalConfig, type McpCallEntry, type ThemePreference, type UnitSettings } from '@studio/core';
-import { AppState, Badge, Button, Checkbox, HostBridge, Icon, Input, Label, Select, SettingsSections, Theme, Toasts, invokeResource, type Tab, type TabComponent } from '@studio/ui';
+import { AppState, Badge, Button, Checkbox, HostBridge, Icon, Input, Label, SETTINGS_LATE, Select, SettingsSections, Theme, Toasts, invokeResource, type Tab, type TabComponent } from '@studio/ui';
 import { Copy, KeyRound, RefreshCw, Trash2 } from 'lucide';
 import { UnitsEditor } from './units-editor';
 
@@ -73,8 +73,10 @@ export class SettingsTab implements TabComponent {
   protected readonly productName = BRANDING.productName;
   protected readonly config = this.app.config;
   protected readonly mcp = this.app.mcpStatus;
-  /** Sections other modules add, e.g. the library's location. */
-  protected readonly sections = inject(SettingsSections).sections;
+  /** Sections other modules add, e.g. the library's location (after Units) and Updates (before About). */
+  private readonly allSections = inject(SettingsSections).sections;
+  protected readonly sections = computed(() => this.allSections().filter((s) => s.order < SETTINGS_LATE));
+  protected readonly lateSections = computed(() => this.allSections().filter((s) => s.order >= SETTINGS_LATE));
 
   /** The editable copy of the config. It follows the stored config, so changes made elsewhere show up here. */
   protected readonly draft = linkedSignal<GlobalConfig | null, Draft>({

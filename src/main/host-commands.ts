@@ -9,7 +9,7 @@ export function hostCommands(host: Host) {
     defineCommand({
       id: 'app.info',
       title: 'App info',
-      description: `Name, version and platform of ${BRANDING.productName}, and the state of its MCP server.`,
+      description: `Name, version and platform of ${BRANDING.productName}, the state of its MCP server, and whether this build can update itself (updates).`,
       scope: 'global',
       readOnly: true,
       input: z.object({}),
@@ -21,6 +21,8 @@ export function hostCommands(host: Host) {
         dataDir: host.opts.userDataDir,
         secretsPersistent: host.secrets.persistent,
         mcp: host.mcpStatus(),
+        /** Whether this build can update itself (it has an update feed and can install). */
+        updates: Boolean(host.opts.updater) && host.opts.updater!.status().state !== 'unsupported',
       }),
     }),
     defineCommand({

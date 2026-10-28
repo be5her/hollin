@@ -8,6 +8,7 @@ import { libraryUI } from './library/ui';
 import { planUI } from './plan/ui';
 import { rulesUI } from './rules/ui';
 import { settingsUI } from './settings/ui';
+import { updatesUI } from './updates/ui';
 
 /** The Angular side of every feature module. */
-export const uiModules: ModuleUI[] = [libraryUI, buildingUI, planUI, decorUI, exchangeUI, editUI, rulesUI, settingsUI, assistantUI];
+export const uiModules: ModuleUI[] = [libraryUI, buildingUI, planUI, decorUI, exchangeUI, editUI, rulesUI, settingsUI, updatesUI, assistantUI];

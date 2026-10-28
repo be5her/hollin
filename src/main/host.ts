@@ -20,6 +20,7 @@ import { ConfigStore, ProjectService, SecretStore, type Cipher } from '@studio/c
 import { serverInstructions, startMcpServer, type RunningMcpServer } from '@studio/mcp';
 import { mainModules } from '@studio/modules/main';
 import { hostCommands } from './host-commands';
+import type { Updater } from './update-state';
 
 export interface HostOptions {
   userDataDir: string;
@@ -37,6 +38,8 @@ export interface HostOptions {
   dialogs?: HostApi['dialogs'];
   /** Autosave timing, shortened by the smoke test. */
   autosave?: { debounceMs?: number; maxWaitMs?: number };
+  /** In-app updates: electron-updater in the app (`updater.ts`), a scripted one in the smoke; absent in tests. */
+  updater?: Updater;
 }
 
 export interface InvokeOptions {
@@ -101,7 +104,9 @@ export class Host {
       emit: (event, payload) => this.emit(event, payload),
       on: (event, listener) => this.onEvent((message) => void (message.event === event && listener(message.payload as never))),
       mcpStatus: () => this.mcpStatus(),
+      updater: opts.updater,
     };
+    opts.updater?.onChange((state) => this.emit('update.changed', state));
     this.registry.registerModule({ id: 'host', commands: hostCommands(this) });
     for (const mod of [...mainModules, ...(opts.extraModules ?? [])]) this.registry.registerModule(mod);
   }
@@ -171,7 +176,7 @@ export class Host {
       }
     }
     // Let queued writes finish before the process (or the smoke test's cleanup) removes anything.
-    await Promise.all([this.config.idle(), this.secrets.idle()]);
+    await Promise.all([this.config.idle(), this.secrets.idle(), this.opts.updater?.idle()]);
   }
 
   /** Runs a command for the UI (or the smoke test) and never throws: the outcome crosses IPC as data. */

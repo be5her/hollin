@@ -8,6 +8,8 @@ import { Host } from './host';
 import { CHANNELS, registerIpc } from './ipc';
 import { handleLibraryProtocol, registerLibraryScheme } from './library-protocol';
 import { installMenu } from './menu';
+import { startupCheckDue } from './update-state';
+import { createUpdater } from './updater';
 import { createMainWindow, setTitleBarColors } from './window';
 
 const smoke = process.argv.includes('--smoke');
@@ -111,6 +113,10 @@ async function main(): Promise<void> {
   installMenu(dev);
 
   const smokeModules = smoke ? (await import('./smoke/gate-module')).smokeModules : [];
+  // The time of the last update check lives in the data folder, not in config.
+  const stampFile = path.join(dataDir, 'updates.json');
+  // The smoke scripts the updater (smoke/updater.ts): it never reaches the network or quits the app.
+  const updater = smoke ? (await import('./smoke/updater')).createSmokeUpdater(stampFile) : createUpdater({ stampFile, beforeInstall: stopForQuit });
   host = new Host({
     userDataDir: dataDir,
     version: app.getVersion(),
@@ -124,6 +130,7 @@ async function main(): Promise<void> {
     dialogs: smoke ? (await import('./smoke/dialogs')).smokeDialogs : dialogs,
     // Smoke runs check autosave without waiting the full interval.
     autosave: smoke ? { debounceMs: 150, maxWaitMs: 1000 } : undefined,
+    updater,
   });
   registerIpc(host);
   await host.start();
@@ -147,7 +154,16 @@ async function main(): Promise<void> {
 
   const win = createMainWindow();
   // Windows logoff or shutdown: save what is pending while the OS still waits.
-  win.on('session-end', () => void host?.stop());
+  win.on('session-end', () => void stopForQuit());
+  // Look for a new version 10 s after the window is up, at most once a day and only when the setting is on.
+  // Never in development (the smoke has returned above); a check only announces what it found.
+  if (!dev) {
+    win.webContents.once('did-finish-load', () => {
+      setTimeout(() => {
+        if (host && startupCheckDue(host.config.get().updates.check, updater.checkedAt)) void updater.check({ scheduled: true });
+      }, 10_000);
+    });
+  }
   for (const file of [...pendingFiles, packageArg(process.argv)].filter((f): f is string => Boolean(f))) void importFromShell(file);
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
@@ -159,13 +175,26 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin' && !smoke) app.quit();
 });
 
-let stopping = false;
+let stopped: Promise<void> | null = null;
+let quitReady = false;
+
+/**
+ * The one orderly stop before the process goes away, shared by quitting, Windows logoff and installing
+ * an update: the host saves the projects and lets queued writes finish (`Host.stop`, idempotent), then
+ * `before-quit` lets the quit through. Calling it again waits for the same stop.
+ */
+function stopForQuit(): Promise<void> {
+  stopped ??= (host ? host.stop() : Promise.resolve()).finally(() => {
+    quitReady = true;
+  });
+  return stopped;
+}
+
 app.on('before-quit', (event) => {
-  if (!host || stopping || smoke) return;
+  if (!host || smoke || quitReady) return;
   // Let the host finish its writes before the process goes away.
   event.preventDefault();
-  stopping = true;
-  void host.stop().finally(() => app.quit());
+  void stopForQuit().finally(() => app.quit());
 });
 
 void main().catch((err) => {

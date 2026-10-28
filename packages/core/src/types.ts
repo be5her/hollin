@@ -183,6 +183,40 @@ export interface HostApi {
   identifyAssistant?(token: string): AssistantCaller | undefined;
   /** Whether the MCP server runs and where. */
   mcpStatus(): McpStatus;
+  /** In-app updates (`app.update.*`); absent in hosts without one (tests). */
+  updater?: UpdaterApi;
+}
+
+/**
+ * Where an in-app update stands (`app.update.status`, announced as `update.changed`). `unsupported`:
+ * this build has no update feed or cannot install one (`message` says why).
+ */
+export interface UpdateState {
+  state: 'idle' | 'checking' | 'available' | 'up-to-date' | 'downloading' | 'ready' | 'error' | 'unsupported';
+  /** The version found: available, downloading, ready. */
+  version?: string;
+  /** Its release notes, plain text. */
+  notes?: string;
+  /** Download progress, 0 to 100. */
+  progress?: number;
+  /** The error, or why this build cannot update. */
+  message?: string;
+  /** When a check last reached the feed (ISO time). */
+  checkedAt?: string;
+  /** The last check was the one the app runs at startup, not one the user asked for. */
+  scheduled?: boolean;
+}
+
+/** The host's updater. Nothing downloads or installs unless asked. */
+export interface UpdaterApi {
+  status(): UpdateState;
+  /** Asks the feed for a newer version; resolves with the outcome (never rejects: an error is `state: 'error'`). */
+  check(options?: { scheduled?: boolean }): Promise<UpdateState>;
+  /** Starts downloading the version found and returns at once (`downloading`); CONFLICT when there is none. */
+  download(): UpdateState;
+  /** Stops the app the way quitting does, then installs the downloaded version and restarts; CONFLICT when none is ready. */
+  install(): Promise<void>;
+  onChange(listener: (state: UpdateState) => void): () => void;
 }
 
 export interface CommandContext {
@@ -310,6 +344,8 @@ export interface HostEvents {
   'assistant.event': { projectId: string; event: AssistantEvent };
   /** An export wrote files outside the library (`export.plan`, `export.building`, `export.image`): the format and the full paths written. */
   'exchange.exported': { projectId: string; format: string; files: string[] };
+  /** The in-app update moved on: checking, found, downloading (progress), ready, failed. */
+  'update.changed': UpdateState;
 }
 
 export type HostEventName = keyof HostEvents;

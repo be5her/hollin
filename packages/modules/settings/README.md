@@ -7,7 +7,7 @@ The Settings tab (the gear beside the palette button in the title bar, `Ctrl+,`,
 - **MCP server:** on/off, port (applied when the field loses focus; the server restarts on the new port), whether agents may run mutating commands, ready-to-copy client snippets, and the latest agent calls with their outcome.
 - **Assistant:** the provider (the Claude API with your key, the default, or your own installed Claude Code), and for the API the model (Claude Opus 5.5 by default) and the Claude API key; for Claude Code the command (empty means `claude` on PATH, applied when the field loses focus), a Check again button, a line saying whether it was found, which version and whether it is logged in, the model (an alias suggested from a list, or a full id; applied on blur or Enter) and the effort (empty for Claude Code's own defaults), and a note that this mode runs on this computer only and counts against your Claude Code usage limits.
 - **About:** version, runtime and data folder.
-- Other modules add sections through `SettingsSections`: **Library** (its folder; the library module) and **Rules** (the stair and ramp limits, typed in any unit; the building module).
+- Other modules add sections through `SettingsSections`: **Library** (its folder; the library module) and **Rules** (the stair and ramp limits, typed in any unit; the building module) after Units, and **Updates** (the updates module) after the Assistant, just before About: a section whose `order` is `SETTINGS_LATE` (900) or more goes there.
 
 Choices apply as they are made, through the hidden `config.update` command.
 

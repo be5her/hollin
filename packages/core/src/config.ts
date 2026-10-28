@@ -56,6 +56,10 @@ const SECTIONS = {
     /** `--effort` for Claude Code; empty leaves Claude Code's own default. */
     claudeCodeEffort: z.enum(CLAUDE_CODE_EFFORTS),
   }),
+  updates: z.object({
+    /** Look for a new version 10 s after the app starts, at most once a day (packaged builds with an update feed only). Nothing downloads without the user. */
+    check: z.boolean(),
+  }),
   library: z.object({
     /** Where the project library lives. Empty means the default folder in the app's data folder. */
     path: z.string(),
@@ -135,6 +139,7 @@ const DEFAULTS: GlobalConfig = {
   units: { system: 'metric', metricUnit: 'mm', imperialStyle: 'ft-in', precision: 0, fraction: 16 },
   mcp: { enabled: true, port: BRANDING.defaultMcpPort, allowMutations: false },
   ai: { model: DEFAULT_AI_MODEL, provider: 'api', claudeCodePath: '', claudeCodeModel: '', claudeCodeEffort: '' },
+  updates: { check: true },
   library: { path: '' },
   session: { openProjects: [], activeProjectId: null },
   editor: {
@@ -182,6 +187,7 @@ export const ConfigPatchSchema = z
     units: SECTIONS.units.partial().strict().optional(),
     mcp: SECTIONS.mcp.partial().strict().optional(),
     ai: SECTIONS.ai.partial().strict().optional(),
+    updates: SECTIONS.updates.partial().strict().optional(),
     library: SECTIONS.library.partial().strict().optional(),
     session: SECTIONS.session.partial().strict().optional(),
     editor: SECTIONS.editor.partial().strict().optional(),

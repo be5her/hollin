@@ -8,6 +8,7 @@ import { libraryModule } from './library/main';
 import { planModule } from './plan/main';
 import { rulesModule } from './rules/main';
 import { settingsModule } from './settings/main';
+import { updatesModule } from './updates/main';
 
 /** The Node side of every feature module, in registration order. Add new modules here and in ../../tsconfig.node.json. */
-export const mainModules: ModuleMain[] = [libraryModule, buildingModule, planModule, decorModule, editModule, rulesModule, exchangeModule, settingsModule, assistantModule];
+export const mainModules: ModuleMain[] = [libraryModule, buildingModule, planModule, decorModule, editModule, rulesModule, exchangeModule, settingsModule, updatesModule, assistantModule];

@@ -28,6 +28,8 @@ import { smokeSceneUi } from './scene-ui';
 import { smokeShell } from './shell';
 import { smokeSnapshotUi } from './snapshot-ui';
 import { smokeTrackingUi } from './tracking-ui';
+import { smokeUpdates } from './updates';
+import { smokeUpdatesUi } from './updates-ui';
 
 /**
  * `npm run smoke`: the built app, launched with `--smoke`, checks every feature through commands,
@@ -46,6 +48,7 @@ export async function runSmoke(host: Host, openWindow: () => BrowserWindow): Pro
 
     await smokeHost(smoke);
     await smokeMcp(smoke);
+    await smokeUpdates(smoke);
     const { houseId } = await smokeLibrary(smoke);
     const { towerId } = await smokeBuilding(smoke);
     const { planId } = await smokePlan(smoke);
@@ -58,6 +61,7 @@ export async function runSmoke(host: Host, openWindow: () => BrowserWindow): Pro
     smoke.section('renderer');
     await smoke.openWindow(openWindow);
     await smokeShell(smoke);
+    await smokeUpdatesUi(smoke);
     await smokeLibraryUi(smoke, houseId);
     await smokeDecorProtocol(smoke, decorId, tableRef);
     await smokeBuildingUi(smoke, towerId);

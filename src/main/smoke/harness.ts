@@ -5,6 +5,7 @@ import type { ErrorCode, HostEventMessage, HostEventName } from '@studio/core';
 import type { BrowserWindow } from 'electron';
 import type { Host, InvokeOptions } from '../host';
 import { smokeDialogs } from './dialogs';
+import type { SmokeUpdater } from './updater';
 
 export const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -51,6 +52,11 @@ export class Smoke {
   /** The path the next file picker or save dialog answers with (`undefined` cancels it); no native dialog opens in a smoke run. */
   nextDialogPath(path: string | undefined): void {
     smokeDialogs.answerNext(path);
+  }
+
+  /** The host's scripted updater (`smoke/updater.ts`): what checks and downloads do, and what was installed. */
+  get updates(): SmokeUpdater {
+    return this.host.opts.updater as SmokeUpdater;
   }
 
   section(name: string): void {
