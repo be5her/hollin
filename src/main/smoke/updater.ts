@@ -51,11 +51,11 @@ export class SmokeUpdater extends UpdaterBase {
     this.setUnsupported(reason);
   }
 
-  /** Back to a build that has never checked, between smoke sections; a held step is let go first. */
+  /** Back to a build that has never checked, between smoke sections; a held step is let go first and ends without touching the state. */
   reset(): void {
     this.release();
     this.plan = { outcome: 'up-to-date' };
-    this.set({ state: 'idle' });
+    this.restart({ state: 'idle' });
   }
 
   override check(options: { scheduled?: boolean } = {}) {

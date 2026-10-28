@@ -25,9 +25,9 @@ jobs:
     name: Version, changelog, typecheck, unit tests
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # Runs the project's dependencies and tests, so it gets no write access.
     permissions:
-      # Creates the draft release on a tag.
-      contents: write
+      contents: read
     env:
       # These steps never launch Electron, so skip the binary download.
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
@@ -35,32 +35,59 @@ jobs:
       TAG: ${{ github.event_name == 'push' && github.ref_name || '' }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      # The tag is v<package.json's version> and CHANGELOG.md has that version's section, kept as the notes.
-      - run: npm run release:check -- ${TAG:+"$TAG"} --notes "$RUNNER_TEMP/notes.md"
+      # The tag is v<package.json's version> and CHANGELOG.md has that version's section.
+      - run: npm run release:check -- ${TAG:+"$TAG"}
       - run: npm run typecheck
       - run: npm test
+
+  draft:
+    name: Draft release
+    needs: check
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Creates the draft release. Installs nothing: scripts/release-check.mjs needs only Node.
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - run: node scripts/release-check.mjs "$TAG" --notes "$RUNNER_TEMP/notes.md"
       # The three build jobs upload in parallel, and each would create the release if it found none; so the
       # draft is created once, here, with the changelog section as its notes, and electron-builder finds it.
+      # A release for the tag that is already published stops the run: the builds would upload into it.
       - name: Create the draft release
-        if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          existing=$(gh api "repos/$GITHUB_REPOSITORY/releases" --paginate --jq ".[] | select(.tag_name == \"$TAG\") | .id")
-          if [ -n "$existing" ]; then
-            echo "A release for $TAG exists already (id $existing); the builds upload to it if it is a draft."
-          else
+          found=$(gh api "repos/$GITHUB_REPOSITORY/releases" --paginate --jq '.[] | select(.tag_name == env.TAG) | "\(.id) \(.draft)"')
+          if [ -z "$found" ]; then
             gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft --verify-tag --title "${TAG#v}" --notes-file "$RUNNER_TEMP/notes.md"
+          elif printf '%s\n' "$found" | grep -q ' false$'; then
+            echo "::error::A published release for $TAG exists already (id and draft: $found). Tag a new version instead."
+            exit 1
+          else
+            echo "A draft release for $TAG exists already (id and draft: $found); the builds upload to it."
           fi
 
   build:
     name: Installers (${{ matrix.os }})
-    needs: check
+    needs: [check, draft]
+    # By hand there is no draft job (skipped): the builds then need the check only. On a tag they need the draft.
+    if: ${{ !cancelled() && needs.check.result == 'success' && (github.event_name != 'push' || needs.draft.result == 'success') }}
     strategy:
       fail-fast: false
       matrix:
@@ -73,6 +100,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
@@ -81,8 +110,10 @@ jobs:
       - run: npm run build
       # electron-builder brings its own tools for every target here (NSIS; dmg and zip; AppImage, and fpm with
       # its Ruby for the deb), so nothing is installed on the runners. It reads GITHUB_REPOSITORY for the feed
-      # (electron-builder.cjs). A secret that is not set arrives as an empty string, which electron-builder
-      # and electron-builder.cjs treat as unset: the build is then unsigned (docs/release.md).
+      # (electron-builder.cjs). A secret that is not set arrives as an empty string: on Windows electron-builder
+      # treats an empty WIN_CSC_LINK as unset, on macOS electron-builder.cjs maps an empty CSC_LINK to
+      # `identity: null` and an empty APPLE_ID to no notarization (electron-builder alone would take the empty
+      # CSC_LINK as a certificate). The build is then unsigned (docs/release.md).
       - name: Package${{ github.event_name == 'push' && ' and upload to the draft release' || '' }}
         shell: bash
         run: npx electron-builder --publish ${{ github.event_name == 'push' && 'always' || 'never' }}
@@ -98,6 +129,26 @@ jobs:
           APPLE_ID: ${{ matrix.os == 'macos-latest' && secrets.APPLE_ID || '' }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ matrix.os == 'macos-latest' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
           APPLE_TEAM_ID: ${{ matrix.os == 'macos-latest' && secrets.APPLE_TEAM_ID || '' }}
+      # electron-builder packs the AppImage from `linux-unpacked/resources` while its deb target writes
+      # `package-type` into the same folder, in parallel. To electron-updater's `autoUpdater`, which reads
+      # `package-type` before APPIMAGE, an AppImage that caught the file is a deb to update through dpkg. The
+      # app picks the AppImage updater itself (src/main/updater.ts), but a release must not carry the file
+      # either. `--appimage-extract` needs no FUSE. On a tag the files are already on the draft: delete the
+      # draft's assets (or the draft) and run again.
+      - name: Check the AppImage carries no package-type
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          scratch=$(mktemp -d)
+          for image in release/*.AppImage; do
+            chmod +x "$image"
+            (cd "$scratch" && "$GITHUB_WORKSPACE/$image" --appimage-extract >/dev/null)
+            if [ -e "$scratch/squashfs-root/resources/package-type" ]; then
+              echo "::error::$image carries resources/package-type ($(cat "$scratch/squashfs-root/resources/package-type")), which belongs to the deb."
+              exit 1
+            fi
+            rm -rf "$scratch/squashfs-root"
+          done
       - uses: actions/upload-artifact@v7
         with:
           name: installers-${{ runner.os }}

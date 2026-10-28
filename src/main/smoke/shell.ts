@@ -52,6 +52,16 @@ export async function smokeShell(smoke: Smoke): Promise<void> {
   await smoke.until(() => host.config.get().mcp.allowMutations === false);
 
   await smoke.fill('[data-testid=settings-key-input]', 'sk-ant-ui-test-key-000000');
+  // Save key stays on one line beside the field (it once wrapped onto two): its text one line high.
+  const keyRow = await smoke.js<{ button: number; input: number; lines: number }>(`(() => {
+    const b = document.querySelector('[data-testid=settings-key-save]');
+    const i = document.querySelector('[data-testid=settings-key-input]');
+    const r = document.createRange();
+    r.selectNodeContents(b);
+    const tops = new Set([...r.getClientRects()].filter((c) => c.width > 0).map((c) => Math.round(c.top)));
+    return { button: b.getBoundingClientRect().height, input: i.getBoundingClientRect().height, lines: tops.size };
+  })()`);
+  smoke.check('Save key sits on one line beside the key field', keyRow.lines === 1, keyRow);
   await smoke.click('[data-testid=settings-key-save]');
   smoke.check('saving the API key from Settings stores it', await smoke.until(() => host.secrets.get('anthropic-api-key') === 'sk-ant-ui-test-key-000000'));
   smoke.check('Settings then shows that a key is set, never the key', (await smoke.waitFor('[data-testid=settings-key-set]')) && !(await smoke.js<string>('document.body.innerText')).includes('sk-ant-ui-test'));

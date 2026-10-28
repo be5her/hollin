@@ -34,6 +34,20 @@ export async function smokeUpdatesUi(smoke: Smoke): Promise<void> {
   smoke.check('a fresh install has not checked yet; only Check is enabled', (await smoke.waitFor(status, 3000, 'Not checked yet')) && (await buttons('check')), await enabled());
   smoke.check('the startup switch shows the stored setting (on)', await smoke.js<boolean>(`document.querySelector('[data-testid=updates-auto]')?.checked === true`));
 
+  // Every toast message shown from here on is recorded as it appears, so the absence of a toast for the
+  // user's own check is read after a later toast has come, not after a fixed wait.
+  await smoke.js(`(() => {
+    const seen = (window.__updateToasts = []);
+    const take = (n) => {
+      if (!(n instanceof Element)) return;
+      for (const m of n.matches('[data-testid=toast-message]') ? [n] : n.querySelectorAll('[data-testid=toast-message]')) seen.push(m);
+    };
+    window.__updateToastObserver?.disconnect();
+    window.__updateToastObserver = new MutationObserver((records) => records.forEach((r) => r.addedNodes.forEach(take)));
+    window.__updateToastObserver.observe(document.body, { childList: true, subtree: true });
+  })()`);
+  const toastsSeen = () => smoke.js<string[]>(`(window.__updateToasts ?? []).map((m) => m.textContent.trim())`);
+
   // Checking… stays on screen while the scripted feed holds the answer.
   u.script({ outcome: 'available', version: '1.2.3', notes: 'Faster exports.\n- The PDF title block fits long names.', hold: 'check' });
   await smoke.click('[data-testid=updates-check]');
@@ -41,22 +55,35 @@ export async function smokeUpdatesUi(smoke: Smoke): Promise<void> {
   u.release();
   smoke.check('then Version 1.2.3 is available; Check and Download are enabled', (await smoke.waitFor(status, 3000, 'Version 1.2.3 is available')) && (await buttons('check,download')), await enabled());
   smoke.check('the release notes show as plain text, line by line', await smoke.until(() => smoke.js<boolean>(`(() => { const n = document.querySelector('[data-testid=updates-notes]'); return !!n && n.innerText.includes('Faster exports.\\n- The PDF title block') && n.children.length === 0; })()`), 3000));
-  smoke.check('a check the user asked for brings no toast', !(await smoke.waitFor('[data-testid=toast-message]', 500, 'is available')));
 
-  u.script({ outcome: 'available', version: '1.2.3', progress: [0, 42, 100], hold: 'download', holdAt: 42 });
+  // The section takes each state from update.changed itself: no app.update.status round trip per progress step.
+  let statusCalls = 0;
+  const invoke = host.invoke;
+  host.invoke = (id, input, options) => {
+    if (id === 'app.update.status') statusCalls++;
+    return invoke.call(host, id, input, options);
+  };
+  u.script({ outcome: 'available', version: '1.2.3', progress: [0, 10, 20, 30, 42, 60, 80, 100], hold: 'download', holdAt: 42 });
   await dismissToasts(smoke);
   await smoke.click('[data-testid=updates-download]');
   smoke.check('Download shows Downloading 42 % with every button disabled', (await smoke.waitFor(status, 3000, 'Downloading 42 %')) && (await buttons('')), await smoke.text(status));
   await showSection();
-  await smoke.shots('58-settings-updates-downloading');
+  await smoke.shots('61-settings-updates-downloading');
   u.release();
   smoke.check('then Ready to install; only Restart and install is enabled', (await smoke.waitFor(status, 3000, 'Ready to install version 1.2.3')) && (await buttons('install')), await enabled());
+  host.invoke = invoke;
+  smoke.check('the section follows the download from the events, without asking for the status again', statusCalls === 0, statusCalls);
   smoke.check('a toast says the download is ready, with Restart and install', (await smoke.waitFor('[data-testid=toast-message]', 3000, 'Version 1.2.3 is ready to install')) && (await smoke.waitFor('[data-testid=toast-action]', 3000, 'Restart and install')));
-  await showSection();
-  await smoke.shots('59-settings-updates-ready');
+  const seen = await toastsSeen();
+  smoke.check('a check the user asked for brought no toast (only the ready one came since)', seen.some((t) => t.includes('is ready to install')) && !seen.some((t) => t.includes('is available')), seen);
+  await smoke.js(`window.__updateToastObserver?.disconnect()`);
+  // The action is clicked while the toast is surely up (6 s), before the screenshots' theme switches.
   let installs = u.installs;
   await smoke.click('[data-testid=toast-action]', 'Restart and install');
   smoke.check("the toast's Restart and install reaches the updater", await smoke.until(() => u.installs === installs + 1), u.installs);
+  await dismissToasts(smoke);
+  await showSection();
+  await smoke.shots('62-settings-updates-ready');
   installs = u.installs;
   await smoke.click('[data-testid=updates-install]');
   smoke.check('so does the Restart and install button', await smoke.until(() => u.installs === installs + 1), u.installs);
@@ -88,7 +115,7 @@ export async function smokeUpdatesUi(smoke: Smoke): Promise<void> {
   smoke.check('a build without a feed says updates are not available, and why; every button is disabled', (await smoke.waitFor(status, 3000, 'Updates are not available in this build: this build has no update feed')) && (await buttons('')), await smoke.text(status));
   await dismissToasts(smoke);
   await showSection();
-  await smoke.shots('60-settings-updates-unsupported');
+  await smoke.shots('63-settings-updates-unsupported');
   u.unsupported(null);
   u.reset();
 

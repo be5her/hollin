@@ -8,7 +8,7 @@ import { Host } from './host';
 import { CHANNELS, registerIpc } from './ipc';
 import { handleLibraryProtocol, registerLibraryScheme } from './library-protocol';
 import { installMenu } from './menu';
-import { startupCheckDue } from './update-state';
+import { scheduleChecks, startupCheckDue } from './update-state';
 import { createUpdater } from './updater';
 import { createMainWindow, setTitleBarColors } from './window';
 
@@ -155,13 +155,16 @@ async function main(): Promise<void> {
   const win = createMainWindow();
   // Windows logoff or shutdown: save what is pending while the OS still waits.
   win.on('session-end', () => void stopForQuit());
-  // Look for a new version 10 s after the window is up, at most once a day and only when the setting is on.
-  // Never in development (the smoke has returned above); a check only announces what it found.
+  // Look for a new version 10 s after the window is up and then once a day while the app runs (asked
+  // every hour, run when the last check is a day old), only when the setting is on and never once the
+  // app is stopping. Never in development (the smoke has returned above); a check only announces what it found.
   if (!dev) {
     win.webContents.once('did-finish-load', () => {
-      setTimeout(() => {
-        if (host && startupCheckDue(host.config.get().updates.check, updater.checkedAt)) void updater.check({ scheduled: true });
-      }, 10_000);
+      scheduleChecks({
+        due: () => Boolean(host) && startupCheckDue(host!.config.get().updates.check, updater.checkedAt),
+        stopping: () => stopped !== null,
+        check: () => void updater.check({ scheduled: true }),
+      });
     });
   }
   for (const file of [...pendingFiles, packageArg(process.argv)].filter((f): f is string => Boolean(f))) void importFromShell(file);

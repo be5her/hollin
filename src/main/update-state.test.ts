@@ -2,9 +2,9 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { HostEventMessage, UpdateState } from '@studio/core';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Host } from './host';
-import { UpdaterBase, macSignedFromCodesign, plainNotes, startupCheckDue, updateSupport, type CheckOutcome, type SupportProbe } from './update-state';
+import { UpdaterBase, installAfterStop, macSignedFromCodesign, plainNotes, scheduleChecks, startupCheckDue, updateSupport, type CheckOutcome, type SupportProbe } from './update-state';
 
 let dir: string;
 beforeEach(async () => {
@@ -50,11 +50,21 @@ describe('updateSupport', () => {
   const base = { resourcesPath: '/app/resources', appPath: '/app/resources/app.asar' };
   it('needs a packaged build or a dev-app-update.yml in development', () => {
     expect(updateSupport({ ...base, packaged: false, platform: 'win32', ...files({}) }).reason).toMatch(/development/);
-    expect(updateSupport({ ...base, packaged: false, platform: 'win32', ...files({ '/app/resources/app.asar/dev-app-update.yml': '' }) })).toEqual({ reason: null, devConfig: true });
+    expect(updateSupport({ ...base, packaged: false, platform: 'win32', ...files({ '/app/resources/app.asar/dev-app-update.yml': '' }) })).toEqual({ reason: null, devConfig: true, appImage: false });
   });
   it('needs the app-update.yml a release build carries', () => {
     expect(updateSupport({ ...base, packaged: true, platform: 'win32', ...files({}) }).reason).toMatch(/no update feed/);
-    expect(updateSupport({ ...base, packaged: true, platform: 'win32', ...files({ '/app/resources/app-update.yml': '' }) })).toEqual({ reason: null, devConfig: false });
+    expect(updateSupport({ ...base, packaged: true, platform: 'win32', ...files({ '/app/resources/app-update.yml': '' }) })).toEqual({ reason: null, devConfig: false, appImage: false });
+  });
+  it('on Linux, an AppImage wins over a package-type file it may carry, which is then never read', () => {
+    const read = vi.fn((f: string) => (f.endsWith('package-type') ? 'deb' : undefined));
+    const probe = { ...base, packaged: true, platform: 'linux', exists: (f: string) => f.endsWith('app-update.yml'), read };
+    expect(updateSupport({ ...probe, appImage: '/home/u/App.AppImage' })).toEqual({ reason: null, devConfig: false, appImage: true });
+    expect(read).not.toHaveBeenCalled();
+    // Without APPIMAGE the same files are an installed deb.
+    expect(updateSupport(probe)).toEqual({ reason: null, devConfig: false, appImage: false });
+    expect(read).toHaveBeenCalledOnce();
+    expect(updateSupport({ ...probe, read: () => 'snap' }).reason).toMatch(/AppImage or an installed package/);
   });
   it('on Linux, an AppImage or an installed deb, rpm or pacman package', () => {
     const feed = { '/app/resources/app-update.yml': '' };
@@ -95,7 +105,97 @@ class TestUpdater extends UpdaterBase {
   }
 }
 
+/** A scripted updater whose find, fetch or apply waits for `letGo()`. */
+class HeldUpdater extends TestUpdater {
+  holdFind = false;
+  holdFetch = false;
+  private waiting: (() => void)[] = [];
+  private wait(): Promise<void> {
+    return new Promise((resolve) => this.waiting.push(resolve));
+  }
+  letGo(): void {
+    for (const go of this.waiting.splice(0)) go();
+  }
+  restartAs(state: UpdateState): void {
+    this.restart(state);
+  }
+  unsupported(reason: string | null): void {
+    this.setUnsupported(reason);
+  }
+  protected override async find() {
+    if (this.holdFind) await this.wait();
+    return super.find();
+  }
+  protected override async fetch(progress: (p: number) => void) {
+    if (this.holdFetch) await this.wait();
+    return super.fetch(progress);
+  }
+  protected override async apply() {
+    await this.wait();
+    return super.apply();
+  }
+}
+
 const settle = () => new Promise((r) => setTimeout(r, 10));
+
+describe('installAfterStop', () => {
+  it('stops the host, then hands over to the installer', async () => {
+    const order: string[] = [];
+    await installAfterStop({ stop: async () => void order.push('stop'), quitAndInstall: () => void order.push('install'), fail: () => void order.push('fail') });
+    expect(order).toEqual(['stop', 'install']);
+  });
+  it('sends a failed stop or a throwing quitAndInstall to fail (which relaunches), never past it', async () => {
+    const failed: unknown[] = [];
+    const quit = vi.fn();
+    await installAfterStop({ stop: () => Promise.reject(new Error('disk full')), quitAndInstall: quit, fail: (e) => failed.push(e) });
+    expect(quit).not.toHaveBeenCalled();
+    await installAfterStop({
+      stop: async () => {},
+      quitAndInstall: () => {
+        throw new Error('no installer');
+      },
+      fail: (e) => failed.push(e),
+    });
+    expect(failed.map((e) => (e as Error).message)).toEqual(['disk full', 'no installer']);
+  });
+});
+
+describe('scheduleChecks', () => {
+  afterEach(() => void vi.useRealTimers());
+  it('checks 10 s after start, then every hour when due, and never once the app is stopping', () => {
+    vi.useFakeTimers();
+    let due = true;
+    let stopping = false;
+    const check = vi.fn();
+    const cancel = scheduleChecks({ due: () => due, stopping: () => stopping, check });
+    vi.advanceTimersByTime(9_999);
+    expect(check).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(check).toHaveBeenCalledTimes(1);
+    // Checked just now: the hourly ticks find it not due.
+    due = false;
+    vi.advanceTimersByTime(5 * 60 * 60 * 1000);
+    expect(check).toHaveBeenCalledTimes(1);
+    // A day later it is due again.
+    due = true;
+    vi.advanceTimersByTime(60 * 60 * 1000);
+    expect(check).toHaveBeenCalledTimes(2);
+    stopping = true;
+    vi.advanceTimersByTime(3 * 60 * 60 * 1000);
+    expect(check).toHaveBeenCalledTimes(2);
+    stopping = false;
+    cancel();
+    vi.advanceTimersByTime(3 * 60 * 60 * 1000);
+    expect(check).toHaveBeenCalledTimes(2);
+  });
+  it('skips the first check when the app is already stopping', () => {
+    vi.useFakeTimers();
+    const check = vi.fn();
+    scheduleChecks({ due: () => true, stopping: () => true, check });
+    vi.advanceTimersByTime(60_000);
+    expect(check).not.toHaveBeenCalled();
+  });
+});
 
 describe('UpdaterBase', () => {
   it('checks, keeps the check time in its file, downloads with progress and installs', async () => {
@@ -135,6 +235,47 @@ describe('UpdaterBase', () => {
     u.download();
     await settle();
     expect(u.status()).toMatchObject({ state: 'error', message: 'checksum mismatch', version: '2.0.0' });
+  });
+
+  it('installs once when asked twice at the same time (the toast and the button, a double click)', async () => {
+    const u = new HeldUpdater(undefined, null);
+    u.found = { version: '1.2.3' };
+    await u.check();
+    u.download();
+    await settle();
+    expect(u.status().state).toBe('ready');
+    const first = u.install();
+    const second = u.install();
+    expect(second).toBe(first);
+    u.letGo();
+    await Promise.all([first, second]);
+    expect(u.installed).toBe(1);
+    // Once that install has settled, a new ask installs again (the smoke's fake stays ready).
+    const third = u.install();
+    u.letGo();
+    await third;
+    expect(u.installed).toBe(2);
+  });
+
+  it('a check or download let go after a restart leaves the newer state alone', async () => {
+    const u = new HeldUpdater(undefined, null);
+    u.found = { version: '1.2.3' };
+    u.holdFind = true;
+    const checking = u.check();
+    expect(u.status().state).toBe('checking');
+    u.restartAs({ state: 'idle' });
+    u.letGo();
+    expect((await checking).state).toBe('idle');
+    expect(u.status()).toEqual({ state: 'idle' });
+
+    u.holdFind = false;
+    await u.check();
+    u.holdFetch = true;
+    u.download();
+    u.unsupported('scripted');
+    u.letGo();
+    await settle();
+    expect(u.status()).toEqual({ state: 'unsupported', message: 'scripted' });
   });
 
   it('does nothing in a build that cannot update', async () => {

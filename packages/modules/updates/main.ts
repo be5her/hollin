@@ -11,8 +11,8 @@ const updaterOf = (host: HostApi) => {
 /**
  * In-app updates, for the Settings section only. Every command is hidden: an agent must never be
  * able to download or install code, so none of them reaches the palette, MCP or the assistant
- * (`execute` still runs them for the UI and the smoke). The state is the host's `UpdateState`,
- * announced as `update.changed`.
+ * (`execute` still runs them for the UI and the smoke). Download and install are also mutating. The
+ * state is the host's `UpdateState`, announced as `update.changed`.
  */
 export const updatesModule = defineModule({
   id: 'updates',
@@ -42,6 +42,8 @@ export const updatesModule = defineModule({
       description: 'Starts downloading the version a check found and returns at once; progress and the end follow as update.changed. CONFLICT when no update was found.',
       scope: 'global',
       hidden: true,
+      // It writes an installer outside the library.
+      mutating: true,
       input: z.object({}),
       handler: async (_input, ctx) => updaterOf(ctx.host).download(),
     }),

@@ -30,7 +30,7 @@ Node 24 (see `.nvmrc`; the Angular CLI needs ^22.22.3 or ^24.15).
 | `npm run typecheck` | `tsc -p tsconfig.node.json` (main, preload, core, mcp, modules' Node side) and `ngc -p tsconfig.app.json` (the renderer and every module's `ui/`). |
 | `npm test` | vitest unit tests next to the code in `packages/`, `src/main` and `scripts/`. |
 | `npm run smoke` | Builds, then launches the app with `--smoke`: a temporary data folder and a private MCP port, every feature checked through commands, MCP and the UI. Exits non-zero on any failure. `SMOKE_SHOTS=<dir>` saves screenshots. |
-| `npm run package` | Builds, then installers with electron-builder into `release/`: NSIS on Windows, dmg/zip on macOS, AppImage/deb on Linux. Unsigned unless the signing secrets are in the environment (`docs/release.md`); a local build has no update feed (only the release workflow's builds have one), so its Settings > Updates says updates are not available. |
+| `npm run package` | Builds, then installers with electron-builder into `release/`: NSIS on Windows, dmg/zip on macOS, the AppImage on Linux (the deb too when the build has a feed or `package.json` a `homepage`: its fpm target needs one). Unsigned unless the signing secrets are in the environment (`docs/release.md`); a local build has no update feed (only the release workflow's builds have one), so its Settings > Updates says updates are not available. |
 | `npm run release:check` | Fails when `CHANGELOG.md` has no section (or an empty one) for `package.json`'s version, or (`-- vX.Y.Z`) the tag does not match it (`scripts/release-check.mjs`). The release workflow runs it first. |
 | `npm run icon` | Renders `resources/icon.svg` to `resources/icon.png` with Electron. |
 
@@ -62,7 +62,7 @@ scripts/                 The dev launcher, the icon renderer and the release che
 
 ## Releases
 
-A release is a tag `vX.Y.Z` matching `package.json`'s version, with a section for that version in [`CHANGELOG.md`](CHANGELOG.md). Pushing the tag runs `.github/workflows/release.yml`: it checks the version and the changelog, runs the typecheck and the unit tests, then builds the installers on Windows, macOS and Linux and uploads them with the update feed to a draft GitHub Release, which the owner reviews and publishes. Signing and notarization switch on when their secrets exist; until then the builds are unsigned. How to cut one, the secrets and what works unsigned: [docs/release.md](docs/release.md). Installed copies find a published release in Settings > Updates (`packages/modules/updates`).
+A release is a tag `vX.Y.Z` matching `package.json`'s version, with a section for that version in [`CHANGELOG.md`](CHANGELOG.md). Pushing the tag runs `.github/workflows/release.yml`: it checks the version and the changelog, runs the typecheck and the unit tests, then builds the installers on Windows, macOS and Linux and uploads them with the update feed to a draft GitHub Release, which the owner reviews and publishes. Signing and notarization switch on when their secrets exist; until then the builds are unsigned. How to cut one, the secrets and what works unsigned: [docs/release.md](docs/release.md). Installed copies find a published release in Settings > Updates (`packages/modules/updates`), and by themselves 10 s after start and then once a day while they run.
 
 ## Architecture
 

@@ -1,7 +1,7 @@
 import { Component, computed, effect, inject, linkedSignal, signal, untracked } from '@angular/core';
 import { FormField, form } from '@angular/forms/signals';
 import type { UpdateState } from '@studio/core';
-import { AppState, Button, Checkbox, HostBridge, Toasts, invokeResource } from '@studio/ui';
+import { AppState, Button, Checkbox, HostBridge, Toasts, injectHostEvent } from '@studio/ui';
 import { Download, RefreshCw, RotateCw } from 'lucide';
 import { UpdateNotices } from './update-notices';
 
@@ -57,8 +57,12 @@ export class UpdatesSettings {
   private readonly notices = inject(UpdateNotices);
 
   protected readonly icons = { Download, RefreshCw, RotateCw };
-  private readonly status = invokeResource<UpdateState>('app.update.status', () => ({}), { projectId: null, refreshOnEvents: ['update.changed'] });
-  protected readonly state = this.status.value;
+  /**
+   * Seeded once from `app.update.status`, then taken from each `update.changed` payload (a download
+   * announces up to a hundred): no round trip per change. A seed that arrives after an event is stale.
+   */
+  protected readonly state = signal<UpdateState | undefined>(undefined);
+  private heard = false;
   protected readonly installing = signal(false);
   protected readonly line = computed(() => updateLine(this.state(), (iso) => new Date(iso).toLocaleString()));
   protected readonly tone = computed(() => {
@@ -76,6 +80,16 @@ export class UpdatesSettings {
   protected readonly auto = form(this.draft);
 
   constructor() {
+    injectHostEvent('update.changed', (state) => {
+      this.heard = true;
+      this.state.set(state);
+    });
+    this.host.invoke<UpdateState>('app.update.status', {}, null).then(
+      (state) => {
+        if (!this.heard) this.state.set(state);
+      },
+      (err: unknown) => this.toasts.error(err),
+    );
     effect(() => {
       const check = this.draft().check;
       const config = untracked(this.app.config);

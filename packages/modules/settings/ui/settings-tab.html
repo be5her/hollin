@@ -134,7 +134,7 @@
     } @else {
       <form class="flex items-center gap-2" (submit)="saveKey($event)">
         <input xInput id="settings-key" type="password" class="w-96 font-mono" placeholder="sk-ant-…" [formField]="keyForm.key" data-testid="settings-key-input" />
-        <button xButton type="submit" variant="primary" [loading]="savingKey()" [disabled]="keyForm().invalid()" data-testid="settings-key-save">Save key</button>
+        <button xButton type="submit" variant="primary" class="shrink-0 whitespace-nowrap" [loading]="savingKey()" [disabled]="keyForm().invalid()" data-testid="settings-key-save">Save key</button>
       </form>
     }
     }

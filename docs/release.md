@@ -11,7 +11,7 @@ Everything below assumes the repository is on GitHub (it is local until the owne
 3. **Check it:** `npm run release:check -- v0.2.0` fails when the changelog has no section for the version, the section is empty, or the tag does not match `package.json`. The workflow runs the same check first.
 4. **Commit** (`Release 0.2.0`), and push `main` through its pull request as usual.
 5. **Tag and push the tag** from the merged `main`: `git tag v0.2.0` then `git push origin v0.2.0`.
-6. **Watch the run** (Actions > Release). The first job checks the version and the changelog, runs the typecheck and the unit tests, and creates the draft release with the changelog section as its notes; then one job per platform builds and uploads. The smoke test is not run again here: CI runs it on every push to `main`.
+6. **Watch the run** (Actions > Release). The first job checks the version and the changelog and runs the typecheck and the unit tests, with read access only; a small second job (write access, nothing installed) creates the draft release with the changelog section as its notes, and stops the run if a release for the tag is already published; then one job per platform builds and uploads, and the Linux one checks that the AppImage carries no `package-type` (the deb's, which electron-builder writes into the folder the AppImage is packed from, in parallel). Every checkout keeps no credentials (`persist-credentials: false`), and only the packaging step gets the token. The smoke test is not run again here: CI runs it on every push to `main`.
 7. **Review the draft** (Releases): it should hold
    - Windows: `Plan-Studio-0.2.0-setup.exe`, its `.blockmap`, and `latest.yml`;
    - macOS: a `.dmg` and a `.zip` for x64 and for arm64, their `.blockmap`s, and `latest-mac.yml`;
@@ -24,13 +24,13 @@ If a build fails, fix it on `main`, delete the draft release and the tag (`git p
 
 ## What users then see
 
-In **Settings > Updates** of an installed earlier version: `Version 0.2.0 is available` after a check (the app checks by itself 10 s after starting, at most once a day, unless *Check for updates when the app starts* is off; a check it found something with shows a toast with **Settings**), the release notes under *What's new in 0.2.0* as plain text, **Download** with its progress, then `Ready to install version 0.2.0` and **Restart and install**, which saves the open projects, installs and starts the new version. A downloaded update the user does not install now installs when the app quits. Nothing downloads or installs without the user.
+In **Settings > Updates** of an installed earlier version: `Version 0.2.0 is available` after a check (the app checks by itself 10 s after start and then once a day while it runs, unless *Check for updates when the app starts* is off; a version such a check finds shows a toast with **Settings**), the release notes under *What's new in 0.2.0* as plain text, **Download** with its progress, then `Ready to install version 0.2.0` and **Restart and install**, which saves the open projects, installs and starts the new version. A downloaded update the user does not install now installs when the app quits. Nothing downloads or installs without the user.
 
 A build that cannot update says so there instead: `Updates are not available in this build: <reason>` (a local build, a development run, an unsigned macOS build, a Linux copy not run from its AppImage or package). `packages/modules/updates/README.md` has the rules.
 
 ## Signing and notarization
 
-The workflow builds **unsigned** until the secrets below exist, and signs as soon as they do; nothing else changes. Add them under the repository's Settings > Secrets and variables > Actions > New repository secret. A secret that is not set reaches the build as an empty string, which electron-builder (and `electron-builder.cjs`) treat as unset. Each is passed only to the job of its platform.
+The workflow builds **unsigned** until the secrets below exist, and signs as soon as they do; nothing else changes. Add them under the repository's Settings > Secrets and variables > Actions > New repository secret. A secret that is not set reaches the build as an empty string. On Windows electron-builder itself treats an empty `WIN_CSC_LINK` as unset; on macOS it does not (an empty `CSC_LINK` counts as a certificate), so `electron-builder.cjs` maps a blank one to `identity: null` (do not sign) and a blank `APPLE_ID` to no notarization. Each is passed only to the job of its platform.
 
 ### Windows
 
@@ -82,4 +82,4 @@ electron-updater's own development mode reads a `dev-app-update.yml` from the ap
 
 Delete `dev-app-update.yml` afterwards. To try the packaged path instead, build with the feed (`GITHUB_REPOSITORY=<owner>/<repository> npm run package`; `--publish never` still uploads nothing), install that older build, and check from it: the installed app then updates from the published release like any user's copy.
 
-`npm run package` without `GITHUB_REPOSITORY` makes a build with no feed: `release/win-unpacked/resources` has no `app-update.yml`, and its Settings > Updates says `Updates are not available in this build: this build has no update feed (only release builds have one)`.
+`npm run package` without `GITHUB_REPOSITORY` makes a build with no feed: `release/win-unpacked/resources` has no `app-update.yml`, and its Settings > Updates says `Updates are not available in this build: this build has no update feed (only release builds have one)`. On Linux such a build makes the AppImage only: the deb needs a homepage (electron-builder's fpm target refuses to build without one), which comes from the feed's repository, or from `package.json`'s `homepage` once the owner adds one.

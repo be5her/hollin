@@ -19,6 +19,8 @@ const env = (name) => {
 const repository = env('GITHUB_REPOSITORY');
 const [owner, repo] = repository ? repository.split('/') : [];
 const publish = owner && repo ? { provider: 'github', owner, repo, releaseType: 'draft' } : null;
+// The project's homepage: package.json's, should the owner add one, else the feed's repository.
+const homepage = pkg.homepage || (publish ? `https://github.com/${owner}/${repo}` : undefined);
 
 /** @type {import('electron-builder').Configuration} */
 module.exports = {
@@ -34,8 +36,8 @@ module.exports = {
   fileAssociations: [{ ext: branding.packageExtension, name: `${branding.productName} project`, role: 'Editor' }],
   publish,
   // The deb needs a homepage (electron-builder's FpmTarget refuses to build without one); package.json
-  // names no repository, so the release workflow's repository is it.
-  ...(publish ? { extraMetadata: { homepage: `https://github.com/${owner}/${repo}` } } : {}),
+  // names no repository, so the release workflow's repository is it (see `homepage` above).
+  ...(publish && !pkg.homepage ? { extraMetadata: { homepage } } : {}),
   // One `latest*.yml` per platform, never alpha/beta copies (GitHub releases have one channel anyway).
   // The targets below that electron-updater can install write it: NSIS (`latest.yml`), the macOS zip,
   // with the dmg listed beside it (`latest-mac.yml`), AppImage and deb (`latest-linux.yml`).
@@ -43,7 +45,8 @@ module.exports = {
   win: {
     // NSIS only: it is the Windows target electron-updater installs (a portable exe would write no feed file).
     // Signed when WIN_CSC_LINK (or CSC_LINK: a base64 .pfx or a path) and WIN_CSC_KEY_PASSWORD (or
-    // CSC_KEY_PASSWORD) are set; electron-builder treats an empty link as unset and builds unsigned.
+    // CSC_KEY_PASSWORD) are set; on Windows electron-builder itself treats an empty link as unset and
+    // builds unsigned (macOS does not: see `identity` below).
     target: ['nsis'],
     artifactName: '${productName}-${version}-setup.${ext}',
   },
@@ -60,8 +63,8 @@ module.exports = {
     ],
     // With a certificate (CSC_LINK, CSC_KEY_PASSWORD) electron-builder imports it into a temporary
     // keychain and finds the Developer ID identity itself; without one, `null` skips signing rather than
-    // searching the machine's keychain. electron-builder treats only `null` as "do not sign", so an empty
-    // CSC_LINK must become `null` here.
+    // searching the machine's keychain. On macOS electron-builder takes an empty CSC_LINK (a secret that
+    // is not set) as a certificate and treats only `null` as "do not sign", so a blank one becomes `null` here.
     identity: env('CSC_LINK') ? undefined : null,
     hardenedRuntime: true,
     gatekeeperAssess: false,
@@ -75,7 +78,9 @@ module.exports = {
   linux: {
     // The desktop entry's Categories: the main category and an additional one (freedesktop's menu spec).
     category: 'Graphics;Engineering',
-    target: ['AppImage', 'deb'],
+    // The deb only when a homepage is known (its fpm target refuses to build without one): so a local
+    // `npm run package` on Linux, with no GITHUB_REPOSITORY, makes the AppImage only.
+    target: ['AppImage', ...(homepage ? ['deb'] : [])],
     artifactName: '${productName}-${version}-${arch}.${ext}',
     maintainer: `${pkg.author.name} <${pkg.author.email}>`,
   },

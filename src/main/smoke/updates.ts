@@ -1,7 +1,7 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
-import type { UpdateState } from '@studio/core';
+import { toolNameFor, type UpdateState } from '@studio/core';
 import type { Smoke } from './harness';
 
 const COMMANDS = ['app.update.status', 'app.update.check', 'app.update.download', 'app.update.install'];
@@ -19,15 +19,28 @@ export async function smokeUpdates(smoke: Smoke): Promise<void> {
   const list = host.registry.list();
   const metas = COMMANDS.map((id) => list.find((c) => c.id === id));
   smoke.check('the four update commands exist and are hidden', metas.every((m) => m?.hidden === true), metas.map((m) => m && { id: m.id, hidden: m.hidden }));
-  smoke.check('install is also mutating', metas[3]?.mutating === true);
+  smoke.check('download and install are also mutating', metas[2]?.mutating === true && metas[3]?.mutating === true);
 
   const { url } = host.mcpStatus();
   const client = new Client({ name: 'smoke-updates', version: '1.0' });
   await client.connect(new StreamableHTTPClientTransport(new URL(url)));
   const names = new Set((await client.listTools()).tools.map((t) => t.name));
+  smoke.check('no update command is an MCP tool', COMMANDS.every((id) => !names.has(toolNameFor(id))) && names.size > 0);
+  // The real protection: a hidden command is no tool, so calling it by its tool name over MCP finds nothing.
+  // The SDK refuses an unknown tool with a protocol error (a rejected call); an error result would do as well.
+  for (const id of ['app.update.download', 'app.update.install']) {
+    const name = toolNameFor(id);
+    const outcome = await client.callTool({ name, arguments: {} }).then(
+      (result) => ({ rejected: false, isError: result.isError === true, text: JSON.stringify(result.content) }),
+      (err: unknown) => ({ rejected: true, isError: true, text: err instanceof Error ? err.message : String(err) }),
+    );
+    smoke.check(`an MCP client calling ${name} by name gets an unknown tool`, outcome.isError && /not found/i.test(outcome.text), outcome);
+  }
   await client.close();
-  smoke.check('no update command is an MCP tool', COMMANDS.every((id) => !names.has(id.replace(/[^A-Za-z0-9_-]/g, '_'))) && names.size > 0);
-  await smoke.expectError('an MCP caller cannot install, even by name', 'app.update.install', {}, 'MUTATION_BLOCKED', { caller: 'mcp' });
+  smoke.check('nothing was downloaded or installed through MCP', u.status().state === 'idle' && u.installs === 0, { state: u.status(), installs: u.installs });
+  // Only the mutating gate: `execute` runs a hidden command for any caller, so an MCP caller naming install is refused for being mutating.
+  await smoke.expectError('the mutating gate refuses install to an MCP caller', 'app.update.install', {}, 'MUTATION_BLOCKED', { caller: 'mcp' });
+  await smoke.expectError('and download', 'app.update.download', {}, 'MUTATION_BLOCKED', { caller: 'mcp' });
 
   smoke.check('the startup check is on by default', host.config.get().updates.check === true);
   smoke.check('a fresh data folder has never checked', (await smoke.run<UpdateState>('app.update.status')).state === 'idle');

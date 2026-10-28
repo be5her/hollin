@@ -66,6 +66,10 @@ export abstract class UpdaterBase implements Updater {
   private current: UpdateState;
   private readonly listeners = new Set<(state: UpdateState) => void>();
   private readonly writes = new WriteQueue();
+  /** Bumped by `restart`: a check or download that began before it no longer owns the state. */
+  private generation = 0;
+  /** The install under way: a second ask (the toast and the button, a double click) waits for it instead of installing twice. */
+  private pendingInstall: Promise<void> | null = null;
 
   constructor(
     private readonly stampFile: string | undefined,
@@ -105,10 +109,16 @@ export abstract class UpdaterBase implements Updater {
     for (const listener of [...this.listeners]) listener(copy);
   }
 
+  /** Starts over from `next`: a check or download still running ends without touching the state. */
+  protected restart(next: UpdateState): void {
+    this.generation++;
+    this.set(next);
+  }
+
   /** For a build that turns out unable to update (or, in the smoke, is scripted so). `null` makes it able again. */
   protected setUnsupported(reason: string | null): void {
-    if (reason) this.set({ state: 'unsupported', message: reason });
-    else if (this.current.state === 'unsupported') this.set({ state: 'idle', ...(this.checkedAt ? { checkedAt: this.checkedAt } : {}) });
+    if (reason) this.restart({ state: 'unsupported', message: reason });
+    else if (this.current.state === 'unsupported') this.restart({ state: 'idle', ...(this.checkedAt ? { checkedAt: this.checkedAt } : {}) });
   }
 
   async check(options: { scheduled?: boolean } = {}): Promise<UpdateState> {
@@ -118,12 +128,15 @@ export abstract class UpdaterBase implements Updater {
     const scheduled = options.scheduled === true;
     const previous = this.current.checkedAt;
     this.set({ state: 'checking', scheduled, ...(previous ? { checkedAt: previous } : {}) });
+    const generation = this.generation;
     try {
       const found = await this.find();
+      if (generation !== this.generation) return this.status();
       const checkedAt = new Date().toISOString();
       if (this.stampFile) void this.writes.run('stamp', () => writeJsonAtomic(this.stampFile!, { checkedAt })).catch((err: Error) => console.warn(`[updater] could not keep the check time: ${err.message}`));
       this.set(found ? { state: 'available', version: found.version, ...(found.notes ? { notes: found.notes } : {}), checkedAt, scheduled } : { state: 'up-to-date', checkedAt, scheduled });
     } catch (err) {
+      if (generation !== this.generation) return this.status();
       this.set({ state: 'error', message: messageOf(err, 'The update check failed.'), scheduled, ...(previous ? { checkedAt: previous } : {}) });
     }
     return this.status();
@@ -135,27 +148,40 @@ export abstract class UpdaterBase implements Updater {
     const base: UpdateState = { state: 'downloading', version: found.version, ...(found.notes ? { notes: found.notes } : {}), ...(found.checkedAt ? { checkedAt: found.checkedAt } : {}) };
     this.set({ ...base, progress: 0 });
     const started = this.status();
+    const generation = this.generation;
+    const current = () => generation === this.generation;
     let shown = 0;
     void this.fetch((percent) => {
       // One announcement per whole percent, never backwards.
       const progress = Math.max(0, Math.min(100, Math.floor(percent)));
-      if (progress <= shown || this.current.state !== 'downloading') return;
+      if (progress <= shown || !current() || this.current.state !== 'downloading') return;
       shown = progress;
       this.set({ ...base, progress });
     }).then(
-      () => this.set({ ...base, state: 'ready', progress: 100 }),
-      (err: unknown) => this.set({ ...base, state: 'error', message: messageOf(err, 'The download failed.') }),
+      () => {
+        if (current()) this.set({ ...base, state: 'ready', progress: 100 });
+      },
+      (err: unknown) => {
+        if (current()) this.set({ ...base, state: 'error', message: messageOf(err, 'The download failed.') });
+      },
     );
     return started;
   }
 
-  async install(): Promise<void> {
-    if (this.current.state !== 'ready') throw new StudioError('CONFLICT', 'No update is ready to install: download it first.');
-    try {
-      await this.apply();
-    } catch (err) {
-      this.set({ ...this.current, state: 'error', message: messageOf(err, 'The update could not be installed.') });
-    }
+  install(): Promise<void> {
+    // A second ask while one runs waits for that one: electron-updater would start the installer again.
+    if (this.pendingInstall) return this.pendingInstall;
+    if (this.current.state !== 'ready') return Promise.reject(new StudioError('CONFLICT', 'No update is ready to install: download it first.'));
+    this.pendingInstall = (async () => {
+      try {
+        await this.apply();
+      } catch (err) {
+        this.set({ ...this.current, state: 'error', message: messageOf(err, 'The update could not be installed.') });
+      } finally {
+        this.pendingInstall = null;
+      }
+    })();
+    return this.pendingInstall;
   }
 }
 
@@ -169,7 +195,7 @@ function readStamp(file: string): string | undefined {
 }
 
 /** A short message for the status line: the error's first line, without electron-updater's appended stack or HTTP dump. */
-function messageOf(err: unknown, fallback: string): string {
+export function messageOf(err: unknown, fallback: string): string {
   const text = err instanceof Error ? err.message : typeof err === 'string' ? err : '';
   const first = text.split('\n')[0]?.trim() ?? '';
   return first ? (first.length > 300 ? `${first.slice(0, 299)}…` : first) : fallback;
@@ -198,23 +224,68 @@ export interface SupportProbe {
  * an AppImage (`APPIMAGE` set) or a deb, rpm or pacman package (`package-type`, written by
  * electron-builder's package targets); on macOS Squirrel.Mac installs only into a signed app.
  */
-export function updateSupport(probe: SupportProbe): { reason: string | null; devConfig: boolean } {
+export function updateSupport(probe: SupportProbe): { reason: string | null; devConfig: boolean; appImage: boolean } {
   const join = (dir: string, name: string) => `${dir.replace(/[\/]+$/, '')}/${name}`;
+  const no = (reason: string, devConfig: boolean) => ({ reason, devConfig, appImage: false });
   let devConfig = false;
   if (!probe.packaged) {
-    if (!probe.exists(join(probe.appPath, 'dev-app-update.yml'))) return { reason: 'this is a development run', devConfig };
+    if (!probe.exists(join(probe.appPath, 'dev-app-update.yml'))) return no('this is a development run', devConfig);
     devConfig = true;
   } else if (!probe.exists(join(probe.resourcesPath, 'app-update.yml'))) {
-    return { reason: 'this build has no update feed (only release builds have one)', devConfig };
+    return no('this build has no update feed (only release builds have one)', devConfig);
   }
   if (probe.platform === 'linux' && !devConfig) {
+    // The AppImage first, before `package-type`: electron-builder packs the AppImage from the folder its
+    // deb target writes `package-type` into, in parallel, so an AppImage may carry the deb's file, and
+    // read first it would make electron-updater install the AppImage's update through dpkg.
+    if (probe.appImage) return { reason: null, devConfig, appImage: true };
     const packageType = probe.read(join(probe.resourcesPath, 'package-type'))?.trim();
-    if (!['deb', 'rpm', 'pacman'].includes(packageType ?? '') && !probe.appImage) return { reason: 'the app is not running from its AppImage or an installed package', devConfig };
+    if (!['deb', 'rpm', 'pacman'].includes(packageType ?? '')) return no('the app is not running from its AppImage or an installed package', devConfig);
   }
   if (probe.platform === 'darwin' && probe.packaged && probe.macSigned && !probe.macSigned()) {
-    return { reason: 'this macOS build is not signed, and macOS installs updates only into a signed app', devConfig };
+    return no('this macOS build is not signed, and macOS installs updates only into a signed app', devConfig);
   }
-  return { reason: null, devConfig };
+  return { reason: null, devConfig, appImage: false };
+}
+
+/**
+ * The real install, once the user asked: stop the host (pending writes land), then hand over to the
+ * installer. Once the stop has begun, any failure (the stop itself, or `quitAndInstall` throwing) goes
+ * to `fail`, which must relaunch the app: the host is stopped, so leaving it running would leave it
+ * without one. A failure the installer reports later (electron-updater's `error` event) goes to the same `fail`.
+ */
+export async function installAfterStop(steps: { stop(): Promise<void>; quitAndInstall(): void; fail(err: unknown): void }): Promise<void> {
+  try {
+    await steps.stop();
+    steps.quitAndInstall();
+  } catch (err) {
+    steps.fail(err);
+  }
+}
+
+const HOUR_MS = 60 * 60 * 1000;
+
+/**
+ * The scheduled checks of a running app: the first `firstMs` after start, then every `everyMs` (an hour)
+ * while it runs, each only when `due()` says so (the setting is on and the last check is a day old), and
+ * none once the app is stopping. So an app left open notices a release the day after. The timers never
+ * keep the process alive. Returns a function that cancels them.
+ */
+export function scheduleChecks(options: { due(): boolean; stopping(): boolean; check(): void; firstMs?: number; everyMs?: number }): () => void {
+  const run = () => {
+    if (!options.stopping() && options.due()) options.check();
+  };
+  let every: ReturnType<typeof setInterval> | undefined;
+  const first = setTimeout(() => {
+    run();
+    every = setInterval(run, options.everyMs ?? HOUR_MS);
+    every.unref?.();
+  }, options.firstMs ?? 10_000);
+  first.unref?.();
+  return () => {
+    clearTimeout(first);
+    if (every) clearInterval(every);
+  };
 }
 
 /**
