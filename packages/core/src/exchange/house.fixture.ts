@@ -3,6 +3,8 @@ import { newProjectDoc } from '../doc/defaults';
 import { Transaction, type Op } from '../doc/ops';
 import type { ProjectDoc } from '../doc/schema';
 import { rectPath, type Path } from '../geometry/path';
+import { meshToGlb, writeGlb } from '../decor/glb';
+import { MeshBuilder } from '../solids/mesh';
 
 /* The house the exchange tests draw and write; not part of the package's exports. */
 
@@ -54,4 +56,35 @@ export function drawingHouse() {
   const lift = addConnectorOps({ kind: 'elevator', at: [7500, 4500], shaft: { w: 1800, d: 2000 }, car: { w: 1100, d: 1400 }, stops: [{ levelId: ground, door: 'front' }, { levelId: upper, door: 'front' }] });
   doc = commit(doc, lift.ops);
   return { doc, ground, upper, ids: { ...ids, stair: stair.id, lift: lift.id } };
+}
+
+export const TABLE_FILE = `${'a'.repeat(64)}.glb`;
+export const TABLE_REF = `asset:${TABLE_FILE}`;
+export const PAINT = 'paint:#aabbcc';
+
+/** An imported model: a 1200 × 600 × 750 mm table, a top on a block. */
+export function tableGlb(): Uint8Array {
+  const rect = (w: number, d: number) => [
+    [
+      [-w / 2, -d / 2],
+      [w / 2, -d / 2],
+      [w / 2, d / 2],
+      [-w / 2, d / 2],
+    ] as [number, number][],
+  ];
+  const top = new MeshBuilder().prism(rect(1200, 600), 700, 750).build();
+  const base = new MeshBuilder().prism(rect(800, 400), 0, 700).build();
+  return writeGlb([meshToGlb(top, [0.55, 0.35, 0.2, 1], 'top'), meshToGlb(base, [0.2, 0.2, 0.22, 1], 'base')]);
+}
+
+/** The exchange house with its outer ground-floor wall painted on one face and an imported table upstairs. */
+export function gltfHouse() {
+  const base = drawingHouse();
+  const doc = structuredClone(base.doc) as unknown as { levelData: Record<string, { entities: Record<string, unknown> }> } & Omit<ProjectDoc, 'levelData'>;
+  const outer = doc.levelData[base.ground].entities[(base.ids as Record<string, string>).outer] as { materials?: unknown };
+  outer.materials = { left: PAINT, right: PAINT };
+  doc.assets[TABLE_FILE] = { id: TABLE_FILE, kind: 'model', name: 'Imported table', category: 'imported', size: [1200, 600, 750], min: [-600, -300, 0], slots: ['top', 'base'] };
+  const layerId = (Object.values(doc.levelData[base.ground].entities)[0] as { layerId: string }).layerId;
+  doc.levelData[base.upper].entities['itm_imported00000'] = { id: 'itm_imported00000', type: 'item', layerId, asset: TABLE_REF, at: [6000, 3000, 0], rotation: [0, 0, 90], scale: [1, 1, 1], materials: {} };
+  return { ...base, doc: doc as unknown as ProjectDoc };
 }

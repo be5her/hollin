@@ -2,14 +2,15 @@ import { BRANDING } from '../branding';
 import type { Vec2 } from '../geometry/vec';
 import { PRINT_COLORS, hexToRgb } from './colors';
 import type { DrawingColor, DrawingFill, DrawingLayer, DrawingSegment, DrawingStroke, DrawingText, PlanDrawing } from './drawing';
-import { baselineDrop, halfTurns, layoutPage, textWidthEm, titleBlock, toPaper, winAnsi, type PageLayout, type PaperOrientation, type PaperSize } from './paper';
+import { baselineDrop, drawingArea, halfTurns, layoutPage, textWidthEm, titleBlock, toPaper, winAnsi, type PageLayout, type PaperOrientation, type PaperSize } from './paper';
 
 /*
  * Plan drawings as a hand-written PDF 1.4, one page per drawing: true vectors at a drawing scale,
  * strokes with round caps and joins, arcs as cubic Béziers (a quarter turn at most each), fills
  * even-odd with an ExtGState alpha for tints, texts in the standard Helvetica (and Courier for
- * monospaced texts) with WinAnsiEncoding, a title block. The file is assembled as bytes, so the
- * xref offsets are byte offsets whatever the strings hold.
+ * monospaced texts) with WinAnsiEncoding, a title block. A drawing larger than the sheet at its
+ * scale is clipped to the drawing area (inside the margins, above the title block). The file is
+ * assembled as bytes, so the xref offsets are byte offsets whatever the strings hold.
  */
 
 export interface PdfOptions {
@@ -133,6 +134,10 @@ function pageContent(drawing: PlanDrawing, layout: PageLayout, title: string | u
     textAt(toPaper(layout, t.at), t.text, t.height / layout.scale, t.rotation, t.align, baselineDrop(t.baseline), color(t.color, layer), Boolean(t.mono));
   };
 
+  if (!layout.fits) {
+    const area = drawingArea(layout.width, layout.height, title !== undefined);
+    ops.push('% Clipped to the drawing area', 'q', `${n(area.minX * PT)} ${n(area.minY * PT)} ${n((area.maxX - area.minX) * PT)} ${n((area.maxY - area.minY) * PT)} re W n`);
+  }
   for (const layer of drawing.layers) {
     ops.push(`% ${layer.name.replace(/[\r\n]/g, ' ')}`.replace(/[^\x20-\x7e]/g, '?'));
     for (const prim of layer.primitives) {
@@ -141,6 +146,7 @@ function pageContent(drawing: PlanDrawing, layout: PageLayout, title: string | u
       else text(prim, layer);
     }
   }
+  if (!layout.fits) ops.push('Q');
   if (title !== undefined) {
     const block = titleBlock(layout.width, { title, levelName: drawing.levelName, scale: layout.scale, date });
     ops.push('% Title block', `${rgb(PRINT_COLORS.fg)} RG ${n(0.35 * PT)} w [] 0 d 0 J`);

@@ -134,6 +134,12 @@ export async function smokeExchange(smoke: Smoke, duplexId: string): Promise<voi
     await smoke.run('config.update', { patch: { mcp: { allowMutations: false } } });
     await agent.close();
   }
+  // SMOKE_KEEP=<dir>: the section's files copied out for readers outside the app (the temporary data folder is deleted at the end).
+  const keep = process.env.SMOKE_KEEP;
+  if (keep) {
+    await fs.cp(out, keep, { recursive: true });
+    console.log(`exchange: files kept in ${keep}`);
+  }
   await smokeDxfImport(smoke, dxf.files[0].path);
   await smoke.run('project.close', { id: duplexId });
 }

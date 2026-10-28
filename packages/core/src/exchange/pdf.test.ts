@@ -170,6 +170,20 @@ describe('drawingToPdf', () => {
     expect(pdfLayouts([{ drawing: drawingOf([]) }], { scale: 100 })[0].fits).toBe(true);
   });
 
+  it('clips a drawing larger than the sheet to the drawing area, leaving the title block clear', () => {
+    const wide = drawingOf([{ type: 'stroke', segs: [{ k: 'line', a: [0, 0], b: [50000, 0] }], closed: false, width: 0.25 }]);
+    const [content] = pageContents(parse(drawingToPdf([{ drawing: wide, title: 'House' }], { scale: 100, date: '2026-10-28' })));
+    // A3 landscape: x 10 to 410 mm, y from 38 mm (above the title block) to 287 mm, in points.
+    const pt = (mm: number) => String(Math.round((mm * 72) / 25.4 * 1000) / 1000);
+    const clip = `q\n${pt(10)} ${pt(38)} ${pt(400)} ${pt(249)} re W n\n`;
+    expect(content).toContain(clip);
+    expect(content.indexOf(clip)).toBeLessThan(content.indexOf('% Rooms'));
+    // Restored before the title block, which is drawn whole.
+    expect(content.lastIndexOf('\nQ\n', content.indexOf('% Title block'))).toBeGreaterThan(content.indexOf('% Rooms'));
+    const fitting = pageContents(parse(drawingToPdf([{ drawing: wide, title: 'House' }], { scale: 200 })))[0];
+    expect(fitting).not.toContain(' re W n');
+  });
+
   it('centres texts from Helvetica widths', () => {
     expect(textWidthEm(winAnsi('Living'))).toBeCloseTo((556 + 222 + 500 + 222 + 556 + 556) / 1000, 9);
     expect(textWidthEm(winAnsi('abc'), true)).toBeCloseTo(1.8, 9);

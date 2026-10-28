@@ -1,12 +1,14 @@
 import type { Box, Vec2 } from '../geometry/vec';
 import { PRINT_COLORS } from './colors';
 import type { DrawingColor, DrawingFill, DrawingLayer, DrawingStroke, DrawingText, PlanDrawing } from './drawing';
-import { PAGE_MARGIN, TITLE_BLOCK, baselineDrop, halfTurns, layoutPage, titleBlock, toPaper, type PageLayout, type PaperOrientation, type PaperSize } from './paper';
+import { PAGE_MARGIN, TITLE_BLOCK, baselineDrop, drawingArea, halfTurns, layoutPage, titleBlock, toPaper, type PageLayout, type PaperOrientation, type PaperSize } from './paper';
 
 /*
  * A plan drawing as one self-contained SVG on paper: user units are paper millimetres with the
  * origin at the sheet's top-left (SVG's y down), `width`/`height` in mm, so it prints at its scale.
- * World y is flipped point by point, which keeps texts upright. One group per drawing layer.
+ * World y is flipped point by point, which keeps texts upright. One group per drawing layer. A
+ * drawing larger than the sheet at its scale is clipped to the drawing area (inside the margins,
+ * above the title block), so it never runs over the title block.
  */
 
 export interface SvgOptions {
@@ -118,8 +120,15 @@ export function drawingToSvg(drawing: PlanDrawing, options: SvgOptions = {}): st
     `<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="${num(width)}mm" height="${num(height)}mm" viewBox="0 0 ${num(width)} ${num(height)}" data-scale="${num(scale)}" data-level="${xmlEscape(drawing.levelId)}">`,
     `<title>${xmlEscape(docTitle)}</title>`,
     `<rect x="0" y="0" width="${num(width)}" height="${num(height)}" fill="#ffffff"/>`,
-    '<g stroke-linecap="round" stroke-linejoin="round">',
   ];
+  if (layout.fits) out.push('<g stroke-linecap="round" stroke-linejoin="round">');
+  else {
+    const area = drawingArea(width, height, options.title !== undefined);
+    out.push(
+      `<clipPath id="drawing-area"><rect x="${num(area.minX)}" y="${num(height - area.maxY)}" width="${num(area.maxX - area.minX)}" height="${num(area.maxY - area.minY)}"/></clipPath>`,
+      '<g stroke-linecap="round" stroke-linejoin="round" clip-path="url(#drawing-area)">',
+    );
+  }
   for (const layer of drawing.layers) {
     out.push(`<g id="layer-${xmlEscape(layer.kind)}" data-layer="${xmlEscape(layer.name)}">`, `<title>${xmlEscape(layer.name)}</title>`);
     for (const p of layer.primitives) {

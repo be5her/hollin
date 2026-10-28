@@ -1,44 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_RULE_LIMITS } from '../config';
-import { inspectGlb, meshToGlb, packGlb, readGlbChunks, readGlbTriangles, writeGlb } from '../decor/glb';
+import { inspectGlb, packGlb, readGlbChunks, readGlbTriangles } from '../decor/glb';
 import { recipeMeshes } from '../decor/recipes';
 import { builtinRecipe } from '../decor/builtin';
-import type { ProjectDoc } from '../doc/schema';
 import { deriveBuildingSolids } from '../solids/building';
-import { MeshBuilder, meshVolume } from '../solids/mesh';
+import { meshVolume } from '../solids/mesh';
 import { buildingToGlb, srgbToLinear } from './gltf';
-import { drawingHouse } from './house.fixture';
-
-const TABLE_FILE = `${'a'.repeat(64)}.glb`;
-const TABLE_REF = `asset:${TABLE_FILE}`;
-const PAINT = 'paint:#aabbcc';
-
-/** An imported model: a 1200 × 600 × 750 mm table, a top on a block. */
-function tableGlb(): Uint8Array {
-  const rect = (w: number, d: number) => [
-    [
-      [-w / 2, -d / 2],
-      [w / 2, -d / 2],
-      [w / 2, d / 2],
-      [-w / 2, d / 2],
-    ] as [number, number][],
-  ];
-  const top = new MeshBuilder().prism(rect(1200, 600), 700, 750).build();
-  const base = new MeshBuilder().prism(rect(800, 400), 0, 700).build();
-  return writeGlb([meshToGlb(top, [0.55, 0.35, 0.2, 1], 'top'), meshToGlb(base, [0.2, 0.2, 0.22, 1], 'base')]);
-}
-
-/** The exchange house with its outer ground-floor wall painted on one face and an imported table upstairs. */
-function house() {
-  const base = drawingHouse();
-  const doc = structuredClone(base.doc) as unknown as { levelData: Record<string, { entities: Record<string, unknown> }> } & Omit<ProjectDoc, 'levelData'>;
-  const outer = doc.levelData[base.ground].entities[(base.ids as Record<string, string>).outer] as { materials?: unknown };
-  outer.materials = { left: PAINT, right: PAINT };
-  doc.assets[TABLE_FILE] = { id: TABLE_FILE, kind: 'model', name: 'Imported table', category: 'imported', size: [1200, 600, 750], min: [-600, -300, 0], slots: ['top', 'base'] };
-  const layerId = (Object.values(doc.levelData[base.ground].entities)[0] as { layerId: string }).layerId;
-  doc.levelData[base.upper].entities['itm_imported00000'] = { id: 'itm_imported00000', type: 'item', layerId, asset: TABLE_REF, at: [6000, 3000, 0], rotation: [0, 0, 90], scale: [1, 1, 1], materials: {} };
-  return { ...base, doc: doc as unknown as ProjectDoc };
-}
+import { PAINT, TABLE_REF, gltfHouse as house, tableGlb } from './house.fixture';
 
 const nodeNames = (glb: Uint8Array) => (readGlbChunks(glb).json.nodes ?? []).map((n) => (n as { name?: string }).name);
 const triangleCount = (positions: Float32Array) => positions.length / 9;

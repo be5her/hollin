@@ -86,6 +86,23 @@ describe('drawingToSvg', () => {
     expect(svgLayout(drawing, { scale: 20 }).fits).toBe(true);
   });
 
+  it('clips a drawing larger than the sheet to the drawing area, leaving the title block clear', () => {
+    // Rendered in Chromium, the house at 1:20 on A4 ran over the margins and under the title block.
+    const svg = drawingToSvg(drawing, { page: 'A4', orientation: 'portrait', scale: 20, title: 'House', date: '2026-10-28' });
+    expect(balanced(svg)).toBe(true);
+    // A4 portrait: 10 mm margins, the title block's 24 mm and a 4 mm gap at the bottom (y down: the area starts 10 mm from the top).
+    const top = 297 - PAGE_MARGIN;
+    const bottom = PAGE_MARGIN + TITLE_BLOCK.height + 4;
+    expect(svg).toContain(`<clipPath id="drawing-area"><rect x="${PAGE_MARGIN}" y="${297 - top}" width="${210 - 2 * PAGE_MARGIN}" height="${top - bottom}"/></clipPath>`);
+    const clipped = svg.indexOf('clip-path="url(#drawing-area)"');
+    expect(clipped).toBeGreaterThan(svg.indexOf('<clipPath'));
+    expect(clipped).toBeLessThan(svg.indexOf('<g id="layer-'));
+    // The drawing's group closes before the title block opens: the title block is not clipped.
+    expect(svg.lastIndexOf('</g>', svg.indexOf('<g id="title-block"'))).toBeGreaterThan(svg.lastIndexOf('<g id="layer-'));
+    expect(drawingToSvg(drawing, { page: 'A3', scale: 100, title: 'House' })).not.toContain('clip-path');
+    expect(drawingToSvg(drawing, { scale: 20 })).not.toContain('clip-path');
+  });
+
   it('writes one group per layer, named, back to front', () => {
     const svg = drawingToSvg(drawing);
     const groups = [...svg.matchAll(/<g id="layer-([\w-]+)" data-layer="([^"]*)">/g)].map((m) => [m[1], m[2]]);
