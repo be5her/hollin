@@ -17,9 +17,10 @@ Everything but the key is in the global `config.json` (see `packages/core/README
 
 ## Agents
 
-- Allowed: `config.get` (read the settings; never contains secrets), `app.info`, `mcp.status`.
+- Allowed: `config.get` (read the settings; never contains secrets), `app.info` (also says whether this build can update itself, `updates`), `mcp.status`.
+- The Updates section's commands (`app.update.*`) are hidden too: see `packages/modules/updates/README.md`.
 - Not exposed at all (hidden): `config.update`, `ai.key.status`, `ai.key.set`, `ai.key.clear`, `mcp.restart`, `mcp.calls`. An agent can neither read the key nor allow its own mutations.
 
 ## Verified by
 
-`src/main/smoke/host.ts` (config written and announced, patches validated, key stored encrypted and never returned), `src/main/smoke/mcp.ts` (hidden commands are not tools, port changes restart the server, on/off), `src/main/smoke/shell.ts` (theme, units editor, MCP section and call log, mutations switch, saving and removing the key, About), and `src/main/smoke/assistant-claude-code.ts` (the provider switched to Claude Code, the command field and the not-found line, the MCP switch turned off and the server back on from the chat).
+`src/main/smoke/host.ts` (config written and announced, patches validated, key stored encrypted and never returned), `src/main/smoke/mcp.ts` (hidden commands are not tools, port changes restart the server, on/off), `src/main/smoke/shell.ts` (theme, units editor, MCP section and call log, mutations switch, saving and removing the key, About), and `src/main/smoke/assistant-claude-code.ts` (the provider switched to Claude Code, the command field and the not-found line, the MCP switch turned off and the server back on from the chat), and `src/main/smoke/updates-ui.ts` (the Updates section before About, its states, buttons and checkbox, and the toast that opens Settings scrolled to it).

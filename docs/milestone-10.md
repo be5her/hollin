@@ -57,3 +57,22 @@ After step 4: a review of every change since `72016eb` (the diff as a whole, not
 - Two timing-bound unit tests can fail under machine load and pass alone: `packages/viewport/src/plan2d/perf.test.ts` ("within a loose bound") and `packages/core/src/node/library.test.ts` ("rejects hostile or broken packages"). Rerun them alone with `npx vitest run <file>` before concluding anything.
 - Commit on local `main` with the clone's author identity, and end the message with `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>` (the owner's explicit ask). Never push, never create a remote.
 - Kill Electron by pid only (`taskkill /pid <pid> /t /f`). Multi-line scripts go in files.
+
+## Outcome
+
+Four commits on local `main`:
+
+- `5a1e613` Step 1: the exports read by ezdxf 1.4.5, pypdf 6.21.3, the Khronos glTF validator and Chromium; one writer bug fixed (a level too large for the sheet at a fixed scale ran past the margins in SVG and PDF, now clipped to the drawing area).
+- `ddd38d4` Step 2: in-app updates (`electron-updater`, the hidden `app.update.*` commands, Settings > Updates, the toasts, the smoke's scripted updater).
+- `7c40cae` Step 3: packaging, signing and the release workflow (`electron-builder.cjs`, `release.yml`, `release:check`, `CHANGELOG.md`, `docs/release.md`).
+- Step 4, `Milestone 10, step 4: wrap-up`: the README, `CLAUDE.md` and the module READMEs.
+
+Where the work differed from the plan:
+
+- There is no `app.about`: the command is `app.info`, and it gained `updates`.
+- The `.deb` is supported, not excluded: electron-updater 6 updates an installed deb (as rpm and pacman) through the `package-type` file electron-builder writes.
+- `electron-updater` stays external to the main bundle: it bundles cleanly, but electron-builder packages every dependency from `node_modules` anyway, so bundling would ship it twice.
+- The Windows and macOS signing secrets are named `WIN_CSC_LINK`/`WIN_CSC_KEY_PASSWORD` and `MAC_CSC_LINK`/`MAC_CSC_KEY_PASSWORD`, each passed only to its platform's job (macOS's as `CSC_LINK`/`CSC_KEY_PASSWORD`).
+- The actions in both workflows moved to their current majors (v7).
+- The draft release is created once by the check job, not by electron-builder: the three build jobs upload in parallel and would each create one.
+- Builds run by hand also get a feed: `GITHUB_REPOSITORY` is set in every workflow run, so an installed one updates like a release would (they are only kept as artifacts, never published).

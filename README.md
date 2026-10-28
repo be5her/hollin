@@ -17,6 +17,7 @@ Windows, macOS and Linux, built with Electron and Angular.
 | 7. 3D view: stacked levels, extrusion, cut openings, slabs, connector geometry, isolate, cutaway and explode, orbit and walk cameras, 3D snapshots | done |
 | 8. Decor: a built-in and imported (glTF) furniture catalog, placing and editing items, materials and finishes, lights with day and night in 3D, door and window parts | done |
 | 9. Export and import: plans as DXF, SVG and PDF, the building as glTF, PNG renders of the plan or in 3D, DXF import to trace over, the Export dialog | done |
+| 10. Release: exports checked by independent readers, in-app updates from GitHub Releases, signing and notarization ready, the release workflow | done |
 
 ## Development
 
@@ -27,9 +28,10 @@ Node 24 (see `.nvmrc`; the Angular CLI needs ^22.22.3 or ^24.15).
 | `npm run dev` | The Angular dev server, then Electron in watch mode: renderer changes reload the window, main/preload changes restart Electron. Uses its own data folder (`Plan Studio Dev`). |
 | `npm run build` | electron-vite builds main and preload into `out/`; the Angular CLI builds the renderer into `out/renderer`. |
 | `npm run typecheck` | `tsc -p tsconfig.node.json` (main, preload, core, mcp, modules' Node side) and `ngc -p tsconfig.app.json` (the renderer and every module's `ui/`). |
-| `npm test` | vitest unit tests next to the code in `packages/`. |
+| `npm test` | vitest unit tests next to the code in `packages/`, `src/main` and `scripts/`. |
 | `npm run smoke` | Builds, then launches the app with `--smoke`: a temporary data folder and a private MCP port, every feature checked through commands, MCP and the UI. Exits non-zero on any failure. `SMOKE_SHOTS=<dir>` saves screenshots. |
-| `npm run package` | Installers with electron-builder: NSIS on Windows, dmg/zip on macOS, AppImage/deb on Linux (unsigned). |
+| `npm run package` | Builds, then installers with electron-builder into `release/`: NSIS on Windows, dmg/zip on macOS, AppImage/deb on Linux. Unsigned unless the signing secrets are in the environment (`docs/release.md`); a local build has no update feed (only the release workflow's builds have one), so its Settings > Updates says updates are not available. |
+| `npm run release:check` | Fails when `CHANGELOG.md` has no section (or an empty one) for `package.json`'s version, or (`-- vX.Y.Z`) the tag does not match it (`scripts/release-check.mjs`). The release workflow runs it first. |
 | `npm run icon` | Renders `resources/icon.svg` to `resources/icon.png` with Electron. |
 
 How changes are made, and the conventions: [CLAUDE.md](CLAUDE.md).
@@ -51,10 +53,16 @@ packages/viewport        Framework-free renderers driven by the document: plan2d
                          Imported by the renderer only.
 packages/modules/<name>  One folder per feature: main.ts (commands), ui/ (Angular), README.md. exchange holds
                          the exports, the DXF import and their dialogs.
-src/main                 Electron main: the host, IPC, the window, the smoke test.
+src/main                 Electron main: the host, IPC, the window, the updater (electron-updater behind the host's
+                         Updater), the smoke test.
 src/preload              The only bridge between renderer and main.
 src/renderer             The Angular app and the shell (its own npm workspace).
+scripts/                 The dev launcher, the icon renderer and the release check.
 ```
+
+## Releases
+
+A release is a tag `vX.Y.Z` matching `package.json`'s version, with a section for that version in [`CHANGELOG.md`](CHANGELOG.md). Pushing the tag runs `.github/workflows/release.yml`: it checks the version and the changelog, runs the typecheck and the unit tests, then builds the installers on Windows, macOS and Linux and uploads them with the update feed to a draft GitHub Release, which the owner reviews and publishes. Signing and notarization switch on when their secrets exist; until then the builds are unsigned. How to cut one, the secrets and what works unsigned: [docs/release.md](docs/release.md). Installed copies find a published release in Settings > Updates (`packages/modules/updates`).
 
 ## Architecture
 
@@ -86,6 +94,7 @@ The **assistant** (`packages/modules/assistant`) is a chat per project in the pr
 | @modelcontextprotocol/server, @modelcontextprotocol/node | The MCP server (SDK v2: the stable line; v1 only gets fixes until early 2027). |
 | @modelcontextprotocol/client (dev) | Unit tests and the smoke test talk to the server with the SDK's own client. |
 | @anthropic-ai/sdk | The in-app assistant's Claude API client: streaming, typed errors and the request types (`packages/modules/assistant`). |
+| electron-updater | In-app updates from GitHub Releases, asked for by the brief (`src/main/updater.ts`). Kept external to the main bundle: electron-builder packages every dependency from `node_modules` anyway, so bundling it would ship it twice. |
 | fflate | Project packages (zip) without native modules. |
 | rbush (+ `@types/rbush`) | The plan's R-tree: culling what is drawn and hit-testing candidates. |
 | three (+ `@types/three`) | The 3D view's WebGL rendering (`packages/viewport/src/scene3d`); its own `GLTFLoader` and `RectAreaLightUniformsLib` addons load imported models and light area panels (Milestone 8 added no dependency; nor did Milestone 9: the DXF, SVG, PDF and GLB writers, the DXF reader and the PNG header reader are hand-written in core, and the PDF's streams are compressed with node's `zlib`). Pinned exactly to `0.186.1`: three has no semver, any release may change the API. |
