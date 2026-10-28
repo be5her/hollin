@@ -23,7 +23,8 @@
     "test": "vitest run",
     "smoke": "npm run build && electron . --smoke",
     "package": "npm run build && electron-builder --publish never",
-    "icon": "electron scripts/render-icon.cjs"
+    "icon": "electron scripts/render-icon.cjs",
+    "release:check": "node scripts/release-check.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",

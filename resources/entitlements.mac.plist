@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  The entitlements of the signed macOS app (hardened runtime), for the app and, through
+  entitlementsInherit, for Electron's helpers and frameworks. Used only when the build is signed
+  (CSC_LINK set); an unsigned build ignores this file.
+-->
+<plist version="1.0">
+  <dict>
+    <!-- V8 compiles JavaScript to machine code at run time: without it the renderer and main crash under the hardened runtime. -->
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+    <!-- V8 and WebAssembly also write and execute memory pages that are not MAP_JIT; Electron's own signing guide keeps this. -->
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+    <!-- Electron's frameworks and helpers carry Electron's signature, not the app's team: library validation would refuse to load them. -->
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+    <!-- Outgoing connections: the update feed (GitHub Releases) and the assistant's Claude API. Only the App Sandbox
+         enforces it (this build is not sandboxed), so it states the intent and keeps a sandboxed build working. The MCP
+         server listens on localhost, which needs no entitlement outside the sandbox. -->
+    <key>com.apple.security.network.client</key>
+    <true/>
+  </dict>
+</plist>

@@ -1,6 +1,24 @@
 // Packaging for Windows (NSIS), macOS (dmg + zip) and Linux (AppImage + deb). Names come from
-// branding.json so a rename touches one file. Builds are unsigned until signing secrets are added.
+// branding.json so a rename touches one file. Signing and notarization switch on when their secrets are
+// in the environment (see docs/release.md); without them the build is unsigned and still completes.
 const branding = require('./branding.json');
+const pkg = require('./package.json');
+
+/** An environment variable with a value: GitHub Actions passes a missing secret as an empty string. */
+const env = (name) => {
+  const value = process.env[name];
+  return value != null && value.trim() !== '' ? value : undefined;
+};
+
+// The update feed. electron-builder writes `app-update.yml` (what electron-updater reads) into a build
+// only when the build has a `publish` configuration, so the feed exists only in builds made by the
+// release workflow, where GitHub sets GITHUB_REPOSITORY ("owner/repo"). Everywhere else `publish` is
+// `null`, not left out: left out, electron-builder would guess a GitHub feed from a GH_TOKEN in the
+// environment. A local `npm run package` therefore has no feed and the app reports updates as
+// unsupported (src/main/update-state.ts). No owner or repository is named in the source.
+const repository = env('GITHUB_REPOSITORY');
+const [owner, repo] = repository ? repository.split('/') : [];
+const publish = owner && repo ? { provider: 'github', owner, repo, releaseType: 'draft' } : null;
 
 /** @type {import('electron-builder').Configuration} */
 module.exports = {
@@ -14,7 +32,18 @@ module.exports = {
   // No native modules.
   npmRebuild: false,
   fileAssociations: [{ ext: branding.packageExtension, name: `${branding.productName} project`, role: 'Editor' }],
+  publish,
+  // The deb needs a homepage (electron-builder's FpmTarget refuses to build without one); package.json
+  // names no repository, so the release workflow's repository is it.
+  ...(publish ? { extraMetadata: { homepage: `https://github.com/${owner}/${repo}` } } : {}),
+  // One `latest*.yml` per platform, never alpha/beta copies (GitHub releases have one channel anyway).
+  // The targets below that electron-updater can install write it: NSIS (`latest.yml`), the macOS zip,
+  // with the dmg listed beside it (`latest-mac.yml`), AppImage and deb (`latest-linux.yml`).
+  generateUpdatesFilesForAllChannels: false,
   win: {
+    // NSIS only: it is the Windows target electron-updater installs (a portable exe would write no feed file).
+    // Signed when WIN_CSC_LINK (or CSC_LINK: a base64 .pfx or a path) and WIN_CSC_KEY_PASSWORD (or
+    // CSC_KEY_PASSWORD) are set; electron-builder treats an empty link as unset and builds unsigned.
     target: ['nsis'],
     artifactName: '${productName}-${version}-setup.${ext}',
   },
@@ -24,14 +53,30 @@ module.exports = {
   },
   mac: {
     category: 'public.app-category.graphics-design',
+    // dmg for people, zip for the updater (Squirrel.Mac installs from the zip).
     target: [
       { target: 'dmg', arch: ['x64', 'arm64'] },
       { target: 'zip', arch: ['x64', 'arm64'] },
     ],
-    identity: null,
+    // With a certificate (CSC_LINK, CSC_KEY_PASSWORD) electron-builder imports it into a temporary
+    // keychain and finds the Developer ID identity itself; without one, `null` skips signing rather than
+    // searching the machine's keychain. electron-builder treats only `null` as "do not sign", so an empty
+    // CSC_LINK must become `null` here.
+    identity: env('CSC_LINK') ? undefined : null,
+    hardenedRuntime: true,
+    gatekeeperAssess: false,
+    entitlements: 'resources/entitlements.mac.plist',
+    entitlementsInherit: 'resources/entitlements.mac.plist',
+    // electron-builder 26's option is a boolean; the credentials come from APPLE_ID,
+    // APPLE_APP_SPECIFIC_PASSWORD and APPLE_TEAM_ID (it stops with an error when only some are set).
+    // It runs after signing, so an unsigned build is never notarized.
+    notarize: Boolean(env('APPLE_ID')),
   },
   linux: {
-    category: 'Graphics',
+    // The desktop entry's Categories: the main category and an additional one (freedesktop's menu spec).
+    category: 'Graphics;Engineering',
     target: ['AppImage', 'deb'],
+    artifactName: '${productName}-${version}-${arch}.${ext}',
+    maintainer: `${pkg.author.name} <${pkg.author.email}>`,
   },
 };
