@@ -1,0 +1,1090 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Noli — minimal concept</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300..700&family=Geist+Mono:wght@300..700&display=swap" rel="stylesheet">
+<style>
+/* ---------- the concept page itself (light, paper) ---------- */
+:root {
+  --page: #ffffff;
+  --ink: #121212;
+  --ink-2: #707070;
+  --rule: #e4e4e4;
+  --mark: #e8401c;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--page); color: var(--ink); }
+body { font: 15px/1.55 "Geist", system-ui, sans-serif; -webkit-font-smoothing: antialiased; padding: 0 0 160px; }
+.page { max-width: 1240px; margin: 0 auto; padding: 0 32px; }
+h1, h2, h3 { font-weight: 500; letter-spacing: -0.02em; margin: 0; }
+h1 { font-size: 56px; line-height: 1; letter-spacing: -0.04em; }
+h2 { font-size: 13px; line-height: 20px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2); font-weight: 500; }
+section { border-top: 1px solid var(--rule); padding: 32px 0 56px; }
+.lede { max-width: 720px; color: var(--ink-2); margin: 10px 0 0; }
+.mono { font-family: "Geist Mono", ui-monospace, monospace; font-feature-settings: "tnum"; }
+.row { display: flex; gap: 48px; flex-wrap: wrap; align-items: flex-end; }
+.cap { font: 11px/16px "Geist Mono", monospace; color: var(--ink-2); margin-top: 10px; }
+figure { margin: 0; }
+
+/* wordmark */
+.wm { display: inline-flex; align-items: flex-start; font-weight: 500; letter-spacing: -0.045em; line-height: 1; position: relative; }
+.wm .i { position: relative; display: inline-block; }
+.wm .i::after { content: ""; position: absolute; left: 50%; transform: translateX(-50%); background: var(--mark); width: 0.145em; height: 0.145em; top: 0.095em; }
+.wm .i::before { content: ""; position: absolute; left: 50%; transform: translateX(-50%); background: var(--wm-bg, #fff); width: 0.2em; height: 0.26em; top: 0.02em; }
+.wm .glyph { position: relative; z-index: 1; }
+.wm .i .glyph { z-index: 0; }
+
+/* icon sizes */
+.icons { display: flex; gap: 48px; align-items: flex-end; }
+.icons img, .icons .ic { display: block; image-rendering: auto; }
+.icon-ctx { display: inline-flex; gap: 14px; align-items: center; padding: 10px 14px; border: 1px solid var(--rule); }
+.icon-ctx.dark { background: #000; color: #f2f2f2; border-color: #242424; }
+.icon-ctx.win { background: #202020; color: #f2f2f2; border-color: #333; }
+.icon-ctx span { font-size: 12px; }
+
+/* specimen */
+.spec { display: grid; grid-template-columns: 1fr 1fr; gap: 48px 64px; }
+.spec .line { display: grid; grid-template-columns: 170px 1fr; gap: 24px; align-items: baseline; border-bottom: 1px solid var(--rule); padding: 14px 0; }
+.spec .line .n { font: 11px/16px "Geist Mono", monospace; color: var(--ink-2); }
+.t-display { font-size: 34px; line-height: 40px; font-weight: 500; letter-spacing: -0.03em; }
+.t-title { font-size: 20px; line-height: 24px; font-weight: 500; letter-spacing: -0.02em; }
+.t-body { font-size: 13px; line-height: 18px; }
+.t-label { font-size: 11px; line-height: 14px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2); }
+.t-mono { font: 12px/16px "Geist Mono", monospace; font-feature-settings: "tnum"; }
+.t-mono-big { font: 500 28px/32px "Geist Mono", monospace; font-feature-settings: "tnum"; letter-spacing: -0.02em; }
+.t-mono-sm { font: 11px/14px "Geist Mono", monospace; color: var(--ink-2); }
+
+/* palette */
+.pal { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
+.pal-theme { padding: 24px; border: 1px solid var(--rule); }
+.pal-theme.theme-dark { background: #000; color: #f2f2f2; border-color: #242424; }
+.pal-theme h3 { font-size: 13px; margin-bottom: 18px; }
+.sw-group { margin-bottom: 18px; }
+.sw-group .g { font: 11px/14px "Geist Mono", monospace; opacity: 0.6; margin-bottom: 8px; }
+.sw { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); border-top: 1px solid currentColor; border-left: 1px solid currentColor; }
+.theme-light .sw { color: #e4e4e4; }
+.theme-dark .sw { color: #242424; }
+.sw > div { background: var(--page-bg); padding: 10px; color: inherit; border-right: 1px solid; border-bottom: 1px solid; }
+.theme-light .sw > div { --page-bg: #fff; color: #121212; border-color: #e4e4e4; }
+.theme-dark .sw > div { --page-bg: #000; color: #f2f2f2; border-color: #242424; }
+.sw b { display: block; height: 36px; margin-bottom: 8px; border: 1px solid rgba(128,128,128,0.25); }
+.sw i { display: block; font-style: normal; font: 10px/13px "Geist Mono", monospace; opacity: 0.85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sw i + i { opacity: 0.55; }
+
+/* mock frames */
+.frame { width: 100%; aspect-ratio: 1890 / 1020; position: relative; overflow: hidden; border: 1px solid var(--rule); }
+.frame .mock { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.frame-sm { width: 100%; position: relative; overflow: hidden; border: 1px solid var(--rule); }
+.frame-sm .panel { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+figure + figure { margin-top: 40px; }
+figcaption { font: 11px/16px "Geist Mono", monospace; color: var(--ink-2); margin: 10px 0 0; }
+
+/* ---------- the two themes, every variable the app has ---------- */
+.theme-light {
+  --canvas: #ffffff;
+  --surface: #fafafa;
+  --elevated: #f0f0f0;
+  --fg: #121212;
+  --muted: #707070;
+  --edge: #e4e4e4;
+  --accent: #e8401c;
+  --accent-hover: #c93312;
+  --accent-fg: #ffffff;
+  --danger: #b0101a;
+  --success: #1a9e5c;
+  --warning: #c48a00;
+  --titlebar: #ffffff;
+  --titlebar-fg: #121212;
+  --plan-grid: #f0f0f0;
+  --plan-grid-major: #dcdcdc;
+  --plan-wall: #121212;
+  --plan-wall-line: #121212;
+  --plan-room: #8a8a8a;
+  --plan-slab: #f4f4f4;
+  --plan-dim: #121212;
+  --plan-underlay: #b8b8b8;
+  --plan-snap: #1a9e5c;
+  --plan-selection: #e8401c;
+  --plan-warning: #c48a00;
+  --plan-connector: #121212;
+  --plan-decor: #808080;
+  --scene-edge: #121212;
+  --scene-wall: #f4f4f4;
+  --scene-slab: #d6d6d6;
+  --scene-column: #e8e8e8;
+  --scene-glass: #cbd3d9;
+  --scene-connector: #e0e0e0;
+  --scene-rail: #4a4a4a;
+  --scene-car: #e8401c;
+  --scene-stand-in: #b4b4b4;
+}
+.theme-dark {
+  --canvas: #000000;
+  --surface: #0c0c0c;
+  --elevated: #1a1a1a;
+  --fg: #f2f2f2;
+  --muted: #8a8a8a;
+  --edge: #242424;
+  --accent: #ff6a45;
+  --accent-hover: #ff8a6b;
+  --accent-fg: #000000;
+  --danger: #f0506e;
+  --success: #3ddc84;
+  --warning: #f2c14e;
+  --titlebar: #0c0c0c;
+  --titlebar-fg: #f2f2f2;
+  --plan-grid: #121212;
+  --plan-grid-major: #222222;
+  --plan-wall: #f2f2f2;
+  --plan-wall-line: #ffffff;
+  --plan-room: #9a9a9a;
+  --plan-slab: #0e0e0e;
+  --plan-dim: #f2f2f2;
+  --plan-underlay: #585858;
+  --plan-snap: #3ddc84;
+  --plan-selection: #ff6a45;
+  --plan-warning: #f2c14e;
+  --plan-connector: #f2f2f2;
+  --plan-decor: #8c8c8c;
+  --scene-edge: #050505;
+  --scene-wall: #9c9c9c;
+  --scene-slab: #4c4c4c;
+  --scene-column: #7c7c7c;
+  --scene-glass: #6b7b88;
+  --scene-connector: #6e6e6e;
+  --scene-rail: #e0e0e0;
+  --scene-car: #ff6a45;
+  --scene-stand-in: #505050;
+}
+
+/* ---------- the app skin used by the mocks ---------- */
+.mock { width: 1890px; height: 1020px; background: var(--canvas); color: var(--fg); font: 13px/18px "Geist", system-ui, sans-serif; display: flex; flex-direction: column; overflow: hidden; -webkit-font-smoothing: antialiased; }
+.mock svg.ico { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.mock .m { font-family: "Geist Mono", ui-monospace, monospace; font-feature-settings: "tnum"; }
+.mock .muted { color: var(--muted); }
+.mock .lbl { font-size: 11px; line-height: 14px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.mock .sq { width: 10px; height: 10px; background: var(--accent); flex: none; }
+.mock .sqo { width: 10px; height: 10px; border: 1.5px solid var(--accent); flex: none; }
+.mock .kbd { font: 11px/14px "Geist Mono", monospace; border: 1px solid var(--edge); padding: 1px 6px; color: var(--muted); }
+.mock .hair { border-bottom: 1px solid var(--edge); }
+
+.mock .titlebar { height: 52px; flex: none; background: var(--titlebar); color: var(--titlebar-fg); border-bottom: 1px solid var(--edge); display: flex; align-items: stretch; padding: 0 16px 0 18px; }
+.mock .brand { display: flex; align-items: center; gap: 10px; margin-right: 24px; font-weight: 500; font-size: 15px; letter-spacing: -0.03em; }
+.mock .brand .wm { font-size: 17px; }
+.mock .tabs { display: flex; align-items: stretch; }
+.mock .tab { display: flex; align-items: center; gap: 10px; padding: 0 20px; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.mock .tab.home { padding: 0 16px; }
+.mock .tab.active { color: var(--fg); border-bottom-color: var(--fg); }
+.mock .tab .x { opacity: 0.6; }
+.mock .tbr { margin-left: auto; display: flex; align-items: center; gap: 28px; color: var(--muted); }
+.mock .search { display: flex; align-items: center; gap: 12px; }
+
+.mock .statusbar { height: 30px; flex: none; border-top: 1px solid var(--edge); display: flex; align-items: center; gap: 20px; padding: 0 18px; font: 11px/14px "Geist Mono", monospace; color: var(--muted); }
+.mock .statusbar .r { margin-left: auto; display: flex; gap: 20px; align-items: center; }
+.mock .statusbar .dot { width: 6px; height: 6px; background: var(--success); display: inline-block; margin-right: 6px; vertical-align: 1px; }
+
+/* buttons */
+.mock .btn { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 16px; border: 1px solid var(--edge); color: var(--fg); background: transparent; font: inherit; white-space: nowrap; }
+.mock .btn.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.mock .btn.ghost { border-color: transparent; padding: 0 10px; color: var(--fg); }
+.mock .btn.ghost.muted { color: var(--muted); }
+.mock .btn.danger { border-color: transparent; color: var(--muted); }
+
+/* ---- Home ---- */
+.mock .home { flex: 1; padding: 56px 225px 0; display: flex; flex-direction: column; min-height: 0; }
+.mock .home-head { display: flex; align-items: center; gap: 28px; }
+.mock .home-head h1 { font-size: 34px; line-height: 40px; font-weight: 500; letter-spacing: -0.03em; margin: 0 8px 0 0; }
+.mock .home-head .trash { margin-left: auto; display: flex; align-items: center; gap: 8px; color: var(--muted); }
+.mock .filters { display: flex; align-items: center; gap: 28px; margin: 30px 0 28px; height: 36px; }
+.mock .filters .srch { display: flex; align-items: center; gap: 12px; width: 420px; height: 36px; border-bottom: 1px solid var(--edge); color: var(--muted); }
+.mock .filters .sort { display: flex; align-items: center; gap: 10px; }
+.mock .chips { display: flex; gap: 8px; }
+.mock .chip { border: 1px solid var(--edge); padding: 3px 10px; font-size: 12px; color: var(--muted); display: inline-flex; gap: 6px; }
+.mock .chip .m { opacity: 0.8; }
+.mock .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--edge); border: 1px solid var(--edge); }
+.mock .card { background: var(--canvas); height: 354px; display: flex; flex-direction: column; position: relative; }
+.mock .card.sel::after { content: ""; position: absolute; inset: -1px; border: 1.5px solid var(--accent); pointer-events: none; }
+.mock .thumb { height: 250px; display: flex; align-items: center; justify-content: center; border-bottom: 1px solid var(--edge); }
+.mock .thumb svg { width: 100%; height: 100%; }
+.mock .thumb .none { width: 96px; height: 72px; border: 1px solid var(--edge); display: flex; align-items: center; justify-content: center; }
+.mock .thumb .none i { width: 6px; height: 6px; background: var(--edge); }
+.mock .cinfo { padding: 16px 18px 0; display: flex; flex-direction: column; gap: 6px; }
+.mock .cinfo .nm { font-size: 14px; font-weight: 500; letter-spacing: -0.01em; }
+.mock .cinfo .meta { font: 11px/14px "Geist Mono", monospace; color: var(--muted); }
+.mock .cinfo .tags { display: flex; gap: 6px; margin-top: 4px; }
+.mock .cinfo .tags span { font-size: 11px; color: var(--muted); border: 1px solid var(--edge); padding: 1px 7px; }
+
+/* ---- Project ---- */
+.mock .proj { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.mock .phead { height: 64px; flex: none; border-bottom: 1px solid var(--edge); display: flex; align-items: center; padding: 0 24px; gap: 28px; }
+.mock .phead h1 { font-size: 20px; line-height: 24px; font-weight: 500; letter-spacing: -0.02em; margin: 0; }
+.mock .phead .saved { font: 11px/14px "Geist Mono", monospace; color: var(--muted); }
+.mock .phead .acts { margin-left: auto; display: flex; align-items: center; gap: 4px; }
+.mock .phead .sep { width: 1px; height: 20px; background: var(--edge); margin: 0 12px; }
+.mock .pbody { flex: 1; display: flex; min-height: 0; }
+.mock .left { width: 376px; flex: none; border-right: 1px solid var(--edge); padding: 0 0 0 0; display: flex; flex-direction: column; overflow: hidden; }
+.mock .right { width: 419px; flex: none; border-left: 1px solid var(--edge); display: flex; flex-direction: column; overflow: hidden; }
+.mock .centre { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+.mock .ph { display: flex; align-items: center; justify-content: space-between; padding: 0 20px 0 24px; height: 44px; }
+.mock .lvl { display: flex; align-items: center; height: 44px; padding: 0 22px 0 24px; gap: 12px; color: var(--muted); }
+.mock .lvl .grip { opacity: 0.5; }
+.mock .lvl.active { color: var(--fg); }
+.mock .lvl .nm { flex: 1; }
+.mock .lvl .el { font: 12px/16px "Geist Mono", monospace; font-feature-settings: "tnum"; }
+.mock .lvl.active .el { color: var(--fg); }
+.mock .lvl .g { font: 10px/12px "Geist Mono", monospace; opacity: 0.7; margin-right: 8px; }
+.mock .lvl.warn .el { color: var(--warning); }
+.mock .leditor { margin: 10px 24px 8px; border-top: 1px solid var(--edge); padding-top: 14px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px 20px; }
+.mock .fld { display: flex; flex-direction: column; gap: 6px; }
+.mock .fld.wide { grid-column: span 2; }
+.mock .fld label { font-size: 11px; line-height: 14px; color: var(--muted); }
+.mock .fld .in { height: 32px; border-bottom: 1px solid var(--edge); display: flex; align-items: center; justify-content: space-between; }
+.mock .fld .in.num { font: 13px/18px "Geist Mono", monospace; font-feature-settings: "tnum"; }
+.mock .fld .in .u { color: var(--muted); font: 11px/14px "Geist Mono", monospace; }
+.mock .fld .in.sel svg { width: 14px; height: 14px; color: var(--muted); }
+.mock .fld .in.empty { color: var(--muted); }
+.mock .layer { padding: 10px 22px 10px 24px; display: flex; flex-direction: column; gap: 8px; }
+.mock .layer .r1 { display: flex; align-items: center; gap: 12px; }
+.mock .layer .r1 .nm { flex: 1; margin-left: 4px; }
+.mock .layer .r1 .cnt { font: 11px/14px "Geist Mono", monospace; color: var(--muted); }
+.mock .layer .r1 svg.ico { width: 16px; height: 16px; color: var(--muted); }
+.mock .layer .r2 { display: flex; align-items: center; gap: 12px; padding-left: 60px; font: 11px/14px "Geist Mono", monospace; color: var(--muted); }
+.mock .slider { flex: 1; height: 1px; background: var(--edge); position: relative; }
+.mock .slider::before { content: ""; position: absolute; left: 0; top: 0; height: 1px; width: var(--v, 100%); background: var(--fg); }
+.mock .slider::after { content: ""; position: absolute; left: calc(var(--v, 100%) - 4px); top: -4px; width: 9px; height: 9px; background: var(--canvas); border: 1.5px solid var(--fg); }
+
+.mock .vtabs { height: 42px; flex: none; border-bottom: 1px solid var(--edge); display: flex; align-items: stretch; padding: 0 12px 0 10px; }
+.mock .vtab { display: flex; align-items: center; padding: 0 14px; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.mock .vtab.active { color: var(--fg); border-bottom-color: var(--fg); }
+.mock .vtabs .r { margin-left: auto; display: flex; align-items: center; gap: 4px; }
+.mock .tools { height: 44px; flex: none; display: flex; align-items: center; padding: 0 12px; gap: 2px; border-bottom: 1px solid var(--edge); }
+.mock .tool { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; color: var(--muted); position: relative; }
+.mock .tool.active { color: var(--fg); }
+.mock .tool.active::after { content: ""; position: absolute; left: 50%; bottom: 1px; width: 4px; height: 4px; margin-left: -2px; background: var(--accent); }
+.mock .tools .gap { width: 14px; height: 18px; border-left: 1px solid var(--edge); margin: 0 8px 0 6px; }
+.mock .tools .pick { margin-left: auto; display: flex; align-items: center; gap: 10px; height: 32px; padding: 0 2px 0 10px; color: var(--fg); white-space: nowrap; }
+.mock .tools .pick + .pick { margin-left: 18px; color: var(--muted); }
+.mock .tools .pick svg { width: 14px; height: 14px; color: var(--muted); }
+.mock .snaprow { height: 40px; flex: none; display: flex; align-items: center; padding: 0 12px; gap: 2px; }
+.mock .snaprow .r { margin-left: auto; display: flex; align-items: center; gap: 10px; color: var(--muted); }
+.mock .snaprow .r .m { color: var(--fg); font-size: 12px; }
+.mock .cv { flex: 1; min-height: 0; position: relative; background: var(--canvas); }
+.mock .cv svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.mock .cfoot { height: 30px; flex: none; border-top: 1px solid var(--edge); display: flex; align-items: center; padding: 0 16px; gap: 28px; font: 11px/14px "Geist Mono", monospace; color: var(--muted); }
+.mock .cfoot .snap { color: var(--success); }
+.mock .cfoot .mid { margin-left: auto; }
+.mock .cv .empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; text-align: center; }
+.mock .cv .empty h2 { font-size: 20px; line-height: 24px; font-weight: 500; letter-spacing: -0.02em; margin: 0; text-transform: none; color: var(--fg); }
+.mock .cv .empty p { margin: 0; color: var(--muted); display: flex; gap: 8px; align-items: center; }
+.mock .cv .empty .kbd { color: var(--fg); background: var(--canvas); }
+
+.mock .rtabs { height: 44px; flex: none; display: flex; align-items: stretch; padding: 0 10px; border-bottom: 1px solid var(--edge); }
+.mock .rtabs .vtab { padding: 0 12px; }
+.mock .rtabs2 { height: 38px; flex: none; display: flex; align-items: center; padding: 0 22px; gap: 24px; color: var(--muted); border-bottom: 1px solid var(--edge); }
+.mock .rtabs2 .cnt { font: 11px/14px "Geist Mono", monospace; color: var(--warning); margin-left: 6px; }
+.mock .props { padding: 22px 22px 0; display: flex; flex-direction: column; gap: 18px; }
+.mock .props h2 { font-size: 20px; line-height: 24px; font-weight: 500; letter-spacing: -0.02em; margin: 0 0 4px; text-transform: none; color: var(--fg); }
+.mock .props .big { display: flex; align-items: baseline; gap: 20px; padding: 6px 0 10px; }
+.mock .props .big .v { font: 500 28px/32px "Geist Mono", monospace; letter-spacing: -0.02em; font-feature-settings: "tnum"; }
+.mock .props .big .k { font-size: 11px; color: var(--muted); }
+.mock .props .big .v small { font-size: 16px; font-weight: 400; color: var(--muted); margin-left: 4px; }
+.mock .props .lbl { margin-top: 8px; }
+.mock .frow { display: grid; grid-template-columns: 80px 1fr 28px; align-items: center; height: 40px; border-bottom: 1px solid var(--edge); gap: 12px; }
+.mock .frow .k { color: var(--muted); }
+.mock .frow .v { display: flex; align-items: center; justify-content: space-between; }
+.mock .frow .v svg { width: 14px; height: 14px; color: var(--muted); }
+.mock .frow .swt { width: 18px; height: 18px; border: 1px solid var(--edge); justify-self: end; }
+.mock .props .nothing { color: var(--muted); }
+.mock .props .nothing b { color: var(--fg); font-weight: 500; display: block; margin-bottom: 6px; font-size: 20px; letter-spacing: -0.02em; }
+
+/* ---- assistant specimen panel ---- */
+.panel { width: 419px; height: 640px; background: var(--canvas); color: var(--fg); font: 13px/18px "Geist", system-ui, sans-serif; display: flex; flex-direction: column; border-left: 1px solid var(--edge); -webkit-font-smoothing: antialiased; }
+.panel .ahead { height: 44px; display: flex; align-items: center; gap: 10px; padding: 0 22px; border-bottom: 1px solid var(--edge); }
+.panel .ahead .model { font: 11px/14px "Geist Mono", monospace; color: var(--muted); }
+.panel .ahead .clr { margin-left: auto; color: var(--muted); font-size: 12px; }
+.panel .turns { flex: 1; padding: 6px 22px 0; overflow: hidden; }
+.panel .turn { padding: 14px 0; border-bottom: 1px solid var(--edge); display: grid; grid-template-columns: 36px 1fr; gap: 10px; }
+.panel .turn .who { font: 11px/18px "Geist Mono", monospace; color: var(--muted); }
+.panel .turn .who .sq, .panel .ahead .sq { width: 10px; height: 10px; background: var(--accent); display: inline-block; margin-top: 4px; }
+.panel .turn .who .sqo { width: 10px; height: 10px; border: 1.5px solid var(--accent); display: inline-block; margin-top: 4px; }
+.panel .turn p { margin: 0; }
+.panel .call { margin: 8px 0 0; padding: 8px 0 0; border-top: 1px dashed var(--edge); font-size: 12px; color: var(--muted); display: flex; gap: 10px; align-items: flex-start; }
+.panel .call svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; flex: none; margin-top: 2px; }
+.panel .call .m { color: var(--fg); }
+.panel .ask { display: flex; gap: 10px; margin-top: 10px; }
+.panel .ask span { border: 1px solid var(--edge); padding: 5px 12px; }
+.panel .ask span.y { border-color: var(--fg); }
+.panel .input { border-top: 1px solid var(--edge); padding: 14px 22px; display: flex; align-items: center; gap: 12px; color: var(--muted); }
+.panel .input .send { margin-left: auto; color: var(--fg); display: flex; }
+.panel .input .send svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: start; }
+.two figure + figure { margin-top: 0; }
+.three-d { aspect-ratio: 1093 / 718; position: relative; overflow: hidden; border: 1px solid var(--rule); background: var(--canvas); }
+.three-d svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.three-d .hud { position: absolute; left: 0; right: 0; top: 0; height: 38px; padding: 0 16px; border-bottom: 1px solid var(--edge); background: var(--canvas); font: 11px/38px "Geist Mono", monospace; color: var(--muted); display: flex; gap: 18px; }
+.three-d .hud b { font-weight: 500; color: var(--fg); }
+.three-d .foot { position: absolute; left: 0; right: 0; bottom: 0; height: 30px; padding: 0 16px; border-top: 1px solid var(--edge); background: var(--canvas); font: 11px/30px "Geist Mono", monospace; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+</style>
+</head>
+<body>
+
+<!-- shared symbols: the icon and three miniature plans for the Home cards -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="appicon" viewBox="0 0 1024 1024">
+      <rect x="64" y="64" width="896" height="896" rx="200" fill="#ffffff" stroke="#121212" stroke-width="6"/>
+      <g fill="none" stroke="#121212">
+        <path d="M296 296 H728 V728 H584" stroke-width="64"/>
+        <path d="M440 728 H296 V296" stroke-width="64"/>
+        <path d="M440 728 V584" stroke-width="28"/>
+        <path d="M440 584 A144 144 0 0 1 584 728" stroke-width="12"/>
+      </g>
+      <rect x="540" y="364" width="120" height="120" fill="#e8401c"/>
+    </symbol>
+    <symbol id="appicon-sq" viewBox="0 0 1024 1024">
+      <rect x="96" y="96" width="832" height="832" fill="#ffffff" stroke="#121212" stroke-width="6"/>
+      <g fill="none" stroke="#121212">
+        <path d="M296 296 H728 V728 H584" stroke-width="64"/>
+        <path d="M440 728 H296 V296" stroke-width="64"/>
+        <path d="M440 728 V584" stroke-width="28"/>
+        <path d="M440 584 A144 144 0 0 1 584 728" stroke-width="12"/>
+      </g>
+      <rect x="540" y="364" width="120" height="120" fill="#e8401c"/>
+    </symbol>
+    <!-- miniature plans: ink only, scaled by the card -->
+    <symbol id="mp1" viewBox="0 0 200 150">
+      <g fill="none" stroke="var(--plan-wall)" stroke-width="5">
+        <path d="M30 25 H170 V125 H30 Z"/>
+        <path d="M105 25 V80 H170"/>
+        <path d="M30 95 H60"/>
+      </g>
+      <g fill="none" stroke="var(--plan-wall)" stroke-width="1">
+        <path d="M75 95 V80 A15 15 0 0 1 90 95" />
+        <rect x="120" y="92" width="28" height="22"/>
+        <path d="M120 92 L148 114 M148 92 L120 114"/>
+      </g>
+      <text x="62" y="55" font-family="Geist Mono, monospace" font-size="6" fill="var(--muted)">14.2 m²</text>
+    </symbol>
+    <symbol id="mp2" viewBox="0 0 200 150">
+      <g fill="none" stroke="var(--plan-wall)" stroke-width="5">
+        <path d="M40 20 H160 V130 H40 Z"/>
+        <path d="M100 20 V130"/>
+        <path d="M40 75 H100"/>
+      </g>
+      <g fill="none" stroke="var(--plan-wall)" stroke-width="1">
+        <path d="M112 60 h30 M112 66 h30 M112 72 h30 M112 78 h30 M112 84 h30 M112 90 h30"/>
+        <rect x="110" y="56" width="34" height="38"/>
+        <circle cx="70" cy="105" r="9"/>
+      </g>
+      <text x="50" y="46" font-family="Geist Mono, monospace" font-size="6" fill="var(--muted)">9.6 m²</text>
+    </symbol>
+    <symbol id="mp3" viewBox="0 0 200 150">
+      <g fill="none" stroke="var(--plan-wall)" stroke-width="5">
+        <path d="M25 30 H120 V70 H175 V130 H25 Z"/>
+        <path d="M80 130 V95"/>
+      </g>
+      <g fill="none" stroke="var(--plan-wall)" stroke-width="1">
+        <path d="M80 95 V80 A15 15 0 0 1 95 95"/>
+        <rect x="40" y="100" width="28" height="12"/>
+      </g>
+      <text x="100" y="110" font-family="Geist Mono, monospace" font-size="6" fill="var(--muted)">22.8 m²</text>
+    </symbol>
+  </defs>
+</svg>
+
+<div class="page">
+
+<header style="padding:72px 0 40px">
+  <h2>Visual identity · concept 2 of 4</h2>
+  <h1 style="margin-top:14px">Minimal</h1>
+  <p class="lede">Paper, ink and one vermilion mark. The interface is white with hairlines instead of filled panels, square corners, and a true-black night mode. The plan is drawn in black ink; colour appears only on what is alive: the thing you selected, the snap under your cursor, a warning. One accent, used once at a time.</p>
+</header>
+
+<!-- ============ 1. wordmark and icon ============ -->
+<section>
+  <h2>Wordmark and icon</h2>
+  <div class="row" style="margin-top:28px; align-items:flex-start">
+    <figure>
+      <div class="wm" style="font-size:144px"><span class="glyph">nol</span><span class="i"><span class="glyph">i</span></span></div>
+      <div class="cap">Geist 500 · −0.045 em · the dot of the i is the mark, a square in vermilion #e8401c</div>
+    </figure>
+    <figure style="background:#000; padding:24px 40px; --wm-bg:#000">
+      <div class="wm" style="font-size:72px; color:#f2f2f2; --mark:#ff6a45"><span class="glyph">nol</span><span class="i"><span class="glyph">i</span></span></div>
+      <div class="cap" style="color:#8a8a8a">dark · #ff6a45</div>
+    </figure>
+    <figure>
+      <div class="wm" style="font-size:40px"><span class="glyph">nol</span><span class="i"><span class="glyph">i</span></span></div>
+      <div class="cap">title bar · 17 px</div>
+    </figure>
+  </div>
+
+  <div class="icons" style="margin-top:56px">
+    <figure>
+      <svg class="ic" width="320" height="320"><use href="#appicon"/></svg>
+      <div class="cap">1024 (shown at 320) · macOS rounded square</div>
+    </figure>
+    <figure>
+      <svg class="ic" width="128" height="128"><use href="#appicon-sq"/></svg>
+      <div class="cap">128 · Windows square</div>
+    </figure>
+    <figure>
+      <svg class="ic" width="128" height="128"><use href="#appicon"/></svg>
+      <div class="cap">128</div>
+    </figure>
+    <figure>
+      <svg class="ic" width="32" height="32"><use href="#appicon"/></svg>
+      <div class="cap">32</div>
+    </figure>
+    <figure>
+      <svg class="ic" width="16" height="16"><use href="#appicon"/></svg>
+      <div class="cap">16</div>
+    </figure>
+    <figure>
+      <div style="display:flex; gap:12px">
+        <div class="icon-ctx"><svg class="ic" width="16" height="16"><use href="#appicon"/></svg><span>Noli</span></div>
+        <div class="icon-ctx win"><svg class="ic" width="16" height="16"><use href="#appicon-sq"/></svg><span>Noli</span></div>
+        <div class="icon-ctx dark"><svg class="ic" width="32" height="32"><use href="#appicon"/></svg></div>
+      </div>
+      <div class="cap">in a light title bar, the Windows taskbar, a dark dock</div>
+    </figure>
+  </div>
+</section>
+
+<!-- ============ 2. type ============ -->
+<section>
+  <h2>Type · Geist and Geist Mono (OFL 1.1, variable, bundled)</h2>
+  <div class="spec" style="margin-top:28px">
+    <div>
+      <div class="line"><span class="n">display · 34/40 · 500 · −0.03em</span><span class="t-display">Projects</span></div>
+      <div class="line"><span class="n">title · 20/24 · 500 · −0.02em</span><span class="t-title">Villa on the hill</span></div>
+      <div class="line"><span class="n">body · 13/18 · 400</span><span class="t-body">Both ends follow a wall or shape corner. Drag a grip to move it.</span></div>
+      <div class="line"><span class="n">label · 11/14 · 500 · +0.08em caps</span><span class="t-label">Layers · Ground floor</span></div>
+      <div class="line"><span class="n">button · 13/18 · 500</span><span class="t-body" style="font-weight:500">New project</span></div>
+    </div>
+    <div>
+      <div class="line"><span class="n">number · mono 28/32 · 500 · tnum</span><span class="t-mono-big">17.7 <span style="font-size:16px;font-weight:400;color:var(--ink-2)">m²</span></span></div>
+      <div class="line"><span class="n">value · mono 13/18 · tnum</span><span class="t-mono" style="font-size:13px">3 000 mm &nbsp; 1 500 mm &nbsp; −3 000 mm &nbsp; 90°</span></div>
+      <div class="line"><span class="n">value · mono 12/16</span><span class="t-mono">x 2 605 mm · y 1 598 mm · 1:38</span></div>
+      <div class="line"><span class="n">status · mono 11/14 · muted</span><span class="t-mono-sm">Ground floor · 1 selected · snap: corner · mm · MCP :63282</span></div>
+      <div class="line"><span class="n">id · mono 11/14</span><span class="t-mono-sm">plan.room.rename &nbsp; builtin:sofa-3</span></div>
+    </div>
+  </div>
+  <p class="lede" style="margin-top:24px">One family in two cuts, drawn to the same skeleton, so a number set in the mono sits on the same line as its label in the sans without looking pasted in. Figures are tabular everywhere a column of them appears. Two weights only: 400 and 500. Nothing is bold.</p>
+</section>
+
+<!-- ============ 3. palette ============ -->
+<section>
+  <h2>Palette · every variable in styles.css</h2>
+  <div class="pal" style="margin-top:28px">
+    <div class="pal-theme theme-light" id="pal-light"></div>
+    <div class="pal-theme theme-dark" id="pal-dark"></div>
+  </div>
+  <p class="lede" style="margin-top:24px">Six greys and the mark. Walls, dimensions, connectors and grid are ink; rooms are a grey wash. Selection is vermilion, snap is green, warnings amber, the underlay a pale grey: four live colours on an otherwise monochrome drawing, none of which can be confused with another or with the ink. The night palette is not an inversion: the ink becomes paper-white on true black, the greys are redrawn, and the mark warms to #ff6a45 so it does not vibrate on black.</p>
+</section>
+
+<!-- ============ 4. mocks ============ -->
+<section>
+  <h2>Mocks · 1890 × 1020</h2>
+
+  <figure style="margin-top:28px">
+    <div class="frame"><div class="mock theme-light" data-tpl="home" data-id="hl"></div></div>
+    <figcaption>01 · Home, light. Cards are cells of one hairline grid; the thumbnail is the ground floor in ink; a project without a drawing shows an empty frame, not initials on a gradient.</figcaption>
+  </figure>
+
+  <figure>
+    <div class="frame"><div class="mock theme-dark" data-tpl="home" data-id="hd"></div></div>
+    <figcaption>02 · Home, dark. True black. The hairlines are #242424, the ink is paper white.</figcaption>
+  </figure>
+
+  <figure>
+    <div class="frame"><div class="mock theme-light" data-tpl="project" data-id="pl"></div></div>
+    <figcaption>03 · Project, plan view, light. The living room is selected (vermilion wash and outline, grip at the seed), the 7 400 mm dimension is ink, the snap under the cursor is green, the stair with a riser warning is amber.</figcaption>
+  </figure>
+
+  <figure>
+    <div class="frame"><div class="mock theme-dark" data-tpl="project" data-id="pd"></div></div>
+    <figcaption>04 · The same in dark.</figcaption>
+  </figure>
+
+  <figure>
+    <div class="frame"><div class="mock theme-light" data-tpl="project" data-id="pe" data-empty="1"></div></div>
+    <figcaption>05 · A new, empty project. Grid only, one sentence in the middle of the canvas, the Properties panel says what it will show. Nothing else is added for the occasion.</figcaption>
+  </figure>
+</section>
+
+<!-- ============ 5. 3D view ============ -->
+<section>
+  <h2>3D view · the --scene-* colours</h2>
+  <div class="two" style="margin-top:28px">
+    <figure>
+      <div class="three-d theme-light" data-iso="light"></div>
+      <figcaption>Cutaway, day. Walls near white, slab grey, glass a cool grey, the elevator car the one coloured solid.</figcaption>
+    </figure>
+    <figure>
+      <div class="three-d theme-dark" data-iso="dark"></div>
+      <figcaption>Night. Solids in mid grey on black, edges nearly black, rails light; the car warms with the accent.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ============ 6. assistant ============ -->
+<section>
+  <h2>The assistant · deliberately quiet</h2>
+  <div class="two" style="margin-top:28px">
+    <figure>
+      <div class="frame-sm" style="aspect-ratio: 419 / 640"><div class="panel theme-light" data-tpl="assistant" data-id="al"></div></div>
+      <figcaption>Right panel, Assistant tab, light. No sparkle, no persona, no bubbles: turns divided by hairlines, "you" and the mark in the margin. The filled square is the assistant; it empties while it is working, and it is the only animation in the app.</figcaption>
+    </figure>
+    <figure>
+      <div class="frame-sm" style="aspect-ratio: 419 / 640"><div class="panel theme-dark" data-tpl="assistant" data-id="ad"></div></div>
+      <figcaption>Dark. A tool call is a dashed hairline with the command name in mono; a gated call asks with two plain buttons.</figcaption>
+    </figure>
+  </div>
+</section>
+
+</div><!-- .page -->
+
+<!-- ================= templates ================= -->
+<template id="t-icons">
+  <svg style="display:none">
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+    <symbol id="i-undo" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></symbol>
+    <symbol id="i-redo" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></symbol>
+    <symbol id="i-save" viewBox="0 0 24 24"><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></symbol>
+    <symbol id="i-pointer" viewBox="0 0 24 24"><path d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"/></symbol>
+    <symbol id="i-wall" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="1"/><path d="M12 9v6"/><path d="M16 15v6"/><path d="M16 3v6"/><path d="M3 15h18"/><path d="M3 9h18"/><path d="M8 15v6"/><path d="M8 3v6"/></symbol>
+    <symbol id="i-room" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="1"/><path d="M3 9h18"/><path d="M9 21V9"/></symbol>
+    <symbol id="i-door" viewBox="0 0 24 24"><path d="M13 4h3a2 2 0 0 1 2 2v14"/><path d="M2 20h3"/><path d="M13 20h9"/><path d="M10 12v.01"/><path d="M13 4.562v16.157a1 1 0 0 1-1.242.97L5 20V5.562a2 2 0 0 1 1.515-1.94l4-1A2 2 0 0 1 13 4.561Z"/></symbol>
+    <symbol id="i-window" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="1"/><path d="M3 12h18"/><path d="M12 3v18"/></symbol>
+    <symbol id="i-column" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6"/><path d="M12 6v12"/></symbol>
+    <symbol id="i-flip" viewBox="0 0 24 24"><path d="m8 7-5 5 5 5"/><path d="m16 7 5 5-5 5"/><path d="M12 3v18"/></symbol>
+    <symbol id="i-stair" viewBox="0 0 24 24"><path d="M3 20h4v-4h4v-4h4V8h4V4h2"/><path d="M3 20v-3"/></symbol>
+    <symbol id="i-ramp" viewBox="0 0 24 24"><path d="M3 19h18"/><path d="M3 19 21 7"/><path d="M21 7v12"/></symbol>
+    <symbol id="i-ladder" viewBox="0 0 24 24"><path d="M8 3v18"/><path d="M16 3v18"/><path d="M8 8h8"/><path d="M8 13h8"/><path d="M8 18h8"/></symbol>
+    <symbol id="i-esc" viewBox="0 0 24 24"><path d="M3 20h5v-4h5v-4h5V8h3"/><path d="m17 4 4 4-4 4"/></symbol>
+    <symbol id="i-elev" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="1"/><path d="M12 3v18"/><path d="m6.5 10 1.5-2 1.5 2"/><path d="m14.5 14 1.5 2 1.5-2"/></symbol>
+    <symbol id="i-light" viewBox="0 0 24 24"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></symbol>
+    <symbol id="i-chair" viewBox="0 0 24 24"><path d="M19 9V6a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v3"/><path d="M3 16a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0v2H7v-2a2 2 0 0 0-4 0Z"/><path d="M5 18v2"/><path d="M19 18v2"/></symbol>
+    <symbol id="i-paint" viewBox="0 0 24 24"><path d="m19 11-8-8-8.6 8.6a2 2 0 0 0 0 2.8l5.2 5.2c.8.8 2 .8 2.8 0L19 11Z"/><path d="m5 2 5 5"/><path d="M2 13h15"/><path d="M22 20a2 2 0 1 1-4 0c0-1.6 1.7-2.4 2-4 .3 1.6 2 2.4 2 4Z"/></symbol>
+    <symbol id="i-pent" viewBox="0 0 24 24"><path d="M10.83 2.38a2 2 0 0 1 2.34 0l8 5.74a2 2 0 0 1 .73 2.25l-3.04 9.26a2 2 0 0 1-1.9 1.37H7.04a2 2 0 0 1-1.9-1.37L2.1 10.37a2 2 0 0 1 .73-2.25z"/></symbol>
+    <symbol id="i-square" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="1"/></symbol>
+    <symbol id="i-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/></symbol>
+    <symbol id="i-ruler" viewBox="0 0 24 24"><path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.41 2.41 0 0 1 0-3.4l2.6-2.6a2.41 2.41 0 0 1 3.4 0Z"/><path d="m14.5 12.5 2-2"/><path d="m11.5 9.5 2-2"/><path d="m8.5 6.5 2-2"/><path d="m17.5 15.5 2-2"/></symbol>
+    <symbol id="i-type" viewBox="0 0 24 24"><path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/></symbol>
+    <symbol id="i-tag" viewBox="0 0 24 24"><path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r=".5" fill="currentColor"/></symbol>
+    <symbol id="i-magnet" viewBox="0 0 24 24"><path d="m6 15-4-4 6.75-6.77a7.79 7.79 0 0 1 11 11L13 22l-4-4 6.39-6.36a2.14 2.14 0 0 0-3-3L6 15"/><path d="m5 8 4 4"/><path d="m12 15 4 4"/></symbol>
+    <symbol id="i-angle" viewBox="0 0 24 24"><path d="M3 20h18"/><path d="M3 20 15 5"/><path d="M11 20a8 8 0 0 0-3-6.2"/></symbol>
+    <symbol id="i-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-zin" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6"/><path d="M8 11h6"/></symbol>
+    <symbol id="i-zout" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><path d="M8 11h6"/></symbol>
+    <symbol id="i-fit" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></symbol>
+    <symbol id="i-panel" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="1"/><path d="M15 3v18"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="1"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+    <symbol id="i-grip" viewBox="0 0 24 24"><circle cx="9" cy="12" r="1"/><circle cx="9" cy="5" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="19" r="1"/></symbol>
+    <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="M12 8v4"/><path d="M12 16h.01"/></symbol>
+    <symbol id="i-send" viewBox="0 0 24 24"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+    <symbol id="i-plug" viewBox="0 0 24 24"><path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/></symbol>
+    <symbol id="i-unit" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M3 6v4"/><path d="M21 6v4"/><path d="M8 6v2"/><path d="M12 6v3"/><path d="M16 6v2"/><path d="M3 16h18v4H3z"/></symbol>
+  </svg>
+</template>
+
+<template id="t-titlebar">
+  <div class="titlebar">
+    <div class="brand"><span class="sq"></span><span>noli</span></div>
+    <div class="tabs">
+      <div class="tab home __HOMEACTIVE__"><svg class="ico"><use href="#i-home"/></svg></div>
+      <div class="tab">Smoke House</div>
+      <div class="tab __PROJACTIVE__">__PROJNAME__ <span class="x" style="__XHIDE__"><svg class="ico" style="width:14px;height:14px"><use href="#i-x"/></svg></span></div>
+      <div class="tab">Duplex</div>
+    </div>
+    <div class="tbr">
+      <div class="search"><svg class="ico"><use href="#i-search"/></svg><span>Search commands</span><span class="kbd">Ctrl K</span></div>
+      <svg class="ico"><use href="#i-settings"/></svg>
+    </div>
+  </div>
+</template>
+
+<template id="t-statusbar">
+  <div class="statusbar">
+    <span>__LEFT__</span>
+    <div class="r">
+      <span><svg class="ico" style="width:12px;height:12px;vertical-align:-2px;margin-right:6px"><use href="#i-unit"/></svg>mm</span>
+      <span><span class="dot"></span>MCP :63282</span>
+      <svg class="ico" style="width:14px;height:14px"><use href="#i-__THEMEICON__"/></svg>
+    </div>
+  </div>
+</template>
+
+<template id="t-home">
+  <div class="home">
+    <div class="home-head">
+      <h1>Projects</h1>
+      <span class="btn primary"><svg class="ico"><use href="#i-plus"/></svg>New project</span>
+      <span class="btn"><svg class="ico"><use href="#i-upload"/></svg>Import…</span>
+      <span class="trash"><svg class="ico"><use href="#i-trash"/></svg>Trash <span class="m">0</span></span>
+    </div>
+    <div class="filters">
+      <div class="srch"><svg class="ico"><use href="#i-search"/></svg>Search projects</div>
+      <div class="sort">Last changed <svg class="ico" style="width:14px;height:14px;color:var(--muted)"><use href="#i-chev"/></svg></div>
+      <div class="chips">
+        <span class="chip">residential <span class="m">3</span></span>
+        <span class="chip">renovation <span class="m">2</span></span>
+        <span class="chip">flat <span class="m">1</span></span>
+        <span class="chip">garden <span class="m">1</span></span>
+      </div>
+    </div>
+    <div class="grid">
+      <div class="card sel">
+        <div class="thumb"><svg><use href="#mp1"/></svg></div>
+        <div class="cinfo"><span class="nm">Villa on the hill</span><span class="meta">edited just now · 2 levels</span><div class="tags"><span>residential</span></div></div>
+      </div>
+      <div class="card">
+        <div class="thumb"><svg><use href="#mp2"/></svg></div>
+        <div class="cinfo"><span class="nm">Kitchen, second try</span><span class="meta">edited 12 min ago · 1 level</span><div class="tags"><span>renovation</span></div></div>
+      </div>
+      <div class="card">
+        <div class="thumb"><div class="none"><i></i></div></div>
+        <div class="cinfo"><span class="nm">Attic</span><span class="meta">edited yesterday · 1 level · no drawing yet</span></div>
+      </div>
+      <div class="card">
+        <div class="thumb"><svg><use href="#mp3"/></svg></div>
+        <div class="cinfo"><span class="nm">Grandmother's flat</span><span class="meta">edited 3 days ago · 1 level</span><div class="tags"><span>flat</span><span>residential</span></div></div>
+      </div>
+      <div class="card">
+        <div class="thumb"><svg><use href="#mp2"/></svg></div>
+        <div class="cinfo"><span class="nm">Garden room</span><span class="meta">edited last week · 1 level</span><div class="tags"><span>garden</span></div></div>
+      </div>
+      <div class="card">
+        <div class="thumb"><svg><use href="#mp1"/></svg></div>
+        <div class="cinfo"><span class="nm">Duplex</span><span class="meta">edited 2 weeks ago · 2 levels</span><div class="tags"><span>residential</span><span>renovation</span></div></div>
+      </div>
+      <div class="card">
+        <div class="thumb"><svg><use href="#mp3"/></svg></div>
+        <div class="cinfo"><span class="nm">Smoke House</span><span class="meta">edited 3 weeks ago · 1 level</span></div>
+      </div>
+      <div class="card">
+        <div class="thumb"><div class="none"><i></i></div></div>
+        <div class="cinfo"><span class="nm">Office corner</span><span class="meta">edited last month · 1 level · no drawing yet</span></div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<template id="t-project">
+  <div class="proj">
+    <div class="phead">
+      <h1>__PROJNAME__</h1>
+      <span class="saved">__SAVED__</span>
+      <div class="acts">
+        <span class="btn ghost muted"><svg class="ico"><use href="#i-undo"/></svg></span>
+        <span class="btn ghost muted"><svg class="ico"><use href="#i-redo"/></svg></span>
+        <span class="sep"></span>
+        <span class="btn ghost"><svg class="ico"><use href="#i-save"/></svg>Save</span>
+        <span class="btn ghost"><svg class="ico"><use href="#i-download"/></svg>Export project…</span>
+        <span class="btn ghost"><svg class="ico"><use href="#i-copy"/></svg>Duplicate</span>
+        <span class="btn danger"><svg class="ico"><use href="#i-trash"/></svg>Trash</span>
+      </div>
+    </div>
+    <div class="pbody">
+      <!-- left -->
+      <div class="left">
+        <div class="ph"><span class="lbl">Levels</span><svg class="ico muted" style="color:var(--muted)"><use href="#i-plus"/></svg></div>
+        __LEVELS__
+        <div class="leditor">
+          <div class="fld wide"><label>Name</label><div class="in">__LEVELNAME__</div></div>
+          <div class="fld"><label>Elevation</label><div class="in num">0 <span class="u">mm</span></div></div>
+          <div class="fld"><label>Floor to floor</label><div class="in num">3 000 <span class="u">mm</span></div></div>
+          <div class="fld"><label>Slab</label><div class="in num">200 <span class="u">mm</span></div></div>
+          <div class="fld"><label>Placed from</label><div class="in sel">— <svg class="ico"><use href="#i-chev"/></svg></div></div>
+        </div>
+        <div class="ph" style="margin-top:14px; border-top:1px solid var(--edge); height:52px"><span class="lbl">Layers · __LEVELNAME__</span><svg class="ico" style="color:var(--muted)"><use href="#i-plus"/></svg></div>
+        <div class="layer">
+          <div class="r1"><svg class="ico"><use href="#i-eye"/></svg><svg class="ico"><use href="#i-lock"/></svg><span class="nm">Structure</span><span class="cnt">__N1__</span></div>
+          <div class="r2">Opacity <span class="slider"></span> 100%</div>
+        </div>
+        <div class="layer">
+          <div class="r1"><svg class="ico"><use href="#i-eye"/></svg><svg class="ico"><use href="#i-lock"/></svg><span class="nm">Interior</span><span class="cnt">__N2__</span></div>
+          <div class="r2">Opacity <span class="slider"></span> 100%</div>
+        </div>
+        <div class="layer">
+          <div class="r1"><svg class="ico"><use href="#i-eye"/></svg><svg class="ico"><use href="#i-lock"/></svg><span class="nm">Decor</span><span class="cnt">__N3__</span></div>
+          <div class="r2">Opacity <span class="slider" style="--v:60%"></span> 60%</div>
+        </div>
+      </div>
+      <!-- centre -->
+      <div class="centre">
+        <div class="vtabs">
+          <span class="vtab active">Plan</span><span class="vtab">Section</span><span class="vtab">3D</span>
+          <div class="r">
+            <span class="btn ghost muted"><svg class="ico"><use href="#i-download"/></svg>Export…</span>
+            <span class="btn ghost muted"><svg class="ico"><use href="#i-upload"/></svg>Import DXF…</span>
+            <span class="btn ghost muted"><svg class="ico"><use href="#i-panel"/></svg></span>
+          </div>
+        </div>
+        <div class="tools">
+          <span class="tool active"><svg class="ico"><use href="#i-pointer"/></svg></span>
+          <span class="tool"><svg class="ico"><use href="#i-wall"/></svg></span>
+          <span class="tool"><svg class="ico"><use href="#i-room"/></svg></span>
+          <span class="tool"><svg class="ico"><use href="#i-door"/></svg></span>
+          <span class="tool"><svg class="ico"><use href="#i-window"/></svg></span>
+          <span class="tool"><svg class="ico"><use href="#i-column"/></svg></span>
+          <span class="tool"><svg class="ico"><use href="#i-flip"/></svg></span>
+          <span class="gap"></span>
+          <span class="tool"><svg class="ico"><use href="#i-stair"/></svg></span>
+          <span class="tool"><svg class="ico"><use href="#i-ramp"/></svg></span>
+          <span class="tool"><svg class="ico"><use href="#i-ladder"/></svg></span>
+          <span class="tool"><svg class="ico"><use href="#i-esc"/></svg></span>
+          <span class="tool"><svg class="ico"><use href="#i-elev"/></svg></span>
+          <span class="gap"></span>
+          <span class="tool"><svg class="ico"><use href="#i-chair"/></svg></span>
+          <span class="tool"><svg class="ico"><use href="#i-light"/></svg></span>
+          <span class="tool"><svg class="ico"><use href="#i-paint"/></svg></span>
+          <span class="gap"></span>
+          <span class="tool"><svg class="ico"><use href="#i-pent"/></svg></span>
+          <span class="tool"><svg class="ico"><use href="#i-square"/></svg></span>
+          <span class="tool"><svg class="ico"><use href="#i-circle"/></svg></span>
+          <span class="gap"></span>
+          <span class="tool"><svg class="ico"><use href="#i-ruler"/></svg></span>
+          <span class="tool"><svg class="ico"><use href="#i-tag"/></svg></span>
+          <span class="tool"><svg class="ico"><use href="#i-type"/></svg></span>
+          <span class="pick">__LEVELNAME__ · <span class="m">0 mm</span><svg class="ico"><use href="#i-chev"/></svg></span>
+          <span class="pick">No reference<svg class="ico"><use href="#i-chev"/></svg></span>
+        </div>
+        <div class="snaprow">
+          <span class="tool active"><svg class="ico"><use href="#i-magnet"/></svg></span>
+          <span class="tool active"><svg class="ico"><use href="#i-angle"/></svg></span>
+          <span class="tool"><svg class="ico" style="width:14px;height:14px"><use href="#i-chev"/></svg></span>
+          <div class="r">
+            <svg class="ico"><use href="#i-zout"/></svg>
+            <span class="m">__SCALE__</span>
+            <svg class="ico"><use href="#i-zin"/></svg>
+            <svg class="ico" style="margin-left:6px"><use href="#i-fit"/></svg>
+          </div>
+        </div>
+        <div class="cv">__CANVAS__</div>
+        <div class="cfoot">
+          <span>__COORDS__</span>
+          <span class="mid">__LEVELNAME__</span>
+          <span>__SELTEXT__</span>
+          __SNAPTEXT__
+        </div>
+      </div>
+      <!-- right -->
+      <div class="right">
+        <div class="rtabs">
+          <span class="vtab active">Properties</span><span class="vtab">Catalog</span><span class="vtab">History</span><span class="vtab">Assistant</span>
+        </div>
+        <div class="rtabs2"><span>Warnings<span class="cnt">__WARN__</span></span><span>Project</span></div>
+        __PROPS__
+      </div>
+    </div>
+  </div>
+</template>
+
+<template id="t-props-room">
+  <div class="props">
+    <h2>Room</h2>
+    <div class="fld"><label>Name</label><div class="in">Living room</div></div>
+    <div class="fld"><label>Number</label><div class="in empty">—</div></div>
+    <div class="big"><span class="v">17.7<small>m²</small></span><span class="k">area</span><span class="v" style="font-size:16px;font-weight:400;color:var(--muted)">15 040 mm</span><span class="k">perimeter</span></div>
+    <span class="lbl">Finishes</span>
+    <div>
+      <div class="frow"><span class="k">Floor</span><span class="v">Oak, wide boards <svg class="ico"><use href="#i-chev"/></svg></span><span class="swt" style="background:#c9b08a"></span></div>
+      <div class="frow"><span class="k">Walls</span><span class="v">Paint · chalk <svg class="ico"><use href="#i-chev"/></svg></span><span class="swt" style="background:#f1efe9"></span></div>
+      <div class="frow"><span class="k">Ceiling</span><span class="v">None <svg class="ico"><use href="#i-chev"/></svg></span><span class="swt"></span></div>
+    </div>
+  </div>
+</template>
+
+<template id="t-props-empty">
+  <div class="props">
+    <div class="nothing"><b>Nothing selected</b>Select a wall, a room or an opening and its properties appear here. Draw with the tools above the canvas, or ask the assistant.</div>
+  </div>
+</template>
+
+<template id="t-plan">
+  <svg viewBox="0 0 1093 718" preserveAspectRatio="xMidYMid slice" font-family="Geist, system-ui, sans-serif">
+    <defs>
+      <pattern id="g-__ID__" width="50" height="50" patternUnits="userSpaceOnUse" x="16" y="0">
+        <path d="M50 0 V50 M0 50 H50" fill="none" stroke="var(--plan-grid)" stroke-width="1"/>
+      </pattern>
+      <pattern id="G-__ID__" width="100" height="100" patternUnits="userSpaceOnUse" x="16" y="0">
+        <path d="M100 0 V100 M0 100 H100" fill="none" stroke="var(--plan-grid-major)" stroke-width="1"/>
+      </pattern>
+    </defs>
+    <rect width="1093" height="718" fill="url(#g-__ID__)"/>
+    <rect width="1093" height="718" fill="url(#G-__ID__)"/>
+    <!-- slab -->
+    <rect x="166" y="90" width="760" height="520" fill="var(--plan-slab)"/>
+    <!-- rooms -->
+    <rect x="186" y="110" width="368" height="480" fill="var(--plan-selection)" fill-opacity="0.10" stroke="var(--plan-selection)" stroke-width="1.5"/>
+    <rect x="566" y="110" width="340" height="244" fill="var(--plan-room)" fill-opacity="0.08"/>
+    <rect x="566" y="366" width="340" height="224" fill="var(--plan-room)" fill-opacity="0.08"/>
+    <!-- decor -->
+    <g fill="none" stroke="var(--plan-decor)" stroke-width="1.2">
+      <rect x="250" y="470" width="220" height="90"/>
+      <path d="M250 492 H470 M323 492 V560 M397 492 V560"/>
+      <circle cx="372" cy="300" r="48"/>
+      <rect x="196" y="120" width="60" height="200"/>
+      <path d="M196 170 H256 M196 220 H256 M196 270 H256"/>
+      <rect x="640" y="130" width="250" height="60"/>
+      <circle cx="700" cy="160" r="12"/><circle cx="740" cy="160" r="12"/><circle cx="820" cy="160" r="18"/>
+      <rect x="600" y="400" width="180" height="200"/>
+      <path d="M600 440 H780"/>
+      <rect x="620" y="380" width="60" height="30"/><rect x="700" y="380" width="60" height="30"/>
+    </g>
+    <!-- stair, with its warning -->
+    <g fill="none" stroke="var(--plan-connector)" stroke-width="1.2">
+      <rect x="820" y="380" width="80" height="200"/>
+      <path d="M820 405 H900 M820 430 H900 M820 455 H900 M820 480 H900 M820 505 H900 M820 530 H900 M820 555 H900"/>
+      <path d="M860 575 V392"/>
+      <path d="M852 402 L860 390 L868 402"/>
+    </g>
+    <rect x="816" y="376" width="88" height="208" fill="none" stroke="var(--plan-warning)" stroke-width="1.5" stroke-dasharray="4 4"/>
+    <text x="828" y="612" font-family="Geist Mono, monospace" font-size="10" fill="var(--plan-warning)">riser 195 &gt; 190</text>
+    <text x="826" y="596" font-family="Geist Mono, monospace" font-size="9" fill="var(--plan-connector)">UP 8 R</text>
+    <!-- walls -->
+    <g fill="none" stroke="var(--plan-wall)">
+      <path d="M176 100 H916 V600 H390 M300 600 H176 Z" stroke-width="20"/>
+      <path d="M560 106 V430 M560 520 V594" stroke-width="12"/>
+      <path d="M566 360 H910" stroke-width="12"/>
+    </g>
+    <!-- windows -->
+    <g>
+      <rect x="240" y="90" width="120" height="20" fill="var(--plan-slab)"/>
+      <path d="M240 94 H360 M240 100 H360 M240 106 H360" stroke="var(--plan-wall-line)" stroke-width="1"/>
+      <rect x="660" y="90" width="180" height="20" fill="var(--plan-slab)"/>
+      <path d="M660 94 H840 M660 100 H840 M660 106 H840" stroke="var(--plan-wall-line)" stroke-width="1"/>
+      <rect x="906" y="420" width="20" height="120" fill="var(--plan-slab)"/>
+      <path d="M910 420 V540 M916 420 V540 M922 420 V540" stroke="var(--plan-wall-line)" stroke-width="1"/>
+    </g>
+    <!-- doors -->
+    <g fill="none" stroke="var(--plan-wall-line)" stroke-width="1.2">
+      <path d="M300 600 V510"/>
+      <path d="M300 510 A90 90 0 0 1 390 600" stroke-dasharray="3 3"/>
+      <path d="M560 520 H470"/>
+      <path d="M470 520 A90 90 0 0 1 560 430" stroke-dasharray="3 3"/>
+    </g>
+    <!-- labels -->
+    <g fill="var(--fg)" font-size="13">
+      <text x="370" y="400" text-anchor="middle">Living room</text>
+      <text x="736" y="230" text-anchor="middle">Kitchen</text>
+      <text x="700" y="500" text-anchor="middle">Bedroom</text>
+    </g>
+    <g fill="var(--muted)" font-family="Geist Mono, monospace" font-size="11">
+      <text x="370" y="417" text-anchor="middle">17.7 m²</text>
+      <text x="736" y="247" text-anchor="middle">8.3 m²</text>
+      <text x="700" y="517" text-anchor="middle">7.6 m²</text>
+    </g>
+    <!-- selection grip at the seed -->
+    <circle cx="370" cy="380" r="6" fill="var(--canvas)" stroke="var(--plan-selection)" stroke-width="1.5"/>
+    <!-- dimension, bottom -->
+    <g stroke="var(--plan-dim)" stroke-width="1" fill="none">
+      <path d="M166 616 V662 M926 616 V662"/>
+      <path d="M166 654 H926"/>
+      <path d="M161 659 L171 649 M921 659 L931 649"/>
+    </g>
+    <text x="546" y="648" text-anchor="middle" font-family="Geist Mono, monospace" font-size="12" fill="var(--plan-dim)">7 400 mm</text>
+    <!-- dimension, right -->
+    <g stroke="var(--plan-dim)" stroke-width="1" fill="none">
+      <path d="M932 90 H978 M932 610 H978"/>
+      <path d="M970 90 V610"/>
+      <path d="M965 95 L975 85 M965 615 L975 605"/>
+    </g>
+    <text x="0" y="0" transform="translate(964 350) rotate(-90)" text-anchor="middle" font-family="Geist Mono, monospace" font-size="12" fill="var(--plan-dim)">5 200 mm</text>
+    <!-- snap at the cursor -->
+    <g stroke="var(--plan-snap)" stroke-width="1.5" fill="none">
+      <rect x="160" y="604" width="12" height="12"/>
+      <path d="M166 596 V592 M166 622 V626 M152 610 H158 M174 610 H178"/>
+    </g>
+    <text x="140" y="640" font-family="Geist Mono, monospace" font-size="10" fill="var(--plan-snap)">corner</text>
+    <!-- a text label on the plan -->
+    <text x="340" y="696" font-size="11" fill="var(--muted)">Entrance</text>
+  </svg>
+</template>
+
+<template id="t-plan-empty">
+  <svg viewBox="0 0 1093 718" preserveAspectRatio="xMidYMid slice">
+    <defs>
+      <pattern id="g-__ID__" width="50" height="50" patternUnits="userSpaceOnUse" x="16" y="0">
+        <path d="M50 0 V50 M0 50 H50" fill="none" stroke="var(--plan-grid)" stroke-width="1"/>
+      </pattern>
+      <pattern id="G-__ID__" width="100" height="100" patternUnits="userSpaceOnUse" x="16" y="0">
+        <path d="M100 0 V100 M0 100 H100" fill="none" stroke="var(--plan-grid-major)" stroke-width="1"/>
+      </pattern>
+    </defs>
+    <rect width="1093" height="718" fill="url(#g-__ID__)"/>
+    <rect width="1093" height="718" fill="url(#G-__ID__)"/>
+    <path d="M540 359 H552 M546 353 V365" stroke="var(--plan-grid-major)" stroke-width="1"/>
+  </svg>
+  <div class="empty">
+    <h2>Nothing drawn yet.</h2>
+    <p>Press <span class="kbd">W</span> to draw a wall, <span class="kbd">R</span> for a room, or ask the assistant.</p>
+  </div>
+</template>
+
+<template id="t-assistant">
+  <div class="ahead"><span class="sq"></span><span>Assistant</span><span class="model">claude opus 5.5</span><span class="clr">Clear</span></div>
+  <div class="turns">
+    <div class="turn"><span class="who">you</span><p>Add a window on the north wall of the kitchen, 1.8 m wide, and tell me the area again.</p></div>
+    <div class="turn"><span class="who"><span class="sq"></span></span><div>
+      <p>Adding the window.</p>
+      <div class="call"><svg><use href="#i-check"/></svg><span><span class="m">plan.opening.add</span> · window, 1 800 mm, wall 3 of Kitchen</span></div>
+      <p style="margin-top:10px">Done. The kitchen is still <span class="m">8.3 m²</span>; a window does not change the floor area. The sill is at 900 mm, the default.</p>
+    </div></div>
+    <div class="turn"><span class="who">you</span><p>Remove the attic level.</p></div>
+    <div class="turn"><span class="who"><span class="sqo"></span></span><div>
+      <p>That deletes the level and everything on it. It can be undone.</p>
+      <div class="call"><svg><use href="#i-shield"/></svg><span><span class="m">level.delete</span> · Attic · asks first</span></div>
+      <div class="ask"><span class="y">Allow</span><span>Not now</span></div>
+    </div></div>
+  </div>
+  <div class="input"><span>Ask the assistant</span><span class="kbd" style="font:11px/14px 'Geist Mono',monospace;border:1px solid var(--edge);padding:1px 6px">Enter</span><span class="send"><svg><use href="#i-send"/></svg></span></div>
+</template>
+
+<script>
+(function () {
+  // icons: one copy of the symbols in the document
+  document.body.insertAdjacentHTML('afterbegin', document.getElementById('t-icons').innerHTML);
+
+  const tpl = id => document.getElementById(id).innerHTML;
+  const fill = (html, map) => html.replace(/__([A-Z0-9]+)__/g, (m, k) => (k in map ? map[k] : m));
+
+  // ---- palette swatches ----
+  const groups = [
+    ['interface', ['canvas','surface','elevated','fg','muted','edge','accent','accent-hover','accent-fg','danger','success','warning','titlebar','titlebar-fg']],
+    ['plan canvas', ['plan-grid','plan-grid-major','plan-wall','plan-wall-line','plan-room','plan-slab','plan-dim','plan-underlay','plan-snap','plan-selection','plan-warning','plan-connector','plan-decor']],
+    ['3D view', ['scene-edge','scene-wall','scene-slab','scene-column','scene-glass','scene-connector','scene-rail','scene-car','scene-stand-in']],
+  ];
+  for (const [id, title] of [['pal-light', 'Light · paper'], ['pal-dark', 'Dark · true black']]) {
+    const el = document.getElementById(id);
+    const cs = getComputedStyle(el);
+    let html = `<h3>${title}</h3>`;
+    for (const [g, names] of groups) {
+      html += `<div class="sw-group"><div class="g">${g}</div><div class="sw">`;
+      for (const n of names) {
+        const v = cs.getPropertyValue('--' + n).trim();
+        html += `<div><b style="background:${v}"></b><i>--${n}</i><i>${v}</i></div>`;
+      }
+      html += `</div></div>`;
+    }
+    el.innerHTML = html;
+  }
+
+  // ---- mocks ----
+  const levelsFull = `
+    <div class="lvl"><svg class="ico grip" style="width:14px;height:14px"><use href="#i-grip"/></svg><span class="nm">Upper floor</span><span class="el">3 000 mm</span></div>
+    <div class="lvl active"><span class="sq"></span><span class="nm">Ground floor</span><span class="el"><span class="g">G</span>0 mm</span></div>
+    <div class="lvl warn"><svg class="ico grip" style="width:14px;height:14px"><use href="#i-grip"/></svg><span class="nm">Cellar</span><span class="el">−2 600 mm</span></div>`;
+  const levelsEmpty = `
+    <div class="lvl active"><span class="sq"></span><span class="nm">Ground floor</span><span class="el"><span class="g">G</span>0 mm</span></div>`;
+
+  document.querySelectorAll('.mock[data-tpl], .panel[data-tpl]').forEach(el => {
+    const id = el.dataset.id;
+    const dark = el.classList.contains('theme-dark');
+    const kind = el.dataset.tpl;
+    const empty = !!el.dataset.empty;
+    const themeIcon = dark ? 'moon' : 'sun';
+    if (kind === 'home') {
+      el.innerHTML = fill(tpl('t-titlebar'), { HOMEACTIVE: 'active', PROJACTIVE: '', PROJNAME: 'Villa on the hill', XHIDE: 'display:none' })
+        + tpl('t-home')
+        + fill(tpl('t-statusbar'), { LEFT: 'No project open', THEMEICON: themeIcon });
+    } else if (kind === 'project') {
+      const name = empty ? 'Untitled' : 'Villa on the hill';
+      const canvas = fill(tpl(empty ? 't-plan-empty' : 't-plan'), { ID: id });
+      el.innerHTML = fill(tpl('t-titlebar'), { HOMEACTIVE: '', PROJACTIVE: 'active', PROJNAME: name, XHIDE: '' })
+        + fill(tpl('t-project'), {
+            PROJNAME: name,
+            SAVED: empty ? 'Not saved yet' : 'Saved just now',
+            LEVELS: empty ? levelsEmpty : levelsFull,
+            LEVELNAME: 'Ground floor',
+            N1: empty ? '0' : '14', N2: empty ? '0' : '9', N3: empty ? '0' : '7',
+            SCALE: empty ? '1:50' : '1:38',
+            CANVAS: canvas,
+            COORDS: empty ? '0 mm, 0 mm' : '−1 840 mm, 5 100 mm',
+            SELTEXT: empty ? '' : '1 selected · Living room · drag to move (Ctrl: copy)',
+            SNAPTEXT: empty ? '' : '<span class="snap">snap · corner</span>',
+            WARN: empty ? '0' : '1',
+            PROPS: tpl(empty ? 't-props-empty' : 't-props-room'),
+          })
+        + fill(tpl('t-statusbar'), { LEFT: name + (empty ? '' : ' · Saved just now'), THEMEICON: themeIcon });
+    } else if (kind === 'assistant') {
+      el.innerHTML = tpl('t-assistant');
+    }
+  });
+
+  // ---- scale the 1890 px mocks into their frames ----
+  function scale() {
+    document.querySelectorAll('.frame').forEach(f => {
+      const m = f.querySelector('.mock');
+      if (m) m.style.transform = `scale(${f.clientWidth / 1890})`;
+    });
+    document.querySelectorAll('.frame-sm').forEach(f => {
+      const m = f.querySelector('.panel');
+      if (m) m.style.transform = `scale(${f.clientWidth / 419})`;
+    });
+  }
+  new ResizeObserver(scale).observe(document.body);
+  scale();
+
+  // ---- the 3D view: a cutaway room in isometric projection, from boxes ----
+  const S = 46, OX = 506, OY = 262;
+  const P = (x, y, z) => [OX + (x - y) * 0.866 * S, OY + (x + y) * 0.5 * S - z * S];
+  const poly = (pts, fill, extra = '') => `<polygon points="${pts.map(p => p.join(',')).join(' ')}" fill="${fill}" stroke="var(--scene-edge)" stroke-width="1" stroke-linejoin="round" ${extra}/>`;
+  function box(x, y, z, w, d, h, fill) {
+    const top = [P(x, y, z + h), P(x + w, y, z + h), P(x + w, y + d, z + h), P(x, y + d, z + h)];
+    const fx = [P(x + w, y, z), P(x + w, y + d, z), P(x + w, y + d, z + h), P(x + w, y, z + h)];
+    const fy = [P(x, y + d, z), P(x + w, y + d, z), P(x + w, y + d, z + h), P(x, y + d, z + h)];
+    return poly(fx, fill, 'opacity="0.86"') + poly(fy, fill, 'opacity="0.72"') + poly(top, fill);
+  }
+  function iso() {
+    let s = '';
+    s += box(0, 0, -0.3, 8, 6, 0.3, 'var(--scene-slab)');
+    s += box(0, 0, 0, 8, 0.3, 3, 'var(--scene-wall)');
+    s += box(0, 0.3, 0, 0.3, 5.7, 3, 'var(--scene-wall)');
+    // glass in the left wall, on its interior face
+    s += poly([P(0.3, 2, 0.9), P(0.3, 4, 0.9), P(0.3, 4, 2.3), P(0.3, 2, 2.3)], 'var(--scene-glass)');
+    // glass in the back wall
+    s += poly([P(2.2, 0.3, 0.9), P(4.2, 0.3, 0.9), P(4.2, 0.3, 2.3), P(2.2, 0.3, 2.3)], 'var(--scene-glass)');
+    // a sofa stand-in
+    s += box(2.4, 1.6, 0, 1.8, 0.8, 0.75, 'var(--scene-stand-in)');
+    // elevator: car and rails
+    const rail = (rx, ry) => { const a = P(rx, ry, 0), b = P(rx, ry, 3); return `<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="var(--scene-rail)" stroke-width="2"/>`; };
+    s += rail(6.3, 0.5) + rail(7.6, 0.5) + rail(6.3, 1.9);
+    s += box(6.3, 0.5, 0, 1.3, 1.4, 2.4, 'var(--scene-car)');
+    s += rail(7.6, 1.9);
+    // a stair of eight treads
+    for (let i = 0; i < 8; i++) s += box(1 + i * 0.3, 4.4, 0, 0.3, 1.0, 0.19 * (i + 1), 'var(--scene-connector)');
+    // a column
+    s += box(5.3, 3.9, 0, 0.4, 0.4, 3, 'var(--scene-column)');
+    return s;
+  }
+  document.querySelectorAll('[data-iso]').forEach(el => {
+    const night = el.dataset.iso === 'dark';
+    el.innerHTML = `<svg viewBox="0 0 1093 718">${iso()}</svg>
+      <div class="hud"><b>3/4</b><span>Top</span><span>Front</span><span>Side</span><span style="margin-left:18px">All</span><span>Isolate</span><b>Cutaway</b><span style="margin-left:18px">${night ? 'Day' : '<b>Day</b>'}</span><span>${night ? '<b>Night</b>' : 'Night'}</span></div>
+      <div class="foot">Drag to orbit · right-drag or Shift+drag to pan · wheel to zoom · Home to fit · double-click a floor to walk</div>`;
+  });
+})();
+</script>
+</body>
+</html>

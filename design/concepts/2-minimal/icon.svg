@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!--
+    Noli, minimal concept. Paper, ink and one vermilion mark.
+    A single square room drawn in ink, its door open, and the vermilion square that is also the dot of
+    the i in the wordmark. The tile is a rounded square for macOS; Windows and Linux take the same file
+    (the 6 px ink hairline keeps the white tile visible on a light desktop). At 16 px it reads as a white
+    tile with a black frame and a red dot.
+  -->
+  <rect x="64" y="64" width="896" height="896" rx="200" fill="#ffffff" stroke="#121212" stroke-width="6"/>
+  <g fill="none" stroke="#121212" stroke-linecap="butt" stroke-linejoin="miter">
+    <!-- the room: four walls, the bottom one opened for the door -->
+    <path d="M296 296 H728 V728 H584" stroke-width="64"/>
+    <path d="M440 728 H296 V296" stroke-width="64"/>
+    <!-- the door leaf, open into the room -->
+    <path d="M440 728 V584" stroke-width="28"/>
+    <!-- its swing -->
+    <path d="M440 584 A144 144 0 0 1 584 728" stroke-width="12"/>
+  </g>
+  <!-- the one mark -->
+  <rect x="540" y="364" width="120" height="120" fill="#e8401c"/>
+</svg>

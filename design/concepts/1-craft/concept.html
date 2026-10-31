@@ -1,0 +1,1093 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hollin — craft concept</title>
+<!-- Preview only: in the app these three families are bundled (OFL). -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Alegreya+Sans:ital,wght@0,400;0,500;0,700;1,400;1,500&family=Fraunces:ital,opsz,wght,SOFT@0,9..144,400..700,0..100;1,9..144,400..700,0..100&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ---------- Palette: every semantic variable of styles.css, both themes ---------- */
+:root {
+  --canvas: #f6f1e8;
+  --surface: #efe8dc;
+  --elevated: #e6ddcd;
+  --fg: #2a2521;
+  --muted: #7b7064;
+  --edge: #dcd2c2;
+  --accent: #b9552f;
+  --accent-hover: #9c4525;
+  --accent-fg: #fbf6ee;
+  --danger: #b5392c;
+  --success: #4f7d3d;
+  --warning: #b8841f;
+  --titlebar: #efe8dc;
+  --titlebar-fg: #2a2521;
+  --font-mono: 'IBM Plex Mono', ui-monospace, Consolas, monospace;
+  --font-sans: 'Alegreya Sans', 'Segoe UI', system-ui, sans-serif;
+  --font-display: 'Fraunces', Georgia, serif;
+  --plan-grid: #ebe4d7;
+  --plan-grid-major: #dbd1bf;
+  --plan-wall: #3b3531;
+  --plan-wall-line: #231f1c;
+  --plan-room: #8b9a6b;
+  --plan-slab: #e9e1d2;
+  --plan-dim: #3f5390;
+  --plan-underlay: #a89c8c;
+  --plan-snap: #2f8a57;
+  --plan-selection: #b9552f;
+  --plan-warning: #b8841f;
+  --plan-connector: #4b433d;
+  --plan-decor: #8c6b4a;
+  --scene-edge: #3a332e;
+  --scene-wall: #efe6d6;
+  --scene-slab: #cdbea7;
+  --scene-column: #ddd1bd;
+  --scene-glass: #9bb9c7;
+  --scene-connector: #d5c2a3;
+  --scene-rail: #5a4f45;
+  --scene-car: #b9552f;
+  --scene-stand-in: #a69b8e;
+}
+.dark {
+  --canvas: #1d1a17;
+  --surface: #262220;
+  --elevated: #332d29;
+  --fg: #ebe3d6;
+  --muted: #a2968a;
+  --edge: #3c3531;
+  --accent: #e07c50;
+  --accent-hover: #ea9471;
+  --accent-fg: #1d1a17;
+  --danger: #e8705f;
+  --success: #8fbf6e;
+  --warning: #e2b24a;
+  --titlebar: #262220;
+  --titlebar-fg: #ebe3d6;
+  --plan-grid: #272320;
+  --plan-grid-major: #352f2b;
+  --plan-wall: #d8cfc2;
+  --plan-wall-line: #f3ece1;
+  --plan-room: #a4b385;
+  --plan-slab: #2a2623;
+  --plan-dim: #91a4e0;
+  --plan-underlay: #7a7066;
+  --plan-snap: #6fcf8a;
+  --plan-selection: #e07c50;
+  --plan-warning: #e2b24a;
+  --plan-connector: #e3dacc;
+  --plan-decor: #d4a97a;
+  --scene-edge: #141210;
+  --scene-wall: #c4b9a8;
+  --scene-slab: #6f6358;
+  --scene-column: #a89c8c;
+  --scene-glass: #6e93ab;
+  --scene-connector: #a8947a;
+  --scene-rail: #d8cfc2;
+  --scene-car: #e07c50;
+  --scene-stand-in: #5f574f;
+}
+
+/* ---------- The concept page itself ---------- */
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--canvas);
+  color: var(--fg);
+  font: 16px/1.5 var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+.page { max-width: 1400px; margin: 0 auto; padding: 48px 32px 120px; }
+h1, h2, h3 { font-family: var(--font-display); font-weight: 600; font-variation-settings: 'SOFT' 60, 'opsz' 48; margin: 0; }
+h1 { font-size: 56px; line-height: 1.05; letter-spacing: -0.01em; }
+h2 { font-size: 30px; margin: 96px 0 8px; }
+h3 { font-size: 20px; margin: 32px 0 8px; }
+.lede { color: var(--muted); max-width: 70ch; margin: 8px 0 0; }
+.sec-note { color: var(--muted); font-size: 15px; max-width: 80ch; margin: 0 0 24px; }
+.eyebrow { font: 500 11px/1 var(--font-mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.rule { height: 1px; background: var(--edge); margin: 40px 0; }
+.dot { color: var(--accent); }
+a { color: var(--accent); }
+
+/* Wordmark + icon */
+.hero { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: end; }
+.wordmark { font-family: var(--font-display); font-weight: 600; font-variation-settings: 'SOFT' 80, 'opsz' 144; letter-spacing: -0.015em; line-height: 1; }
+.wordmark .dot { color: var(--accent); }
+.icon-row { display: flex; gap: 28px; align-items: flex-end; flex-wrap: wrap; }
+.icon-cell { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.icon-cell .cap { font: 11px/1 var(--font-mono); color: var(--muted); }
+.icon-cell svg { display: block; }
+.framing { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; margin-top: 24px; }
+.framing .pane { border: 1px solid var(--edge); border-radius: 8px; padding: 24px; display: flex; gap: 32px; align-items: center; background: var(--surface); }
+.framing .pane.dark { background: #1d1a17; border-color: #3c3531; color: #ebe3d6; }
+.framing .pane.white { background: #ffffff; }
+.dock { display: flex; gap: 14px; align-items: flex-end; }
+.dock .blob { width: 64px; height: 64px; border-radius: 15px; }
+.win-sq { width: 64px; height: 64px; }
+
+/* Type specimen */
+.spec { display: grid; grid-template-columns: 1.3fr 1fr; gap: 48px; }
+.spec table { border-collapse: collapse; width: 100%; font-size: 14px; }
+.spec th, .spec td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--edge); vertical-align: top; }
+.spec th { font: 500 11px/1.2 var(--font-mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.sample { padding: 24px; border: 1px solid var(--edge); border-radius: 8px; background: var(--surface); }
+.sample .s-h1 { font-family: var(--font-display); font-weight: 600; font-size: 26px; font-variation-settings: 'SOFT' 60, 'opsz' 36; }
+.sample .s-h2 { font-family: var(--font-display); font-weight: 600; font-size: 16px; font-variation-settings: 'SOFT' 40, 'opsz' 18; margin-top: 18px; }
+.sample .s-body { font-size: 13px; line-height: 1.45; margin-top: 10px; max-width: 48ch; }
+.sample .s-label { font-size: 11px; color: var(--muted); margin-top: 14px; }
+.sample .s-cap { font: 500 11px/1 var(--font-sans); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-top: 14px; }
+.sample .s-mono { font: 13px/1.5 var(--font-mono); font-variant-numeric: tabular-nums; margin-top: 10px; }
+.sample .s-meta { font-size: 12px; font-style: italic; color: var(--muted); margin-top: 8px; }
+.glyphs { font-size: 34px; line-height: 1.2; margin-top: 8px; }
+
+/* Palette swatches */
+.palettes { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.palette { border: 1px solid var(--edge); border-radius: 10px; padding: 20px 20px 24px; background: var(--surface); color: var(--fg); }
+.palette h3 { margin: 0 0 14px; }
+.palette .group { font: 500 11px/1 var(--font-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 18px 0 8px; }
+.sw-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.sw { display: flex; gap: 10px; align-items: center; padding: 6px; border: 1px solid var(--edge); border-radius: 6px; background: var(--canvas); }
+.sw i { width: 34px; height: 34px; border-radius: 5px; border: 1px solid rgba(0,0,0,.08); flex: none; }
+.sw b { display: block; font: 500 12px/1.2 var(--font-sans); }
+.sw small { display: block; font: 11px/1.2 var(--font-mono); color: var(--muted); }
+
+/* Canvas + scene swatch panels */
+.canvases { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.cv { border: 1px solid var(--edge); border-radius: 10px; overflow: hidden; background: var(--canvas); }
+.cv .cap { padding: 10px 14px; font: 12px/1 var(--font-mono); color: var(--muted); border-bottom: 1px solid var(--edge); background: var(--surface); }
+.cv svg { display: block; width: 100%; height: auto; }
+
+/* Mocks */
+.frame { position: relative; width: 100%; aspect-ratio: 1890 / 1020; border: 1px solid var(--edge); border-radius: 10px; overflow: hidden; box-shadow: 0 1px 0 rgba(42,37,33,.05), 0 24px 48px -24px rgba(42,37,33,.25); margin-top: 12px; }
+.frame .mock { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.frame-title { margin-top: 40px; display: flex; align-items: baseline; gap: 12px; }
+.frame-title h3 { margin: 0; }
+.frame-title span { color: var(--muted); font-size: 14px; }
+
+.mock { width: 1890px; height: 1020px; background: var(--canvas); color: var(--fg); font: 13px/1.4 var(--font-sans); display: flex; flex-direction: column; overflow: hidden; }
+.mock .ico { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.mock .ico.sm { width: 16px; height: 16px; }
+.mock .ico.lg { width: 20px; height: 20px; }
+.mock .num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.mock .cap { font: 500 11px/1 var(--font-sans); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+
+/* Title bar */
+.tb { height: 50px; flex: none; background: var(--titlebar); color: var(--titlebar-fg); display: flex; align-items: center; padding: 0 16px 0 14px; border-bottom: 1px solid var(--edge); gap: 6px; }
+.tb .brand { display: flex; align-items: center; gap: 9px; margin-right: 14px; }
+.tb .brand .wm { font-family: var(--font-display); font-weight: 600; font-size: 16px; font-variation-settings: 'SOFT' 80, 'opsz' 18; letter-spacing: -0.01em; }
+.tb .brand .wm .dot { color: var(--accent); }
+.tb .brand svg { width: 22px; height: 22px; }
+.tb .hm { width: 44px; height: 50px; display: flex; align-items: center; justify-content: center; border-left: 1px solid var(--edge); border-right: 1px solid var(--edge); }
+.tb .hm.active, .tb .tab.active { background: var(--canvas); }
+.tb .tab { height: 50px; padding: 0 20px; display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 14px; }
+.tb .tab.active { color: var(--fg); border-right: 1px solid var(--edge); margin-left: -6px; padding-left: 26px; }
+.tb .tab.active::before { content: ''; position: absolute; }
+.tb .tab .x { width: 12px; height: 12px; stroke-width: 1.8; }
+.tb .spacer { flex: 1; }
+.tb .cmd { width: 312px; height: 34px; border: 1px solid var(--edge); background: var(--canvas); border-radius: 6px; display: flex; align-items: center; padding: 0 8px 0 12px; gap: 10px; color: var(--muted); font-size: 14px; }
+.tb .cmd kbd { margin-left: auto; font: 11px/1 var(--font-mono); background: var(--elevated); border-radius: 4px; padding: 5px 7px; color: var(--fg); }
+.tb .gear { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; margin-left: 10px; color: var(--muted); }
+
+/* Status bar */
+.sb { height: 28px; flex: none; border-top: 1px solid var(--edge); background: var(--surface); display: flex; align-items: center; padding: 0 16px 0 18px; gap: 18px; font-size: 12.5px; color: var(--muted); }
+.sb .spacer { flex: 1; }
+.sb .ok { width: 7px; height: 7px; border-radius: 50%; background: var(--success); display: inline-block; margin-right: 6px; }
+.sb .ico { width: 15px; height: 15px; }
+.sb .item { display: flex; align-items: center; gap: 6px; }
+
+/* Buttons and fields */
+.btn { height: 40px; padding: 0 16px; border-radius: 6px; border: 1px solid var(--edge); background: var(--surface); color: var(--fg); display: inline-flex; align-items: center; gap: 9px; font-size: 15px; font-weight: 500; }
+.btn.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.btn.ghost { border-color: transparent; background: transparent; }
+.btn.danger { color: var(--danger); border-color: transparent; background: transparent; }
+.btn.sm { height: 32px; padding: 0 10px; font-size: 13.5px; }
+.field { height: 40px; border-radius: 6px; border: 1px solid var(--edge); background: var(--canvas); display: flex; align-items: center; padding: 0 12px; gap: 10px; color: var(--muted); font-size: 15px; }
+.chip { height: 30px; padding: 0 11px; border-radius: 15px; border: 1px solid var(--edge); background: var(--surface); display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--fg); }
+.chip .n { font-family: var(--font-mono); color: var(--muted); font-size: 11px; }
+.chip.on { background: var(--elevated); border-color: var(--muted); }
+.sel { height: 40px; border-radius: 6px; border: 1px solid var(--edge); background: var(--surface); display: inline-flex; align-items: center; padding: 0 10px 0 14px; gap: 14px; font-size: 15px; }
+.sel .ico { width: 14px; height: 14px; }
+.inp { height: 40px; border-radius: 6px; border: 1px solid var(--edge); background: var(--canvas); display: flex; align-items: center; padding: 0 14px; font-size: 15px; }
+.inp.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 14px; }
+.inp .unit { color: var(--muted); margin-left: 6px; }
+.inp.placeholder { color: var(--muted); }
+
+/* Home */
+.home { flex: 1; overflow: hidden; display: flex; flex-direction: column; align-items: center; padding-top: 44px; }
+.home .inner { width: 1428px; }
+.home .head { display: flex; align-items: center; gap: 22px; }
+.home h1.title { font-family: var(--font-display); font-weight: 600; font-size: 30px; font-variation-settings: 'SOFT' 60, 'opsz' 36; letter-spacing: -0.01em; margin: 0 6px 0 0; line-height: 1; }
+.home .head .spacer { flex: 1; }
+.home .filters { display: flex; align-items: center; gap: 12px; margin-top: 30px; }
+.home .filters .field { width: 420px; }
+.home .grid { display: grid; grid-template-columns: repeat(4, 340px); gap: 22px; margin-top: 32px; }
+.card { border: 1px solid var(--edge); border-radius: 8px; overflow: hidden; background: var(--surface); box-shadow: 0 1px 0 rgba(42,37,33,.04); }
+.card.picked { outline: 2px solid var(--accent); outline-offset: -1px; }
+.card .thumb { height: 236px; position: relative; background: var(--canvas); border-bottom: 1px solid var(--edge); }
+.card .thumb svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.card .thumb .ini { position: absolute; left: 18px; bottom: 14px; font-family: var(--font-display); font-style: italic; font-weight: 500; font-size: 30px; font-variation-settings: 'SOFT' 100, 'opsz' 36; color: var(--fg); opacity: .78; letter-spacing: -0.01em; }
+.card .thumb.t-straw { background: color-mix(in srgb, var(--warning) 14%, var(--canvas)); }
+.card .thumb.t-sage { background: color-mix(in srgb, var(--plan-room) 18%, var(--canvas)); }
+.card .thumb.t-clay { background: color-mix(in srgb, var(--accent) 12%, var(--canvas)); }
+.card .thumb.t-slate { background: color-mix(in srgb, var(--plan-dim) 10%, var(--canvas)); }
+.card .body { padding: 16px 18px 16px; }
+.card .name { font-size: 17px; font-weight: 500; letter-spacing: -0.005em; }
+.card .meta { color: var(--muted); font-size: 13px; margin-top: 4px; display: flex; gap: 6px; align-items: baseline; }
+.card .meta .num { font-size: 12px; }
+.card .tags { display: flex; gap: 6px; margin-top: 10px; }
+.card .tag { font-size: 11.5px; padding: 3px 8px; border-radius: 3px; background: var(--elevated); color: var(--muted); }
+
+/* Project header */
+.ph { height: 60px; flex: none; display: flex; align-items: center; padding: 0 20px 0 22px; border-bottom: 1px solid var(--edge); gap: 10px; background: var(--canvas); }
+.ph .pname { font-family: var(--font-display); font-weight: 600; font-size: 20px; font-variation-settings: 'SOFT' 60, 'opsz' 24; letter-spacing: -0.01em; width: 380px; }
+.ph .saved { color: var(--muted); font-size: 14px; font-style: italic; }
+.ph .spacer { flex: 1; }
+.ph .ib { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; color: var(--muted); border-radius: 6px; }
+.ph .vr { width: 1px; height: 24px; background: var(--edge); margin: 0 8px; }
+
+/* Body columns */
+.cols { flex: 1; display: flex; min-height: 0; }
+.left { width: 376px; flex: none; border-right: 1px solid var(--edge); background: var(--surface); padding: 14px 12px 0 14px; display: flex; flex-direction: column; gap: 6px; overflow: hidden; }
+.right { width: 420px; flex: none; border-left: 1px solid var(--edge); background: var(--surface); display: flex; flex-direction: column; }
+.centre { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--canvas); }
+
+.phead { display: flex; align-items: center; height: 28px; padding: 0 4px 0 4px; }
+.phead .cap { flex: 1; }
+.phead .ico { width: 16px; height: 16px; color: var(--muted); }
+.lvl { height: 46px; display: flex; align-items: center; gap: 14px; padding: 0 12px 0 8px; border-radius: 6px; border: 1px solid transparent; }
+.lvl .grip { color: var(--edge); width: 14px; height: 14px; }
+.lvl .n { flex: 1; font-size: 15px; }
+.lvl .g { font: 11px/1 var(--font-mono); color: var(--muted); margin-right: 6px; }
+.lvl .el { font: 13px/1 var(--font-mono); font-variant-numeric: tabular-nums; color: var(--muted); }
+.lvl .el.below { color: var(--warning); }
+.lvl.active { background: var(--canvas); border-color: var(--edge); }
+.lvl.active .n { font-weight: 500; }
+.lvl.active .el { color: var(--fg); }
+.editor { margin-top: 10px; border: 1px solid var(--edge); background: var(--canvas); border-radius: 8px; padding: 14px 14px 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px 14px; }
+.editor label { display: block; font-size: 13.5px; color: var(--fg); margin-bottom: 6px; }
+.editor .full { grid-column: 1 / -1; }
+.editor .foot { grid-column: 1 / -1; display: flex; justify-content: center; gap: 24px; color: var(--muted); padding-top: 2px; }
+.layers { margin-top: 20px; }
+.layer { display: grid; grid-template-columns: 20px 20px 1fr auto 24px; gap: 14px; align-items: center; height: 36px; padding: 0 8px 0 10px; color: var(--muted); }
+.layer .n { color: var(--fg); font-size: 15px; }
+.layer .k { font: 500 11px/1 var(--font-sans); letter-spacing: .08em; }
+.layer .c { font: 13px/1 var(--font-mono); text-align: right; color: var(--fg); }
+.op { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px; padding: 0 8px 10px 64px; color: var(--muted); font-size: 12.5px; }
+.op .track { height: 3px; background: var(--edge); border-radius: 2px; position: relative; }
+.op .track::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 100%; background: var(--accent); border-radius: 2px; }
+.op .track::after { content: ''; position: absolute; right: -7px; top: -6px; width: 14px; height: 14px; border-radius: 50%; background: var(--accent); border: 2px solid var(--canvas); }
+.op .pct { font-family: var(--font-mono); font-size: 12px; }
+
+/* Centre */
+.vtabs { height: 44px; display: flex; align-items: flex-end; padding: 0 16px 0 24px; border-bottom: 1px solid var(--edge); gap: 30px; }
+.vtabs .t { padding-bottom: 10px; font-size: 15px; color: var(--muted); border-bottom: 2px solid transparent; }
+.vtabs .t.on { color: var(--fg); font-weight: 500; border-bottom-color: var(--accent); }
+.vtabs .spacer { flex: 1; }
+.vtabs .act { display: flex; align-items: center; gap: 8px; color: var(--fg); font-size: 14px; padding-bottom: 10px; margin-left: 4px; }
+.tools { height: 52px; display: flex; align-items: center; padding: 0 12px 0 10px; gap: 2px; border-bottom: 1px solid var(--edge); }
+.tools .tl { width: 32px; height: 32px; border-radius: 5px; display: flex; align-items: center; justify-content: center; color: var(--fg); }
+.tools .tl.on { background: var(--elevated); color: var(--accent); }
+.tools .gap { width: 10px; }
+.tools .spacer { flex: 1; }
+.tools .sel { height: 36px; font-size: 14px; }
+.tools .sel .num { font-size: 13px; color: var(--muted); }
+.tools2 { height: 40px; display: flex; align-items: center; padding: 0 12px 0 10px; gap: 2px; border-bottom: 1px solid var(--edge); }
+.tools2 .zoom { margin-left: auto; display: flex; align-items: center; gap: 16px; color: var(--muted); }
+.tools2 .zoom .num { color: var(--fg); font-size: 13px; }
+.canvas { flex: 1; position: relative; min-height: 0; overflow: hidden; background: var(--canvas); }
+.canvas svg.plan { position: absolute; inset: 0; width: 100%; height: 100%; }
+.cfoot { height: 28px; display: flex; align-items: center; padding: 0 16px; gap: 28px; font: 12.5px/1 var(--font-mono); color: var(--muted); border-top: 1px solid var(--edge); background: var(--canvas); }
+.cfoot .l { color: var(--fg); }
+
+/* Right panel */
+.rtabs { padding: 10px 10px 0 18px; display: flex; flex-wrap: wrap; gap: 0 26px; border-bottom: 1px solid var(--edge); }
+.rtabs .t { padding: 8px 0 10px; font-size: 15px; color: var(--muted); border-bottom: 2px solid transparent; display: flex; gap: 8px; align-items: center; }
+.rtabs .t.on { color: var(--fg); font-weight: 500; border-bottom-color: var(--accent); }
+.rtabs .t .b { font: 11px/1 var(--font-mono); background: var(--elevated); border-radius: 9px; padding: 3px 6px; color: var(--muted); }
+.rtabs .t .b.warn { color: var(--warning); }
+.props { padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; }
+.props .h { font-family: var(--font-display); font-weight: 600; font-size: 18px; font-variation-settings: 'SOFT' 50, 'opsz' 20; }
+.props label { display: block; font-size: 13.5px; margin-bottom: 6px; }
+.props .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.props .kv { font-size: 14px; display: flex; gap: 6px; align-items: baseline; color: var(--muted); }
+.props .kv .num { color: var(--fg); font-size: 13px; }
+.props .fin { display: grid; grid-template-columns: 90px 1fr 32px; gap: 12px; align-items: center; color: var(--muted); font-size: 14px; }
+.props .fin .sw { width: 32px; height: 32px; border-radius: 5px; border: 1px solid var(--edge); background: var(--elevated); padding: 0; }
+.props .empty { color: var(--muted); font-size: 14px; line-height: 1.5; }
+.props .empty .k { font: 11px/1 var(--font-mono); background: var(--elevated); border-radius: 4px; padding: 3px 6px; color: var(--fg); }
+
+/* Empty project hint (on the canvas) */
+.hint { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -54%); width: 560px; text-align: center; }
+.hint .sketch { width: 260px; height: 170px; margin: 0 auto 22px; display: block; }
+.hint h2 { font-family: var(--font-display); font-weight: 600; font-size: 28px; font-variation-settings: 'SOFT' 80, 'opsz' 36; margin: 0 0 10px; color: var(--fg); }
+.hint p { margin: 0; color: var(--muted); font-size: 15px; line-height: 1.5; }
+.hint .keys { display: flex; justify-content: center; gap: 28px; margin-top: 22px; color: var(--muted); font-size: 14px; }
+.hint .keys kbd { font: 12px/1 var(--font-mono); background: var(--surface); border: 1px solid var(--edge); border-radius: 4px; padding: 4px 7px; color: var(--fg); margin-right: 7px; }
+.hint .ai { margin-top: 26px; display: inline-flex; align-items: center; gap: 10px; color: var(--muted); font-size: 14px; border: 1px dashed var(--edge); border-radius: 20px; padding: 8px 14px 8px 12px; }
+.hint .ai .ico { color: var(--accent); width: 16px; height: 16px; }
+
+/* Assistant panel (shown in one mock) */
+.chat { flex: 1; display: flex; flex-direction: column; padding: 14px 18px 16px; gap: 12px; min-height: 0; }
+.chat .model { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; }
+.chat .model .ico { width: 16px; height: 16px; color: var(--accent); }
+.chat .model .spacer { flex: 1; }
+.chat .msg { font-size: 14.5px; line-height: 1.45; }
+.chat .msg.user { align-self: flex-end; max-width: 80%; background: var(--elevated); border-radius: 10px 10px 2px 10px; padding: 8px 12px; }
+.chat .msg.ai { padding-left: 14px; border-left: 2px solid var(--accent); }
+.chat .tool { border: 1px solid var(--edge); background: var(--canvas); border-radius: 6px; padding: 8px 12px; font-size: 13.5px; display: grid; grid-template-columns: 18px 1fr; gap: 10px; }
+.chat .tool .ico { color: var(--success); width: 16px; height: 16px; margin-top: 2px; }
+.chat .tool .sub { color: var(--muted); font-size: 12.5px; margin-top: 1px; }
+.chat .spacer { flex: 1; }
+.chat .compose { border: 1px solid var(--edge); border-radius: 8px; background: var(--canvas); padding: 10px 12px; min-height: 64px; color: var(--muted); font-size: 14px; display: flex; flex-direction: column; justify-content: space-between; }
+.chat .compose .send { align-self: flex-end; display: inline-flex; align-items: center; gap: 6px; color: var(--accent-fg); background: var(--accent); border-radius: 5px; padding: 6px 10px; font-size: 13px; font-weight: 500; }
+
+/* About card (shown small) */
+.about { border: 1px solid var(--edge); border-radius: 10px; background: var(--surface); padding: 36px 40px; display: grid; grid-template-columns: 112px 1fr; gap: 32px; align-items: start; max-width: 720px; }
+.about .wordmark { font-size: 40px; }
+.about p { margin: 6px 0 0; font-size: 14px; color: var(--muted); max-width: 52ch; }
+.about .v { font: 13px/1 var(--font-mono); color: var(--muted); margin-top: 14px; }
+.moments { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
+.firstlaunch { border: 1px solid var(--edge); border-radius: 10px; background: var(--canvas); padding: 40px 36px 36px; text-align: center; }
+.firstlaunch .sketch { width: 240px; height: 150px; margin: 0 auto 16px; display: block; }
+.firstlaunch h3 { margin: 0 0 8px; font-size: 26px; font-variation-settings: 'SOFT' 80, 'opsz' 36; }
+.firstlaunch p { margin: 0 auto; color: var(--muted); font-size: 14px; max-width: 44ch; }
+.firstlaunch .btns { display: flex; justify-content: center; gap: 10px; margin-top: 20px; }
+.firstlaunch .btns .btn { height: 36px; font-size: 14px; }
+.firstlaunch small { display: block; margin-top: 16px; color: var(--muted); font-size: 12.5px; }
+</style>
+</head>
+<body>
+
+<!-- ============ Icon sprite: Lucide-style strokes, the app mark, the assistant mark ============ -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="paper" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f8f3ea"/><stop offset="1" stop-color="#eee5d5"/></linearGradient>
+    <!-- App icon, identical geometry to icon.svg -->
+    <symbol id="app-icon" viewBox="0 0 1024 1024">
+      <rect x="64" y="64" width="896" height="896" rx="200" fill="url(#paper)"/>
+      <rect x="70" y="70" width="884" height="884" rx="194" fill="none" stroke="#d9cebc" stroke-width="12"/>
+      <path d="M296 628 H520 A224 224 0 0 0 296 404 Z" fill="#b9552f"/>
+      <path d="M296 628 H520" stroke="#2a2521" stroke-width="26"/>
+      <path d="M296 262 V404" stroke="#2a2521" stroke-width="88"/>
+      <path d="M296 628 V772 H772" stroke="#2a2521" stroke-width="88" fill="none"/>
+      <rect x="252" y="218" width="88" height="88" fill="#2a2521"/>
+      <rect x="728" y="728" width="88" height="88" fill="#2a2521"/>
+    </symbol>
+    <!-- Windows framing: the paper fills the square, a 6% padding -->
+    <symbol id="app-icon-win" viewBox="0 0 1024 1024">
+      <rect x="32" y="32" width="960" height="960" rx="72" fill="url(#paper)"/>
+      <rect x="38" y="38" width="948" height="948" rx="66" fill="none" stroke="#d9cebc" stroke-width="12"/>
+      <path d="M296 628 H520 A224 224 0 0 0 296 404 Z" fill="#b9552f"/>
+      <path d="M296 628 H520" stroke="#2a2521" stroke-width="26"/>
+      <path d="M296 262 V404" stroke="#2a2521" stroke-width="88"/>
+      <path d="M296 628 V772 H772" stroke="#2a2521" stroke-width="88" fill="none"/>
+      <rect x="252" y="218" width="88" height="88" fill="#2a2521"/>
+      <rect x="728" y="728" width="88" height="88" fill="#2a2521"/>
+    </symbol>
+    <!-- The assistant's mark: a pencil at rest, drawn like the other icons -->
+    <symbol id="i-hand" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/><path d="m15 5 3 3"/></symbol>
+    <symbol id="i-pointer" viewBox="0 0 24 24"><path d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"/></symbol>
+    <symbol id="i-wall" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M12 9v6"/><path d="M16 15v6"/><path d="M16 3v6"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M8 15v6"/><path d="M8 3v6"/></symbol>
+    <symbol id="i-door" viewBox="0 0 24 24"><path d="M13 4h3a2 2 0 0 1 2 2v14"/><path d="M2 20h3"/><path d="M13 20h9"/><path d="M10 12v.01"/><path d="M13 4.562v16.157a1 1 0 0 1-1.242.97L5 20V5.562a2 2 0 0 1 1.515-1.94l4-1A2 2 0 0 1 13 4.561Z"/></symbol>
+    <symbol id="i-window" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M10 4v4"/><path d="M2 8h20"/><path d="M6 4v4"/></symbol>
+    <symbol id="i-column" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/></symbol>
+    <symbol id="i-flip" viewBox="0 0 24 24"><path d="m3 7 5 5-5 5"/><path d="m21 7-5 5 5 5"/><path d="M12 20v2"/><path d="M12 14v2"/><path d="M12 8v2"/><path d="M12 2v2"/></symbol>
+    <symbol id="i-stairs" viewBox="0 0 24 24"><path d="M3 20h4v-4h4v-4h4v-4h4V4"/><path d="M3 20h18"/></symbol>
+    <symbol id="i-ramp" viewBox="0 0 24 24"><path d="M3 19 21 6"/><path d="M3 19h18"/><path d="M21 6v13"/></symbol>
+    <symbol id="i-ladder" viewBox="0 0 24 24"><path d="m17 11-5-5-5 5"/><path d="m17 18-5-5-5 5"/></symbol>
+    <symbol id="i-elevator" viewBox="0 0 24 24"><path d="m18 9-6-6-6 6"/><path d="M12 3v14"/><path d="M5 21h14"/></symbol>
+    <symbol id="i-escalator" viewBox="0 0 24 24"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></symbol>
+    <symbol id="i-room" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-sofa" viewBox="0 0 24 24"><path d="M19 9V6a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v3"/><path d="M3 16a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0v2H7v-2a2 2 0 0 0-4 0Z"/><path d="M5 18v2"/><path d="M19 18v2"/></symbol>
+    <symbol id="i-bulb" viewBox="0 0 24 24"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></symbol>
+    <symbol id="i-paint" viewBox="0 0 24 24"><path d="m19 11-8-8-8.6 8.6a2 2 0 0 0 0 2.8l5.2 5.2c.8.8 2 .8 2.8 0L19 11Z"/><path d="m5 2 5 5"/><path d="M2 13h15"/><path d="M22 20a2 2 0 1 1-4 0c0-1.6 1.7-2.4 2-4 .3 1.6 2 2.4 2 4Z"/></symbol>
+    <symbol id="i-pentagon" viewBox="0 0 24 24"><path d="M10.83 2.38a2 2 0 0 1 2.34 0l8 5.74a2 2 0 0 1 .73 2.25l-3.04 9.26a2 2 0 0 1-1.9 1.37H7.04a2 2 0 0 1-1.9-1.37L2.1 10.37a2 2 0 0 1 .73-2.25z"/></symbol>
+    <symbol id="i-square" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/></symbol>
+    <symbol id="i-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></symbol>
+    <symbol id="i-ruler" viewBox="0 0 24 24"><path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.41 2.41 0 0 1 0-3.4l2.6-2.6a2.41 2.41 0 0 1 3.4 0Z"/><path d="m14.5 12.5 2-2"/><path d="m11.5 9.5 2-2"/><path d="m8.5 6.5 2-2"/><path d="m17.5 15.5 2-2"/></symbol>
+    <symbol id="i-type" viewBox="0 0 24 24"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" x2="15" y1="20" y2="20"/><line x1="12" x2="12" y1="4" y2="20"/></symbol>
+    <symbol id="i-magnet" viewBox="0 0 24 24"><path d="m6 15-4-4 6.75-6.77a7.79 7.79 0 0 1 11 11L13 22l-4-4 6.39-6.36a2.14 2.14 0 0 0-3-3L6 15"/><path d="m5 8 4 4"/><path d="m12 15 4 4"/></symbol>
+    <symbol id="i-angle" viewBox="0 0 24 24"><path d="M3 20 14 4"/><path d="M3 20h18"/><path d="M9 20a9 9 0 0 0-1.6-5.2"/></symbol>
+    <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11"/></symbol>
+    <symbol id="i-redo" viewBox="0 0 24 24"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5A5.5 5.5 0 0 0 9.5 20H13"/></symbol>
+    <symbol id="i-save" viewBox="0 0 24 24"><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m17 8-5-5-5 5"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M10 11v6"/><path d="M14 11v6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-house" viewBox="0 0 24 24"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+    <symbol id="i-grip" viewBox="0 0 24 24"><circle cx="9" cy="5" r="1" fill="currentColor"/><circle cx="9" cy="12" r="1" fill="currentColor"/><circle cx="9" cy="19" r="1" fill="currentColor"/><circle cx="15" cy="5" r="1" fill="currentColor"/><circle cx="15" cy="12" r="1" fill="currentColor"/><circle cx="15" cy="19" r="1" fill="currentColor"/></symbol>
+    <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/></symbol>
+    <symbol id="i-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-zoomin" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/><line x1="11" x2="11" y1="8" y2="14"/><line x1="8" x2="14" y1="11" y2="11"/></symbol>
+    <symbol id="i-zoomout" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/><line x1="8" x2="14" y1="11" y2="11"/></symbol>
+    <symbol id="i-fit" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></symbol>
+    <symbol id="i-panel" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M15 3v18"/></symbol>
+    <symbol id="i-import" viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m8 11 4 4 4-4"/><path d="M8 5H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-4"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+    <symbol id="i-plug" viewBox="0 0 24 24"><path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/></symbol>
+    <symbol id="i-unit" viewBox="0 0 24 24"><path d="M3 12h18"/><path d="M6 9v6"/><path d="M12 9v6"/><path d="M18 9v6"/><path d="M9 10.5v3"/><path d="M15 10.5v3"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+    <symbol id="i-send" viewBox="0 0 24 24"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/></symbol>
+    <symbol id="i-eraser" viewBox="0 0 24 24"><path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/></symbol>
+  </defs>
+</svg>
+
+<div class="page">
+
+<!-- ============ 1. Wordmark and icon ============ -->
+<div class="eyebrow">Concept 1 · craft</div>
+<div class="hero">
+  <div>
+    <div class="wordmark" style="font-size:132px">Hollin<span class="dot">.</span></div>
+    <p class="lede">A warm sheet of paper, ink walls, one terracotta mark. The plan as a drawing on a desk, for people planning their own home: approachable precision.</p>
+  </div>
+  <div class="icon-row">
+    <div class="icon-cell"><svg width="256" height="256"><use href="#app-icon"/></svg><span class="cap">1024 px master, shown at ¼</span></div>
+    <div class="icon-cell"><svg width="128" height="128"><use href="#app-icon"/></svg><span class="cap">128</span></div>
+    <div class="icon-cell"><svg width="32" height="32"><use href="#app-icon"/></svg><span class="cap">32</span></div>
+    <div class="icon-cell"><svg width="16" height="16"><use href="#app-icon"/></svg><span class="cap">16</span></div>
+  </div>
+</div>
+
+<div class="framing">
+  <div class="pane">
+    <div class="dock">
+      <div class="blob" style="background:#8c6b4a"></div>
+      <svg width="64" height="64"><use href="#app-icon"/></svg>
+      <div class="blob" style="background:#3f5390"></div>
+    </div>
+    <div><b>macOS dock</b><br><span style="color:var(--muted);font-size:14px">The rounded square sits inside the system margin, like the neighbours.</span></div>
+  </div>
+  <div class="pane dark">
+    <div class="dock">
+      <div class="blob" style="background:#4b433d"></div>
+      <svg width="64" height="64"><use href="#app-icon"/></svg>
+      <div class="blob" style="background:#6e93ab"></div>
+    </div>
+    <div><b>Dark dock</b><br><span style="color:#a2968a;font-size:14px">The paper square is the only warm light thing in the row: it reads as itself.</span></div>
+  </div>
+  <div class="pane white">
+    <svg class="win-sq"><use href="#app-icon-win"/></svg>
+    <svg width="32" height="32"><use href="#app-icon-win"/></svg>
+    <svg width="16" height="16"><use href="#app-icon-win"/></svg>
+    <div style="color:#2a2521"><b>Windows taskbar and Explorer</b><br><span style="color:#7b7064;font-size:14px">Square framing, 3 % padding; the hairline keeps paper apart from a white window.</span></div>
+  </div>
+  <div class="pane">
+    <div style="display:flex;align-items:center;gap:9px"><svg width="22" height="22"><use href="#app-icon"/></svg><span class="wordmark" style="font-size:17px;font-variation-settings:'SOFT' 80,'opsz' 18">Hollin<span class="dot">.</span></span></div>
+    <div><b>Title bar</b><br><span style="color:var(--muted);font-size:14px">22 px icon, the name in Fraunces at 16 px, the full stop in terracotta.</span></div>
+  </div>
+</div>
+
+<!-- ============ 2. Type ============ -->
+<h2>Type</h2>
+<p class="sec-note">Three open-licence families, all bundled as variable or static OFL files. <b>Alegreya Sans</b> is the working face: a humanist sans with calligraphic roots that still sets a dense panel cleanly. <b>IBM Plex Mono</b> carries every number: typewriter DNA, tabular by nature, with a slashed zero. <b>Fraunces</b> is used sparingly, for the wordmark, project names and the few headings that get to speak (Home, empty moments, About).</p>
+<div class="spec">
+  <table>
+    <tr><th>Role</th><th>Face</th><th>Size / line</th><th>Notes</th></tr>
+    <tr><td>Body, controls, panel text</td><td>Alegreya Sans 400</td><td class="mono">13 / 18</td><td>Letter-spacing 0. Medium 500 for selected rows and card names.</td></tr>
+    <tr><td>Labels, meta, captions</td><td>Alegreya Sans 400</td><td class="mono">11 / 14</td><td>Section caps (LEVELS, LAYERS, FINISHES) at 11 px, tracking .08 em, Medium.</td></tr>
+    <tr><td>Meta that is a time or a state</td><td>Alegreya Sans Italic 400</td><td class="mono">12–14</td><td>"Saved just now", "Edited 3 days ago": the italic is the notebook's handwriting.</td></tr>
+    <tr><td>Panel heading (Room, Dimension, Level)</td><td>Fraunces 600</td><td class="mono">18 / 24</td><td>opsz 20, SOFT 50.</td></tr>
+    <tr><td>Project name, dialog titles</td><td>Fraunces 600</td><td class="mono">20 / 26</td><td>opsz 24, SOFT 60.</td></tr>
+    <tr><td>Home heading, empty moments</td><td>Fraunces 600</td><td class="mono">28–30 / 34</td><td>opsz 36, SOFT 60–80.</td></tr>
+    <tr><td>Wordmark</td><td>Fraunces 600</td><td class="mono">any</td><td>opsz 144, SOFT 80, tracking −.015 em; outlined for the icon and About.</td></tr>
+    <tr><td>Numbers, units, ids, coordinates, shortcuts</td><td>IBM Plex Mono 400 / 500</td><td class="mono">13 (11 in badges)</td><td><code>tnum</code> is built in. Units in <code>--muted</code>, values in <code>--fg</code>.</td></tr>
+    <tr><td>Icons</td><td>Lucide</td><td class="mono">18 px, 1.6 px stroke</td><td>Lighter than the 2 px default: a pencil line, not a marker.</td></tr>
+  </table>
+  <div class="sample">
+    <div class="s-h1">Start with a room you know.</div>
+    <div class="s-h2">Ground floor · Kitchen</div>
+    <div class="s-body">Walls and openings sit on the Structure layer; rooms, fixtures and dimensions on Interior. Type a length like <span class="mono">4000</span> or <span class="mono">3000&lt;45</span> while drawing and the wall takes it.</div>
+    <div class="s-meta">Saved just now · 2 levels</div>
+    <div class="s-cap">Finishes</div>
+    <div class="s-label">Elevation · Floor to floor · Slab</div>
+    <div class="s-mono">1500 mm   2700 mm   200 mm<br>Area 17.5 m²  ·  Perimeter 16 880 mm<br>0123456789  −2000, −1004  1:38</div>
+    <div class="glyphs"><span style="font-family:var(--font-display);font-weight:600;font-variation-settings:'SOFT' 80,'opsz' 36">Aa Rg</span> <span>Aa Rg</span> <span class="mono">Aa 0</span></div>
+  </div>
+</div>
+
+<!-- ============ 3. Palette ============ -->
+<h2>Palette</h2>
+<p class="sec-note">Every semantic variable in <code>styles.css</code>, both themes. Light is paper on a desk; dark is the same desk after the lamp goes on: warm near-black, never blue-grey. On the canvas the roles keep their own hues: <b>selection</b> and the UI accent are terracotta (red-orange), <b>warning</b> is ochre (yellow), <b>snap</b> is moss (green), <b>dimensions</b> are indigo ink (blue), and the <b>room</b> wash is a pale sage that only ever appears at low alpha, so a line in any of the four full-strength colours sits apart from it.</p>
+<div class="palettes" id="palettes"></div>
+
+<h3>The palette on the canvas and in 3D</h3>
+<p class="sec-note">The plan as a drawing: graphite walls with an ink edge, a sage wash in the rooms, indigo dimensions, terracotta for what you touched. In 3D the solids are plaster, sand and timber; glass is the one cool note; the elevator car carries the accent.</p>
+<div class="canvases">
+  <div class="cv"><div class="cap">plan · light</div><svg viewBox="0 0 640 400" data-plan-swatch></svg></div>
+  <div class="cv"><div class="cap">3d · light · day</div><svg viewBox="0 0 640 400" data-scene></svg></div>
+  <div class="cv dark"><div class="cap">plan · dark</div><svg viewBox="0 0 640 400" data-plan-swatch></svg></div>
+  <div class="cv dark"><div class="cap">3d · dark · night</div><svg viewBox="0 0 640 400" data-scene data-night></svg></div>
+</div>
+
+<!-- ============ 4. Mocks ============ -->
+<h2>Mocks</h2>
+<p class="sec-note">1890 × 1020, the reference size, scaled to the page. The layout is the app's as built; only the skin changes.</p>
+
+<div class="frame-title"><h3>Home</h3><span>light</span></div>
+<div class="frame" id="f-home-light">
+<div class="mock" id="home-mock">
+  <div class="tb">
+    <div class="brand"><svg><use href="#app-icon"/></svg><span class="wm">Hollin<span class="dot">.</span></span></div>
+    <div class="hm active"><svg class="ico"><use href="#i-house"/></svg></div>
+    <div class="tab">Smoke House</div>
+    <div class="tab">Tower</div>
+    <div class="spacer"></div>
+    <div class="cmd"><svg class="ico sm"><use href="#i-search"/></svg>Search commands…<kbd>Ctrl K</kbd></div>
+    <div class="gear"><svg class="ico"><use href="#i-gear"/></svg></div>
+  </div>
+  <div class="home">
+    <div class="inner">
+      <div class="head">
+        <h1 class="title">Projects</h1>
+        <div class="btn primary"><svg class="ico sm"><use href="#i-plus"/></svg>New project</div>
+        <div class="btn"><svg class="ico sm"><use href="#i-upload"/></svg>Import…</div>
+        <div class="spacer"></div>
+        <div class="btn ghost" style="color:var(--muted)"><svg class="ico sm"><use href="#i-trash"/></svg>Trash <span class="num">(0)</span></div>
+      </div>
+      <div class="filters">
+        <div class="field"><svg class="ico sm"><use href="#i-search"/></svg>Search projects</div>
+        <div class="sel">Last changed<svg class="ico"><use href="#i-chev"/></svg></div>
+        <div class="chip">residential <span class="n">2</span></div>
+        <div class="chip">renovation <span class="n">2</span></div>
+        <div class="chip">flat <span class="n">1</span></div>
+        <div class="chip">garden room <span class="n">1</span></div>
+      </div>
+      <div class="grid">
+        <div class="card">
+          <div class="thumb"><svg viewBox="0 0 340 236" data-thumb="1"></svg></div>
+          <div class="body"><div class="name">Our house, as it is</div><div class="meta"><i>Edited just now</i><span>·</span><span class="num">2 levels</span></div><div class="tags"><span class="tag">residential</span><span class="tag">renovation</span></div></div>
+        </div>
+        <div class="card picked">
+          <div class="thumb"><svg viewBox="0 0 340 236" data-thumb="2"></svg></div>
+          <div class="body"><div class="name">Kitchen, knocked through</div><div class="meta"><i>Edited 2 hours ago</i><span>·</span><span class="num">1 level</span></div><div class="tags"><span class="tag">renovation</span></div></div>
+        </div>
+        <div class="card">
+          <div class="thumb t-sage"><svg viewBox="0 0 340 236" data-doodle="a"></svg><span class="ini">Gr</span></div>
+          <div class="body"><div class="name">Garden room</div><div class="meta"><i>Edited yesterday</i><span>·</span><span class="num">1 level</span></div><div class="tags"><span class="tag">garden room</span></div></div>
+        </div>
+        <div class="card">
+          <div class="thumb"><svg viewBox="0 0 340 236" data-thumb="3"></svg></div>
+          <div class="body"><div class="name">Flat on Elm Street</div><div class="meta"><i>Edited 3 days ago</i><span>·</span><span class="num">1 level</span></div><div class="tags"><span class="tag">flat</span></div></div>
+        </div>
+        <div class="card">
+          <div class="thumb t-clay"><svg viewBox="0 0 340 236" data-doodle="b"></svg><span class="ini">Lo</span></div>
+          <div class="body"><div class="name">Loft idea</div><div class="meta"><i>Edited last week</i><span>·</span><span class="num">1 level</span></div></div>
+        </div>
+        <div class="card">
+          <div class="thumb"><svg viewBox="0 0 340 236" data-thumb="4"></svg></div>
+          <div class="body"><div class="name">Duplex</div><div class="meta"><i>Edited last week</i><span>·</span><span class="num">2 levels</span></div><div class="tags"><span class="tag">residential</span></div></div>
+        </div>
+        <div class="card">
+          <div class="thumb t-straw"><svg viewBox="0 0 340 236" data-doodle="c"></svg><span class="ini">Ca</span></div>
+          <div class="body"><div class="name">Cabin by the lake</div><div class="meta"><i>Edited 2 weeks ago</i><span>·</span><span class="num">1 level</span></div></div>
+        </div>
+        <div class="card">
+          <div class="thumb t-slate"><svg viewBox="0 0 340 236" data-doodle="d"></svg><span class="ini">St</span></div>
+          <div class="body"><div class="name">Studio over the garage</div><div class="meta"><i>Edited a month ago</i><span>·</span><span class="num">1 level</span></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="sb">
+    <span>No project open</span>
+    <span class="spacer"></span>
+    <span class="item"><svg class="ico"><use href="#i-unit"/></svg><span class="num">mm</span></span>
+    <span class="item"><svg class="ico"><use href="#i-plug"/></svg><span class="ok"></span>MCP <span class="num">:63282</span></span>
+    <span class="item"><svg class="ico"><use href="#i-sun"/></svg></span>
+  </div>
+</div>
+</div>
+
+<div class="frame-title"><h3>Home</h3><span>dark</span></div>
+<div class="frame dark" id="f-home-dark"></div>
+
+<div class="frame-title"><h3>Project window, plan</h3><span>light · a room selected, a dimension</span></div>
+<div class="frame" id="f-plan-light">
+<div class="mock" id="plan-mock">
+  <div class="tb">
+    <div class="brand"><svg><use href="#app-icon"/></svg><span class="wm">Hollin<span class="dot">.</span></span></div>
+    <div class="hm"><svg class="ico"><use href="#i-house"/></svg></div>
+    <div class="tab">Smoke House</div>
+    <div class="tab active">Our house, as it is<svg class="ico x"><use href="#i-x"/></svg></div>
+    <div class="spacer"></div>
+    <div class="cmd"><svg class="ico sm"><use href="#i-search"/></svg>Search commands…<kbd>Ctrl K</kbd></div>
+    <div class="gear"><svg class="ico"><use href="#i-gear"/></svg></div>
+  </div>
+  <div class="ph">
+    <div class="pname">Our house, as it is</div>
+    <div class="saved">Saved just now</div>
+    <div class="spacer"></div>
+    <div class="ib"><svg class="ico"><use href="#i-undo"/></svg></div>
+    <div class="ib"><svg class="ico"><use href="#i-redo"/></svg></div>
+    <div class="vr"></div>
+    <div class="btn ghost sm"><svg class="ico sm"><use href="#i-save"/></svg>Save</div>
+    <div class="btn ghost sm"><svg class="ico sm"><use href="#i-download"/></svg>Export project…</div>
+    <div class="btn ghost sm"><svg class="ico sm"><use href="#i-copy"/></svg>Duplicate</div>
+    <div class="btn danger sm"><svg class="ico sm"><use href="#i-trash"/></svg>Trash</div>
+  </div>
+  <div class="cols">
+    <div class="left">
+      <div class="phead"><span class="cap">Levels</span><svg class="ico"><use href="#i-plus"/></svg></div>
+      <div class="lvl"><svg class="ico grip"><use href="#i-grip"/></svg><span class="n">Upper floor</span><span class="el">2 800 mm</span></div>
+      <div class="lvl active"><svg class="ico grip"><use href="#i-grip"/></svg><span class="n">Ground floor</span><span class="g">G</span><span class="el">0 mm</span></div>
+      <div class="lvl"><svg class="ico grip"><use href="#i-grip"/></svg><span class="n">Cellar</span><span class="el below">−2 400 mm</span></div>
+      <div class="editor">
+        <div class="full"><label>Name</label><div class="inp">Ground floor</div></div>
+        <div><label>Elevation</label><div class="inp num">0 <span class="unit">mm</span></div></div>
+        <div><label>Floor to floor</label><div class="inp num">2 800 <span class="unit">mm</span></div></div>
+        <div><label>Slab</label><div class="inp num">200 <span class="unit">mm</span></div></div>
+        <div class="foot" style="grid-column:2;justify-content:flex-end;align-self:end;padding-bottom:8px"><svg class="ico"><use href="#i-copy"/></svg><svg class="ico"><use href="#i-layers"/></svg></div>
+      </div>
+      <div class="layers">
+        <div class="phead"><span class="cap">Layers · Ground floor</span><svg class="ico"><use href="#i-plus"/></svg></div>
+        <div class="layer"><svg class="ico sm"><use href="#i-eye"/></svg><svg class="ico sm"><use href="#i-lock"/></svg><span class="n">Structure</span><span class="k">STRUCTURE</span><span class="c">9</span></div>
+        <div class="op"><span class="l" style="grid-column:1;display:flex;align-items:center;gap:12px"><span>Opacity</span><span class="track" style="flex:1"></span></span><span class="pct">100%</span></div>
+        <div class="layer"><svg class="ico sm"><use href="#i-eye"/></svg><svg class="ico sm"><use href="#i-lock"/></svg><span class="n">Interior</span><span class="k">INTERIOR</span><span class="c">5</span></div>
+        <div class="op"><span class="l" style="grid-column:1;display:flex;align-items:center;gap:12px"><span>Opacity</span><span class="track" style="flex:1"></span></span><span class="pct">100%</span></div>
+        <div class="layer"><svg class="ico sm"><use href="#i-eye"/></svg><svg class="ico sm"><use href="#i-lock"/></svg><span class="n">Decor</span><span class="k">DECOR</span><span class="c">2</span></div>
+      </div>
+    </div>
+    <div class="centre">
+      <div class="vtabs"><span class="t on">Plan</span><span class="t">Section</span><span class="t">3D</span><span class="spacer"></span><span class="act"><svg class="ico sm"><use href="#i-download"/></svg>Export…</span><span class="act" style="margin-left:22px"><svg class="ico sm"><use href="#i-import"/></svg>Import DXF…</span><span class="act" style="margin-left:22px;color:var(--muted)"><svg class="ico sm"><use href="#i-panel"/></svg></span></div>
+      <div class="tools">
+        <div class="tl on"><svg class="ico"><use href="#i-pointer"/></svg></div>
+        <div class="tl"><svg class="ico"><use href="#i-wall"/></svg></div>
+        <div class="tl"><svg class="ico"><use href="#i-door"/></svg></div>
+        <div class="tl"><svg class="ico"><use href="#i-window"/></svg></div>
+        <div class="tl"><svg class="ico"><use href="#i-column"/></svg></div>
+        <div class="tl"><svg class="ico"><use href="#i-flip"/></svg></div>
+        <div class="gap"></div>
+        <div class="tl"><svg class="ico"><use href="#i-stairs"/></svg></div>
+        <div class="tl"><svg class="ico"><use href="#i-ramp"/></svg></div>
+        <div class="tl"><svg class="ico"><use href="#i-ladder"/></svg></div>
+        <div class="tl"><svg class="ico"><use href="#i-elevator"/></svg></div>
+        <div class="tl"><svg class="ico"><use href="#i-escalator"/></svg></div>
+        <div class="gap"></div>
+        <div class="tl"><svg class="ico"><use href="#i-room"/></svg></div>
+        <div class="tl"><svg class="ico"><use href="#i-sofa"/></svg></div>
+        <div class="tl"><svg class="ico"><use href="#i-bulb"/></svg></div>
+        <div class="tl"><svg class="ico"><use href="#i-paint"/></svg></div>
+        <div class="gap"></div>
+        <div class="tl"><svg class="ico"><use href="#i-pentagon"/></svg></div>
+        <div class="tl"><svg class="ico"><use href="#i-square"/></svg></div>
+        <div class="tl"><svg class="ico"><use href="#i-circle"/></svg></div>
+        <div class="gap"></div>
+        <div class="tl"><svg class="ico"><use href="#i-ruler"/></svg></div>
+        <div class="tl"><svg class="ico"><use href="#i-type"/></svg></div>
+        <div class="spacer"></div>
+        <div class="sel" style="width:230px">Ground floor <span class="num">· 0 mm</span><svg class="ico" style="margin-left:auto"><use href="#i-chev"/></svg></div>
+        <div class="sel" style="width:170px;margin-left:10px">No reference<svg class="ico" style="margin-left:auto"><use href="#i-chev"/></svg></div>
+      </div>
+      <div class="tools2">
+        <div class="tl" style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;color:var(--accent)"><svg class="ico"><use href="#i-magnet"/></svg></div>
+        <div class="tl" style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;color:var(--accent)"><svg class="ico"><use href="#i-angle"/></svg></div>
+        <svg class="ico sm" style="color:var(--muted)"><use href="#i-chev"/></svg>
+        <div class="zoom"><svg class="ico"><use href="#i-zoomout"/></svg><span class="num">1:50</span><svg class="ico"><use href="#i-zoomin"/></svg><svg class="ico"><use href="#i-fit"/></svg></div>
+      </div>
+      <div class="canvas"><svg class="plan" viewBox="0 0 1092 718" data-plan-main></svg></div>
+      <div class="cfoot"><span>1 240 mm, 3 180 mm</span><span class="spacer" style="flex:1"></span><span class="l">Ground floor</span><span>1 selected</span><span>Room selected · drag the seed to move it · double-click to rename</span></div>
+    </div>
+    <div class="right">
+      <div class="rtabs"><span class="t on">Properties</span><span class="t">Catalog</span><span class="t">History</span><span class="t">Assistant</span><span class="t">Warnings <span class="b warn">2</span></span><span class="t">Project</span></div>
+      <div class="props">
+        <div class="h">Room</div>
+        <div><label>Name</label><div class="inp">Living room</div></div>
+        <div><label>Number</label><div class="inp placeholder">—</div></div>
+        <div class="kv">Area <span class="num">17.5 m²</span> · Perimeter <span class="num">16 880 mm</span></div>
+        <div class="cap" style="margin-top:6px">Finishes</div>
+        <div class="fin"><span>Floor</span><div class="sel" style="height:36px;font-size:14px;color:var(--fg)">Oak boards<svg class="ico" style="margin-left:auto"><use href="#i-chev"/></svg></div><span class="sw" style="background:#c9a06a"></span></div>
+        <div class="fin"><span>Walls</span><div class="sel" style="height:36px;font-size:14px;color:var(--fg)">Limewash<svg class="ico" style="margin-left:auto"><use href="#i-chev"/></svg></div><span class="sw" style="background:#efe6d6"></span></div>
+        <div class="fin"><span>Ceiling</span><div class="sel" style="height:36px;font-size:14px;color:var(--muted)">None<svg class="ico" style="margin-left:auto"><use href="#i-chev"/></svg></div><span class="sw"></span></div>
+      </div>
+    </div>
+  </div>
+  <div class="sb">
+    <span>Our house, as it is</span><span><i>Saved just now</i></span>
+    <span class="spacer"></span>
+    <span class="item"><svg class="ico"><use href="#i-unit"/></svg><span class="num">mm</span></span>
+    <span class="item"><svg class="ico"><use href="#i-plug"/></svg><span class="ok"></span>MCP <span class="num">:63282</span></span>
+    <span class="item"><svg class="ico"><use href="#i-sun"/></svg></span>
+  </div>
+</div>
+</div>
+
+<div class="frame-title"><h3>Project window, plan</h3><span>dark · the same, with the assistant open</span></div>
+<div class="frame dark" id="f-plan-dark"></div>
+
+<div class="frame-title"><h3>Empty project</h3><span>light · the first moment after New project</span></div>
+<div class="frame" id="f-empty"></div>
+
+<!-- ============ 5. The other two moments ============ -->
+<h2>First launch and About</h2>
+<p class="sec-note">The two other places where the brand may speak in words.</p>
+<div class="moments">
+  <div class="firstlaunch">
+    <svg class="sketch" viewBox="0 0 240 150" data-sketch></svg>
+    <h3>Start with a room you know.</h3>
+    <p>Draw the walls of the room you are sitting in, with the numbers off a tape measure. Everything else grows from there.</p>
+    <div class="btns"><div class="btn primary"><svg class="ico sm" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.6"><use href="#i-plus"/></svg>New project</div><div class="btn"><svg class="ico sm" style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.6"><use href="#i-upload"/></svg>Import…</div></div>
+    <small>Your projects live in a folder on this computer. Nothing leaves it unless you export.</small>
+  </div>
+  <div class="about">
+    <svg width="112" height="112"><use href="#app-icon"/></svg>
+    <div>
+      <div class="wordmark">Hollin<span class="dot">.</span></div>
+      <p>Design your home, floor by floor, with exact numbers and a helping hand. Hollin is a drawing board for people who are not architects and a tidy file for the ones who are.</p>
+      <div class="v">Version 1.0.0 · Alegreya Sans, IBM Plex Mono, Fraunces (OFL) · Lucide (ISC) · Licences…</div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<script>
+(() => {
+  const NS = 'http://www.w3.org/2000/svg';
+  const el = (tag, attrs = {}, parent) => {
+    const n = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+    if (parent) parent.appendChild(n);
+    return n;
+  };
+  const v = (name) => `var(--${name})`;
+
+  /* ---------- Palette swatches, read from the stylesheet so they can never drift ---------- */
+  const names = ['canvas','surface','elevated','fg','muted','edge','accent','accent-hover','accent-fg','danger','success','warning','titlebar','titlebar-fg',
+    'plan-grid','plan-grid-major','plan-wall','plan-wall-line','plan-room','plan-slab','plan-dim','plan-underlay','plan-snap','plan-selection','plan-warning','plan-connector','plan-decor',
+    'scene-edge','scene-wall','scene-slab','scene-column','scene-glass','scene-connector','scene-rail','scene-car','scene-stand-in'];
+  const groups = [['Interface', 0, 14], ['Plan canvas', 14, 27], ['3D view', 27, 36]];
+  const readVars = (dark) => {
+    const probe = document.createElement('div');
+    if (dark) probe.className = 'dark';
+    document.body.appendChild(probe);
+    const cs = getComputedStyle(probe);
+    const out = Object.fromEntries(names.map((n) => [n, cs.getPropertyValue(`--${n}`).trim()]));
+    probe.remove();
+    return out;
+  };
+  const palettes = document.getElementById('palettes');
+  for (const dark of [false, true]) {
+    const vars = readVars(dark);
+    const box = document.createElement('div');
+    box.className = 'palette' + (dark ? ' dark' : '');
+    box.innerHTML = `<h3>${dark ? 'Dark · the desk lamp' : 'Light · paper'}</h3>`;
+    for (const [title, a, b] of groups) {
+      const g = document.createElement('div'); g.className = 'group'; g.textContent = title; box.appendChild(g);
+      const grid = document.createElement('div'); grid.className = 'sw-grid';
+      for (const n of names.slice(a, b)) {
+        grid.insertAdjacentHTML('beforeend', `<div class="sw"><i style="background:${vars[n]}"></i><div><b>--${n}</b><small>${vars[n]}</small></div></div>`);
+      }
+      box.appendChild(grid);
+    }
+    palettes.appendChild(box);
+  }
+
+  /* ---------- The plan drawing (main canvas, 1092 × 718 px, 1 px = 10 mm) ---------- */
+  function grid(svg, w, h, minor, major, ox, oy) {
+    const g = el('g', {}, svg);
+    for (let x = ox % minor; x <= w; x += minor) el('line', { x1: x, y1: 0, x2: x, y2: h, stroke: v((x - ox) % major === 0 ? 'plan-grid-major' : 'plan-grid'), 'stroke-width': 1 }, g);
+    for (let y = oy % minor; y <= h; y += minor) el('line', { x1: 0, y1: y, x2: w, y2: y, stroke: v((y - oy) % major === 0 ? 'plan-grid-major' : 'plan-grid'), 'stroke-width': 1 }, g);
+  }
+  function label(svg, x, y, text, opts = {}) {
+    const t = el('text', { x, y, 'text-anchor': opts.anchor || 'middle', 'font-family': opts.mono ? 'IBM Plex Mono, monospace' : 'Alegreya Sans, sans-serif', 'font-size': opts.size || 15, 'font-weight': opts.weight || 400, fill: opts.fill || v('fg'), 'font-style': opts.italic ? 'italic' : 'normal' }, svg);
+    t.textContent = text;
+    return t;
+  }
+  function drawPlan(svg, opts = {}) {
+    const W = 1092, H = 718, T = 20;         // wall thickness 200 mm
+    const s = opts.scale || 1;
+    if (!opts.noGrid) grid(svg, W, H, 25, 100, 182, 632);
+    const g = el('g', { transform: opts.transform || '' }, svg);
+    // Outer footprint: x 180..900, y 110..630 (7.2 m × 5.2 m)
+    const x0 = 180, y0 = 110, x1 = 900, y1 = 630;
+    const rooms = [
+      { name: 'Living room', area: '17.5 m²', x: x0 + T, y: y0 + T, w: 560 - x0 - T, h: y1 - T - (y0 + T), selected: true, seed: [380, 300] },
+      { name: 'Kitchen', area: '7.8 m²', x: 560 + T, y: y0 + T, w: x1 - T - (560 + T), h: 360 - (y0 + T) - T / 2, seed: [740, 250] },
+      { name: 'Study', area: '7.8 m²', x: 560 + T, y: 360 + T / 2, w: x1 - T - (560 + T), h: y1 - T - (360 + T / 2), seed: [740, 500] },
+    ];
+    // Slab under the whole footprint
+    el('rect', { x: x0, y: y0, width: x1 - x0, height: y1 - y0, fill: v('plan-slab') }, g);
+    // Room washes
+    for (const r of rooms) el('rect', { x: r.x, y: r.y, width: r.w, height: r.h, fill: v('plan-room'), 'fill-opacity': 0.18 }, g);
+    // Walls as filled bands with an ink edge
+    const wall = (x, y, w, h) => { el('rect', { x, y, width: w, height: h, fill: v('plan-wall'), stroke: v('plan-wall-line'), 'stroke-width': 1.5 }, g); };
+    wall(x0, y0, x1 - x0, T);                       // top
+    wall(x0, y1 - T, x1 - x0, T);                   // bottom
+    wall(x0, y0, T, y1 - y0);                       // left
+    wall(x1 - T, y0, T, y1 - y0);                   // right
+    wall(560, y0, T, 330);                          // partition, upper part (opening below)
+    wall(560, 530, T, y1 - 530);                    // partition, lower part
+    wall(580, 360 - T / 2, x1 - T - 580, T);        // kitchen / study wall
+    // Window in the top wall over the living room: glazing lines
+    el('rect', { x: 290, y: y0, width: 150, height: T, fill: v('canvas') }, g);
+    for (const yy of [y0 + 6, y0 + 10, y0 + 14]) el('line', { x1: 290, y1: yy, x2: 440, y2: yy, stroke: v('plan-wall-line'), 'stroke-width': 1.2 }, g);
+    el('line', { x1: 290, y1: y0, x2: 290, y2: y0 + T, stroke: v('plan-wall-line'), 'stroke-width': 1.2 }, g);
+    el('line', { x1: 440, y1: y0, x2: 440, y2: y0 + T, stroke: v('plan-wall-line'), 'stroke-width': 1.2 }, g);
+    // Door in the partition (opening y 440..530), swings into the living room
+    el('line', { x1: 560, y1: 440, x2: 580, y2: 440, stroke: v('plan-wall-line'), 'stroke-width': 1.2 }, g);
+    el('line', { x1: 560, y1: 530, x2: 580, y2: 530, stroke: v('plan-wall-line'), 'stroke-width': 1.2 }, g);
+    el('line', { x1: 560, y1: 530, x2: 470, y2: 530, stroke: v('plan-wall-line'), 'stroke-width': 2 }, g);
+    el('path', { d: 'M470 530 A90 90 0 0 1 560 440', fill: 'none', stroke: v('plan-wall-line'), 'stroke-width': 1, 'stroke-dasharray': '3 4' }, g);
+    // Front door in the bottom wall (opening x 360..450), swings in
+    el('rect', { x: 360, y: y1 - T, width: 90, height: T, fill: v('canvas') }, g);
+    el('line', { x1: 360, y1: y1 - T, x2: 360, y2: y1, stroke: v('plan-wall-line'), 'stroke-width': 1.2 }, g);
+    el('line', { x1: 450, y1: y1 - T, x2: 450, y2: y1, stroke: v('plan-wall-line'), 'stroke-width': 1.2 }, g);
+    el('line', { x1: 360, y1: y1 - T, x2: 360, y2: y1 - T - 90, stroke: v('plan-wall-line'), 'stroke-width': 2 }, g);
+    el('path', { d: `M360 ${y1 - T - 90} A90 90 0 0 1 450 ${y1 - T}`, fill: 'none', stroke: v('plan-wall-line'), 'stroke-width': 1, 'stroke-dasharray': '3 4' }, g);
+    // Stair in the study (connector colour)
+    const sg = el('g', { stroke: v('plan-connector'), 'stroke-width': 1.2, fill: 'none' }, g);
+    el('rect', { x: 790, y: 400, width: 80, height: 180 }, sg);
+    for (let yy = 420; yy < 580; yy += 20) el('line', { x1: 790, y1: yy, x2: 870, y2: yy }, sg);
+    el('path', { d: 'M830 580 V405 M822 415 L830 405 L838 415' }, sg);
+    label(g, 830, 596, 'UP 12 R', { mono: true, size: 10, fill: v('plan-connector') });
+    // Decor: a sofa and a table, outlines in the decor colour
+    const dg = el('g', { stroke: v('plan-decor'), 'stroke-width': 1.4, fill: 'none' }, g);
+    el('rect', { x: 240, y: 470, width: 200, height: 80, rx: 4 }, dg);
+    el('line', { x1: 260, y1: 470, x2: 260, y2: 550 }, dg); el('line', { x1: 420, y1: 470, x2: 420, y2: 550 }, dg);
+    el('line', { x1: 260, y1: 530, x2: 420, y2: 530 }, dg);
+    el('rect', { x: 300, y: 395, width: 100, height: 60 }, dg);
+    el('rect', { x: 600, y: 140, width: 60, height: 220 - 20 }, dg);     // kitchen run
+    el('circle', { cx: 630, cy: 180, r: 12 }, dg); el('circle', { cx: 630, cy: 290, r: 12 }, dg);
+    // Column in the kitchen
+    el('rect', { x: 860, y: 320, width: 18, height: 18, fill: v('plan-wall'), stroke: v('plan-wall-line'), 'stroke-width': 1.2 }, g);
+    // Room labels
+    for (const r of rooms) {
+      const [sx, sy] = r.seed;
+      label(g, sx, sy - 4, r.name, { size: 17, weight: r.selected ? 500 : 400 });
+      label(g, sx, sy + 16, r.area, { mono: true, size: 12, fill: v('muted') });
+    }
+    // Selection: the living room's edge and its seed
+    const sel = rooms[0];
+    el('rect', { x: sel.x + 1, y: sel.y + 1, width: sel.w - 2, height: sel.h - 2, fill: 'none', stroke: v('plan-selection'), 'stroke-width': 2 }, g);
+    el('circle', { cx: sel.seed[0], cy: sel.seed[1] + 30, r: 7, fill: v('canvas'), stroke: v('plan-selection'), 'stroke-width': 2 }, g);
+    // Dimension along the bottom wall
+    const dy = y1 + 36;
+    const dgp = el('g', { stroke: v('plan-dim'), 'stroke-width': 1.2, fill: 'none' }, g);
+    el('line', { x1: x0, y1: dy, x2: x1, y2: dy }, dgp);
+    el('line', { x1: x0, y1: y1 + 6, x2: x0, y2: dy + 8 }, dgp);
+    el('line', { x1: x1, y1: y1 + 6, x2: x1, y2: dy + 8 }, dgp);
+    el('path', { d: `M${x0 - 5} ${dy + 5} l10 -10 M${x1 - 5} ${dy + 5} l10 -10`, 'stroke-width': 1.6 }, dgp);
+    el('rect', { x: 505, y: dy - 10, width: 70, height: 18, fill: v('canvas') }, g);
+    label(g, 540, dy + 4, '7 200 mm', { mono: true, size: 13, fill: v('plan-dim') });
+    // A second, vertical dimension on the right
+    const dx = x1 + 40;
+    const dg2 = el('g', { stroke: v('plan-dim'), 'stroke-width': 1.2, fill: 'none' }, g);
+    el('line', { x1: dx, y1: y0, x2: dx, y2: y1 }, dg2);
+    el('line', { x1: x1 + 6, y1: y0, x2: dx + 8, y2: y0 }, dg2);
+    el('line', { x1: x1 + 6, y1: y1, x2: dx + 8, y2: y1 }, dg2);
+    el('path', { d: `M${dx - 5} ${y0 + 5} l10 -10 M${dx - 5} ${y1 + 5} l10 -10`, 'stroke-width': 1.6 }, dg2);
+    el('rect', { x: dx - 9, y: 335, width: 18, height: 70, fill: v('canvas') }, g);
+    label(g, dx + 4, 370, '5 200 mm', { mono: true, size: 13, fill: v('plan-dim') }).setAttribute('transform', `rotate(-90 ${dx + 4} 370)`);
+    if (opts.extras) {
+      // Snap marker, a warning on the stair, a DXF underlay line: to show the colours side by side
+      const sn = el('g', { stroke: v('plan-snap'), 'stroke-width': 1.6, fill: 'none' }, g);
+      el('circle', { cx: x0, cy: y0, r: 7 }, sn); el('path', { d: `M${x0 - 12} ${y0} h24 M${x0} ${y0 - 12} v24` }, sn);
+      label(g, x0 + 14, y0 - 12, 'Corner', { size: 11, anchor: 'start', fill: v('plan-snap') });
+      el('rect', { x: 789, y: 399, width: 82, height: 182, fill: 'none', stroke: v('plan-warning'), 'stroke-width': 2 }, g);
+      label(g, 830, 390, 'riser 192 mm', { mono: true, size: 10, fill: v('plan-warning') });
+      el('path', { d: 'M120 660 L1000 660 L1000 90', fill: 'none', stroke: v('plan-underlay'), 'stroke-width': 1, 'stroke-dasharray': '6 4' }, g);
+    }
+  }
+  drawPlan(document.querySelector('[data-plan-main]'));
+  for (const svg of document.querySelectorAll('[data-plan-swatch]')) {
+    el('rect', { x: 0, y: 0, width: 640, height: 400, fill: v('canvas') }, svg);
+    const inner = el('g', { transform: 'translate(-70 -40) scale(0.62)' }, svg);
+    // Grid at the swatch's own scale
+    const gg = el('g', {}, svg);
+    for (let x = 7; x <= 640; x += 15.5) el('line', { x1: x, y1: 0, x2: x, y2: 400, stroke: v('plan-grid'), 'stroke-width': 1 }, gg);
+    for (let y = 2; y <= 400; y += 15.5) el('line', { x1: 0, y1: y, x2: 640, y2: y, stroke: v('plan-grid'), 'stroke-width': 1 }, gg);
+    svg.appendChild(inner);
+    drawPlan(inner, { noGrid: true, extras: true });
+  }
+
+  /* ---------- The 3D view, a simple isometric rendering ---------- */
+  function drawScene(svg, night) {
+    const W = 640, H = 400;
+    el('rect', { x: 0, y: 0, width: W, height: H, fill: night ? '#0f0d0b' : v('canvas') }, svg);
+    const cx = 330, cy = 260, k = 36;          // 1 m = 36 px
+    const P = (x, y, z) => [cx + (x - y) * 0.866 * k, cy + (x + y) * 0.5 * k - z * k];
+    const poly = (pts, fill, extra = {}) => el('polygon', { points: pts.map((p) => P(...p).join(',')).join(' '), fill, stroke: v('scene-edge'), 'stroke-width': 1.1, 'stroke-linejoin': 'round', ...extra }, svg);
+    const box = (x, y, z, w, d, h, fill, extra) => {
+      // top, right (+x face toward viewer), front (+y face toward viewer)
+      poly([[x, y + d, z], [x + w, y + d, z], [x + w, y + d, z + h], [x, y + d, z + h]], shade(fill, night ? 0.85 : 0.9), extra);
+      poly([[x + w, y, z], [x + w, y + d, z], [x + w, y + d, z + h], [x + w, y, z + h]], shade(fill, night ? 0.7 : 0.78), extra);
+      poly([[x, y, z + h], [x + w, y, z + h], [x + w, y + d, z + h], [x, y + d, z + h]], fill, extra);
+    };
+    const shade = (fill, f) => `color-mix(in srgb, ${fill} ${Math.round(f * 100)}%, ${night ? '#000' : v('scene-edge')})`;
+    // Ground slab 7.2 × 5.2 × 0.2
+    box(0, 0, -0.2, 7.2, 5.2, 0.2, v('scene-slab'));
+    // Back walls (far sides: x = 0 plane and y = 0 plane), 2.8 high, 0.2 thick
+    box(0, 0, 0, 7.2, 0.2, 2.8, v('scene-wall'));
+    box(0, 0.2, 0, 0.2, 5.0, 2.8, v('scene-wall'));
+    // Window in the far wall: glass pane
+    poly([[2.0, 0.2, 0.9], [4.2, 0.2, 0.9], [4.2, 0.2, 2.2], [2.0, 0.2, 2.2]], v('scene-glass'), { 'fill-opacity': night ? 0.9 : 0.85 });
+    // Partition, lower (cutaway: 1.2 m high so the rooms read)
+    box(3.8, 0.2, 0, 0.2, 5.0, 1.2, v('scene-wall'));
+    box(4.0, 2.6, 0, 3.2, 0.2, 1.2, v('scene-wall'));
+    // Column
+    box(6.6, 2.0, 0, 0.3, 0.3, 2.8, v('scene-column'));
+    // Stair: 6 steps rising toward the far wall
+    for (let i = 0; i < 6; i++) box(5.4, 4.6 - i * 0.3, 0, 0.9, 0.3, 0.3 * (i + 1), v('scene-connector'));
+    // Rail along the stair
+    el('polyline', { points: [P(6.3, 4.9, 1.0), P(6.3, 3.1, 2.6)].map((p) => p.join(',')).join(' '), fill: 'none', stroke: v('scene-rail'), 'stroke-width': 2.2 }, svg);
+    // Elevator car
+    box(0.4, 3.6, 0, 1.2, 1.2, 2.2, v('scene-car'));
+    // Furniture: a sofa as a stand-in block, a table
+    box(1.2, 1.4, 0, 2.0, 0.9, 0.8, v('scene-stand-in'));
+    box(1.6, 0.6, 0, 1.0, 0.6, 0.45, v('scene-connector'));
+    // Near walls, low (cutaway) so the inside is visible
+    box(0.2, 5.0, 0, 7.0, 0.2, 0.5, v('scene-wall'));
+    box(7.0, 0.2, 0, 0.2, 5.0, 0.5, v('scene-wall'));
+    if (night) {
+      // Pools of warm light
+      const rg = el('radialGradient', { id: 'glow' + (night ? 'n' : 'd') }, svg);
+      el('stop', { offset: 0, 'stop-color': '#f0c070', 'stop-opacity': 0.55 }, rg);
+      el('stop', { offset: 1, 'stop-color': '#f0c070', 'stop-opacity': 0 }, rg);
+      for (const [x, y] of [[2.2, 1.8], [5.6, 1.4], [5.4, 4.0]]) {
+        const [px, py] = P(x, y, 0.1);
+        el('ellipse', { cx: px, cy: py, rx: 70, ry: 36, fill: `url(#${rg.id})` }, svg);
+        const [lx, ly] = P(x, y, 2.4);
+        el('circle', { cx: lx, cy: ly, r: 3, fill: '#ffd98a' }, svg);
+      }
+    }
+  }
+  for (const svg of document.querySelectorAll('[data-scene]')) drawScene(svg, svg.hasAttribute('data-night'));
+
+  /* ---------- Home card thumbnails: miniature plans on paper, and pencil doodles ---------- */
+  function thumb(svg, variant) {
+    const g = el('g', { transform: 'translate(170 118)' }, svg);
+    const W = (x, y, w, h) => el('rect', { x, y, width: w, height: h, fill: v('plan-wall'), stroke: v('plan-wall-line'), 'stroke-width': 0.8 }, g);
+    const R = (x, y, w, h) => el('rect', { x, y, width: w, height: h, fill: v('plan-room'), 'fill-opacity': 0.18 }, g);
+    const L = (x, y, t, s = 9) => label(g, x, y, t, { size: s, fill: v('muted') });
+    const t = 6;
+    if (variant === 1) {
+      R(-110, -70, 220, 140); W(-110, -70, 220, t); W(-110, 64, 220, t); W(-110, -70, t, 140); W(104, -70, t, 140); W(10, -70, t, 90); W(10, 0, 94, t);
+      L(-50, 0, 'Living'); L(-50, 12, '17.5 m²', 7); L(60, -36, 'Kitchen'); L(60, 40, 'Study');
+      el('rect', { x: -80, y: 20, width: 50, height: 20, fill: 'none', stroke: v('plan-decor'), 'stroke-width': 0.8 }, g);
+    } else if (variant === 2) {
+      R(-120, -60, 240, 120); W(-120, -60, 240, t); W(-120, 54, 240, t); W(-120, -60, t, 120); W(114, -60, t, 120);
+      el('rect', { x: -40, y: -60, width: 80, height: t, fill: v('canvas'), stroke: v('plan-wall-line'), 'stroke-width': 0.6 }, g);
+      L(0, 4, 'Kitchen & dining'); L(0, 16, '28.3 m²', 7);
+      el('rect', { x: -100, y: -40, width: 30, height: 80, fill: 'none', stroke: v('plan-decor'), 'stroke-width': 0.8 }, g);
+      el('rect', { x: 20, y: -10, width: 70, height: 36, fill: 'none', stroke: v('plan-decor'), 'stroke-width': 0.8 }, g);
+      const dg = el('g', { stroke: v('plan-dim'), 'stroke-width': 0.8 }, g);
+      el('line', { x1: -120, y1: 78, x2: 120, y2: 78 }, dg); el('line', { x1: -120, y1: 72, x2: -120, y2: 84 }, dg); el('line', { x1: 120, y1: 72, x2: 120, y2: 84 }, dg);
+      label(g, 0, 75, '8 400', { mono: true, size: 7, fill: v('plan-dim') });
+    } else if (variant === 3) {
+      R(-90, -80, 180, 160); W(-90, -80, 180, t); W(-90, 74, 180, t); W(-90, -80, t, 160); W(84, -80, t, 160); W(-90, 0, 110, t); W(20, -80, t, 60);
+      L(-40, -36, 'Bedroom'); L(50, -36, 'Bath', 8); L(0, 44, 'Living'); L(0, 56, '14.1 m²', 7);
+    } else {
+      R(-120, -70, 240, 140); W(-120, -70, 240, t); W(-120, 64, 240, t); W(-120, -70, t, 140); W(114, -70, t, 140); W(-3, -70, t, 140);
+      L(-60, 0, 'Flat A'); L(60, 0, 'Flat B');
+      const sg = el('g', { stroke: v('plan-connector'), 'stroke-width': 0.7, fill: 'none' }, g);
+      el('rect', { x: -40, y: 20, width: 30, height: 40 }, sg); for (let y = 25; y < 60; y += 5) el('line', { x1: -40, y1: y, x2: -10, y2: y }, sg);
+    }
+  }
+  for (const svg of document.querySelectorAll('[data-thumb]')) thumb(svg, Number(svg.dataset.thumb));
+  function doodle(svg, kind) {
+    const g = el('g', { fill: 'none', stroke: v('fg'), 'stroke-width': 1.2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', opacity: 0.55, transform: 'translate(170 108)' }, svg);
+    const d = { a: 'M-70 40 V-20 L0 -60 L70 -20 V40 Z M-20 40 V0 H20 V40 M-70 -20 H70', b: 'M-80 30 H80 M-80 30 V-30 H-10 L0 -50 L10 -30 H80 V30 M-50 30 V-10 H-20 V30 M30 -5 H60 V15 H30 Z',
+      c: 'M-70 40 H70 M-60 40 V-10 L0 -55 L60 -10 V40 M-25 40 V5 H25 V40 M30 -40 V-55 H42 V-30', d: 'M-80 40 H80 M-80 40 V-20 H0 V40 M0 -20 L40 -50 L80 -20 V40 M-50 10 H-30 M20 -10 H60' }[kind];
+    el('path', { d, 'stroke-dasharray': kind === 'b' ? '' : '' }, g);
+    // a dimension tick, pencil-light
+    el('path', { d: 'M-70 62 H70 M-70 56 V68 M70 56 V68', stroke: v('plan-dim'), opacity: 0.7, 'stroke-width': 1 }, g);
+  }
+  for (const svg of document.querySelectorAll('[data-doodle]')) doodle(svg, svg.dataset.doodle);
+
+  /* ---------- Sketch for the empty moments: a room with a door and a tape measure line ---------- */
+  function sketch(svg) {
+    const g = el('g', { fill: 'none', stroke: v('fg'), 'stroke-width': 1.6, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, svg);
+    el('path', { d: 'M40 30 H200 V118 H40 Z' }, g);
+    el('path', { d: 'M40 70 V96', stroke: v('canvas'), 'stroke-width': 4 }, g);
+    el('path', { d: 'M40 96 H66', 'stroke-width': 1.6 }, g);
+    el('path', { d: 'M66 96 A26 26 0 0 0 40 70', 'stroke-dasharray': '2 4', 'stroke-width': 1.2 }, g);
+    el('path', { d: 'M90 30 H140', stroke: v('canvas'), 'stroke-width': 5 }, g);
+    el('path', { d: 'M90 28 H140 M90 32 H140', 'stroke-width': 1 }, g);
+    el('path', { d: 'M40 134 H200 M40 128 V140 M200 128 V140', stroke: v('plan-dim'), 'stroke-width': 1.2 }, g);
+    label(svg, 120, 131, '4 000 mm', { mono: true, size: 9, fill: v('plan-dim') }).setAttribute('style', 'paint-order:stroke;stroke:var(--canvas);stroke-width:6px');
+    el('path', { d: 'M100 60 H150 M100 72 H140', stroke: v('plan-decor'), 'stroke-width': 1.2 }, g);
+    el('path', { d: 'M160 100 l16 -16', stroke: v('accent'), 'stroke-width': 2.2 }, g);
+    el('path', { d: 'M176 84 l6 -6 l3 3 l-6 6 Z', fill: v('accent'), stroke: v('accent') }, g);
+  }
+  for (const svg of document.querySelectorAll('[data-sketch]')) sketch(svg);
+
+  /* ---------- Clone the light mocks into their dark frames, and build the empty project ---------- */
+  const homeDark = document.getElementById('home-mock').cloneNode(true);
+  homeDark.removeAttribute('id');
+  homeDark.querySelector('.sb .item:last-child use').setAttribute('href', '#i-moon');
+  document.getElementById('f-home-dark').appendChild(homeDark);
+
+  const planDark = document.getElementById('plan-mock').cloneNode(true);
+  planDark.removeAttribute('id');
+  planDark.querySelector('.sb .item:last-child use').setAttribute('href', '#i-moon');
+  // Show the assistant in the dark mock
+  const rt = planDark.querySelectorAll('.rtabs .t');
+  rt[0].classList.remove('on'); rt[3].classList.add('on');
+  const right = planDark.querySelector('.right');
+  right.querySelector('.props').remove();
+  right.insertAdjacentHTML('beforeend', `
+    <div class="chat">
+      <div class="model"><svg class="ico"><use href="#i-hand"/></svg><span>Claude Opus 5.5</span><span class="spacer"></span><span style="display:flex;align-items:center;gap:6px"><svg class="ico" style="width:15px;height:15px;color:var(--muted)"><use href="#i-eraser"/></svg>Clear</span></div>
+      <div class="msg user">Make the living room wall into the kitchen a 1.2 m opening, no door.</div>
+      <div class="tool"><svg class="ico"><use href="#i-check"/></svg><div>Apply many edits at once<div class="sub">Widen the opening in the partition to 1 200 mm, remove the door</div></div></div>
+      <div class="msg ai">Done. The partition now has a 1 200 mm opening centred where the door was, and the door is gone. The living room is still 17.5 m²: the opening does not change the room's outline.</div>
+      <div class="msg user">Would a 6-riser step up to the study work?</div>
+      <div class="tool"><svg class="ico"><use href="#i-check"/></svg><div>Snapshot of a level or the building<div class="sub">Ground floor, plan</div></div></div>
+      <div class="msg ai">Six risers at 2 400 mm floor-to-floor would be 400 mm each, well over the 190 mm limit in your rules. Twelve risers of 200 mm fit along the study's east wall; shall I draw that?</div>
+      <div class="spacer"></div>
+      <div class="compose"><span>Ask the assistant… (Enter sends, Shift+Enter for a new line)</span><span class="send"><svg class="ico" style="width:14px;height:14px"><use href="#i-send"/></svg>Send</span></div>
+    </div>`);
+  document.getElementById('f-plan-dark').appendChild(planDark);
+
+  const empty = document.getElementById('plan-mock').cloneNode(true);
+  empty.removeAttribute('id');
+  empty.querySelector('.tb .tab.active').firstChild.textContent = 'Untitled';
+  empty.querySelector('.ph .pname').textContent = 'Untitled';
+  empty.querySelector('.ph .saved').textContent = 'Not saved yet';
+  const lv = empty.querySelectorAll('.left .lvl'); lv[0].remove(); lv[2].remove();
+  for (const l of empty.querySelectorAll('.layer .c')) l.textContent = '0';
+  const warn = empty.querySelector('.rtabs .t .b'); warn.parentElement.innerHTML = 'Warnings';
+  empty.querySelector('.canvas').innerHTML = `
+    <svg class="plan" viewBox="0 0 1092 718" data-empty-grid></svg>
+    <div class="hint">
+      <svg class="sketch" viewBox="0 0 240 150" data-sketch2></svg>
+      <h2>Draw the first wall.</h2>
+      <p>Press <b>W</b>, click where a corner is, and type a length from your tape measure. Rooms appear by themselves once the walls close.</p>
+      <div class="keys"><span><kbd>W</kbd>Wall</span><span><kbd>D</kbd>Door</span><span><kbd>N</kbd>Window</span><span><kbd>Ctrl K</kbd>Every command</span></div>
+      <div><span class="ai"><svg class="ico"><use href="#i-hand"/></svg>Or describe the room and let the assistant draw it</span></div>
+    </div>`;
+  grid(empty.querySelector('[data-empty-grid]'), 1092, 718, 25, 100, 182, 632);
+  sketch(empty.querySelector('[data-sketch2]'));
+  empty.querySelector('.cfoot').innerHTML = '<span>0 mm, 0 mm</span><span class="spacer" style="flex:1"></span><span class="l">Ground floor</span><span>Nothing selected</span>';
+  const props = empty.querySelector('.props');
+  props.innerHTML = '<div class="h">Nothing selected</div><div class="empty">Pick a wall, a room or a door to see its numbers here. The level you are on is edited in the left panel.</div><div class="empty"><span class="k">Esc</span> clears, <span class="k">V</span> is the pointer.</div>';
+  empty.querySelector('.sb span:nth-child(1)').textContent = 'Untitled';
+  empty.querySelector('.sb span:nth-child(2)').innerHTML = '<i>Not saved yet</i>';
+  document.getElementById('f-empty').appendChild(empty);
+
+  /* ---------- Fit every 1890 × 1020 mock into its frame ---------- */
+  const fit = () => {
+    for (const f of document.querySelectorAll('.frame')) {
+      const s = f.clientWidth / 1890;
+      const m = f.querySelector('.mock');
+      if (m) m.style.transform = `scale(${s})`;
+    }
+  };
+  new ResizeObserver(fit).observe(document.body);
+  fit();
+})();
+</script>
+</body>
+</html>

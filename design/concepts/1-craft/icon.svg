@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!--
+    Hollin, craft concept. A sheet of warm paper, two ink walls meeting in a corner, and one
+    terracotta door swing: the smallest possible plan. The rounded square is the macOS framing
+    (artwork inside the system margin); Windows and Linux use the same file, the paper square
+    reading as the icon with a little padding. At 16 px the L and the quarter-disc survive.
+  -->
+  <defs>
+    <linearGradient id="paper" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f8f3ea"/>
+      <stop offset="1" stop-color="#eee5d5"/>
+    </linearGradient>
+  </defs>
+  <!-- Paper -->
+  <rect x="64" y="64" width="896" height="896" rx="200" fill="url(#paper)"/>
+  <rect x="70" y="70" width="884" height="884" rx="194" fill="none" stroke="#d9cebc" stroke-width="12"/>
+  <!-- Door swing, terracotta -->
+  <path d="M296 628 H520 A224 224 0 0 0 296 404 Z" fill="#b9552f"/>
+  <!-- Door leaf -->
+  <path d="M296 628 H520" stroke="#2a2521" stroke-width="26" stroke-linecap="butt"/>
+  <!-- Two walls: left wall with the opening, bottom wall -->
+  <path d="M296 262 V404" stroke="#2a2521" stroke-width="88" stroke-linecap="butt"/>
+  <path d="M296 628 V772 H772" stroke="#2a2521" stroke-width="88" stroke-linecap="butt" stroke-linejoin="miter" fill="none"/>
+  <!-- Square the outer ends so the L reads as drawn walls, not strokes -->
+  <rect x="252" y="218" width="88" height="88" fill="#2a2521"/>
+  <rect x="728" y="728" width="88" height="88" fill="#2a2521"/>
+</svg>

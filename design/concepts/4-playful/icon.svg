@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!--
+    Cubby app icon, playful concept. A cream house with a chimney on a coral tile, a teal door
+    (the accent) and a round gable window. Everything is geometry: no text, no external refs.
+    Tile 64..960 with rx 200 is the macOS rounded square (the system margin is the 64 px band);
+    for Windows the renderer crops the same art to the tile with a 32 px pad.
+  -->
+  <rect x="64" y="64" width="896" height="896" rx="200" fill="#f07a4a"/>
+  <!-- a faint warm ground so the house sits, not floats -->
+  <ellipse cx="512" cy="812" rx="300" ry="26" fill="#2b2320" opacity="0.10"/>
+  <!-- chimney -->
+  <rect x="640" y="300" width="80" height="200" rx="22" fill="#fbf7f1"/>
+  <!-- one soft puff -->
+  <circle cx="700" cy="226" r="34" fill="#fbf7f1" opacity="0.75"/>
+  <!-- house body with softened lower corners -->
+  <path d="M306 486 H718 V752 a48 48 0 0 1 -48 48 H354 a48 48 0 0 1 -48 -48 Z" fill="#fbf7f1"/>
+  <!-- roof: a chunky gable with rounded joins -->
+  <path d="M248 482 L512 254 L776 482 Z" fill="#fbf7f1" stroke="#fbf7f1" stroke-width="64" stroke-linejoin="round"/>
+  <!-- round gable window -->
+  <circle cx="512" cy="412" r="46" fill="#0f8a7e"/>
+  <!-- door, rounded top -->
+  <path d="M452 800 V660 a60 60 0 0 1 120 0 V800 Z" fill="#0f8a7e"/>
+  <!-- door knob -->
+  <circle cx="546" cy="724" r="9" fill="#fbf7f1"/>
+</svg>

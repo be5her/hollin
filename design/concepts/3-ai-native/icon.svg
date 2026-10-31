@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!--
+    Nolli (AI-native concept): two rooms on one plan. The white room is yours, finished; the plum
+    room is the one Otto, the assistant, is drawing next to it, pen still on the last corner.
+    Flat ink tile so it sits on light and dark docks alike. The artwork stays inside the central
+    70% so the tile can be inset for macOS (rounded square with the system margin) or used edge
+    to edge on Windows.
+  -->
+  <rect x="0" y="0" width="1024" height="1024" rx="228" fill="#171a21"/>
+  <g fill="none" stroke-width="80" stroke-linecap="butt" stroke-linejoin="miter">
+    <!-- your room -->
+    <path d="M592 312 H200 V712 H592 Z" stroke="#f4f5f8"/>
+    <!-- Otto's room, still being drawn -->
+    <path d="M592 712 H824 V312 H690" stroke="#e07ad0"/>
+  </g>
+  <!-- the pen on the last corner -->
+  <circle cx="690" cy="312" r="70" fill="#e07ad0"/>
+</svg>

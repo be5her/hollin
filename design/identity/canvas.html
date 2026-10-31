@@ -1,0 +1,597 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>04 · The drawings — Hollin (working name)</title>
+<!-- Preview only: the app bundles these as variable OFL files (font-src 'self'). Fraunces is here for the wordmark in the title block, which ships as outlined paths. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Alegreya+Sans:ital,wght@0,400;0,500;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&family=Fraunces:opsz,wght,SOFT@9..144,600,80&display=swap" rel="stylesheet">
+<style>
+  /* ---------- The palette, verbatim from design/concepts/1-craft/README.md §e and 00-decisions.md §4 ---------- */
+  :root, .light {
+    --canvas: #f6f1e8; --surface: #efe8dc; --elevated: #e6ddcd; --fg: #2a2521; --muted: #7b7064; --edge: #dcd2c2;
+    --accent: #b9552f; --accent-hover: #9c4525; --accent-fg: #fbf6ee; --danger: #b5392c; --success: #4f7d3d; --warning: #b8841f;
+    --titlebar: #efe8dc; --titlebar-fg: #2a2521;
+    --plan-grid: #ebe4d7; --plan-grid-major: #dbd1bf; --plan-wall: #3b3531; --plan-wall-line: #231f1c; --plan-room: #8b9a6b; --plan-slab: #e9e1d2;
+    --plan-dim: #3f5390; --plan-underlay: #a89c8c; --plan-snap: #2f8a57; --plan-selection: #b9552f; --plan-warning: #b8841f; --plan-connector: #4b433d; --plan-decor: #8c6b4a;
+    --scene-edge: #3a332e; --scene-wall: #efe6d6; --scene-slab: #cdbea7; --scene-column: #ddd1bd; --scene-glass: #9bb9c7; --scene-connector: #d5c2a3; --scene-rail: #5a4f45; --scene-car: #b9552f; --scene-stand-in: #a69b8e;
+    --ai: #8a3f6f; --ai-hover: #733259; --ai-fg: #fbf6ee; --ai-tint: #f1e3ea; --plan-ai: #8a3f6f;
+    --font-sans: 'Alegreya Sans', system-ui, sans-serif; --font-mono: 'IBM Plex Mono', ui-monospace, monospace; --font-serif: 'Fraunces', Georgia, serif;
+    color-scheme: light;
+  }
+  .dark {
+    --canvas: #1d1a17; --surface: #262220; --elevated: #332d29; --fg: #ebe3d6; --muted: #a2968a; --edge: #3c3531;
+    --accent: #e07c50; --accent-hover: #ea9471; --accent-fg: #1d1a17; --danger: #e8705f; --success: #8fbf6e; --warning: #e2b24a;
+    --titlebar: #262220; --titlebar-fg: #ebe3d6;
+    --plan-grid: #272320; --plan-grid-major: #352f2b; --plan-wall: #d8cfc2; --plan-wall-line: #f3ece1; --plan-room: #a4b385; --plan-slab: #2a2623;
+    --plan-dim: #91a4e0; --plan-underlay: #7a7066; --plan-snap: #6fcf8a; --plan-selection: #e07c50; --plan-warning: #e2b24a; --plan-connector: #e3dacc; --plan-decor: #d4a97a;
+    --scene-edge: #141210; --scene-wall: #c4b9a8; --scene-slab: #6f6358; --scene-column: #a89c8c; --scene-glass: #6e93ab; --scene-connector: #a8947a; --scene-rail: #d8cfc2; --scene-car: #e07c50; --scene-stand-in: #5f574f;
+    --ai: #d892bd; --ai-hover: #e3a9cb; --ai-fg: #1d1a17; --ai-tint: #332631; --plan-ai: #d892bd;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  html { background: #e9e2d6; }
+  body { margin: 0; font: 400 15px/1.5 var(--font-sans); color: var(--fg); background: var(--canvas); }
+  main { max-width: 1760px; margin: 0 auto; padding: 32px 40px 80px; }
+  h1 { font: 600 30px/1.15 var(--font-serif); font-variation-settings: 'opsz' 36, 'SOFT' 60; margin: 0 0 6px; letter-spacing: -0.01em; }
+  h1 i { color: var(--accent); font-style: normal; }
+  h2 { font: 600 22px/1.2 var(--font-serif); font-variation-settings: 'opsz' 24, 'SOFT' 60; margin: 56px 0 6px; }
+  h3 { font: 500 13px/1.3 var(--font-sans); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 22px 0 10px; }
+  p.lead { max-width: 820px; color: var(--muted); margin: 0 0 14px; }
+  p.note { max-width: 900px; margin: 8px 0 0; color: var(--muted); font-size: 13px; }
+  code, .mono { font-family: var(--font-mono); font-size: .92em; }
+  .theme { background: var(--canvas); color: var(--fg); border: 1px solid var(--edge); border-radius: 8px; padding: 18px; margin: 12px 0; }
+  .theme + .theme { margin-top: 20px; }
+  .theme-title { display: flex; align-items: baseline; gap: 12px; margin: 0 0 10px; }
+  .theme-title b { font-weight: 500; font-size: 15px; }
+  .theme-title span { color: var(--muted); font-size: 13px; font-style: italic; }
+  .row { display: grid; grid-template-columns: 1200px 1fr; gap: 22px; align-items: start; }
+  @media (max-width: 1500px) { .row { grid-template-columns: 1fr; } }
+  svg.plan { display: block; width: 1200px; height: 800px; background: var(--canvas); border: 1px solid var(--edge); border-radius: 4px; max-width: 100%; }
+  .footer { display: flex; gap: 22px; align-items: center; width: 1200px; max-width: 100%; margin-top: 6px; padding: 5px 12px; font: 400 11px/16px var(--font-mono); color: var(--muted); background: var(--surface); border: 1px solid var(--edge); border-radius: 4px; }
+  .footer .snap { color: var(--success); }
+  .footer .lvl { color: var(--fg); }
+  .footer .hint { margin-left: auto; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  table.legend { border-collapse: collapse; width: 100%; font-size: 13px; }
+  table.legend th { text-align: left; font-weight: 500; color: var(--muted); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; padding: 4px 8px 6px 0; border-bottom: 1px solid var(--edge); }
+  table.legend td { padding: 5px 8px 5px 0; border-bottom: 1px solid var(--edge); vertical-align: top; }
+  table.legend td.var { font-family: var(--font-mono); font-size: 12px; white-space: nowrap; }
+  table.legend td.hex { font-family: var(--font-mono); font-size: 12px; white-space: nowrap; }
+  table.legend i { display: inline-block; width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--edge); vertical-align: -2px; margin-right: 8px; }
+  .panes { display: grid; grid-template-columns: repeat(2, 560px); gap: 18px; }
+  @media (max-width: 1240px) { .panes { grid-template-columns: 1fr; } }
+  .pane { border: 1px solid var(--edge); border-radius: 8px; overflow: hidden; background: var(--canvas); }
+  .pane svg { display: block; width: 560px; height: 360px; max-width: 100%; }
+  .pane .cap { display: flex; justify-content: space-between; padding: 8px 12px; font-size: 13px; background: var(--surface); border-top: 1px solid var(--edge); }
+  .pane .cap span { color: var(--muted); font-family: var(--font-mono); font-size: 12px; }
+  .sections { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+  @media (max-width: 1240px) { .sections { grid-template-columns: 1fr; } }
+  .sec { border: 1px solid var(--edge); border-radius: 8px; background: var(--canvas); overflow: hidden; }
+  .sec svg { display: block; width: 100%; height: auto; }
+  .sec .strip { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 9px 14px; border-top: 1px solid var(--edge); font-size: 12px; background: var(--surface); }
+  .sec .strip b { font-weight: 500; }
+  .sec .strip .chip { padding: 1px 6px; border-radius: 4px; background: var(--elevated); color: var(--muted); font-family: var(--font-mono); font-size: 11px; }
+  .cards { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
+  .card { width: 340px; border: 1px solid var(--edge); border-radius: 8px; background: var(--surface); overflow: hidden; position: relative; }
+  .card .img { position: relative; height: 255px; background: var(--elevated); border-bottom: 1px solid var(--edge); }
+  .card .img svg { display: block; width: 340px; height: 255px; }
+  .card .body { padding: 10px 14px 12px; }
+  .card .name { font-weight: 500; font-size: 17px; line-height: 22px; }
+  .card .meta { font-style: italic; color: var(--muted); font-size: 13px; }
+  .card .meta .mono { font-style: normal; }
+  .card .otto { position: absolute; right: 10px; top: 10px; width: 14px; height: 14px; border-radius: 3px; background: var(--ai); }
+  .card .otto::before { content: ''; position: absolute; left: 3.5px; top: 3.5px; width: 7px; height: 7px; border: 1px solid var(--ai-fg); border-radius: 1px; }
+  .card .otto::after { content: ''; position: absolute; right: 2.5px; top: 2.5px; width: 2px; height: 2px; border-radius: 50%; background: var(--ai-fg); }
+  .sheetwrap { display: grid; grid-template-columns: 1176px 1fr; gap: 24px; align-items: start; }
+  @media (max-width: 1500px) { .sheetwrap { grid-template-columns: 1fr; } }
+  .sheet { display: block; width: 1176px; max-width: 100%; height: auto; box-shadow: 0 8px 24px rgba(42,37,33,.12); background: #fff; }
+  .tb-zoom { display: block; width: 100%; height: auto; border: 1px solid var(--edge); background: #fff; }
+  table.dxf { border-collapse: collapse; font-size: 13px; width: 100%; max-width: 1100px; }
+  table.dxf th { text-align: left; font-weight: 500; color: var(--muted); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; padding: 4px 10px 6px 0; border-bottom: 1px solid var(--edge); }
+  table.dxf td { padding: 6px 10px 6px 0; border-bottom: 1px solid var(--edge); }
+  table.dxf td.mono { font-family: var(--font-mono); font-size: 12px; }
+  table.dxf i { display: inline-block; width: 22px; height: 14px; border-radius: 3px; border: 1px solid var(--edge); vertical-align: -2px; margin-right: 8px; }
+  table.dxf i.flip { background: linear-gradient(135deg, #111 50%, #fff 50%); }
+  .kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 18px; font-size: 13px; max-width: 760px; }
+  .kv b { font-weight: 500; }
+  .kv .mono { font-size: 12px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>The drawings <i>·</i> plan, section, 3D, thumbnails, sheets</h1>
+  <p class="lead">What the app draws, in the identity: the plan canvas with everything it can show at once, the section, the 3D view by day and night in both themes, a Home card at its real size, an A3 sheet with the proposed title block and the DXF layer colours. Hex values are read back from this page's own CSS variables, which repeat Craft's tables and the decisions' Otto row verbatim; <code>04-canvas.md</code> is the specification.</p>
+
+  <!-- ===================================================== PLAN ===================================================== -->
+  <h2>(a) The plan canvas · 15 × 10 m at about 1:50 (1 px = 12.5 mm)</h2>
+  <p class="lead">A kitchen extension: two rooms, a door with its swing, two windows, a column, a straight stair of sixteen risers with its break line and UP arrow (ochre: it breaks the riser rule), an elevator, a ramp, a dimension chain, a label, a sofa, a pendant light, the selected partition with its grips, a crossing marquee, the level above as an underlay, the Wall tool drawing from the corner with an endpoint snap on a tracking ray, and Otto's halo and tag on the 3 m wall it just drew, with a pending deletion dashed round the column.</p>
+
+  <div class="theme light" id="plan-light">
+    <div class="theme-title"><b>Light</b><span>paper on the desk</span></div>
+    <div class="row">
+      <div>
+        <svg class="plan" viewBox="0 0 1200 800" data-plan></svg>
+        <div class="footer"><span>4 512 mm, 3 208 mm</span><span class="snap">Endpoint</span><span class="lvl">Ground floor</span><span>1 selected</span><span class="hint">Wall selected · drag to move (Ctrl: copy) · drag a grip to reshape · Delete removes it</span></div>
+      </div>
+      <table class="legend" data-legend></table>
+    </div>
+  </div>
+
+  <div class="theme dark" id="plan-dark">
+    <div class="theme-title"><b>Dark</b><span>the desk after the lamp goes on</span></div>
+    <div class="row">
+      <div>
+        <svg class="plan" viewBox="0 0 1200 800" data-plan></svg>
+        <div class="footer"><span>4 512 mm, 3 208 mm</span><span class="snap">Endpoint</span><span class="lvl">Ground floor</span><span>1 selected</span><span class="hint">Wall selected · drag to move (Ctrl: copy) · drag a grip to reshape · Delete removes it</span></div>
+      </div>
+      <table class="legend" data-legend></table>
+    </div>
+  </div>
+  <p class="note">Every stroke keeps its screen width at any zoom (the renderer divides by the camera scale); only the underlay's wall bands, the light glyph and the label text are in millimetres. Text: room names 12 px Alegreya Sans, areas and every figure 11 px IBM Plex Mono. The halo is 34 px of mulberry at 22 %; the selection 2 px of terracotta at 100 % with a 12 % fill; the marquee 1 px at 8 %, dashed because it was dragged from right to left.</p>
+
+  <!-- ===================================================== SECTION ===================================================== -->
+  <h2>(b) The section view</h2>
+  <p class="lead">The levels as bars at their elevations, the basement under the dashed ground line, the active level in terracotta; stairs and lifts in the plan's connector graphite (today they are terracotta too: proposed change). Elevations in mono, below ground in ochre.</p>
+  <div class="sections">
+    <div class="theme light sec"><svg viewBox="0 0 1000 440" data-section></svg><div class="strip"><b>Ground floor</b><span class="chip">6 walls</span><span class="chip">3 openings</span><span class="chip">2 rooms</span><span class="chip">1 column</span><span class="chip">1 item</span><span class="chip">1 light</span><span class="chip">3 dimensions</span></div></div>
+    <div class="theme dark sec"><svg viewBox="0 0 1000 440" data-section></svg><div class="strip"><b>Ground floor</b><span class="chip">6 walls</span><span class="chip">3 openings</span><span class="chip">2 rooms</span><span class="chip">1 column</span><span class="chip">1 item</span><span class="chip">1 light</span><span class="chip">3 dimensions</span></div></div>
+  </div>
+
+  <!-- ===================================================== 3D ===================================================== -->
+  <h2>(c) The 3D view · day and night, light and dark</h2>
+  <p class="lead">Plaster walls, a sand slab, a timber stair with its rail, a column, one cool pane of glass, the terracotta elevator car, a stand-in block for a model still loading, a table. Edge lines in <code>--scene-edge</code>, 1 px. By day the sky and a key light from the camera's upper left; at night the sky is nearly off, the background is the lamp-less desk (<code>#0f0d0b</code>, the same in both themes) and the sixteen nearest of the design's lights come on, warm.</p>
+  <div class="panes">
+    <div class="theme light pane"><svg viewBox="0 0 560 360" data-scene></svg><div class="cap">Light · day<span>--canvas #f6f1e8 · sky 2.9 · key 1.15</span></div></div>
+    <div class="theme light pane"><svg viewBox="0 0 560 360" data-scene data-night></svg><div class="cap">Light · night<span>#0f0d0b · sky 0.12 · 3 of 16 lights on</span></div></div>
+    <div class="theme dark pane"><svg viewBox="0 0 560 360" data-scene></svg><div class="cap">Dark · day<span>--canvas #1d1a17 · sky 2.9 · key 1.15</span></div></div>
+    <div class="theme dark pane"><svg viewBox="0 0 560 360" data-scene data-night></svg><div class="cap">Dark · night<span>#0f0d0b · sky 0.12 · 3 of 16 lights on</span></div></div>
+  </div>
+  <h3>Scene roles</h3>
+  <table class="legend" style="max-width:1100px" data-scene-legend></table>
+
+  <!-- ===================================================== THUMBNAILS ===================================================== -->
+  <h2>(d) Home-card thumbnails and snapshots</h2>
+  <p class="lead">The ground floor drawn by <code>renderLevelToPng</code> in the light palette, on paper, with no grid, selection or Otto marks: the stored PNG is the same in both themes, a small sheet of paper on the card. Shown at the card's real size (340 px wide, 4:3). Otto's snapshot is the same drawing at the asked size.</p>
+  <div class="cards">
+    <div class="theme light" style="padding:18px"><div class="card"><div class="img"><div class="light"><svg viewBox="0 0 480 360" data-thumb></svg></div><span class="otto" title="Otto has worked on this project"></span></div><div class="body"><div class="name">Kitchen extension</div><div class="meta">Edited just now · <span class="mono">2</span> levels</div></div></div></div>
+    <div class="theme dark" style="padding:18px"><div class="card"><div class="img"><div class="light"><svg viewBox="0 0 480 360" data-thumb></svg></div><span class="otto" title="Otto has worked on this project"></span></div><div class="body"><div class="name">Kitchen extension</div><div class="meta">Edited just now · <span class="mono">2</span> levels</div></div></div></div>
+    <div class="kv" style="padding-top:18px">
+      <b>Thumbnail</b><span>480 × 360 today (proposed 960 × 720 for HiDPI cards), 24 px padding, <code>LIGHT_THEME</code>, no grid, 1.5 s after the last change and when the tab is left.</span>
+      <b>Snapshot</b><span><code>view.snapshot</code>: light paper by default, no grid, opaque; dark or transparent only when asked. Nothing of the session is in it: no selection, no snap marks, no halo.</span>
+      <b>3D snapshot</b><span><code>renderBuildingToPng</code>, <code>LIGHT_SCENE_THEME</code>, the asked view, mode and lighting; a size WebGL cannot draw is refused, never shrunk.</span>
+      <b>Fonts</b><span>The offscreen themes must name Alegreya Sans and IBM Plex Mono and the faces must be loaded before the draw, or thumbnails fall back to system fonts (P8).</span>
+    </div>
+  </div>
+
+  <!-- ===================================================== SHEET ===================================================== -->
+  <h2>(e) Exports · the plan on an A3 sheet at 1:50, with the proposed title block</h2>
+  <p class="lead">White sheet (it prints on real paper), 10 mm margin, pens in millimetres on paper whatever the scale: walls 0.50, connector outlines and the break line 0.35, jambs and leaves 0.25, treads and furniture 0.18, dimensions, swings and room outlines 0.13, the lift door 0.70. Room names 4 mm at 1:50, figures 3.2 mm mono. The title block is 90 × 24 mm in the bottom-right corner: the wordmark as outlined paths with its terracotta full stop, the project, the level, the scale and the date.</p>
+  <div class="sheetwrap">
+    <svg class="sheet" viewBox="0 0 420 297" data-sheet></svg>
+    <div>
+      <h3 style="margin-top:0">Title block at 4×</h3>
+      <svg class="tb-zoom" viewBox="318 260 94 29" data-sheet-zoom></svg>
+      <h3>Print palette (SVG and PDF)</h3>
+      <table class="legend" data-print-legend></table>
+    </div>
+  </div>
+
+  <h3>DXF · layers and AutoCAD colour indices</h3>
+  <p class="note" style="margin-bottom:10px">One layer per drawing layer (an optional prefix such as <code>A-</code>), lineweights from the pens, dashes as line types, poché as hatches. The ACI table has no sage, umber, indigo or ochre: these are its nearest fixed colours; 7 is black on a white background and white on a black one.</p>
+  <table class="dxf" data-dxf></table>
+
+  <h3>glTF · <code>SOLID_COLORS</code> = the light <code>--scene-*</code> table</h3>
+  <table class="legend" style="max-width:900px" data-gltf-legend></table>
+</main>
+
+<script>
+(() => {
+  const NS = 'http://www.w3.org/2000/svg';
+  const el = (name, attrs = {}, parent) => {
+    const n = document.createElementNS(NS, name);
+    for (const [k, val] of Object.entries(attrs)) if (val !== undefined && val !== null) n.setAttribute(k, val);
+    if (parent) parent.appendChild(n);
+    return n;
+  };
+  const v = (name) => `var(--${name})`;
+  const hex = (node, name) => getComputedStyle(node).getPropertyValue(`--${name}`).trim();
+  const rgba = (h, a) => { const n = parseInt(h.slice(1), 16); return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`; };
+  const SANS = "'Alegreya Sans', system-ui, sans-serif";
+  const MONO = "'IBM Plex Mono', ui-monospace, monospace";
+
+  /* The print palette (PRINT_COLORS as proposed): the light --plan-* table with ink for the lines. */
+  const PRINT = { fg: '#231f1c', wallLine: '#231f1c', wall: '#3b3531', muted: '#7b7064', slab: '#e9e1d2', room: '#8b9a6b', dim: '#3f5390', connector: '#4b433d', decor: '#8c6b4a', warning: '#b8841f', paper: '#ffffff', ai: '#8a3f6f' };
+  const SCREEN = { fg: v('fg'), wallLine: v('plan-wall-line'), wall: v('plan-wall'), muted: v('muted'), slab: v('plan-slab'), room: v('plan-room'), dim: v('plan-dim'), connector: v('plan-connector'), decor: v('plan-decor'), warning: v('plan-warning'), paper: v('canvas'), grid: v('plan-grid'), gridMajor: v('plan-grid-major'), snap: v('plan-snap'), selection: v('plan-selection'), underlay: v('plan-underlay'), ai: v('plan-ai') };
+
+  /* ---------- The plan: world millimetres, y down (north up), drawn inside a scaled group ----------
+   * mode 'screen': stroke widths are screen px / S, so they stay the same at any zoom, as the renderer does.
+   * mode 'print':  stroke widths are paper mm × scale denominator (the group is scaled to paper), pens from drawing.ts.
+   * mode 'thumb':  the screen drawing without grid or overlays, at the thumbnail's fit scale.
+   */
+  function drawPlan(svg, o) {
+    const mode = o.mode || 'screen';
+    const S = o.S;
+    const print = mode === 'print';
+    const over = mode === 'screen';
+    const c = print ? PRINT : SCREEN;
+    const host = o.host || svg;
+    const W = (px, mm) => (print ? mm * o.denom : px / S);  // a stroke width: screen px or paper mm
+    const F = (px, mmText) => (print ? mmText : px / S);     // a font size: screen px or world mm
+    const D = (arr, mmArr) => (print ? mmArr.map((m) => m * o.denom).join(' ') : arr.map((p) => p / S).join(' '));
+    const T = (parent, x, y, str, opt = {}) => {
+      const t = el('text', { x, y, 'text-anchor': opt.anchor || 'middle', 'dominant-baseline': opt.baseline || 'middle', 'font-family': opt.mono ? MONO : SANS, 'font-size': opt.size, 'font-weight': opt.weight || 400, 'font-style': opt.italic ? 'italic' : 'normal', fill: opt.fill || c.fg, transform: opt.rotate ? `rotate(${opt.rotate} ${x} ${y})` : null }, parent);
+      t.textContent = str;
+      return t;
+    };
+
+    // The grid and origin axes, in screen pixels (pixel-snapped 1 px lines), under everything.
+    if (over && !o.noGrid) {
+      const gg = el('g', {}, host);
+      const ox = 1500 * S + (o.tx || 0), oy = 8400 * S + (o.ty || 0);
+      const minor = 1000 * S, major = 10000 * S;
+      const W0 = o.width, H0 = o.height;
+      for (let x = ox - Math.ceil(ox / minor) * minor; x <= W0; x += minor) {
+        const isMajor = Math.abs(((x - ox) / major) - Math.round((x - ox) / major)) < 1e-6;
+        el('line', { x1: Math.round(x) + .5, y1: 0, x2: Math.round(x) + .5, y2: H0, stroke: isMajor ? c.gridMajor : c.grid, 'stroke-width': 1 }, gg);
+      }
+      for (let y = oy - Math.ceil(oy / minor) * minor; y <= H0; y += minor) {
+        const isMajor = Math.abs(((y - oy) / major) - Math.round((y - oy) / major)) < 1e-6;
+        el('line', { x1: 0, y1: Math.round(y) + .5, x2: W0, y2: Math.round(y) + .5, stroke: isMajor ? c.gridMajor : c.grid, 'stroke-width': 1 }, gg);
+      }
+      el('line', { x1: Math.round(ox) + .5, y1: 0, x2: Math.round(ox) + .5, y2: H0, stroke: v('muted'), 'stroke-opacity': .5, 'stroke-width': 1 }, gg);
+      el('line', { x1: 0, y1: Math.round(oy) + .5, x2: W0, y2: Math.round(oy) + .5, stroke: v('muted'), 'stroke-opacity': .5, 'stroke-width': 1 }, gg);
+    }
+
+    const g = el('g', { transform: `translate(${o.tx || 0} ${o.ty || 0}) scale(${S})`, 'stroke-linecap': print ? 'round' : 'butt', 'stroke-linejoin': print ? 'round' : 'miter' }, host);
+
+    // The slab under the footprint.
+    el('rect', { x: 1500, y: 1400, width: 11000, height: 7000, fill: c.slab, stroke: print ? c.muted : null, 'stroke-width': print ? W(0, .13) : null }, g);
+
+    // The reference underlay (the level above) at 35 %: proposed above the slab (it is hidden under it today, P15).
+    if (over) {
+      const u = el('g', { stroke: c.underlay, fill: c.underlay, opacity: .35 }, g);
+      el('rect', { x: 4400, y: 1600, width: 200, height: 3700, stroke: 'none' }, u);
+      el('rect', { x: 1700, y: 5100, width: 2900, height: 200, stroke: 'none' }, u);
+      el('rect', { x: 1700, y: 1600, width: 2700, height: 3500, fill: 'none', 'stroke-width': W(1) }, u);
+      el('rect', { x: 2900, y: 2300, width: 1200, height: 800, fill: 'none', 'stroke-width': W(1) }, u);
+    }
+
+    // Rooms: the sage wash at 18 %, the outline at 60 %.
+    const rooms = [
+      { name: 'Living', area: '37.6 m²', x: 1700, y: 1600, w: 5700, h: 6600, lx: 4550, ly: 5000 },
+      { name: 'Kitchen', area: '31.0 m²', x: 7600, y: 1600, w: 4700, h: 6600, lx: 9950, ly: 4750 },
+    ];
+    for (const r of rooms) el('rect', { x: r.x, y: r.y, width: r.w, height: r.h, fill: c.room, 'fill-opacity': .18, stroke: c.room, 'stroke-opacity': print ? 1 : .6, 'stroke-width': W(1, .13) }, g);
+
+    // Walls: one joined poché with an ink edge (the openings' cuts are part of the shape).
+    const wallPath = [
+      'M1500 1400 H12500 V8400 H1500 Z',
+      'M1700 1600 V8200 H5000 V8000 H5900 V8200 H7400 V5400 H7600 V8200 H12300 V1600 H9800 V1400 H8600 V1600 H7600 V4500 H7400 V1600 H4300 V1400 H2500 V1600 Z',
+    ].join(' ');
+    el('path', { d: wallPath, 'fill-rule': 'evenodd', fill: c.wall, stroke: c.wallLine, 'stroke-width': W(1.5, .5), 'stroke-linejoin': 'miter' }, g);
+    // Otto's wall (drawn by Otto a moment ago): 100 mm, from the right wall 3 m into the kitchen.
+    el('rect', { x: 9300, y: 3650, width: 3000, height: 100, fill: c.wall, stroke: c.wallLine, 'stroke-width': W(1.5, .5) }, g);
+    // The column.
+    el('rect', { x: 9850, y: 2850, width: 300, height: 300, fill: c.wall, stroke: print ? c.wallLine : null, 'stroke-width': print ? W(0, .5) : null }, g);
+
+    // Openings: jambs, leaves, swings, glazing.
+    const og = el('g', { stroke: c.wallLine, 'stroke-width': W(1, .25), fill: 'none' }, g);
+    // Window 1 (top wall, x 2500–4300) and window 2 (x 8600–9800): jambs across the wall, two glazing lines.
+    for (const [a, b] of [[2500, 4300], [8600, 9800]]) {
+      el('path', { d: `M${a} 1400 V1600 M${b} 1400 V1600 M${a} 1466 H${b} M${a} 1534 H${b}` }, og);
+    }
+    // The partition door (900 mm) swinging into the kitchen.
+    el('path', { d: 'M7400 4500 H7600 M7400 5400 H7600 M7600 4500 H8500' }, og);
+    el('path', { d: 'M8500 4500 A900 900 0 0 1 7600 5400', 'stroke-dasharray': D([3, 3], [1, 1]), 'stroke-width': W(1, .13) }, og);
+    // The front door (900 mm) in the bottom wall, swinging in.
+    el('path', { d: 'M5000 8200 V8400 M5900 8200 V8400 M5000 8200 V7300' }, og);
+    el('path', { d: 'M5000 7300 A900 900 0 0 1 5900 8200', 'stroke-dasharray': D([3, 3], [1, 1]), 'stroke-width': W(1, .13) }, og);
+
+    // Room names and areas.
+    for (const r of rooms) {
+      T(g, r.lx, r.ly - (print ? 30 : 2 / S), r.name, { size: F(12, 200), baseline: 'auto' });
+      T(g, r.lx, r.ly + (print ? 30 : 3 / S), r.area, { size: F(11, 180), mono: true, fill: c.muted, baseline: 'hanging' });
+    }
+
+    // The sofa (2200 × 900): footprint, details, front tick, name.
+    const dg = el('g', { stroke: c.decor, fill: 'none', 'stroke-linejoin': 'round' }, g);
+    el('rect', { x: 3450, y: 6400, width: 2200, height: 900, rx: 40, fill: c.decor, 'fill-opacity': .16, 'stroke-width': W(1.25, .18) }, dg);
+    el('path', { d: 'M3450 7050 H5650 M4183 6400 V7050 M4917 6400 V7050', 'stroke-width': W(.75, .13), opacity: .7 }, dg);
+    el('path', { d: 'M4000 6450 H5100', 'stroke-width': W(1.25, .18) }, dg);
+    T(g, 4550, 6850, 'Sofa, 3 seats', { size: F(10, 140), fill: c.muted });
+    // The pendant light: a circle of r 67.5 mm with eight rays to 150 mm.
+    const lg = el('g', { stroke: c.decor, 'stroke-width': W(1.25, .18), fill: c.decor, 'fill-opacity': .25 }, g);
+    el('circle', { cx: 4550, cy: 3800, r: 67.5 }, lg);
+    for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4; el('line', { x1: 4550 + Math.cos(a) * 91, y1: 3800 + Math.sin(a) * 91, x2: 4550 + Math.cos(a) * 150, y2: 3800 + Math.sin(a) * 150 }, lg); }
+
+    // The label "Entrance", 200 mm high (it scales with the zoom).
+    T(g, 6650, 8800, 'Entrance', { size: 200 });
+
+    // Dimensions: a chain over the top wall and the overall.
+    const dm = el('g', { stroke: c.dim, fill: 'none', 'stroke-width': W(.75, .13) }, g);
+    const gap = print ? 60 : 6 / S, past = print ? 50 : 4 / S, tick = print ? 55 : 4 / S;
+    const ticks = el('g', { stroke: c.dim, 'stroke-width': W(.75, .18) }, g);
+    const dimLine = (y, xs, labels) => {
+      el('line', { x1: xs[0], y1: y, x2: xs[xs.length - 1], y2: y }, dm);
+      for (const x of xs) { el('line', { x1: x, y1: 1400 - gap, x2: x, y2: y - past }, dm); el('line', { x1: x - tick, y1: y + tick, x2: x + tick, y2: y - tick }, ticks); }
+      labels.forEach(([x, s]) => T(g, x, y - (print ? 40 : 3 / S), s, { size: F(11, 160), mono: true, fill: c.dim, baseline: 'auto' }));
+    };
+    dimLine(900, [1500, 7500, 12500], [[4500, '6 000 mm'], [10000, '5 000 mm']]);
+    dimLine(450, [1500, 12500], [[7000, '11 000 mm']]);
+
+    // The elevator: shaft, car crossed, the door on the side it opens at this level.
+    const eg = el('g', { stroke: c.connector, fill: 'none' }, g);
+    el('rect', { x: 8000, y: 6000, width: 2000, height: 2000, 'stroke-width': W(1.5, .35) }, eg);
+    el('path', { d: 'M8450 6300 H9550 V7700 H8450 Z M8450 6300 L9550 7700 M9550 6300 L8450 7700', 'stroke-width': W(1, .18) }, eg);
+    el('line', { x1: 8550, y1: 6000, x2: 9450, y2: 6000, 'stroke-width': W(4, .7) }, eg);
+
+    // The ramp outside: outline, walk arrow, UP, the slope.
+    const rg = el('g', { stroke: c.connector, fill: 'none' }, g);
+    el('rect', { x: 2000, y: 8700, width: 3000, height: 1000, 'stroke-width': W(1.5, .35) }, rg);
+    el('path', { d: `M2100 9200 H4900 M4900 9200 l${-(print ? 140 : 10 / S)} ${-(print ? 63 : 4.5 / S)} M4900 9200 l${-(print ? 140 : 10 / S)} ${(print ? 63 : 4.5 / S)}`, 'stroke-width': W(1, .18) }, rg);
+    el('circle', { cx: 2100, cy: 9200, r: print ? 45 : 3 / S, fill: c.connector, stroke: 'none' }, rg);
+    T(g, 2100, 9200 - (print ? 200 : 14 / S), 'UP', { size: F(11, 160), mono: true, fill: c.connector });
+    T(g, 3500, 9200 - (print ? 170 : 12 / S), '8.0 %', { size: F(11, 160), mono: true, fill: c.connector });
+
+    // The stair: sixteen risers, going up north; it breaks the riser rule, so the whole symbol is ochre.
+    const sc = c.warning;
+    const sg = el('g', { stroke: sc, fill: 'none' }, g);
+    el('rect', { x: 11200, y: 5000, width: 1000, height: 3000, 'stroke-width': W(1.5, .35) }, sg);
+    let below = '', above = '';
+    for (let k = 1; k <= 15; k++) { const y = 5000 + k * 187.5; (y > 6500 ? (below += `M11200 ${y} H12200 `) : (above += `M11200 ${y} H12200 `)); }
+    el('path', { d: below + 'M11250 5000 V8000 M12150 5000 V8000', 'stroke-width': W(1, .18) }, sg);
+    el('path', { d: above, 'stroke-width': W(1, .18), 'stroke-dasharray': D([4, 3], [1.3, 1]) }, sg);
+    el('path', { d: 'M12200 6250 L11780 6380 L11620 6620 L11200 6750', 'stroke-width': W(1.5, .35) }, sg);
+    el('path', { d: `M11700 7950 V6500 M11700 6500 l${-(print ? 63 : 4.5 / S)} ${(print ? 140 : 10 / S)} M11700 6500 l${(print ? 63 : 4.5 / S)} ${(print ? 140 : 10 / S)}`, 'stroke-width': W(1, .18) }, sg);
+    el('circle', { cx: 11700, cy: 7950, r: print ? 45 : 3 / S, fill: sc, stroke: 'none' }, sg);
+    T(g, 11700 + (print ? 200 : 14 / S), 7950, 'UP', { size: F(11, 160), mono: true, fill: sc });
+    T(g, 11700 - (print ? 200 : 14 / S), 7950, '16 R', { size: F(11, 160), mono: true, fill: sc });
+
+    if (!over) return g;
+
+    /* ---------- Overlays: the session, never in thumbnails, snapshots or exports ---------- */
+    // Otto's halo on the wall it drew, its end nodes, the tag, and a pending deletion round the column.
+    const ai = el('g', {}, g);
+    el('line', { x1: 9300, y1: 3700, x2: 12300, y2: 3700, stroke: c.ai, 'stroke-opacity': .22, 'stroke-width': W(34), 'stroke-linecap': 'round' }, ai);
+    for (const x of [9300, 12300]) el('circle', { cx: x, cy: 3700, r: W(5), fill: c.ai, stroke: c.paper, 'stroke-width': W(1.5) }, ai);
+    el('path', { d: 'M11000 3650 L11250 3330', stroke: c.ai, 'stroke-width': W(1), fill: 'none' }, ai);
+    el('rect', { x: 11250, y: 3130, width: 2000, height: W(18), rx: W(4), fill: c.paper, 'fill-opacity': .9, stroke: c.ai, 'stroke-width': W(1) }, ai);
+    const tag = T(ai, 11250 + W(8), 3130 + W(9), '', { size: F(11), anchor: 'start', fill: c.ai });
+    const ts = (txt, mono, italic) => { const s = el('tspan', { 'font-family': mono ? MONO : SANS, 'font-style': italic ? 'italic' : 'normal' }, tag); s.textContent = txt; };
+    ts('Otto', false); ts(' · ', false); ts('3 m wall', true); ts(' · ', false); ts('now', false, true);
+    el('rect', { x: 9850 - W(3), y: 2850 - W(3), width: 300 + W(6), height: 300 + W(6), fill: 'none', stroke: c.ai, 'stroke-width': W(1.5), 'stroke-dasharray': D([6, 4]), 'stroke-linejoin': 'round' }, ai);
+
+    // The selected partition: its body outlined in terracotta with a 12 % fill, grips at the vertices and the middle.
+    const sel = el('g', {}, g);
+    el('rect', { x: 7400, y: 1500, width: 200, height: 6800, fill: c.selection, 'fill-opacity': .12, stroke: c.selection, 'stroke-width': W(2), 'stroke-linejoin': 'round' }, sel);
+    for (const y of [1500, 8300]) el('rect', { x: 7500 - W(4), y: y - W(4), width: W(8), height: W(8), fill: y === 1500 ? c.selection : c.paper, stroke: c.selection, 'stroke-width': W(1.5) }, sel);
+    el('circle', { cx: 7500, cy: 4900, r: W(3.5), fill: c.paper, stroke: c.selection, 'stroke-width': W(1.5) }, sel);
+
+    // A crossing marquee (dragged right to left) over the sofa.
+    el('rect', { x: 3200, y: 6000, width: 3100, height: 1700, fill: c.selection, 'fill-opacity': .08, stroke: c.selection, 'stroke-width': W(1), 'stroke-dasharray': D([6, 4]) }, g);
+
+    // The Wall tool: a wall started outside the corner, its body at 45 %, the axis dashed, the length and angle.
+    const wp = el('g', {}, g);
+    el('rect', { x: 1400, y: 8400, width: 200, height: 1300, fill: c.wall, 'fill-opacity': .45, stroke: c.wallLine, 'stroke-width': W(1) }, wp);
+    el('line', { x1: 1500, y1: 9700, x2: 1500, y2: 8400, stroke: c.selection, 'stroke-width': W(1), 'stroke-dasharray': D([6, 4]) }, wp);
+    T(wp, 1500 + W(40), 9050, '1 300 mm · 90.0°', { size: F(11), mono: true, fill: c.selection, anchor: 'start' });
+    // The snap: the cursor tracked at 90° from the start finds the corner. The tracking ray, the endpoint square, the label chip.
+    const sn = el('g', { stroke: c.snap, fill: 'none' }, g);
+    el('line', { x1: 1500, y1: 9700, x2: 1500, y2: 8400 - W(60), 'stroke-width': W(1), 'stroke-dasharray': D([6, 4]) }, sn);
+    el('rect', { x: 1500 - W(6), y: 8400 - W(6), width: W(12), height: W(12), fill: c.snap, 'fill-opacity': .15, 'stroke-width': W(1.5) }, sn);
+    el('rect', { x: 1500 + W(12), y: 8400 + W(10), width: W(136), height: W(16), fill: c.paper, 'fill-opacity': .9, stroke: 'none' }, sn);
+    T(g, 1500 + W(16), 8400 + W(18), 'Endpoint · 1 300 mm', { size: F(11), anchor: 'start', fill: c.snap });
+    return g;
+  }
+
+  /* ---------- Legends read back from the stylesheet, so the swatches can never drift ---------- */
+  const PLAN_LEGEND = [
+    ['canvas', 'The sheet: paper, or the desk under the lamp'],
+    ['plan-grid', 'Minor grid, 1 px pixel-snapped, here every metre'],
+    ['plan-grid-major', 'Major grid, every 10 m'],
+    ['muted', 'Origin axes at 50 %; areas 11 px mono; item names 10 px; dividers'],
+    ['plan-slab', 'The slab under the footprint, no outline'],
+    ['plan-wall', 'Wall poché and columns, one joined shape'],
+    ['plan-wall-line', 'Wall edges 1.5 px; jambs, leaves, glazing 1 px; swings dashed 3 / 3'],
+    ['plan-room', 'Room wash at 18 %, outline 1 px at 60 %'],
+    ['fg', 'Room names 12 px Alegreya Sans; labels in mm'],
+    ['plan-dim', 'Dimension lines 0.75 px, 4 px ticks, figures 11 px mono'],
+    ['plan-connector', 'Elevator and ramp: outline 1.5 px, lines 1 px, door 4 px, UP / DN mono'],
+    ['plan-warning', 'The stair that breaks the riser rule: the whole symbol'],
+    ['plan-decor', 'Sofa 1.25 px + 16 % fill, details 0.75 px; the light glyph'],
+    ['plan-underlay', 'The level above at 35 %: wall bands at their thickness, outlines 1 px'],
+    ['plan-snap', 'Tracking ray 1 px dashed 6 / 4, the endpoint square, the label on a paper chip'],
+    ['plan-selection', 'Selected wall 2 px + 12 %, grips, the crossing marquee 1 px at 8 % dashed, the Wall tool axis'],
+    ['plan-ai', 'Otto: halo 34 px at 22 %, end nodes, the tag, a pending deletion dashed 6 / 4'],
+  ];
+  const SCENE_LEGEND = [
+    ['canvas', 'Background by day; night is a constant #0f0d0b in both themes'],
+    ['scene-edge', 'Edge lines, 1 px, where faces meet at more than 25°; not on rails or finishes'],
+    ['scene-wall', 'Walls, frames, leaves and finishes without a material: limewashed plaster'],
+    ['scene-slab', 'Slabs: sand; what the walk camera stands on'],
+    ['scene-column', 'Columns; proposed as the fallback for a material that does not resolve'],
+    ['scene-glass', 'Glazing at 35 % opacity, double-sided: the one cool note'],
+    ['scene-connector', 'Stairs, ramps, ladders, escalators: timber'],
+    ['scene-rail', 'Handrails, no edge lines'],
+    ['scene-car', 'Elevator cars: the accent, the only terracotta solid'],
+    ['scene-stand-in', 'The box standing in for an imported model while it loads, or when it cannot'],
+  ];
+  function fillLegend(table, node, rows, dark) {
+    table.innerHTML = `<tr><th></th><th>Variable</th><th>${dark ? 'Dark' : 'Light'}</th><th>Draws</th></tr>`;
+    for (const [name, what] of rows) {
+      const h = hex(node, name);
+      table.insertAdjacentHTML('beforeend', `<tr><td style="width:20px"><i style="background:${h}"></i></td><td class="var">--${name}</td><td class="hex">${h}</td><td>${what}</td></tr>`);
+    }
+  }
+  for (const box of [document.getElementById('plan-light'), document.getElementById('plan-dark')]) {
+    const svg = box.querySelector('[data-plan]');
+    drawPlan(svg, { mode: 'screen', S: 0.08, width: 1200, height: 800 });
+    fillLegend(box.querySelector('[data-legend]'), box, PLAN_LEGEND, box.classList.contains('dark'));
+  }
+  // Thumbnails: the level fitted into 480 × 360 with 24 px of padding, always the light palette, no grid, no overlays.
+  for (const svg of document.querySelectorAll('[data-thumb]')) {
+    el('rect', { x: 0, y: 0, width: 480, height: 360, fill: v('canvas') }, svg);
+    drawPlan(svg, { mode: 'thumb', S: 0.034, tx: 2, ty: 8 });
+  }
+
+  /* ---------- The section view: levels as bars, the active one terracotta, connectors in graphite ---------- */
+  function drawSection(svg) {
+    const Y = (mm) => 300 - mm * 0.042;   // ground line at y = 300
+    const levels = [
+      { name: 'Basement', el: -3000, top: 0, basement: true },
+      { name: 'Ground floor', el: 0, top: 3000, active: true },
+      { name: 'Level 1', el: 3000, top: 6000 },
+    ];
+    const bodyX = 210, bodyW = 430, labelsX = 190;
+    el('line', { x1: 20, x2: 980, y1: Y(0), y2: Y(0), stroke: v('muted'), 'stroke-opacity': .6, 'stroke-width': 1.5, 'stroke-dasharray': '8 6' }, svg);
+    const t = (x, y, s, o = {}) => { const n = el('text', { x, y, 'text-anchor': o.anchor || 'start', 'font-family': o.mono ? MONO : SANS, 'font-size': o.size || 13, 'font-weight': o.weight || 400, fill: o.fill || v('muted') }, svg); n.textContent = s; return n; };
+    t(976, Y(0) - 8, 'Ground 0 mm', { anchor: 'end' });
+    for (const l of levels) {
+      const top = Y(l.top), floor = Y(l.el);
+      el('rect', { x: bodyX, y: top, width: bodyW, height: floor - top, rx: 3, fill: l.active ? v('accent') : l.basement ? v('muted') : v('elevated'), 'fill-opacity': l.active ? .15 : l.basement ? .1 : 1, stroke: l.active ? v('accent') : v('edge'), 'stroke-width': l.active ? 2.5 : 1.5 }, svg);
+      el('rect', { x: bodyX, y: floor, width: bodyW, height: 200 * 0.042, fill: v('muted'), 'fill-opacity': .45 }, svg);
+      t(bodyX + 18, (top + floor) / 2 + 5, l.name, { size: 15, weight: 500, fill: v('fg') });
+      t(labelsX - 12, floor + 5, `${l.el.toLocaleString('en').replace(/,/g, ' ')} mm`, { anchor: 'end', mono: true, fill: l.el < 0 ? v('warning') : v('muted') });
+      el('line', { x1: labelsX - 6, x2: bodyX, y1: floor, y2: floor, stroke: v('muted'), 'stroke-opacity': .5, 'stroke-width': 1 }, svg);
+    }
+    // Lanes: a stair ground → level 1 (16 risers), an elevator basement → level 1 with three stops, a ramp outside.
+    const lanes = 690 + 24;
+    let d = `M${lanes} ${Y(0)}`;
+    for (let i = 0; i < 16; i++) { const y1 = Y((i + 1) * 3000 / 16); d += ` V${y1} H${lanes + (i + 1) * 5.6}`; }
+    el('path', { d, fill: 'none', stroke: v('plan-connector'), 'stroke-width': 2, 'stroke-linejoin': 'round' }, svg);
+    t(lanes + 45, Y(3000) - 8, 'Stair · 16 R', { anchor: 'middle', size: 12 });
+    const ex = lanes + 150;
+    el('rect', { x: ex - 10, y: Y(6000), width: 20, height: Y(-3000) - Y(6000), rx: 2, fill: v('plan-connector'), 'fill-opacity': .1, stroke: v('plan-connector'), 'stroke-opacity': .7, 'stroke-width': 1.5 }, svg);
+    for (const s of [-3000, 0, 3000]) el('circle', { cx: ex, cy: Y(s) - 10, r: 4, fill: v('plan-connector') }, svg);
+    t(ex, Y(6000) - 8, 'Elevator', { anchor: 'middle', size: 12 });
+    const rx = lanes + 230;
+    el('line', { x1: rx - 10, x2: rx + 10, y1: Y(0), y2: Y(240), stroke: v('plan-connector'), 'stroke-width': 3, 'stroke-linecap': 'round' }, svg);
+    t(rx, Y(240) - 8, 'Ramp', { anchor: 'middle', size: 12 });
+  }
+  for (const svg of document.querySelectorAll('[data-section]')) drawSection(svg);
+
+  /* ---------- The 3D view: a simple isometric, four panes ---------- */
+  function drawScene(svg, night) {
+    const W = 560, H = 360;
+    const bg = night ? '#0f0d0b' : v('canvas');
+    el('rect', { x: 0, y: 0, width: W, height: H, fill: bg }, svg);
+    const cx = 292, cy = 236, k = 32;
+    const P = (x, y, z) => [cx + (x - y) * 0.866 * k, cy + (x + y) * 0.5 * k - z * k];
+    const shade = (fill, f) => `color-mix(in srgb, ${fill} ${Math.round(f * 100)}%, ${night ? '#0f0d0b' : v('scene-edge')})`;
+    const poly = (pts, fill, extra = {}) => el('polygon', { points: pts.map((p) => P(...p).join(',')).join(' '), fill, stroke: v('scene-edge'), 'stroke-width': 1, 'stroke-linejoin': 'round', ...extra }, svg);
+    const box = (x, y, z, w, d, h, fill, extra = {}) => {
+      const top = night ? 0.3 : 1, front = night ? 0.22 : 0.9, side = night ? 0.17 : 0.78;
+      poly([[x, y + d, z], [x + w, y + d, z], [x + w, y + d, z + h], [x, y + d, z + h]], shade(fill, front), extra);
+      poly([[x + w, y, z], [x + w, y + d, z], [x + w, y + d, z + h], [x + w, y, z + h]], shade(fill, side), extra);
+      poly([[x, y, z + h], [x + w, y, z + h], [x + w, y + d, z + h], [x, y + d, z + h]], top === 1 ? fill : shade(fill, top), extra);
+    };
+    if (night) {
+      // Pools of warm light on the floor, under each lit fitting, before the solids so they sit on the slab.
+      const id = `glow-${Math.random().toString(36).slice(2, 7)}`;
+      const rg = el('radialGradient', { id }, el('defs', {}, svg));
+      el('stop', { offset: 0, 'stop-color': '#ffd79a', 'stop-opacity': .55 }, rg);
+      el('stop', { offset: 1, 'stop-color': '#ffd79a', 'stop-opacity': 0 }, rg);
+      svg.dataset.glow = id;
+    }
+    box(0, 0, -0.2, 7.2, 5.2, 0.2, v('scene-slab'));
+    if (night) for (const [x, y] of [[2.2, 1.8], [5.6, 1.4], [5.2, 4.0]]) { const [px, py] = P(x, y, 0.02); el('ellipse', { cx: px, cy: py, rx: 78, ry: 40, fill: `url(#${svg.dataset.glow})` }, svg); }
+    box(0, 0, 0, 7.2, 0.2, 2.8, v('scene-wall'));
+    box(0, 0.2, 0, 0.2, 5.0, 2.8, v('scene-wall'));
+    poly([[2.0, 0.2, 0.9], [4.2, 0.2, 0.9], [4.2, 0.2, 2.2], [2.0, 0.2, 2.2]], v('scene-glass'), { 'fill-opacity': night ? .6 : .8 });
+    box(3.8, 0.2, 0, 0.2, 5.0, 1.2, v('scene-wall'));
+    box(4.0, 2.6, 0, 3.2, 0.2, 1.2, v('scene-wall'));
+    box(6.6, 2.0, 0, 0.3, 0.3, 2.8, v('scene-column'));
+    for (let i = 0; i < 6; i++) box(5.4, 4.6 - i * 0.3, 0, 0.9, 0.3, 0.3 * (i + 1), v('scene-connector'));
+    el('polyline', { points: [P(6.3, 4.9, 1.0), P(6.3, 3.1, 2.6)].map((p) => p.join(',')).join(' '), fill: 'none', stroke: v('scene-rail'), 'stroke-width': 2.2, 'stroke-linecap': 'round' }, svg);
+    box(0.4, 3.6, 0, 1.2, 1.2, 2.2, v('scene-car'));
+    box(1.2, 1.4, 0, 2.0, 0.9, 0.8, v('scene-stand-in'));
+    box(1.6, 0.6, 0, 1.0, 0.6, 0.45, v('scene-connector'));
+    box(0.2, 5.0, 0, 7.0, 0.2, 0.5, v('scene-wall'));
+    box(7.0, 0.2, 0, 0.2, 5.0, 0.5, v('scene-wall'));
+    if (night) for (const [x, y] of [[2.2, 1.8], [5.6, 1.4], [5.2, 4.0]]) { const [lx, ly] = P(x, y, 2.4); el('circle', { cx: lx, cy: ly, r: 3, fill: '#ffe9c9' }, svg); el('circle', { cx: lx, cy: ly, r: 9, fill: '#ffd79a', 'fill-opacity': .25 }, svg); }
+  }
+  for (const svg of document.querySelectorAll('[data-scene]')) drawScene(svg, svg.hasAttribute('data-night'));
+  fillLegend(document.querySelector('[data-scene-legend]'), document.body, SCENE_LEGEND, false);
+  {
+    // Add the dark column to the scene legend.
+    const table = document.querySelector('[data-scene-legend]');
+    const probe = document.createElement('div'); probe.className = 'dark'; document.body.appendChild(probe);
+    const rows = table.querySelectorAll('tr');
+    rows[0].insertAdjacentHTML('beforeend', '<th>Dark</th>');
+    SCENE_LEGEND.forEach(([name], i) => { const h = hex(probe, name); rows[i + 1].insertAdjacentHTML('beforeend', `<td class="hex"><i style="background:${h}"></i>${h}</td>`); });
+    probe.remove();
+  }
+
+  /* ---------- The A3 sheet at 1:50: paper millimetres, y down ---------- */
+  function drawSheet(svg) {
+    const Wm = 420, Hm = 297, margin = 10, tb = { w: 90, h: 24 };
+    el('rect', { x: 0, y: 0, width: Wm, height: Hm, fill: '#ffffff' }, svg);
+    // The drawing: world mm / 50 = paper mm, centred in the area above the title block.
+    const area = { x0: margin, y0: margin, x1: Wm - margin, y1: Hm - margin - tb.h - 4 };
+    const bounds = { minX: 1400, minY: 400, maxX: 12500, maxY: 9700 };
+    const sc = 1 / 50;
+    const cxp = (area.x0 + area.x1) / 2, cyp = (area.y0 + area.y1) / 2;
+    const tx = cxp - ((bounds.minX + bounds.maxX) / 2) * sc, ty = cyp - ((bounds.minY + bounds.maxY) / 2) * sc;
+    drawPlan(svg, { mode: 'print', S: sc, denom: 50, tx, ty });
+    // The title block: a 90 × 24 mm frame in the bottom-right corner, three rows of 8 mm.
+    const x0 = Wm - margin - tb.w, y0 = Hm - margin - tb.h, x1 = Wm - margin, y1 = Hm - margin;
+    const f = el('g', { stroke: PRINT.fg, 'stroke-width': .35, 'stroke-linecap': 'square', fill: 'none' }, svg);
+    el('rect', { x: x0, y: y0, width: tb.w, height: tb.h }, f);
+    el('line', { x1: x0, y1: y0 + 8, x2: x1, y2: y0 + 8 }, f);
+    const t = (x, y, s, o = {}) => { const n = el('text', { x, y, 'text-anchor': o.anchor || 'start', 'font-family': o.family || SANS, 'font-size': o.size, 'font-weight': o.weight || 400, fill: o.fill || PRINT.fg, 'font-variation-settings': o.fvs || null }, svg); n.textContent = s; return n; };
+    // The wordmark: Fraunces here, outlined paths in the shipped block; cap height 3.2 mm ≈ font size 4.6 mm.
+    const wm = t(x0 + 3, y0 + 6, 'Hollin', { family: "'Fraunces', Georgia, serif", size: 4.6, weight: 600, fvs: "'opsz' 144, 'SOFT' 80" });
+    wm.setAttribute('letter-spacing', '-0.07');
+    const dot = el('text', { x: x0 + 3 + 14.3, y: y0 + 6, 'font-family': "'Fraunces', Georgia, serif", 'font-size': 4.6, 'font-weight': 600, fill: PRINT.ai ? '#b9552f' : '#b9552f', 'font-variation-settings': "'opsz' 144, 'SOFT' 80" }, svg); dot.textContent = '.';
+    t(x1 - 3, y0 + 6, 'Kitchen extension', { anchor: 'end', size: 4, weight: 500 });
+    t(x0 + 3, y0 + 14, 'Ground floor', { size: 3 });
+    t(x0 + 3, y0 + 21.2, 'Scale 1:50', { size: 2.8 });
+    t(x1 - 3, y0 + 21.2, '2026-10-31', { anchor: 'end', size: 2.8, family: MONO });
+  }
+  drawSheet(document.querySelector('[data-sheet]'));
+  drawSheet(document.querySelector('[data-sheet-zoom]'));
+  {
+    const table = document.querySelector('[data-print-legend]');
+    table.innerHTML = '<tr><th></th><th>Role</th><th>Hex</th><th>Pens</th></tr>';
+    const rows = [['fg', PRINT.fg, 'Labels, room names, the title block'], ['wallLine', PRINT.wallLine, 'Walls 0.50, columns 0.50, jambs and leaves 0.25, swings 0.13 dashed 1 / 1'], ['wall', PRINT.wall, 'Poché fill (hatched in DXF)'], ['muted', PRINT.muted, 'Areas, item names, dividers 0.18 dashed 2.5 / 1.2, fixtures'], ['slab', PRINT.slab, 'The slab fill, outlined 0.13'], ['room', PRINT.room, 'Wash at 18 %, outline 0.13'], ['dim', PRINT.dim, 'Lines 0.13, ticks 0.18, figures 0.8 h mono'], ['connector', PRINT.connector, 'Outline 0.35, lines 0.18, break line 0.35, lift door 0.70'], ['decor', PRINT.decor, 'Furniture 0.18 + 16 %, details 0.13, lights 0.18 + 25 %'], ['warning', PRINT.warning, 'A connector or opening that breaks a rule']];
+    for (const [role, h, what] of rows) table.insertAdjacentHTML('beforeend', `<tr><td style="width:20px"><i style="background:${h}"></i></td><td class="var">${role}</td><td class="hex">${h}</td><td>${what}</td></tr>`);
+  }
+
+  /* ---------- DXF layers and ACI colours ---------- */
+  {
+    const ACI = { 7: null, 8: '#808080', 9: '#c0c0c0', 35: '#997a5c', 42: '#cc9900', 75: '#8c995c', 165: '#4c5c99' };
+    const rows = [
+      ['Slabs', 'muted · fill slab', '8 · 9', 'graphite · the slab tint'],
+      ['Rooms', 'room', '75', 'sage #8b9a6b'],
+      ['Voids and shafts', 'muted · wallLine', '8 · 7', ''],
+      ['Shapes', 'wallLine', '7', 'ink'],
+      ['Room dividers', 'muted', '8', ''],
+      ['Walls', 'wallLine · hatch wall', '7 · 8', 'ink · graphite poché'],
+      ['Columns', 'wallLine · hatch wall', '7 · 8', ''],
+      ['Doors and windows', 'wallLine', '7', ''],
+      ['Fixtures and points', 'muted', '8', ''],
+      ['Furniture', 'decor', '35', 'umber #8c6b4a'],
+      ['Lights', 'decor', '35', ''],
+      ['Stairs and lifts', 'connector · broken: warning', '7 · 42', 'ink · ochre #b8841f'],
+      ['Dimensions', 'dim', '165', 'indigo #3f5390'],
+      ['Labels', 'fg', '7', 'ink'],
+    ];
+    const table = document.querySelector('[data-dxf]');
+    table.innerHTML = '<tr><th>Layer</th><th>Role</th><th>ACI</th><th>ACI colour</th><th>Nearest to</th></tr>';
+    for (const [layer, role, aci, near] of rows) {
+      const sw = aci.split(' · ').map((a) => { const h = ACI[a.trim()]; return h ? `<i style="background:${h}"></i>${h}` : `<i class="flip"></i>7`; }).join('&ensp;');
+      table.insertAdjacentHTML('beforeend', `<tr><td>${layer}</td><td class="mono">${role}</td><td class="mono">${aci}</td><td class="mono">${sw}</td><td>${near}</td></tr>`);
+    }
+    const g = document.querySelector('[data-gltf-legend]');
+    g.innerHTML = '<tr><th></th><th>Kind</th><th>Hex</th><th>=</th></tr>';
+    for (const [kind, name] of [['wall, frame, leaf, finish', 'scene-wall'], ['slab', 'scene-slab'], ['column', 'scene-column'], ['glass (alpha 0.35, BLEND, double-sided)', 'scene-glass'], ['connector', 'scene-connector'], ['rail', 'scene-rail'], ['car', 'scene-car']]) {
+      const h = hex(document.body, name);
+      g.insertAdjacentHTML('beforeend', `<tr><td style="width:20px"><i style="background:${h}"></i></td><td>${kind}</td><td class="hex">${h}</td><td class="var">--${name}</td></tr>`);
+    }
+  }
+})();
+</script>
+</body>
+</html>

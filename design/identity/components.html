@@ -1,0 +1,1544 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hollin — components</title>
+<!-- Preview only: in the app the three families are bundled (OFL) under font-src 'self'. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Alegreya+Sans:ital,wght@0,400;0,500;0,700;1,400;1,500&family=Fraunces:ital,opsz,wght,SOFT@0,9..144,400..700,0..100;1,9..144,400..700,0..100&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* =====================================================================================
+   1. PALETTE — every semantic variable of styles.css, both themes. These hex values are
+   the single source for 02-components.md: Craft §e verbatim plus the five --ai* values
+   of 00-decisions.md §4. Nothing below this block names a colour.
+   ===================================================================================== */
+:root {
+  color-scheme: light;
+  --canvas: #f6f1e8;
+  --surface: #efe8dc;
+  --elevated: #e6ddcd;
+  --fg: #2a2521;
+  --muted: #7b7064;
+  --edge: #dcd2c2;
+  --accent: #b9552f;
+  --accent-hover: #9c4525;
+  --accent-fg: #fbf6ee;
+  --danger: #b5392c;
+  --success: #4f7d3d;
+  --warning: #b8841f;
+  --titlebar: #efe8dc;
+  --titlebar-fg: #2a2521;
+  --ai: #8a3f6f;
+  --ai-hover: #733259;
+  --ai-fg: #fbf6ee;
+  --ai-tint: #f1e3ea;
+  --plan-ai: #8a3f6f;
+  --plan-grid: #ebe4d7;
+  --plan-grid-major: #dbd1bf;
+  --plan-wall: #3b3531;
+  --plan-wall-line: #231f1c;
+  --plan-room: #8b9a6b;
+  --plan-slab: #e9e1d2;
+  --plan-dim: #3f5390;
+  --plan-underlay: #a89c8c;
+  --plan-snap: #2f8a57;
+  --plan-selection: #b9552f;
+  --plan-warning: #b8841f;
+  --plan-connector: #4b433d;
+  --plan-decor: #8c6b4a;
+  --scene-edge: #3a332e;
+  --scene-wall: #efe6d6;
+  --scene-slab: #cdbea7;
+  --scene-column: #ddd1bd;
+  --scene-glass: #9bb9c7;
+  --scene-connector: #d5c2a3;
+  --scene-rail: #5a4f45;
+  --scene-car: #b9552f;
+  --scene-stand-in: #a69b8e;
+  /* Type */
+  --font-sans: 'Alegreya Sans', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, Consolas, monospace;
+  --font-display: 'Fraunces', Georgia, serif;
+  /* Derived, never a new hue: the dialog scrim and the one popover shadow (ink at 12 %). */
+  --scrim: color-mix(in srgb, var(--fg) 32%, transparent);
+  --shadow-pop: 0 8px 24px color-mix(in srgb, var(--fg) 12%, transparent);
+  --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+  --ring-danger: 0 0 0 3px color-mix(in srgb, var(--danger) 22%, transparent);
+}
+.dark {
+  color-scheme: dark;
+  --canvas: #1d1a17;
+  --surface: #262220;
+  --elevated: #332d29;
+  --fg: #ebe3d6;
+  --muted: #a2968a;
+  --edge: #3c3531;
+  --accent: #e07c50;
+  --accent-hover: #ea9471;
+  --accent-fg: #1d1a17;
+  --danger: #e8705f;
+  --success: #8fbf6e;
+  --warning: #e2b24a;
+  --titlebar: #262220;
+  --titlebar-fg: #ebe3d6;
+  --ai: #d892bd;
+  --ai-hover: #e3a9cb;
+  --ai-fg: #1d1a17;
+  --ai-tint: #332631;
+  --plan-ai: #d892bd;
+  --plan-grid: #272320;
+  --plan-grid-major: #352f2b;
+  --plan-wall: #d8cfc2;
+  --plan-wall-line: #f3ece1;
+  --plan-room: #a4b385;
+  --plan-slab: #2a2623;
+  --plan-dim: #91a4e0;
+  --plan-underlay: #7a7066;
+  --plan-snap: #6fcf8a;
+  --plan-selection: #e07c50;
+  --plan-warning: #e2b24a;
+  --plan-connector: #e3dacc;
+  --plan-decor: #d4a97a;
+  --scene-edge: #141210;
+  --scene-wall: #c4b9a8;
+  --scene-slab: #6f6358;
+  --scene-column: #a89c8c;
+  --scene-glass: #6e93ab;
+  --scene-connector: #a8947a;
+  --scene-rail: #d8cfc2;
+  --scene-car: #e07c50;
+  --scene-stand-in: #5f574f;
+  /* On the dark desk a 12 % ink shadow is invisible; the edge separates, the shadow only softens. */
+  --scrim: color-mix(in srgb, var(--canvas) 55%, transparent);
+  --shadow-pop: 0 8px 24px color-mix(in srgb, var(--canvas) 60%, transparent);
+}
+
+/* =====================================================================================
+   2. FOUNDATIONS — what styles.css gains: type, icons, focus, selection, scrollbars.
+   ===================================================================================== */
+*, *::before, *::after { box-sizing: border-box; }
+.themed, .pane, .mock {
+  background: var(--canvas); color: var(--fg);
+  font: 400 13px/18px var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+.ico { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; flex: none; display: inline-block; vertical-align: middle; }
+.ico.s16 { width: 16px; height: 16px; }
+.ico.s14 { width: 14px; height: 14px; }
+.ico.s12 { width: 12px; height: 12px; }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.display { font-family: var(--font-display); font-weight: 600; letter-spacing: -0.01em; }
+.h-panel { font: 600 18px/24px var(--font-display); font-variation-settings: 'SOFT' 50, 'opsz' 20; letter-spacing: -0.005em; }
+.h-dialog { font: 600 20px/26px var(--font-display); font-variation-settings: 'SOFT' 60, 'opsz' 24; letter-spacing: -0.01em; }
+.h-page { font: 600 28px/34px var(--font-display); font-variation-settings: 'SOFT' 60, 'opsz' 36; letter-spacing: -0.01em; }
+.cap { font: 500 11px/14px var(--font-sans); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.meta { font: italic 400 12px/16px var(--font-sans); color: var(--muted); }
+.label { display: block; font: 500 12px/16px var(--font-sans); color: var(--muted); margin-bottom: 4px; }
+.caption { font: 400 11px/14px var(--font-sans); color: var(--muted); }
+.muted { color: var(--muted); }
+.unit { color: var(--muted); }
+:where(.themed, .pane, .mock) ::selection { background: color-mix(in srgb, var(--accent) 30%, transparent); }
+.scroll { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--muted) 35%, transparent) transparent; }
+.scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+.scroll::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--muted) 35%, transparent); border-radius: 4px; border: 2px solid transparent; background-clip: padding-box; }
+.scroll::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--muted) 55%, transparent); background-clip: padding-box; }
+.scroll::-webkit-scrollbar-track { background: transparent; }
+/* One focus ring for everything that is not a text field: 2 px terracotta outside the edge. */
+.focus-ring, .btn:focus-visible, .ibtn:focus-visible, .tab:focus-visible, .row:focus-visible, .card:focus-visible, .chip:focus-visible, .choice:focus-visible, .seg:focus-visible, .rtab:focus-visible, .chk:focus-visible, .radio:focus-visible, .fmt input:focus-visible + .fmt-card, .is-focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.tip { display: inline-block; background: var(--fg); color: var(--canvas); font: 400 11px/14px var(--font-sans); padding: 4px 7px; border-radius: 4px; box-shadow: var(--shadow-pop); }
+.tip .mono { color: color-mix(in srgb, var(--canvas) 70%, var(--fg)); }
+
+/* =====================================================================================
+   3. CONTROLS
+   ===================================================================================== */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 6px; border: 1px solid transparent; font: 500 13px/18px var(--font-sans); color: var(--fg); background: transparent; user-select: none; white-space: nowrap; transition: background-color .12s, border-color .12s, color .12s; }
+.btn.sm { height: 28px; padding: 0 8px; gap: 4px; font-size: 12px; line-height: 16px; }
+.btn .ico { width: 16px; height: 16px; }
+.btn.sm .ico { width: 14px; height: 14px; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+.btn.primary:hover, .btn.primary.is-hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+.btn.primary:active, .btn.primary.is-active { background: var(--accent-hover); border-color: var(--accent-hover); box-shadow: inset 0 1px 0 color-mix(in srgb, var(--accent-fg) 0%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--fg) 12%, transparent); }
+.btn.secondary { background: var(--surface); border-color: var(--edge); }
+.btn.secondary:hover, .btn.secondary.is-hover { background: var(--elevated); }
+.btn.secondary:active, .btn.secondary.is-active { background: var(--elevated); border-color: color-mix(in srgb, var(--muted) 50%, var(--edge)); }
+.btn.ghost:hover, .btn.ghost.is-hover { background: var(--elevated); }
+.btn.ghost:active, .btn.ghost.is-active { background: var(--elevated); border-color: var(--edge); }
+.btn.danger { color: var(--danger); }
+.btn.danger:hover, .btn.danger.is-hover { background: color-mix(in srgb, var(--danger) 10%, transparent); }
+.btn.danger:active, .btn.danger.is-active { background: color-mix(in srgb, var(--danger) 16%, transparent); }
+.btn.outlined { border-color: color-mix(in srgb, var(--danger) 40%, transparent); }
+.btn.ai { background: var(--ai); border-color: var(--ai); color: var(--ai-fg); }
+.btn.ai:hover, .btn.ai.is-hover { background: var(--ai-hover); border-color: var(--ai-hover); }
+.btn:disabled, .btn.is-disabled { opacity: .5; pointer-events: none; }
+.spin { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.ibtn { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 6px; border: 0; background: transparent; color: var(--muted); transition: background-color .12s, color .12s; }
+.ibtn.sm { width: 24px; height: 24px; }
+.ibtn .ico { width: 16px; height: 16px; }
+.ibtn.sm .ico { width: 14px; height: 14px; }
+.ibtn:hover, .ibtn.is-hover { color: var(--fg); background: var(--elevated); }
+.ibtn:active, .ibtn.is-active, .ibtn[aria-pressed="true"] { color: var(--fg); background: var(--elevated); box-shadow: inset 0 0 0 1px var(--edge); }
+.ibtn:disabled, .ibtn.is-disabled { opacity: .4; pointer-events: none; }
+
+.inp { display: block; width: 100%; height: 32px; padding: 0 10px; border-radius: 6px; border: 1px solid var(--edge); background: var(--canvas); color: var(--fg); font: 400 13px/18px var(--font-sans); outline: none; transition: border-color .12s, box-shadow .12s; }
+.inp.sm { height: 28px; font-size: 12px; padding: 0 8px; }
+.inp::placeholder { color: color-mix(in srgb, var(--muted) 70%, transparent); }
+.inp.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.inp:hover:not(:focus), .inp.is-hover { border-color: color-mix(in srgb, var(--muted) 45%, var(--edge)); }
+.inp:focus, .inp.is-focus { border-color: var(--accent); box-shadow: var(--ring); outline: none; }
+.inp[aria-invalid="true"], .inp.is-invalid { border-color: var(--danger); box-shadow: var(--ring-danger); }
+.inp:disabled, .inp.is-disabled { opacity: .5; }
+textarea.inp { height: auto; padding: 8px 10px; resize: vertical; }
+textarea.inp.mono { font-size: 12px; }
+.err { display: block; font: 400 11px/14px var(--font-sans); color: var(--danger); margin-top: 2px; }
+/* The length field: the number in mono ink, the unit a mono suffix in graphite, drawn over the field's right edge. */
+.len { display: grid; }
+.len > .inp { grid-area: 1 / 1; padding-right: 38px; }
+.len > .unit { grid-area: 1 / 1; justify-self: end; align-self: center; padding-right: 10px; font: 400 12px/16px var(--font-mono); color: var(--muted); pointer-events: none; }
+.len.sm > .inp { padding-right: 32px; }
+.len.sm > .unit { padding-right: 8px; font-size: 11px; }
+.search { display: grid; align-items: center; }
+.search > .inp { grid-area: 1 / 1; padding-left: 30px; }
+.search > .ico { grid-area: 1 / 1; margin-left: 9px; color: var(--muted); pointer-events: none; }
+.search.sm > .inp { padding-left: 26px; }
+.search.sm > .ico { margin-left: 7px; }
+
+.sel { height: 32px; padding: 0 28px 0 8px; border-radius: 6px; border: 1px solid var(--edge); background: var(--canvas); color: var(--fg); font: 400 13px/18px var(--font-sans); outline: none; max-width: 100%; }
+.sel.sm { height: 28px; font-size: 12px; padding-left: 6px; }
+.sel:hover, .sel.is-hover { border-color: color-mix(in srgb, var(--muted) 45%, var(--edge)); }
+.sel:focus, .sel.is-focus { border-color: var(--accent); box-shadow: var(--ring); }
+.sel:disabled, .sel.is-disabled { opacity: .5; }
+.sel.w-full { width: 100%; }
+option { background: var(--surface); color: var(--fg); }
+
+.chk, .radio { appearance: none; width: 14px; height: 14px; margin: 0; flex: none; border: 1px solid var(--muted); background: var(--canvas); display: inline-grid; place-items: center; vertical-align: -2px; transition: background-color .12s, border-color .12s; }
+.chk { border-radius: 3px; }
+.radio { border-radius: 50%; }
+.chk:hover, .chk.is-hover, .radio:hover, .radio.is-hover { border-color: var(--fg); }
+.chk:checked { background: var(--accent); border-color: var(--accent); }
+.chk:checked::after { content: ''; width: 4px; height: 8px; border: solid var(--accent-fg); border-width: 0 1.6px 1.6px 0; transform: translateY(-1px) rotate(45deg); }
+.radio:checked { border-color: var(--accent); }
+.radio:checked::after { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+.chk:disabled, .radio:disabled { opacity: .5; }
+.check-label { display: inline-flex; align-items: center; gap: 8px; font: 400 13px/18px var(--font-sans); }
+.check-label.sm { font-size: 12px; }
+
+.segmented { display: flex; align-items: center; gap: 2px; border-bottom: 1px solid var(--edge); }
+.seg { height: 32px; padding: 0 12px; margin-bottom: -1px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted); font: 500 12px/16px var(--font-sans); transition: color .12s; }
+.seg:hover, .seg.is-hover { color: var(--fg); }
+.seg[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); }
+.choices { display: flex; gap: 4px; flex-wrap: wrap; }
+.choice { height: 28px; padding: 0 10px; border-radius: 6px; border: 1px solid var(--edge); background: transparent; color: var(--muted); font: 400 12px/16px var(--font-sans); transition: background-color .12s, color .12s, border-color .12s; }
+.choice.mono { font-family: var(--font-mono); }
+.choice:hover, .choice.is-hover { color: var(--fg); background: var(--elevated); }
+.choice[aria-checked="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); color: var(--fg); font-weight: 500; }
+.choice:disabled { opacity: .5; }
+
+.range { appearance: none; width: 100%; height: 12px; margin: 0; background: transparent; --pct: 100%; }
+.range::-webkit-slider-runnable-track { height: 3px; border-radius: 2px; background: linear-gradient(var(--accent), var(--accent)) 0 0 / var(--pct) 100% no-repeat var(--edge); }
+.range::-webkit-slider-thumb { appearance: none; width: 12px; height: 12px; margin-top: -4.5px; border-radius: 50%; background: var(--accent); border: 2px solid var(--canvas); box-shadow: 0 0 0 1px var(--edge); }
+.range:focus-visible { outline: none; }
+.range:focus-visible::-webkit-slider-thumb, .range.is-focus::-webkit-slider-thumb { box-shadow: 0 0 0 2px var(--canvas), 0 0 0 4px var(--accent); }
+.range:disabled { opacity: .5; }
+.opacity-row { display: flex; align-items: center; gap: 8px; padding: 0 8px 0 56px; color: var(--muted); font: 400 11px/14px var(--font-sans); }
+.opacity-row .range { flex: 1; }
+.opacity-row .pct { width: 32px; text-align: right; font: 400 11px/14px var(--font-mono); font-variant-numeric: tabular-nums; }
+
+.tag { display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border-radius: 4px; background: var(--elevated); color: var(--muted); font: 400 11px/14px var(--font-sans); }
+.chip { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 8px; border-radius: 4px; border: 1px solid var(--edge); background: transparent; color: var(--muted); font: 400 11px/14px var(--font-sans); transition: color .12s, background-color .12s, border-color .12s; }
+.chip .n { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.chip:hover, .chip.is-hover { color: var(--fg); background: var(--elevated); }
+.chip[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); color: var(--fg); }
+.chip.cat { height: 22px; }
+.chip.cat.on { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+.badge { display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border-radius: 4px; background: var(--elevated); color: var(--muted); font: 500 11px/14px var(--font-mono); font-variant-numeric: tabular-nums; }
+.badge.warn { color: var(--warning); }
+.badge.danger { color: var(--danger); }
+.badge.ai { background: var(--ai-tint); color: var(--ai); }
+kbd.key { display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border-radius: 4px; border: 1px solid var(--edge); background: var(--elevated); color: var(--muted); font: 400 11px/14px var(--font-mono); white-space: nowrap; }
+.spinner { color: var(--muted); }
+
+.section-header { display: flex; align-items: center; justify-content: space-between; height: 28px; padding: 0 12px; }
+.section-header .cap { color: var(--muted); }
+.section-header .actions { display: flex; align-items: center; gap: 2px; }
+
+/* Rows: levels and layers */
+.row { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 8px 0 4px; border-radius: 6px; border: 1px solid transparent; color: var(--fg); user-select: none; }
+.row .grip { color: color-mix(in srgb, var(--muted) 60%, transparent); width: 14px; height: 14px; }
+.row:hover .grip, .row.is-hover .grip { color: var(--muted); }
+.row .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .g { font: 400 11px/14px var(--font-mono); color: var(--muted); }
+.row .el { font: 400 12px/16px var(--font-mono); font-variant-numeric: tabular-nums; color: var(--muted); }
+.row .el.below { color: var(--warning); }
+.row:hover, .row.is-hover { background: var(--elevated); }
+.row[aria-selected="true"] { background: var(--canvas); border-color: var(--edge); box-shadow: inset 2px 0 0 var(--accent); }
+.row[aria-selected="true"] .name { font-weight: 500; }
+.row[aria-selected="true"] .el { color: var(--fg); }
+.row.offset { padding-left: 24px; }
+.row.is-dragging { opacity: .5; }
+.drop-marker { height: 2px; background: var(--accent); border-radius: 1px; margin: -1px 8px; }
+.layer { display: flex; flex-direction: column; gap: 4px; padding: 6px 8px; border-radius: 6px; font-size: 12px; line-height: 16px; }
+.layer:hover, .layer.is-hover { background: var(--elevated); }
+.layer .top { display: flex; align-items: center; gap: 6px; }
+.layer .name { flex: 1; min-width: 0; font-size: 13px; line-height: 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.layer .name.hidden { color: var(--muted); }
+.layer .kind { font: 500 10px/14px var(--font-sans); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.layer .count { width: 24px; text-align: right; font: 400 12px/16px var(--font-mono); font-variant-numeric: tabular-nums; color: var(--muted); }
+.layer .locked { color: var(--warning); }
+.card-editor { margin: 0 8px 12px; padding: 10px; border-radius: 8px; border: 1px solid var(--edge); background: var(--canvas); display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.card-editor .full { grid-column: 1 / -1; }
+.card-editor .foot { display: flex; align-items: flex-end; justify-content: flex-end; gap: 4px; }
+
+/* Panels */
+.panel-title { padding: 12px 16px; border-bottom: 1px solid var(--edge); }
+.panel-title .sub { font: 400 12px/16px var(--font-sans); color: var(--muted); margin-top: 2px; }
+.props { padding: 12px 16px; display: flex; flex-direction: column; gap: 10px; }
+.props .two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.props .kv { font-size: 12px; color: var(--muted); }
+.props .kv .mono { color: var(--fg); font-size: 12px; }
+.finish { display: flex; align-items: center; gap: 8px; }
+.finish > span { width: 64px; flex: none; font-size: 12px; color: var(--muted); }
+.finish .sel { flex: 1; min-width: 0; }
+.swatch { width: 28px; height: 28px; flex: none; border-radius: 4px; border: 1px solid var(--edge); background: var(--elevated); }
+.rtabs { display: flex; flex-wrap: wrap; align-items: center; gap: 0 2px; padding: 0 8px; border-bottom: 1px solid var(--edge); }
+.rtab { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 10px; margin-bottom: -1px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted); font: 500 12px/16px var(--font-sans); }
+.rtab:hover, .rtab.is-hover { color: var(--fg); }
+.rtab[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); }
+.ctabs { display: flex; align-items: center; gap: 2px; height: 32px; padding: 0 8px; border-bottom: 1px solid var(--edge); background: var(--surface); }
+.ctabs .seg { height: 32px; padding: 0 10px; }
+.ctabs .spacer { flex: 1; }
+.vr { width: 1px; height: 16px; background: var(--edge); margin: 0 4px; flex: none; }
+.empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 32px; text-align: center; }
+.empty .hint { font-size: 13px; color: var(--muted); max-width: 20rem; }
+.empty .cta { margin-top: 6px; }
+
+/* Catalog */
+.catalog { display: flex; flex-direction: column; }
+.cat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 12px; }
+.cat-card { display: flex; flex-direction: column; border-radius: 8px; border: 1px solid var(--edge); background: var(--canvas); overflow: hidden; text-align: left; padding: 0; transition: border-color .12s; }
+.cat-card:hover, .cat-card.is-hover { border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
+.cat-card.armed { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.cat-card .img { aspect-ratio: 1; width: 100%; display: flex; align-items: center; justify-content: center; background: var(--surface); }
+.cat-card .img.pad { padding: 4px; }
+.cat-card .nm { padding: 4px 8px 0; font: 400 12px/15px var(--font-sans); color: var(--fg); display: flex; align-items: center; gap: 4px; }
+.cat-card .cp { padding: 0 8px 6px; font: 400 11px/14px var(--font-mono); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Home cards */
+.hcard { display: flex; flex-direction: column; text-align: left; border-radius: 8px; border: 1px solid var(--edge); background: var(--surface); overflow: hidden; padding: 0; position: relative; transition: border-color .12s; }
+.hcard:hover, .hcard.is-hover { border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
+.hcard.selected { outline: 2px solid var(--accent); outline-offset: -1px; }
+.hcard .thumb { aspect-ratio: 4 / 3; position: relative; background: var(--canvas); border-bottom: 1px solid var(--edge); }
+.hcard .thumb svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.hcard .thumb .ini { position: absolute; left: 12px; bottom: 8px; font: italic 500 22px/1 var(--font-display); font-variation-settings: 'SOFT' 100, 'opsz' 36; color: var(--fg); opacity: .78; letter-spacing: -0.01em; }
+.hcard .thumb.t-straw { background: color-mix(in srgb, var(--warning) 14%, var(--canvas)); }
+.hcard .thumb.t-sage { background: color-mix(in srgb, var(--plan-room) 18%, var(--canvas)); }
+.hcard .thumb.t-clay { background: color-mix(in srgb, var(--accent) 12%, var(--canvas)); }
+.hcard .thumb.t-slate { background: color-mix(in srgb, var(--plan-dim) 10%, var(--canvas)); }
+.hcard .body { padding: 10px 12px 10px; }
+.hcard .nm { font: 500 15px/20px var(--font-sans); letter-spacing: -0.005em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hcard .mt { display: flex; gap: 5px; align-items: baseline; margin-top: 2px; }
+.hcard .mt .mono { font-size: 11px; color: var(--muted); }
+.hcard .tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.hcard .otto { position: absolute; right: 8px; top: 8px; width: 14px; height: 14px; }
+.hcomposer { display: flex; flex-direction: column; gap: 8px; border-radius: 8px; border: 1px solid var(--edge); background: var(--ai-tint); padding: 14px 14px 12px; }
+.hcomposer .ttl { display: flex; align-items: center; gap: 8px; font: 600 18px/24px var(--font-display); font-variation-settings: 'SOFT' 50, 'opsz' 20; }
+.hcomposer .ttl .mark { width: 20px; height: 20px; }
+.hcomposer textarea { flex: 1; min-height: 56px; }
+.hcomposer .foot { display: flex; align-items: center; gap: 10px; }
+.hcomposer .foot .rule { flex: 1; font: 400 11px/14px var(--font-sans); color: var(--muted); }
+
+/* Dialogs, palette, menus, toasts */
+.dialog { width: 440px; max-width: 100%; border-radius: 10px; border: 1px solid var(--edge); background: var(--canvas); box-shadow: var(--shadow-pop); padding: 16px; }
+.dialog.wide { width: 560px; }
+.dialog .msg { font-size: 13px; color: var(--muted); margin-top: 4px; }
+.dialog .foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+.scrim { background: var(--scrim); }
+.fmt { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.fmt label { cursor: pointer; }
+.fmt input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.fmt-card { display: flex; flex-direction: column; gap: 2px; height: 100%; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--edge); background: var(--surface); transition: background-color .12s, border-color .12s; }
+.fmt-card b { font: 500 13px/18px var(--font-sans); color: var(--fg); }
+.fmt-card span { font: 400 11px/14px var(--font-sans); color: var(--muted); }
+.fmt-card:hover, .fmt-card.is-hover { background: var(--elevated); }
+.fmt input:checked + .fmt-card { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.radios { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13px; }
+.radios label { display: inline-flex; align-items: center; gap: 6px; }
+
+.palette { width: 580px; max-width: 100%; border-radius: 10px; border: 1px solid var(--edge); background: var(--canvas); box-shadow: var(--shadow-pop); overflow: hidden; }
+.palette .in { display: block; width: 100%; height: 44px; padding: 0 14px; border: 0; border-bottom: 1px solid var(--edge); background: transparent; color: var(--fg); font: 400 14px/20px var(--font-sans); outline: none; }
+.palette .in::placeholder { color: color-mix(in srgb, var(--muted) 70%, transparent); }
+.palette .list { max-height: 360px; overflow: auto; padding: 6px; }
+.palette .heading { padding: 8px 8px 4px; font: 500 11px/14px var(--font-sans); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.palette .item { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 6px; font: 400 13px/18px var(--font-sans); color: var(--fg); }
+.palette .item .t { flex: 1; }
+.palette .item .id { font: 400 11px/14px var(--font-mono); color: var(--muted); }
+.palette .item[aria-selected="true"] { background: var(--elevated); }
+.palette .none { padding: 16px; font-size: 13px; color: var(--muted); text-align: center; }
+.menu { min-width: 208px; max-width: 320px; padding: 4px 0; border-radius: 8px; border: 1px solid var(--edge); background: var(--surface); box-shadow: var(--shadow-pop); font-size: 12px; user-select: none; }
+.menu .mi { display: flex; align-items: center; gap: 24px; width: 100%; padding: 6px 12px; border: 0; background: transparent; color: var(--fg); font: 400 12px/16px var(--font-sans); text-align: left; }
+.menu .mi .l { flex: 1; display: flex; align-items: center; gap: 6px; min-width: 0; }
+.menu .mi .gut { width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.menu .mi .sc { font: 400 11px/14px var(--font-mono); color: var(--muted); }
+.menu .mi:hover, .menu .mi.is-hover, .menu .mi:focus-visible { background: var(--elevated); outline: none; }
+.menu .mi.danger { color: var(--danger); }
+.menu .mi:disabled, .menu .mi.is-disabled { opacity: .4; }
+.menu .sep { height: 1px; background: var(--edge); margin: 4px 0; }
+.toast { display: flex; align-items: flex-start; gap: 8px; width: 320px; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--edge); background: var(--surface); box-shadow: var(--shadow-pop); font-size: 13px; }
+.toast .ico { margin-top: 1px; color: var(--muted); }
+.toast.error { border-color: color-mix(in srgb, var(--danger) 50%, transparent); }
+.toast.error .ico { color: var(--danger); }
+.toast.success { border-color: color-mix(in srgb, var(--success) 50%, transparent); }
+.toast.success .ico { color: var(--success); }
+.toast .m { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.toast .act { border: 0; background: transparent; padding: 0; font: 500 12px/18px var(--font-sans); color: var(--accent); }
+.toast .act:hover, .toast .act.is-hover { color: var(--accent-hover); }
+.toast .x { border: 0; background: transparent; padding: 0; color: var(--muted); display: inline-flex; margin-top: 1px; }
+.toast .x:hover { color: var(--fg); }
+
+/* Shell: title bar, project header, activity bar, status bar */
+.tb { display: flex; align-items: flex-end; height: 40px; padding: 0 0 0 12px; background: var(--titlebar); color: var(--titlebar-fg); border-bottom: 1px solid var(--edge); }
+.tb .brand { display: flex; align-items: center; gap: 8px; height: 40px; padding-right: 12px; flex: none; }
+.tb .brand .wm { font: 600 16px/1 var(--font-display); font-variation-settings: 'SOFT' 80, 'opsz' 18; letter-spacing: -0.01em; }
+.tb .brand .wm .dot { color: var(--accent); }
+.tb .strip { display: flex; align-items: flex-end; gap: 2px; min-width: 0; padding-top: 6px; height: 40px; }
+.tab { display: inline-flex; align-items: center; gap: 6px; height: 30px; max-width: 224px; padding: 0 4px 0 12px; border-radius: 6px 6px 0 0; border: 1px solid transparent; border-bottom: 0; background: transparent; color: var(--muted); font: 400 13px/18px var(--font-sans); white-space: nowrap; user-select: none; }
+.tab.pinned { padding: 0 10px; }
+.tab:hover, .tab.is-hover { color: var(--fg); background: color-mix(in srgb, var(--elevated) 60%, transparent); }
+.tab[aria-selected="true"] { background: var(--canvas); border-color: var(--edge); color: var(--fg); font-weight: 500; }
+.tab .dirty { width: 6px; height: 6px; border-radius: 50%; background: var(--warning); flex: none; }
+.tab .x { display: inline-flex; width: 18px; height: 18px; align-items: center; justify-content: center; border-radius: 4px; color: var(--muted); border: 0; background: transparent; padding: 0; opacity: 0; }
+.tab[aria-selected="true"] .x, .tab:hover .x, .tab.is-hover .x { opacity: 1; }
+.tab .x:hover, .tab .x.is-hover { background: var(--elevated); color: var(--fg); }
+.tab.is-dragging { opacity: .5; }
+.tb .spacer { flex: 1; min-width: 16px; }
+.tb .tbr { display: flex; align-items: center; gap: 4px; height: 40px; padding-right: 8px; }
+.pal-btn { display: inline-flex; align-items: center; gap: 8px; height: 28px; width: 240px; padding: 0 10px; border-radius: 6px; border: 1px solid var(--edge); background: var(--canvas); color: var(--muted); font: 400 12px/16px var(--font-sans); }
+.pal-btn .t { flex: 1; text-align: left; }
+.pal-btn:hover, .pal-btn.is-hover { color: var(--fg); border-color: color-mix(in srgb, var(--muted) 45%, var(--edge)); }
+.ph { display: flex; align-items: center; gap: 12px; height: 48px; padding: 0 16px; border-bottom: 1px solid var(--edge); }
+.ph .pname { flex: 0 1 288px; min-width: 120px; height: 32px; padding: 0 4px; margin: 0 -4px; border: 0; border-radius: 4px; background: transparent; color: var(--fg); font: 600 20px/26px var(--font-display); font-variation-settings: 'SOFT' 60, 'opsz' 24; letter-spacing: -0.01em; outline: none; }
+.ph .pname:focus, .ph .pname.is-focus { box-shadow: var(--ring); }
+.ph .saved { font: italic 400 12px/16px var(--font-sans); color: var(--muted); white-space: nowrap; }
+.ph .saved.failed { font-style: normal; color: var(--danger); }
+.ph .spacer { flex: 1; }
+.ph .group { display: flex; align-items: center; gap: 2px; }
+.ph .vr { height: 20px; }
+.abar { display: flex; flex-direction: column; align-items: center; width: 48px; padding: 6px 0; gap: 4px; border-right: 1px solid var(--edge); background: var(--surface); }
+.abtn { position: relative; display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 6px; border: 0; background: transparent; color: var(--muted); }
+.abtn:hover, .abtn.is-hover { color: var(--fg); background: color-mix(in srgb, var(--elevated) 60%, transparent); }
+.abtn[aria-pressed="true"] { color: var(--fg); background: var(--elevated); }
+.abtn[aria-pressed="true"]::before { content: ''; position: absolute; left: 0; top: 8px; bottom: 8px; width: 2px; border-radius: 0 2px 2px 0; background: var(--accent); }
+.abtn.off { opacity: .35; }
+.sb { display: flex; align-items: center; gap: 12px; height: 24px; padding: 0 12px; border-top: 1px solid var(--edge); background: var(--surface); color: var(--muted); font: 400 11px/14px var(--font-sans); user-select: none; white-space: nowrap; }
+.sb .proj { color: var(--fg); max-width: 320px; overflow: hidden; text-overflow: ellipsis; }
+.sb .saved { font-style: italic; }
+.sb .spacer { flex: 1; }
+.sb .item { display: inline-flex; align-items: center; gap: 4px; border: 0; background: transparent; color: inherit; font: inherit; padding: 0; }
+.sb .item:hover, .sb .item.is-hover { color: var(--fg); }
+.sb .dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+.sb .dot.ok { background: var(--success); }
+.sb .dot.off { background: var(--danger); }
+.sb .dot.ai { background: var(--ai); }
+.sb .mono { font-size: 11px; }
+.sb .failed { color: var(--danger); font-style: normal; }
+
+/* Settings */
+.settings { max-width: 768px; margin: 0 auto; padding: 32px; display: flex; flex-direction: column; gap: 40px; }
+.settings h1 { margin: 0; }
+.settings h2 { margin: 0 0 4px; padding-bottom: 4px; border-bottom: 1px solid var(--edge); }
+.settings .desc { font-size: 13px; color: var(--muted); margin: 0 0 12px; }
+.settings .grid { display: grid; grid-template-columns: 9rem 1fr; align-items: center; gap: 10px 16px; }
+.settings .grid .k { font-size: 12px; color: var(--muted); }
+.code { display: block; font: 400 12px/16px var(--font-mono); background: var(--surface); border: 1px solid var(--edge); border-radius: 6px; padding: 6px 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+pre.code { white-space: pre; overflow-x: auto; margin: 0; }
+.calls { border: 1px solid var(--edge); border-radius: 6px; font-size: 12px; }
+.calls .c { display: flex; align-items: center; gap: 12px; padding: 6px 10px; border-top: 1px solid var(--edge); }
+.calls .c:first-child { border-top: 0; }
+.calls .c .mono { font-size: 12px; }
+.calls .c .who { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.calls .c .when { margin-left: auto; font-style: italic; color: var(--muted); }
+.h3 { font: 500 12px/16px var(--font-sans); color: var(--muted); margin: 20px 0 6px; }
+.status-line { font-size: 13px; margin: 0 0 12px; }
+.status-line.ok { color: var(--success); }
+.status-line.warn { color: var(--warning); }
+.notes { font-size: 12px; white-space: pre-line; background: var(--surface); border: 1px solid var(--edge); border-radius: 6px; padding: 8px 10px; }
+
+/* Otto base (full treatment in 03-otto.md / otto.html) */
+.otto-mark { display: inline-block; flex: none; }
+.ai-rule { padding-left: 12px; border-left: 2px solid var(--ai); }
+.ai-card { border: 1px solid var(--edge); border-left: 3px solid var(--ai); border-radius: 6px; background: var(--canvas); padding: 6px 10px; }
+.ai-row { background: var(--ai-tint); }
+
+/* =====================================================================================
+   4. THE SPECIMEN PAGE ITSELF (not app CSS)
+   ===================================================================================== */
+html, body { margin: 0; }
+body { background: var(--canvas); color: var(--fg); font: 400 15px/1.5 var(--font-sans); -webkit-font-smoothing: antialiased; }
+.page { max-width: 1480px; margin: 0 auto; padding: 48px 32px 120px; }
+.page > h1 { font: 600 44px/1.1 var(--font-display); font-variation-settings: 'SOFT' 60, 'opsz' 48; margin: 0; letter-spacing: -0.01em; }
+.page > h1 .dot { color: var(--accent); }
+.page .lede { color: var(--muted); max-width: 80ch; margin: 10px 0 0; }
+.eyebrow { font: 500 11px/1 var(--font-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.spec { margin-top: 56px; }
+.spec > h2 { font: 600 24px/1.2 var(--font-display); font-variation-settings: 'SOFT' 60, 'opsz' 32; margin: 0 0 4px; letter-spacing: -0.01em; }
+.spec > .note { color: var(--muted); font-size: 14px; max-width: 90ch; margin: 0 0 14px; }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
+.pane { border: 1px solid var(--edge); border-radius: 10px; padding: 20px; overflow: hidden; }
+.pane .st { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; }
+.pane .st + .st { margin-top: 12px; }
+.pane .lbl { display: block; font: 500 10px/14px var(--font-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 14px 0 6px; }
+.pane .lbl:first-child { margin-top: 0; }
+.pane .panelbox { border: 1px solid var(--edge); border-radius: 8px; background: var(--surface); overflow: hidden; }
+.pane .canvasbox { border: 1px solid var(--edge); border-radius: 8px; background: var(--canvas); overflow: hidden; }
+.pane .cols2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.pane .w-280 { width: 280px; } .pane .w-320 { width: 320px; } .pane .w-200 { width: 200px; }
+.swrow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.sw { display: flex; gap: 8px; align-items: center; padding: 6px; border: 1px solid var(--edge); border-radius: 6px; background: var(--surface); }
+.sw i { width: 28px; height: 28px; border-radius: 5px; flex: none; border: 1px solid color-mix(in srgb, var(--fg) 10%, transparent); }
+.sw b { display: block; font: 500 12px/1.2 var(--font-sans); }
+.sw small { display: block; font: 11px/1.2 var(--font-mono); color: var(--muted); }
+.typerow { display: grid; grid-template-columns: 180px 1fr; gap: 6px 16px; align-items: baseline; }
+.typerow .k { font: 400 11px/14px var(--font-mono); color: var(--muted); }
+.frame-title { margin: 56px 0 8px; display: flex; align-items: baseline; gap: 12px; }
+.frame-title h3 { margin: 0; font: 600 22px/1.2 var(--font-display); font-variation-settings: 'SOFT' 60, 'opsz' 24; }
+.frame-title span { color: var(--muted); font-size: 14px; }
+.frame { position: relative; width: 100%; aspect-ratio: 1890 / 1020; border: 1px solid var(--edge); border-radius: 10px; overflow: hidden; }
+.frame .mock { position: absolute; left: 0; top: 0; transform-origin: 0 0; width: 1512px; height: 816px; display: flex; flex-direction: column; overflow: hidden; }
+.mock .win { flex: 1; display: flex; min-height: 0; }
+.mock .left { width: 288px; flex: none; border-right: 1px solid var(--edge); background: var(--surface); overflow: hidden; }
+.mock .centre { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--canvas); }
+.mock .right { width: 320px; flex: none; border-left: 1px solid var(--edge); background: var(--surface); display: flex; flex-direction: column; overflow: hidden; }
+.mock .canvas { flex: 1; position: relative; min-height: 0; overflow: hidden; }
+.mock .canvas svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.mock .cfoot { display: flex; align-items: center; gap: 16px; height: 24px; padding: 0 12px; border-top: 1px solid var(--edge); font: 400 11px/14px var(--font-mono); color: var(--muted); white-space: nowrap; overflow: hidden; }
+.mock .cfoot .l { color: var(--fg); }
+.mock .tools { display: flex; align-items: center; gap: 2px; height: 36px; padding: 0 6px; border-bottom: 1px solid var(--edge); background: var(--surface); }
+.mock .tools .gap { width: 8px; }
+.mock .tools .spacer { flex: 1; }
+.mock .overlay { position: absolute; inset: 0; display: flex; align-items: flex-start; justify-content: center; }
+.mock .home { flex: 1; overflow: hidden; padding: 32px; }
+.mock .home .inner { max-width: 1152px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+.mock .home .head { display: flex; align-items: center; gap: 12px; }
+.mock .home .filters { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.mock .home .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+.mock .scrollbar { position: absolute; right: 2px; top: 44px; width: 6px; height: 160px; border-radius: 3px; background: color-mix(in srgb, var(--muted) 35%, transparent); }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="app-icon" viewBox="0 0 1024 1024">
+      <rect x="64" y="64" width="896" height="896" rx="200" fill="#f6f1e8"/>
+      <rect x="70" y="70" width="884" height="884" rx="194" fill="none" stroke="#dcd2c2" stroke-width="12"/>
+      <path d="M296 628 H520 A224 224 0 0 0 296 404 Z" fill="#b9552f"/>
+      <path d="M296 628 H520" stroke="#2a2521" stroke-width="26"/>
+      <path d="M296 262 V404" stroke="#2a2521" stroke-width="88"/>
+      <path d="M296 628 V772 H772" stroke="#2a2521" stroke-width="88" fill="none"/>
+      <rect x="252" y="218" width="88" height="88" fill="#2a2521"/>
+      <rect x="728" y="728" width="88" height="88" fill="#2a2521"/>
+    </symbol>
+    <!-- Otto's mark: a mulberry tile, Otto's room on it, the pen still on the top-right corner -->
+    <symbol id="otto" viewBox="0 0 24 24"><rect width="24" height="24" rx="5.3" fill="var(--ai)"/><rect x="6.5" y="7.5" width="10" height="10" fill="none" stroke="var(--ai-fg)" stroke-width="1.6"/><circle cx="16.5" cy="7.5" r="2.1" fill="var(--ai-fg)"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-house" viewBox="0 0 24 24"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m17 8-5-5-5 5"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M10 11v6"/><path d="M14 11v6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></symbol>
+    <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11"/></symbol>
+    <symbol id="i-redo" viewBox="0 0 24 24"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5A5.5 5.5 0 0 0 9.5 20H13"/></symbol>
+    <symbol id="i-save" viewBox="0 0 24 24"><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-eyeoff" viewBox="0 0 24 24"><path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49"/><path d="M14.084 14.158a3 3 0 0 1-4.242-4.242"/><path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143"/><path d="m2 2 20 20"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+    <symbol id="i-unlock" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></symbol>
+    <symbol id="i-grip" viewBox="0 0 24 24"><circle cx="9" cy="5" r="1" fill="currentColor"/><circle cx="9" cy="12" r="1" fill="currentColor"/><circle cx="9" cy="19" r="1" fill="currentColor"/><circle cx="15" cy="5" r="1" fill="currentColor"/><circle cx="15" cy="12" r="1" fill="currentColor"/><circle cx="15" cy="19" r="1" fill="currentColor"/></symbol>
+    <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+    <symbol id="i-plug" viewBox="0 0 24 24"><path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/></symbol>
+    <symbol id="i-ruler" viewBox="0 0 24 24"><path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.41 2.41 0 0 1 0-3.4l2.6-2.6a2.41 2.41 0 0 1 3.4 0Z"/><path d="m14.5 12.5 2-2"/><path d="m11.5 9.5 2-2"/><path d="m8.5 6.5 2-2"/><path d="m17.5 15.5 2-2"/></symbol>
+    <symbol id="i-import" viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m8 11 4 4 4-4"/><path d="M8 5H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-4"/></symbol>
+    <symbol id="i-fileout" viewBox="0 0 24 24"><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M4 7V4a2 2 0 0 1 2-2 2 2 0 0 0-2 2"/><path d="M4.063 20.999a2 2 0 0 0 2 1L18 22a2 2 0 0 0 2-2V7l-5-5H6"/><path d="m5 11-3 3"/><path d="m5 17-3-3h10"/></symbol>
+    <symbol id="i-filein" viewBox="0 0 24 24"><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M4 7V4a2 2 0 0 1 2-2 2 2 0 0 0-2 2"/><path d="M4.063 20.999a2 2 0 0 0 2 1L18 22a2 2 0 0 0 2-2V7l-5-5H6"/><path d="m2 14 3 3 3-3"/><path d="M5 17V11"/></symbol>
+    <symbol id="i-panel" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M12 3v18"/></symbol>
+    <symbol id="i-send" viewBox="0 0 24 24"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></symbol>
+    <symbol id="i-tri" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol>
+    <symbol id="i-okc" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></symbol>
+    <symbol id="i-loader" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="M2 9V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H20a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-1"/><path d="M2 13h10"/><path d="m9 16 3-3-3-3"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></symbol>
+    <symbol id="i-rotate" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></symbol>
+    <symbol id="i-lamp" viewBox="0 0 24 24"><path d="M8 2h8l4 10H4L8 2Z"/><path d="M12 12v6"/><path d="M8 22v-2c0-1.1.9-2 2-2h4a2 2 0 0 1 2 2v2H8Z"/></symbol>
+    <symbol id="i-pointer" viewBox="0 0 24 24"><path d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"/></symbol>
+    <symbol id="i-wall" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M12 9v6"/><path d="M16 15v6"/><path d="M16 3v6"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M8 15v6"/><path d="M8 3v6"/></symbol>
+    <symbol id="i-door" viewBox="0 0 24 24"><path d="M13 4h3a2 2 0 0 1 2 2v14"/><path d="M2 20h3"/><path d="M13 20h9"/><path d="M10 12v.01"/><path d="M13 4.562v16.157a1 1 0 0 1-1.242.97L5 20V5.562a2 2 0 0 1 1.515-1.94l4-1A2 2 0 0 1 13 4.561Z"/></symbol>
+    <symbol id="i-window" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M10 4v4"/><path d="M2 8h20"/><path d="M6 4v4"/></symbol>
+    <symbol id="i-stairs" viewBox="0 0 24 24"><path d="M3 20h4v-4h4v-4h4v-4h4V4"/><path d="M3 20h18"/></symbol>
+    <symbol id="i-room" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-sofa" viewBox="0 0 24 24"><path d="M19 9V6a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v3"/><path d="M3 16a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0v2H7v-2a2 2 0 0 0-4 0Z"/><path d="M5 18v2"/><path d="M19 18v2"/></symbol>
+    <symbol id="i-bulb" viewBox="0 0 24 24"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></symbol>
+    <symbol id="i-paint" viewBox="0 0 24 24"><path d="m19 11-8-8-8.6 8.6a2 2 0 0 0 0 2.8l5.2 5.2c.8.8 2 .8 2.8 0L19 11Z"/><path d="m5 2 5 5"/><path d="M2 13h15"/><path d="M22 20a2 2 0 1 1-4 0c0-1.6 1.7-2.4 2-4 .3 1.6 2 2.4 2 4Z"/></symbol>
+    <symbol id="i-square" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/></symbol>
+    <symbol id="i-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></symbol>
+    <symbol id="i-rulerd" viewBox="0 0 24 24"><path d="M3 12h18"/><path d="M6 9v6"/><path d="M12 9v6"/><path d="M18 9v6"/></symbol>
+    <symbol id="i-type" viewBox="0 0 24 24"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" x2="15" y1="20" y2="20"/><line x1="12" x2="12" y1="4" y2="20"/></symbol>
+    <symbol id="i-magnet" viewBox="0 0 24 24"><path d="m6 15-4-4 6.75-6.77a7.79 7.79 0 0 1 11 11L13 22l-4-4 6.39-6.36a2.14 2.14 0 0 0-3-3L6 15"/><path d="m5 8 4 4"/><path d="m12 15 4 4"/></symbol>
+    <symbol id="i-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-zoomin" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/><line x1="11" x2="11" y1="8" y2="14"/><line x1="8" x2="14" y1="11" y2="11"/></symbol>
+    <symbol id="i-zoomout" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/><line x1="8" x2="14" y1="11" y2="11"/></symbol>
+    <symbol id="i-fit" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></symbol>
+    <symbol id="i-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></symbol>
+    <symbol id="i-key" viewBox="0 0 24 24"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></symbol>
+    <symbol id="i-archive" viewBox="0 0 24 24"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="m9 15 3-3 3 3"/><path d="M12 12v9"/></symbol>
+    <symbol id="i-columns" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M12 3v18"/></symbol>
+    <symbol id="i-pen" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/><path d="m15 5 3 3"/></symbol>
+  </defs>
+</svg>
+
+<div class="page">
+<div class="eyebrow">Identity · 02 components</div>
+<h1>Hollin<span class="dot">.</span> components</h1>
+<p class="lede">Every shared control and panel of the app in the skin, light on paper (left) and dark on the desk (right). The two columns are one markup rendered under <code>:root</code> and under <code>.dark</code>, exactly as <code>styles.css</code> does it, so the hex values in the stylesheet are the single source. States that need a pointer (hover, active, focus) are shown statically, side by side. Four full-size mocks (1512 × 816 CSS px, the smoke window, shown at the reference 1890 × 1020) close the page. The written spec is <code>02-components.md</code>.</p>
+
+<!-- ============ Foundations ============ -->
+<section class="spec" id="palette">
+  <h2>Palette and type</h2>
+  <p class="note">The interface variables, read back from the stylesheet so they cannot drift. The plan and scene variables are the canvas document's (04-canvas.md); they are in the stylesheet here so the thumbnails and plan mocks draw in the right colours.</p>
+  <div class="pair">
+    <div class="pane">
+      <div class="swrow" data-swatches></div>
+      <span class="lbl">Type scale</span>
+      <div class="typerow">
+        <span class="k">page · Fraunces 600 28/34 · opsz 36 SOFT 60</span><span class="h-page">Projects</span>
+        <span class="k">dialog · Fraunces 600 20/26 · opsz 24 SOFT 60</span><span class="h-dialog">Export</span>
+        <span class="k">panel · Fraunces 600 18/24 · opsz 20 SOFT 50</span><span class="h-panel">Room</span>
+        <span class="k">body · Alegreya Sans 400 13/18</span><span>Walls and openings sit on the Structure layer.</span>
+        <span class="k">selected, names · 500</span><span style="font-weight:500">Ground floor</span>
+        <span class="k">label · 500 12/16 muted</span><span class="label" style="margin:0">Floor to floor</span>
+        <span class="k">caption · 400 11/14 muted</span><span class="caption">One file, a page per level (2)</span>
+        <span class="k">meta · italic 12/16 muted</span><span class="meta">Saved just now</span>
+        <span class="k">caps · 500 11/14 · .08 em</span><span class="cap">Layers · Ground floor</span>
+        <span class="k">numbers · IBM Plex Mono 400 13</span><span class="mono">2 800 <span class="unit">mm</span> · 17.5 <span class="unit">m²</span> · −2 400 <span class="unit">mm</span></span>
+        <span class="k">ids, keys, badges · mono 11</span><span><span class="mono" style="font-size:11px;color:var(--muted)">plan.wall.add</span> &nbsp; <kbd class="key">Ctrl K</kbd> &nbsp; <span class="badge">7</span></span>
+        <span class="k">icons · Lucide 18 / 16 · 1.6 px</span><span><svg class="ico"><use href="#i-door"/></svg> <svg class="ico"><use href="#i-stairs"/></svg> <svg class="ico s16"><use href="#i-eye"/></svg> <svg class="ico s16"><use href="#i-lock"/></svg> <svg class="ico s14"><use href="#i-search"/></svg></span>
+      </div>
+    </div>
+    <div class="pane dark"></div>
+  </div>
+</section>
+
+<!-- ============ Title bar ============ -->
+<section class="spec" id="titlebar">
+  <h2>Title bar and document tabs</h2>
+  <p class="note">The icon at 22 px and the wordmark in Fraunces replace the letter tile. Tabs are 30 px, rounded 6 px at the top; the active one is paper with an edge, the others graphite text. A dirty tab carries an ochre dot. The close cross appears on hover, always on the active tab. The palette button is a paper field with its key cap; the gear is an icon button.</p>
+  <div class="pair">
+    <div class="pane" style="padding:0">
+      <div class="tb">
+        <div class="brand"><svg width="22" height="22"><use href="#app-icon"/></svg><span class="wm">Hollin<span class="dot">.</span></span></div>
+        <div class="strip">
+          <button class="tab pinned" aria-selected="false" title="Home"><svg class="ico s14"><use href="#i-house"/></svg></button>
+          <button class="tab" aria-selected="false">Smoke House<span class="x"><svg class="ico s12"><use href="#i-x"/></svg></span></button>
+          <button class="tab is-hover" aria-selected="false">Tower<span class="x"><svg class="ico s12"><use href="#i-x"/></svg></span></button>
+          <button class="tab" aria-selected="true">Our house, as it is<span class="dirty" title="Unsaved changes"></span><span class="x"><svg class="ico s12"><use href="#i-x"/></svg></span></button>
+          <button class="tab is-dragging" aria-selected="false">Duplex<span class="x"><svg class="ico s12"><use href="#i-x"/></svg></span></button>
+          <div class="drop-marker" style="width:2px;height:24px;margin:0 0 3px;align-self:flex-end"></div>
+          <button class="tab" aria-selected="false">Settings<span class="x"><svg class="ico s12"><use href="#i-x"/></svg></span></button>
+        </div>
+        <div class="spacer"></div>
+        <div class="tbr">
+          <button class="pal-btn"><svg class="ico s14"><use href="#i-search"/></svg><span class="t">Search commands…</span><kbd class="key">Ctrl K</kbd></button>
+          <button class="ibtn" title="Settings (Ctrl+,)"><svg class="ico"><use href="#i-gear"/></svg></button>
+        </div>
+      </div>
+      <div style="padding:16px 20px">
+        <div class="st">
+          <span class="lbl" style="margin:0 6px 0 0">palette button</span>
+          <button class="pal-btn"><svg class="ico s14"><use href="#i-search"/></svg><span class="t">Search commands…</span><kbd class="key">Ctrl K</kbd></button>
+          <button class="pal-btn is-hover"><svg class="ico s14"><use href="#i-search"/></svg><span class="t">Search commands…</span><kbd class="key">Ctrl K</kbd></button>
+          <button class="pal-btn is-focus"><svg class="ico s14"><use href="#i-search"/></svg><span class="t">Search commands…</span><kbd class="key">Ctrl K</kbd></button>
+        </div>
+        <div class="st">
+          <span class="lbl" style="margin:0 6px 0 0">tab states</span>
+          <div class="strip" style="border-bottom:1px solid var(--edge);padding:6px 6px 0;background:var(--titlebar)">
+            <button class="tab" aria-selected="false">Default<span class="x"><svg class="ico s12"><use href="#i-x"/></svg></span></button>
+            <button class="tab is-hover" aria-selected="false">Hover<span class="x"><svg class="ico s12"><use href="#i-x"/></svg></span></button>
+            <button class="tab is-focus" aria-selected="false">Focus<span class="x"><svg class="ico s12"><use href="#i-x"/></svg></span></button>
+            <button class="tab" aria-selected="true">Active<span class="x is-hover"><svg class="ico s12"><use href="#i-x"/></svg></span></button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="pane dark" style="padding:0"></div>
+  </div>
+</section>
+
+<!-- ============ Project header ============ -->
+<section class="spec" id="project-header">
+  <h2>Project header</h2>
+  <p class="note">48 px. The name is an editable field in Fraunces 20; the save state is the notebook's italic; undo and redo are icon buttons; Save, Export project… and Duplicate are small ghost buttons; Trash is the small danger button.</p>
+  <div class="pair">
+    <div class="pane" style="padding:0">
+      <div class="ph">
+        <input class="pname" value="Our house, as it is" aria-label="Project name">
+        <span class="saved">Saved just now</span>
+        <span class="spacer"></span>
+        <div class="group"><button class="ibtn" title="Undo"><svg class="ico"><use href="#i-undo"/></svg></button><button class="ibtn" disabled title="Nothing to redo"><svg class="ico"><use href="#i-redo"/></svg></button></div>
+        <span class="vr"></span>
+        <button class="btn ghost sm"><svg class="ico"><use href="#i-save"/></svg>Save</button>
+        <button class="btn ghost sm"><svg class="ico"><use href="#i-download"/></svg>Export project…</button>
+        <button class="btn ghost sm"><svg class="ico"><use href="#i-copy"/></svg>Duplicate</button>
+        <button class="btn danger sm"><svg class="ico"><use href="#i-trash"/></svg>Trash</button>
+      </div>
+      <div class="ph" style="border-bottom:0">
+        <input class="pname is-focus" value="Untitled" aria-label="Project name">
+        <span class="saved">Saving…</span>
+        <span class="spacer"></span>
+        <span class="saved failed"><svg class="ico s12" style="vertical-align:-2px"><use href="#i-alert"/></svg> Not saved: the library folder is read-only</span>
+      </div>
+    </div>
+    <div class="pane dark" style="padding:0"></div>
+  </div>
+</section>
+
+<!-- ============ Activity bar + status bar ============ -->
+<section class="spec" id="bars">
+  <h2>Activity bar and status bar</h2>
+  <p class="note">The activity bar: 48 px wide, 36 px buttons, the active one on the elevated tint with a 2 px terracotta bar at its left edge; a panel that needs a project is at 35 % when none is open. The status bar: 24 px, 11 px graphite text; project and its italic state at the left; units in mono, Otto's mulberry dot and state (decisions §5), the MCP plug with its moss or danger dot and the port in mono, and the theme toggle at the right.</p>
+  <div class="pair">
+    <div class="pane" style="padding:0">
+      <div style="display:flex">
+        <div class="abar" style="height:200px">
+          <button class="abtn" aria-pressed="true" title="Levels"><svg class="ico"><use href="#i-layers"/></svg></button>
+          <button class="abtn" title="Catalog"><svg class="ico"><use href="#i-sofa"/></svg></button>
+          <button class="abtn is-hover" title="History"><svg class="ico"><use href="#i-history"/></svg></button>
+          <button class="abtn off" title="Warnings (open a project first)"><svg class="ico"><use href="#i-shield"/></svg></button>
+        </div>
+        <div style="flex:1;padding:16px 20px;display:flex;flex-direction:column;gap:14px;justify-content:center">
+          <div class="sb" style="border:1px solid var(--edge);border-radius:6px">
+            <span class="proj">Our house, as it is</span><span class="saved">Saved 2 minutes ago</span>
+            <span class="spacer"></span>
+            <button class="item" title="Display units"><svg class="ico s12"><use href="#i-ruler"/></svg><span class="mono">mm</span></button>
+            <button class="item" title="Otto"><span class="dot ai"></span>Otto · ready</button>
+            <button class="item" title="MCP server"><svg class="ico s12"><use href="#i-plug"/></svg><span class="dot ok"></span>MCP <span class="mono">:63282</span></button>
+            <button class="item" title="Toggle theme"><svg class="ico s12" data-theme-icon><use href="#i-moon"/></svg></button>
+          </div>
+          <div class="sb" style="border:1px solid var(--edge);border-radius:6px">
+            <span class="proj">Tower</span><span class="failed"><svg class="ico s12" style="vertical-align:-2px"><use href="#i-alert"/></svg> Not saved</span>
+            <span class="spacer"></span>
+            <button class="item is-hover"><svg class="ico s12"><use href="#i-ruler"/></svg><span class="mono">ft-in, 1/16"</span></button>
+            <button class="item"><span class="dot ai"></span>Otto · adding a 3 m wall…</button>
+            <button class="item"><svg class="ico s12"><use href="#i-plug"/></svg><span class="dot off"></span>MCP off</button>
+            <button class="item"><svg class="ico s12" data-theme-icon><use href="#i-moon"/></svg></button>
+          </div>
+          <div class="sb" style="border:1px solid var(--edge);border-radius:6px">
+            <span>No project open</span>
+            <span class="spacer"></span>
+            <button class="item"><svg class="ico s12"><use href="#i-ruler"/></svg><span class="mono">cm</span></button>
+            <button class="item"><span class="dot ai"></span>Otto · waiting for your yes</button>
+            <button class="item"><svg class="ico s12"><use href="#i-plug"/></svg><span class="dot ok"></span>MCP <span class="mono">:63282</span></button>
+            <button class="item"><svg class="ico s12" data-theme-icon><use href="#i-moon"/></svg></button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="pane dark" style="padding:0"></div>
+  </div>
+</section>
+
+<!-- ============ Buttons ============ -->
+<section class="spec" id="buttons">
+  <h2>Buttons and icon buttons</h2>
+  <p class="note">Four variants, two sizes (32 and 28 px), 6 px radius, Alegreya Sans Medium. Terracotta is the one primary; secondary is paper with an edge; ghost has no edge until hovered; danger is the trash's red on nothing. Every state in a row: default, hover, active, focus-visible, disabled, loading. Icon buttons: 28 and 24 px, graphite until hovered, elevated when pressed in.</p>
+  <div class="pair">
+    <div class="pane">
+      <span class="lbl">primary · md</span>
+      <div class="st"><button class="btn primary"><svg class="ico"><use href="#i-plus"/></svg>New project</button><button class="btn primary is-hover">Hover</button><button class="btn primary is-active">Active</button><button class="btn primary is-focus">Focus</button><button class="btn primary" disabled>Disabled</button><button class="btn primary" disabled><svg class="ico spin"><use href="#i-loader"/></svg>Exporting…</button></div>
+      <span class="lbl">secondary · md</span>
+      <div class="st"><button class="btn secondary"><svg class="ico"><use href="#i-upload"/></svg>Import…</button><button class="btn secondary is-hover">Hover</button><button class="btn secondary is-active">Active</button><button class="btn secondary is-focus">Focus</button><button class="btn secondary" disabled>Disabled</button><button class="btn secondary" disabled><svg class="ico spin"><use href="#i-loader"/></svg>Checking…</button></div>
+      <span class="lbl">ghost · md</span>
+      <div class="st"><button class="btn ghost"><svg class="ico"><use href="#i-trash"/></svg>Trash <span class="mono muted">(0)</span></button><button class="btn ghost is-hover">Hover</button><button class="btn ghost is-active">Active</button><button class="btn ghost is-focus">Focus</button><button class="btn ghost" disabled>Disabled</button></div>
+      <span class="lbl">danger · md</span>
+      <div class="st"><button class="btn danger"><svg class="ico"><use href="#i-trash"/></svg>Empty trash</button><button class="btn danger is-hover">Hover</button><button class="btn danger is-active">Active</button><button class="btn danger is-focus">Focus</button><button class="btn danger" disabled>Disabled</button><button class="btn danger outlined">Delete forever</button></div>
+      <span class="lbl">sm · all four</span>
+      <div class="st"><button class="btn primary sm"><svg class="ico"><use href="#i-check"/></svg>Allow</button><button class="btn secondary sm"><svg class="ico"><use href="#i-refresh"/></svg>Check again</button><button class="btn ghost sm"><svg class="ico"><use href="#i-save"/></svg>Save</button><button class="btn danger sm"><svg class="ico"><use href="#i-trash"/></svg>Trash</button><button class="btn secondary sm" disabled><svg class="ico spin"><use href="#i-loader"/></svg>Moving…</button><button class="btn ai sm">Draft it</button><span class="caption">← the one mulberry button (Home composer)</span></div>
+      <span class="lbl">icon buttons · md 28 / sm 24</span>
+      <div class="st"><button class="ibtn"><svg class="ico"><use href="#i-undo"/></svg></button><button class="ibtn is-hover"><svg class="ico"><use href="#i-undo"/></svg></button><button class="ibtn is-active"><svg class="ico"><use href="#i-undo"/></svg></button><button class="ibtn is-focus"><svg class="ico"><use href="#i-undo"/></svg></button><button class="ibtn" disabled><svg class="ico"><use href="#i-redo"/></svg></button><button class="ibtn" aria-pressed="true" title="Side by side"><svg class="ico"><use href="#i-columns"/></svg></button><span class="vr"></span><button class="ibtn sm"><svg class="ico"><use href="#i-plus"/></svg></button><button class="ibtn sm is-hover"><svg class="ico"><use href="#i-eye"/></svg></button><button class="ibtn sm"><svg class="ico"><use href="#i-lock"/></svg></button><button class="ibtn sm" disabled><svg class="ico"><use href="#i-copy"/></svg></button><span class="vr"></span><svg class="ico spinner spin"><use href="#i-loader"/></svg><span class="caption">spinner, 16 px, graphite (terracotta while Otto works)</span></div>
+    </div>
+    <div class="pane dark"></div>
+  </div>
+</section>
+
+<!-- ============ Fields ============ -->
+<section class="spec" id="fields">
+  <h2>Inputs, the length field, select, checkbox, radio</h2>
+  <p class="note">Fields are paper wells with a 1 px edge, 32 px (28 px small), 6 px radius. Focus is a terracotta edge with a 3 px ring at 22 %; invalid is the same in the danger red. A length shows its number in mono ink and the unit as a mono suffix in graphite over the right edge. Selects keep the native chevron (the theme sets <code>color-scheme</code>, so the popup follows). Checkbox and radio are drawn: 14 px, a graphite edge, terracotta when checked.</p>
+  <div class="pair">
+    <div class="pane">
+      <div class="cols2">
+        <div>
+          <span class="lbl">text input</span>
+          <label class="label" for="f1">Name</label>
+          <input class="inp" id="f1" value="Living room">
+          <label class="label" style="margin-top:8px">Hover</label><input class="inp is-hover" placeholder="—">
+          <label class="label" style="margin-top:8px">Focus</label><input class="inp is-focus" value="Kitchen">
+          <label class="label" style="margin-top:8px">Invalid</label><input class="inp is-invalid mono" value="5x"><span class="err">Not a length (try 3200, 3.2m or 10' 6")</span>
+          <label class="label" style="margin-top:8px">Disabled</label><input class="inp" value="Ground floor" disabled>
+          <label class="label" style="margin-top:8px">Small (28 px) · search</label>
+          <div class="search sm"><svg class="ico s14"><use href="#i-search"/></svg><input class="inp sm" placeholder="Search"></div>
+          <label class="label" style="margin-top:8px">Textarea · mono (JSON, snippets)</label>
+          <textarea class="inp mono" rows="3">{ "levelId": "lvl_ground", "thickness": 200 }</textarea>
+        </div>
+        <div>
+          <span class="lbl">length · unit suffix</span>
+          <div class="two" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div><label class="label">Thickness</label><div class="len"><input class="inp mono" value="200"><span class="unit">mm</span></div></div>
+            <div><label class="label">Height</label><div class="len"><input class="inp mono" placeholder="level"><span class="unit">mm</span></div></div>
+            <div><label class="label">Focus</label><div class="len"><input class="inp mono is-focus" value="2 800"><span class="unit">mm</span></div></div>
+            <div><label class="label">Imperial</label><div class="len"><input class="inp mono" value="10' 6"><span class="unit">ft-in</span></div></div>
+            <div><label class="label">Invalid</label><div class="len"><input class="inp mono is-invalid" value="5x"><span class="unit">mm</span></div></div>
+            <div><label class="label">Angle</label><div class="len"><input class="inp mono" value="45"><span class="unit">°</span></div></div>
+          </div>
+          <span class="lbl">select</span>
+          <div class="st"><select class="sel"><option>Centred on the line</option><option>Left of the line</option></select><select class="sel is-focus"><option>Landscape</option></select><select class="sel" disabled><option>Fit to page</option></select><select class="sel sm"><option>Oak boards</option></select></div>
+          <span class="lbl">checkbox</span>
+          <div class="st"><label class="check-label"><input class="chk" type="checkbox">Include furniture</label><label class="check-label"><input class="chk" type="checkbox" checked>Include finishes</label><label class="check-label"><input class="chk is-hover" type="checkbox">Hover</label><label class="check-label"><input class="chk is-focus" type="checkbox" checked>Focus</label><label class="check-label"><input class="chk" type="checkbox" disabled checked>Disabled</label></div>
+          <span class="lbl">radio</span>
+          <div class="st radios"><label><input class="radio" type="radio" name="r1" checked>Current level <span class="muted">(Ground floor)</span></label><label><input class="radio" type="radio" name="r1">All levels <span class="muted">(2)</span></label><label><input class="radio is-focus" type="radio" name="r2" checked>Focus</label><label><input class="radio" type="radio" name="r3" disabled>Disabled</label></div>
+        </div>
+      </div>
+    </div>
+    <div class="pane dark"></div>
+  </div>
+</section>
+
+<!-- ============ Segmented, choices, slider ============ -->
+<section class="spec" id="segmented">
+  <h2>Segmented control, choice group, slider</h2>
+  <p class="note">The segmented control (x-segmented: Furniture / Materials, Plan / Section / 3D) is a tab strip: 32 px, Medium 12 px, a 2 px terracotta underline on the chosen one. The choice group (the units editor's Metric / Imperial, mm / cm / m, 1 / 0.1 / 0.01) is a row of 28 px radio buttons with an edge; the chosen one has a terracotta edge on a 10 % tint. The slider (layer opacity, Explode): a 3 px edge track, the filled part terracotta, a 12 px terracotta thumb ringed in paper.</p>
+  <div class="pair">
+    <div class="pane">
+      <span class="lbl">segmented</span>
+      <div class="segmented" style="width:320px"><button class="seg" aria-selected="true">Furniture</button><button class="seg" aria-selected="false">Materials</button><button class="seg is-hover" aria-selected="false">Hover</button><button class="seg is-focus" aria-selected="false">Focus</button></div>
+      <div class="ctabs" style="margin-top:10px;border:1px solid var(--edge);border-radius:6px"><button class="seg" aria-selected="true">Plan</button><button class="seg" aria-selected="false">Section</button><button class="seg" aria-selected="false">3D</button><span class="spacer"></span><button class="btn ghost sm"><svg class="ico"><use href="#i-fileout"/></svg>Export…</button><button class="btn ghost sm"><svg class="ico"><use href="#i-filein"/></svg>Import DXF…</button><span class="vr"></span><button class="ibtn sm" title="Side by side"><svg class="ico"><use href="#i-columns"/></svg></button></div>
+      <span class="lbl">choice group · units</span>
+      <div class="settings-grid" style="display:grid;grid-template-columns:5rem 1fr;gap:10px 16px;align-items:center;font-size:12px;color:var(--muted)">
+        <span>System</span><div class="choices"><button class="choice" aria-checked="true">Metric</button><button class="choice" aria-checked="false">Imperial</button><button class="choice is-hover" aria-checked="false">Hover</button><button class="choice is-focus" aria-checked="false">Focus</button><button class="choice" disabled>Disabled</button></div>
+        <span>Unit</span><div class="choices"><button class="choice mono" aria-checked="true">mm</button><button class="choice mono" aria-checked="false">cm</button><button class="choice mono" aria-checked="false">m</button></div>
+        <span>Precision</span><div class="choices"><button class="choice mono" aria-checked="true">1</button><button class="choice mono" aria-checked="false">0.1</button><button class="choice mono" aria-checked="false">0.01</button><button class="choice mono" aria-checked="false">0.001</button></div>
+        <span>Example</span><span class="mono" style="color:var(--fg);font-size:13px">3 213 <span class="unit">mm</span> · 915 <span class="unit">mm</span></span>
+      </div>
+      <span class="lbl">slider · layer opacity</span>
+      <div style="width:300px;display:flex;flex-direction:column;gap:8px">
+        <div class="opacity-row" style="padding-left:0">Opacity<input class="range" type="range" min="0" max="100" value="100" style="--pct:100%"><span class="pct">100%</span></div>
+        <div class="opacity-row" style="padding-left:0">Opacity<input class="range" type="range" min="0" max="100" value="60" style="--pct:60%"><span class="pct">60%</span></div>
+        <div class="opacity-row" style="padding-left:0">Focus<input class="range is-focus" type="range" min="0" max="100" value="35" style="--pct:35%"><span class="pct">35%</span></div>
+        <div class="opacity-row" style="padding-left:0">Explode<input class="range" type="range" min="0" max="100" value="0" style="--pct:0%;width:96px;flex:none"><span class="pct">0%</span></div>
+      </div>
+    </div>
+    <div class="pane dark"></div>
+  </div>
+</section>
+
+<!-- ============ Chips, badges, kbd ============ -->
+<section class="spec" id="chips">
+  <h2>Chips, tags, badges, key caps, tooltip</h2>
+  <p class="note">All at 4 px radius (decisions §3). A tag is a paper label on the elevated tint. A filter chip on Home is 24 px with an edge and its count in mono; pressed, it takes the terracotta edge and tint. The Catalog's category chips are 22 px and the chosen one is filled terracotta (the only filled chip). Badges are mono 11 Medium; the Warnings count is ochre. Key caps are mono 11 on the elevated tint with an edge. Tooltips are ink on paper-coloured text (native <code>title</code> today; these styles if a custom one is built).</p>
+  <div class="pair">
+    <div class="pane">
+      <span class="lbl">tags on cards</span>
+      <div class="st"><span class="tag">residential</span><span class="tag">renovation</span><span class="tag">garden room</span></div>
+      <span class="lbl">home filter chips</span>
+      <div class="st"><button class="chip">residential <span class="n">2</span></button><button class="chip" aria-pressed="true">renovation <span class="n">2</span></button><button class="chip is-hover">flat <span class="n">1</span></button><button class="chip is-focus">garden room <span class="n">1</span></button></div>
+      <span class="lbl">catalog category chips</span>
+      <div class="st" style="gap:4px"><button class="chip cat on">All</button><button class="chip cat">Paint</button><button class="chip cat is-hover">Wood</button><button class="chip cat">Tile</button><button class="chip cat">Stone</button><button class="chip cat is-focus">Concrete</button><button class="chip cat">Carpet</button></div>
+      <span class="lbl">badges</span>
+      <div class="st"><span class="badge">3</span><span class="badge warn">7</span><span class="badge danger">MUTATION_DECLINED</span><span class="badge ai">Otto</span><span style="display:inline-flex;align-items:center;gap:6px;font:500 12px/16px var(--font-sans);color:var(--fg)">Warnings <span class="badge warn">2</span></span></div>
+      <span class="lbl">key caps</span>
+      <div class="st"><kbd class="key">Ctrl K</kbd><kbd class="key">Ctrl+,</kbd><kbd class="key">W</kbd><kbd class="key">Shift S</kbd><kbd class="key">Esc</kbd><kbd class="key">⌘ K</kbd></div>
+      <span class="lbl">tooltip</span>
+      <div class="st"><span class="tip">Undo Add wall <span class="mono">(Ctrl+Z)</span></span><span class="tip">Hide Structure</span><span class="tip">Settings <span class="mono">(Ctrl+,)</span></span></div>
+    </div>
+    <div class="pane dark"></div>
+  </div>
+</section>
+
+<!-- ============ Section headers, rows, level editor ============ -->
+<section class="spec" id="rows">
+  <h2>Section headers, level and layer rows, the level editor</h2>
+  <p class="note">The left panel on the surface tint. Section caps at 11 px Medium, .08 em. Level rows are 36 px: a grip in graphite, the name, G for the ground floor, the elevation in mono (ochre below ground). The active level is a sheet of paper lifted off the panel: canvas fill, an edge, a 2 px terracotta bar at the left (the mark the activity bar uses), name Medium and elevation in ink. The editor is a paper card with an 8 px radius. Layer rows: eye and lock icon buttons, the name, the kind in small caps, the count in mono, and the opacity slider under them.</p>
+  <div class="pair">
+    <div class="pane" style="padding:0">
+      <div class="cols2" style="gap:0">
+        <div class="panelbox" style="border:0;border-radius:0;border-right:1px solid var(--edge)">
+          <div class="section-header"><span class="cap">Levels</span><div class="actions"><button class="ibtn sm" title="Add a level"><svg class="ico"><use href="#i-plus"/></svg></button></div></div>
+          <div style="padding:0 6px 8px;display:flex;flex-direction:column">
+            <div class="row" aria-selected="false" tabindex="0"><svg class="ico grip"><use href="#i-grip"/></svg><span class="name">Upper floor</span><span class="el">2 800 mm</span></div>
+            <div class="row" aria-selected="true" tabindex="0"><svg class="ico grip"><use href="#i-grip"/></svg><span class="name">Ground floor</span><span class="g" title="Ground floor">G</span><span class="el">0 mm</span></div>
+            <div class="row is-hover" aria-selected="false" tabindex="0"><svg class="ico grip"><use href="#i-grip"/></svg><span class="name">Cellar</span><span class="el below">−2 400 mm</span></div>
+            <div class="row offset" aria-selected="false" tabindex="0"><span class="name">Mezzanine</span><span class="el">1 500 mm</span></div>
+            <div class="row is-focus" aria-selected="false" tabindex="0"><svg class="ico grip"><use href="#i-grip"/></svg><input class="inp sm" value="Roof terrace" style="height:24px;font-size:12px;flex:1" aria-label="Level name"><span class="el">5 600 mm</span></div>
+            <div class="row is-dragging" aria-selected="false" tabindex="0"><svg class="ico grip"><use href="#i-grip"/></svg><span class="name">Attic</span><span class="el">5 600 mm</span></div>
+            <div class="drop-marker"></div>
+          </div>
+          <div class="card-editor">
+            <div class="full"><label class="label">Name</label><input class="inp" value="Ground floor"></div>
+            <div><label class="label">Elevation</label><div class="len"><input class="inp mono" value="0"><span class="unit">mm</span></div></div>
+            <div><label class="label">Floor to floor</label><div class="len"><input class="inp mono" value="2 800"><span class="unit">mm</span></div></div>
+            <div><label class="label">Slab</label><div class="len"><input class="inp mono" value="200"><span class="unit">mm</span></div></div>
+            <div class="foot"><button class="ibtn sm" title="Duplicate level"><svg class="ico"><use href="#i-copy"/></svg></button><button class="ibtn sm" title="Add a level above"><svg class="ico"><use href="#i-layers"/></svg></button></div>
+          </div>
+        </div>
+        <div class="panelbox" style="border:0;border-radius:0">
+          <div class="section-header"><span class="cap">Layers · Ground floor</span><div class="actions"><button class="ibtn sm" title="Add a layer"><svg class="ico"><use href="#i-plus"/></svg></button></div></div>
+          <div style="padding:0 6px 12px;display:flex;flex-direction:column;gap:2px">
+            <div class="layer"><div class="top"><button class="ibtn sm" title="Hide Structure"><svg class="ico"><use href="#i-eye"/></svg></button><button class="ibtn sm" title="Lock Structure"><svg class="ico"><use href="#i-unlock"/></svg></button><span class="name">Structure</span><span class="kind">Structure</span><span class="count">9</span></div><div class="opacity-row">Opacity<input class="range" type="range" min="0" max="100" value="100" style="--pct:100%"><span class="pct">100%</span></div></div>
+            <div class="layer is-hover"><div class="top"><button class="ibtn sm" title="Hide Interior"><svg class="ico"><use href="#i-eye"/></svg></button><button class="ibtn sm" title="Unlock Interior"><svg class="ico locked"><use href="#i-lock"/></svg></button><span class="name">Interior</span><span class="kind">Interior</span><span class="count">5</span></div><div class="opacity-row">Opacity<input class="range" type="range" min="0" max="100" value="100" style="--pct:100%"><span class="pct">100%</span></div></div>
+            <div class="layer"><div class="top"><button class="ibtn sm" title="Show Decor"><svg class="ico"><use href="#i-eyeoff"/></svg></button><button class="ibtn sm" title="Lock Decor"><svg class="ico"><use href="#i-unlock"/></svg></button><span class="name hidden">Decor</span><span class="kind">Decor</span><span class="count">2</span></div><div class="opacity-row">Opacity<input class="range" type="range" min="0" max="100" value="40" style="--pct:40%"><span class="pct">40%</span></div></div>
+            <div class="layer"><div class="top"><button class="ibtn sm"><svg class="ico"><use href="#i-eye"/></svg></button><button class="ibtn sm"><svg class="ico"><use href="#i-unlock"/></svg></button><span class="name">DXF survey</span><span class="kind">Interior</span><span class="count">312</span></div><div class="opacity-row">Opacity<input class="range" type="range" min="0" max="100" value="60" style="--pct:60%"><span class="pct">60%</span></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="pane dark" style="padding:0"></div>
+  </div>
+</section>
+
+<!-- ============ Properties panel + right tab strip ============ -->
+<section class="spec" id="properties">
+  <h2>Right panel: tab strip, Properties, empty state</h2>
+  <p class="note">The right panel tab strip wraps to two rows as today; 36 px tabs, Medium 12 px, terracotta underline, a badge beside Warnings. The Properties title is Fraunces 18 (a panel heading); a multi-selection shows its summary under it. Field labels are 12 px Medium graphite; numbers mono; the FINISHES caps header leads rows of a label, a small select and a 28 px swatch. The empty state's heading is Fraunces too: the one place a panel may speak.</p>
+  <div class="pair">
+    <div class="pane" style="padding:0">
+      <div class="cols2" style="gap:0">
+        <div class="panelbox" style="border:0;border-radius:0;border-right:1px solid var(--edge)">
+          <div class="rtabs"><button class="rtab" aria-selected="true">Properties</button><button class="rtab" aria-selected="false">Catalog</button><button class="rtab is-hover" aria-selected="false">History</button><button class="rtab" aria-selected="false"><svg class="otto-mark" width="16" height="16"><use href="#otto"/></svg>Otto</button><button class="rtab" aria-selected="false">Warnings <span class="badge warn">2</span></button><button class="rtab is-focus" aria-selected="false">Project</button></div>
+          <div class="panel-title"><div class="h-panel">Room</div></div>
+          <div class="props">
+            <div><label class="label">Name</label><input class="inp" value="Living room"></div>
+            <div><label class="label">Number</label><input class="inp" placeholder="—"></div>
+            <div class="kv">Area <span class="mono">17.5 m²</span> · Perimeter <span class="mono">16 880 mm</span></div>
+            <div class="cap" style="margin-top:4px">Finishes</div>
+            <div class="finish"><span>Floor</span><select class="sel sm"><option>Oak boards</option></select><span class="swatch" style="background:#c9a06a"></span></div>
+            <div class="finish"><span>Walls</span><select class="sel sm"><option>Limewash</option></select><span class="swatch" style="background:var(--scene-wall)"></span></div>
+            <div class="finish"><span>Ceiling</span><select class="sel sm" style="color:var(--muted)"><option>None</option></select><span class="swatch"></span></div>
+          </div>
+          <div class="panel-title" style="border-top:1px solid var(--edge)"><div class="h-panel">3 walls</div><div class="sub">2 on Structure, 1 on Interior</div></div>
+          <div class="props">
+            <div class="two"><div><label class="label">Thickness</label><div class="len"><input class="inp mono" value="200"><span class="unit">mm</span></div></div><div><label class="label">Height</label><div class="len"><input class="inp mono" placeholder="level"><span class="unit">mm</span></div></div></div>
+            <div><label class="label">Body</label><select class="sel w-full"><option>Centred on the line</option></select></div>
+          </div>
+        </div>
+        <div class="panelbox" style="border:0;border-radius:0">
+          <div class="rtabs"><button class="rtab" aria-selected="true">Properties</button><button class="rtab" aria-selected="false">Catalog</button><button class="rtab" aria-selected="false">History</button><button class="rtab" aria-selected="false"><svg class="otto-mark" width="16" height="16"><use href="#otto"/></svg>Otto</button><button class="rtab" aria-selected="false">Warnings</button><button class="rtab" aria-selected="false">Project</button></div>
+          <div class="empty" style="padding-top:48px"><div class="h-panel">Nothing selected</div><div class="hint">Pick a wall, a room or a door to see its numbers here. The level you are on is edited in the left panel.</div><div class="caption" style="margin-top:4px"><kbd class="key">Esc</kbd> clears, <kbd class="key">V</kbd> is the pointer.</div></div>
+          <div class="empty" style="border-top:1px solid var(--edge)"><div class="h-panel">No projects yet</div><div class="hint">Start a new project, or import one someone shared with you.</div><div class="cta"><button class="btn primary"><svg class="ico"><use href="#i-plus"/></svg>New project</button></div></div>
+          <div class="empty" style="border-top:1px solid var(--edge)"><svg class="ico" style="color:var(--success);width:24px;height:24px"><use href="#i-shield"/></svg><div class="h-panel">No warnings</div><div class="hint">Stairs, ramps, elevators, openings and rooms are within the rules in Settings.</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="pane dark" style="padding:0"></div>
+  </div>
+</section>
+
+<!-- ============ Catalog ============ -->
+<section class="spec" id="catalog">
+  <h2>Catalog cards and category chips</h2>
+  <p class="note">The segmented Furniture / Materials strip, a small search with the Import… button, the category chips, then a two-column grid of 8 px paper cards: a square picture on the surface tint, the name at 12 px, the caption (category, size) in mono graphite. Hover warms the edge to terracotta at 60 %; the armed card (the tool is placing it) has a full 2 px terracotta edge.</p>
+  <div class="pair">
+    <div class="pane" style="padding:0">
+      <div class="cols2" style="gap:0">
+        <div class="panelbox catalog" style="border:0;border-radius:0;border-right:1px solid var(--edge)">
+          <div class="segmented" style="margin:0 8px"><button class="seg" aria-selected="true">Furniture</button><button class="seg" aria-selected="false">Materials</button></div>
+          <div style="display:flex;gap:6px;padding:10px 12px 0"><div class="search sm" style="flex:1"><svg class="ico s14"><use href="#i-search"/></svg><input class="inp sm" placeholder="Search"></div><button class="btn secondary sm"><svg class="ico"><use href="#i-import"/></svg>Import…</button></div>
+          <div style="display:flex;flex-wrap:wrap;gap:4px;padding:8px 12px 0"><button class="chip cat on">All</button><button class="chip cat">Living</button><button class="chip cat">Dining</button><button class="chip cat">Bedroom</button><button class="chip cat">Kitchen</button><button class="chip cat">Lighting</button></div>
+          <div class="cat-grid">
+            <button class="cat-card"><span class="img pad"><svg viewBox="0 0 80 60" width="100%" height="100%" style="stroke:var(--plan-decor);fill:none;stroke-width:1.4"><rect x="10" y="18" width="60" height="26" rx="4"/><path d="M16 18v26M64 18v26M16 36h48"/></svg></span><span class="nm">Sofa, three seats</span><span class="cp">living · 2 100 × 900</span></button>
+            <button class="cat-card armed"><span class="img pad"><svg viewBox="0 0 80 60" width="100%" height="100%" style="stroke:var(--plan-decor);fill:none;stroke-width:1.4"><rect x="14" y="14" width="52" height="32"/><circle cx="26" cy="30" r="4"/><circle cx="54" cy="30" r="4"/></svg></span><span class="nm">Dining table</span><span class="cp">dining · 1 600 × 900</span></button>
+            <button class="cat-card is-hover"><span class="img pad"><svg viewBox="0 0 80 60" width="100%" height="100%" style="stroke:var(--plan-decor);fill:none;stroke-width:1.4"><path d="M28 10h24l6 22H22z"/><path d="M40 32v14M30 50h20"/></svg></span><span class="nm"><svg class="ico s12" style="color:var(--muted)"><use href="#i-lamp"/></svg>Floor lamp</span><span class="cp">lighting · ⌀ 400</span></button>
+            <button class="cat-card"><span class="img"><span class="caption">No picture yet</span></span><span class="nm">chair_v3.glb</span><span class="cp">imported · 420 × 460</span></button>
+          </div>
+        </div>
+        <div class="panelbox catalog" style="border:0;border-radius:0">
+          <div class="segmented" style="margin:0 8px"><button class="seg" aria-selected="false">Furniture</button><button class="seg" aria-selected="true">Materials</button></div>
+          <div style="display:flex;gap:6px;padding:10px 12px 0"><div class="search sm" style="flex:1"><svg class="ico s14"><use href="#i-search"/></svg><input class="inp sm" placeholder="Search"></div></div>
+          <div style="display:flex;flex-wrap:wrap;gap:4px;padding:8px 12px 0"><button class="chip cat">All</button><button class="chip cat on">Paint</button><button class="chip cat">Wood</button><button class="chip cat">Tile</button><button class="chip cat">Stone</button><button class="chip cat">Concrete</button></div>
+          <div class="cat-grid">
+            <button class="cat-card"><span class="img" style="background:#efe9df"></span><span class="nm">White paint</span><span class="cp">paint</span></button>
+            <button class="cat-card"><span class="img" style="background:#c9b9a4"></span><span class="nm">Warm grey paint</span><span class="cp">paint</span></button>
+            <button class="cat-card armed"><span class="img" style="background:#8b9a6b"></span><span class="nm">Sage paint</span><span class="cp">paint</span></button>
+            <button class="cat-card"><span class="img" style="background:#2f3b57"></span><span class="nm">Navy paint</span><span class="cp">paint</span></button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="pane dark" style="padding:0"></div>
+  </div>
+</section>
+
+<!-- ============ Home cards ============ -->
+<section class="spec" id="home">
+  <h2>Home: cards, search, sort, filter chips</h2>
+  <p class="note">Paper cards with a 1 px edge and no shadow, 8 px radius. A thumbnail is the ground floor drawn in the plan colours on paper. A project without one gets a stable tinted sheet (straw, sage, clay, slate), a pencil doodle of a footprint and its two initials in Fraunces Italic at the bottom-left. Name Medium 15; "Edited …" in italic; the level count in mono; tags as paper labels. The selected card has a 2 px terracotta outline; one Otto has worked on carries the 14 px mark in its corner. The search field is 32 px with its icon; the sort is a select; the chips as above.</p>
+  <div class="pair">
+    <div class="pane">
+      <div class="st" style="margin-bottom:14px"><div class="search" style="width:280px"><svg class="ico s14"><use href="#i-search"/></svg><input class="inp" placeholder="Search projects"></div><select class="sel"><option>Last changed</option><option>Last opened</option><option>Name</option><option>Created</option></select><button class="chip" aria-pressed="true">residential <span class="n">2</span></button><button class="chip">renovation <span class="n">2</span></button></div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+        <button class="hcard"><span class="thumb"><svg viewBox="0 0 220 165" data-thumb="1"></svg></span><span class="body"><span class="nm">Our house, as it is</span><span class="mt"><span class="meta">Edited just now</span><span class="muted">·</span><span class="mono">2 levels</span></span><span class="tags"><span class="tag">residential</span><span class="tag">renovation</span></span></span></button>
+        <button class="hcard selected"><span class="thumb"><svg viewBox="0 0 220 165" data-thumb="2"></svg></span><svg class="otto-mark otto" width="14" height="14"><use href="#otto"/></svg><span class="body"><span class="nm">Kitchen, knocked through</span><span class="mt"><span class="meta">Edited 2 hours ago</span><span class="muted">·</span><span class="mono">1 level</span></span><span class="tags"><span class="tag">renovation</span></span></span></button>
+        <button class="hcard is-hover"><span class="thumb t-sage"><svg viewBox="0 0 220 165" data-doodle="a"></svg><span class="ini">Gr</span></span><span class="body"><span class="nm">Garden room</span><span class="mt"><span class="meta">Edited yesterday</span><span class="muted">·</span><span class="mono">1 level</span></span><span class="tags"><span class="tag">garden room</span></span></span></button>
+        <button class="hcard"><span class="thumb t-clay"><svg viewBox="0 0 220 165" data-doodle="b"></svg><span class="ini">Lo</span></span><span class="body"><span class="nm">Loft idea</span><span class="mt"><span class="meta">Edited last week</span><span class="muted">·</span><span class="mono">1 level</span></span></span></button>
+        <button class="hcard"><span class="thumb t-straw"><svg viewBox="0 0 220 165" data-doodle="c"></svg><span class="ini">Ca</span></span><span class="body"><span class="nm">Cabin by the lake</span><span class="mt"><span class="meta">Edited 2 weeks ago</span><span class="muted">·</span><span class="mono">1 level</span></span></span></button>
+        <button class="hcard is-focus"><span class="thumb t-slate"><svg viewBox="0 0 220 165" data-doodle="d"></svg><span class="ini">St</span></span><span class="body"><span class="nm">Studio over the garage</span><span class="mt"><span class="meta">Edited a month ago</span><span class="muted">·</span><span class="mono">1 level</span></span></span></button>
+      </div>
+      <span class="lbl">the composer card (first slot; base only, see 03-otto.md)</span>
+      <div class="hcomposer" style="max-width:420px"><div class="ttl"><svg class="otto-mark mark"><use href="#otto"/></svg>Start with Otto</div><textarea class="inp" placeholder="Describe the place: 'a 5 by 7 m studio with a bathroom in the corner'"></textarea><div class="foot"><span class="rule">Otto asks before it deletes anything.</span><button class="btn ai sm">Draft it</button></div></div>
+    </div>
+    <div class="pane dark"></div>
+  </div>
+</section>
+
+<!-- ============ Dialogs ============ -->
+<section class="spec" id="dialogs">
+  <h2>Dialogs and the Export dialog</h2>
+  <p class="note">A dialog is a sheet of paper over the ink scrim: 10 px radius, an edge, the one soft shadow, 16 px padding, the title in Fraunces 20. Cancel is ghost, the confirming button terracotta (or danger with a faint red edge). The Export dialog: five format cards (6 px, surface tint, Medium label and an 11 px hint; the chosen one takes the terracotta edge and 10 % tint), level radios with a caption, Page / Orientation / Scale selects in three columns, then Cancel and Export….</p>
+  <div class="pair">
+    <div class="pane scrim" style="display:flex;flex-direction:column;gap:20px;align-items:center;background:var(--scrim)">
+      <div class="dialog wide">
+        <div class="h-dialog">Export</div>
+        <div class="msg" style="margin:0 0 12px">Our house, as it is</div>
+        <div class="fmt" role="radiogroup">
+          <label><input type="radio" name="fmt" checked><span class="fmt-card"><b>PDF</b><span>Plan drawing to print</span></span></label>
+          <label><input type="radio" name="fmt"><span class="fmt-card"><b>SVG</b><span>Plan drawing, vector</span></span></label>
+          <label><input type="radio" name="fmt"><span class="fmt-card is-hover"><b>DXF</b><span>Plan for CAD</span></span></label>
+          <label><input type="radio" name="fmt"><span class="fmt-card"><b>glTF</b><span>Building in 3D</span></span></label>
+          <label><input type="radio" name="fmt"><span class="fmt-card"><b>PNG</b><span>Image of the plan or 3D</span></span></label>
+        </div>
+        <div style="margin-top:16px;display:flex;flex-direction:column;gap:12px">
+          <div><span class="label">Levels</span><div class="radios"><label><input class="radio" type="radio" name="lv">Current level <span class="muted">(Ground floor)</span></label><label><input class="radio" type="radio" name="lv" checked>All levels <span class="muted">(2)</span></label></div><div class="caption" style="margin-top:4px">One file, a page per level (2)</div></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+            <div><label class="label">Page</label><select class="sel w-full"><option>A3</option></select></div>
+            <div><label class="label">Orientation</label><select class="sel w-full"><option>Landscape</option></select></div>
+            <div><label class="label">Scale</label><select class="sel w-full"><option>Fit to page</option><option>1:50</option></select></div>
+          </div>
+        </div>
+        <div class="foot"><button class="btn ghost">Cancel</button><button class="btn primary">Export…</button></div>
+      </div>
+      <div class="dialog">
+        <div class="h-dialog">Move to the trash?</div>
+        <div class="msg">"Duplex" can be restored from the trash on Home.</div>
+        <ul style="margin:8px 0 0;padding-left:18px;font-size:13px;color:color-mix(in srgb,var(--fg) 85%,transparent)"><li>2 levels, 48 walls</li><li>Last edited 3 days ago</li></ul>
+        <div class="foot"><button class="btn ghost">Cancel</button><button class="btn danger outlined">Move to trash</button></div>
+      </div>
+      <div class="dialog">
+        <div class="h-dialog">New project</div>
+        <label class="label" style="margin-top:12px">Name</label>
+        <input class="inp is-focus" value="Untitled">
+        <div style="display:flex;align-items:center;gap:8px;margin-top:12px"><span class="label" style="margin:0">Template</span><select class="sel"><option>Empty</option><option>One room</option></select><span class="caption">One level, no walls</span></div>
+        <div class="foot"><button class="btn ghost">Cancel</button><button class="btn primary">Create</button></div>
+      </div>
+    </div>
+    <div class="pane dark scrim" style="display:flex;flex-direction:column;gap:20px;align-items:center;background:var(--scrim)"></div>
+  </div>
+</section>
+
+<!-- ============ Command palette ============ -->
+<section class="spec" id="palette-spec">
+  <h2>Command palette</h2>
+  <p class="note">580 px, 10 px radius, paper, the one shadow. A 44 px input with no edge but a rule under it; group headings in the caps style; rows 32 px with the title, the key cap and the command id in mono graphite; the selected row on the elevated tint. The form a command with inputs shows (title, description, fields, Back / Run) uses the same fields as everywhere.</p>
+  <div class="pair">
+    <div class="pane scrim" style="display:flex;flex-direction:column;gap:20px;align-items:center;background:var(--scrim)">
+      <div class="palette">
+        <input class="in" value="settings" aria-label="Command">
+        <div class="list">
+          <div class="heading">App</div>
+          <div class="item" aria-selected="true"><span class="t">Settings</span><kbd class="key">Ctrl+,</kbd></div>
+          <div class="heading">Commands</div>
+          <div class="item"><span class="t">Read settings</span><span class="id">config.get</span></div>
+          <div class="item"><span class="t">Search the catalog</span><span class="id">catalog.search</span></div>
+          <div class="item"><span class="t">Inspect a DXF file…</span><span class="id">import.dxf.probe</span></div>
+          <div class="item"><span class="t">MCP server status</span><span class="id">mcp.status</span></div>
+          <div class="item"><span class="t">Export project…</span><kbd class="key">Ctrl Shift E</kbd><span class="id">project.export</span></div>
+        </div>
+      </div>
+      <div class="palette" style="padding:16px;display:flex;flex-direction:column;gap:12px">
+        <div><div class="h-panel">Add a wall</div><div class="caption" style="margin-top:2px">Adds a straight wall between two points on the active level and returns its id.</div></div>
+        <div><label class="label">Thickness<span style="color:var(--danger)"> *</span></label><div class="len"><input class="inp mono is-focus" value="200"><span class="unit">mm</span></div><div class="caption" style="margin-top:4px">In the level's units; 100 to 1 000.</div></div>
+        <div><label class="label">Layer</label><select class="sel w-full"><option>Structure</option></select></div>
+        <label class="check-label"><input class="chk" type="checkbox" checked>Join to walls it touches</label>
+        <div style="display:flex;justify-content:flex-end;gap:8px;padding-top:4px"><button class="btn ghost">Back</button><button class="btn primary">Run</button></div>
+      </div>
+      <div class="palette"><input class="in" value="zzz" aria-label="Command"><div class="none">No matching commands.</div></div>
+    </div>
+    <div class="pane dark scrim" style="display:flex;flex-direction:column;gap:20px;align-items:center;background:var(--scrim)"></div>
+  </div>
+</section>
+
+<!-- ============ Context menu, toasts ============ -->
+<section class="spec" id="menus">
+  <h2>Context menus and toasts</h2>
+  <p class="note">A menu is a small sheet on the surface tint with an edge and the shadow, 8 px radius: 12 px rows, 28 px tall, shortcuts in mono graphite, the hovered or focused row on the elevated tint, danger rows in red, a check gutter when any row is a toggle. Toasts stack at the bottom-right: 320 px, 8 px radius, the surface tint; an error has a red edge at 50 %, success a moss one; an action is a terracotta text link; the cross dismisses. Info and success stay 3 s, errors and toasts with an action 6 s.</p>
+  <div class="pair">
+    <div class="pane">
+      <div class="cols2">
+        <div style="display:flex;flex-direction:column;gap:16px;align-items:flex-start">
+          <div class="menu">
+            <button class="mi"><span class="l">Open</span><span class="sc">Enter</span></button>
+            <button class="mi is-hover"><span class="l">Rename…</span><span class="sc">F2</span></button>
+            <button class="mi"><span class="l">Duplicate</span></button>
+            <button class="mi"><span class="l">Tags…</span></button>
+            <div class="sep"></div>
+            <button class="mi"><span class="l">Reveal in Explorer</span></button>
+            <button class="mi" disabled><span class="l">Restore</span></button>
+            <div class="sep"></div>
+            <button class="mi danger"><span class="l">Move to trash</span><span class="sc">Del</span></button>
+          </div>
+          <div class="menu">
+            <button class="mi"><span class="l"><span class="gut"><svg class="ico s14"><use href="#i-check"/></svg></span>Snap to grid</span><span class="sc">G</span></button>
+            <button class="mi"><span class="l"><span class="gut"></span>Angle tracking</span><span class="sc">A</span></button>
+            <button class="mi is-hover"><span class="l"><span class="gut"><svg class="ico s14"><use href="#i-check"/></svg></span>Show dimensions</span></button>
+            <div class="sep"></div>
+            <button class="mi"><span class="l"><span class="gut"></span>Close other tabs</span></button>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end">
+          <div class="toast"><svg class="ico s16"><use href="#i-info"/></svg><span class="m">Imported "survey.dxf" onto Ground floor as 3 layers.</span><button class="x"><svg class="ico s14"><use href="#i-x"/></svg></button></div>
+          <div class="toast success"><svg class="ico s16"><use href="#i-okc"/></svg><span class="m">Exported Our house, as it is.pdf</span><button class="act">Show</button><button class="x"><svg class="ico s14"><use href="#i-x"/></svg></button></div>
+          <div class="toast error"><svg class="ico s16"><use href="#i-alert"/></svg><span class="m">"5x" is not a length or coordinate (try 3000, 3000&lt;45, @1000,500 or 1000,500)</span><button class="x"><svg class="ico s14"><use href="#i-x"/></svg></button></div>
+          <div class="toast"><svg class="ico s16"><use href="#i-download"/></svg><span class="m">Hollin 1.1.0 is ready to install.</span><button class="act is-hover">Restart</button><button class="x"><svg class="ico s14"><use href="#i-x"/></svg></button></div>
+        </div>
+      </div>
+    </div>
+    <div class="pane dark"></div>
+  </div>
+</section>
+
+<!-- ============ Scrollbars, selection, focus ============ -->
+<section class="spec" id="misc">
+  <h2>Scrollbars, text selection, focus rings</h2>
+  <p class="note">Thin scrollbars: an 8 px gutter, a graphite thumb at 35 % (55 % under the pointer), no track. Text selection is terracotta at 30 %. Focus-visible is one 2 px terracotta outline 1 px outside the control everywhere a text field's ring does not apply; the ring never shows for a pointer click.</p>
+  <div class="pair">
+    <div class="pane">
+      <div class="cols2">
+        <div class="scroll" style="height:120px;overflow:auto;border:1px solid var(--edge);border-radius:6px;padding:8px 12px;background:var(--surface)">
+          <div style="font-size:12px;line-height:18px">Alegreya Sans sets a dense panel cleanly.<br>Every number is in IBM Plex Mono: <span class="mono">4 000 mm</span>.<br>Fraunces speaks only in headings.<br>Edges, not shadows.<br>Terracotta is the thing you are touching.<br>Mulberry is where Otto has been.<br>Walls are graphite with an ink edge.<br>Rooms take a sage wash when they close.<br>Dimensions are indigo ink.</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <p style="margin:0;font-size:13px">Type a length like <span style="background:color-mix(in srgb,var(--accent) 30%,transparent)">4000 or 3000&lt;45</span> while drawing and the wall takes it.</p>
+          <div class="st"><button class="btn secondary is-focus">Focus-visible</button><button class="chip is-focus">chip</button><div class="row is-focus" style="width:160px;padding:0 8px"><span class="name">Ground floor</span></div><input class="inp is-focus" style="width:120px" value="field"></div>
+        </div>
+      </div>
+    </div>
+    <div class="pane dark"></div>
+  </div>
+</section>
+
+<!-- ============ Settings pieces ============ -->
+<section class="spec" id="settings-spec">
+  <h2>Settings page</h2>
+  <p class="note">A 768 px column: the page heading in Fraunces 28, each section with a Fraunces 18 heading over a 1 px rule, a 13 px graphite description, then its controls. The library path is a mono code block on the surface tint; the MCP snippets are the same in <code>pre</code> with a Copy button; recent calls are a ruled list with a moss or red dot, the tool in mono and the time in italic. Updates: a status line coloured by state, three small buttons (the install one primary), the notes block, the startup checkbox.</p>
+  <div class="pair">
+    <div class="pane">
+      <div class="settings" style="padding:0;gap:28px;max-width:none">
+        <div class="h-page">Settings</div>
+        <section><h2 class="h-panel">Library</h2><p class="desc">All projects live in one library folder that the app manages. Move it, for example, to a drive that is backed up.</p>
+          <div style="display:flex;align-items:center;gap:8px"><code class="code" style="flex:1">C:\Users\beshe\Documents\Hollin\Library</code><button class="btn secondary sm"><svg class="ico"><use href="#i-folder"/></svg>Move…</button><button class="btn ghost sm"><svg class="ico"><use href="#i-refresh"/></svg>Rescan</button></div>
+          <p class="caption" style="margin:4px 0 0">10 projects, 0 in the trash · default location</p>
+        </section>
+        <section><h2 class="h-panel">MCP server</h2><p class="desc">AI agents such as Claude Desktop and Claude Code can work on your designs through this local server.</p>
+          <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap"><label class="check-label"><input class="chk" type="checkbox" checked>Enabled</label><label class="check-label">Port<input class="inp mono" style="width:96px" value="63282"></label><span class="caption" style="color:var(--success)">Running</span></div>
+          <div style="margin-top:12px"><label class="label">Claude Code <span style="font-weight:400">· run in a terminal</span></label><div style="display:flex;align-items:flex-start;gap:8px"><pre class="code" style="flex:1">claude mcp add --transport http hollin http://127.0.0.1:63282/mcp</pre><button class="btn secondary sm"><svg class="ico"><use href="#i-copy"/></svg>Copy</button></div></div>
+          <div class="h3">Recent agent calls</div>
+          <div class="calls"><div class="c"><span class="sb" style="padding:0;border:0;background:none;height:auto"><span class="dot ok"></span></span><span class="mono">plan.wall.add</span><span class="who">via MCP: Claude Code</span><span class="when">just now</span></div><div class="c"><span class="sb" style="padding:0;border:0;background:none;height:auto"><span class="dot off"></span></span><span class="mono">library.emptyTrash</span><span class="who">via MCP: Cursor</span><span class="badge danger">MUTATION_BLOCKED</span><span class="when">2 min ago</span></div></div>
+        </section>
+        <section><h2 class="h-panel">Updates</h2><p class="desc">New versions come from the app's releases. Nothing is downloaded or installed until you ask.</p>
+          <p class="status-line ok">Hollin 1.1.0 is downloaded and ready to install.</p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn secondary sm"><svg class="ico"><use href="#i-refresh"/></svg>Check for updates</button><button class="btn secondary sm" disabled><svg class="ico"><use href="#i-download"/></svg>Download</button><button class="btn primary sm"><svg class="ico"><use href="#i-rotate"/></svg>Restart and install</button></div>
+          <div class="h3">What's new in 1.1.0</div><div class="notes">Mulberry ink for Otto; Home cards get tinted sheets; PDF export fixes.</div>
+          <label class="check-label" style="margin-top:12px"><input class="chk" type="checkbox" checked>Check for updates when the app starts</label>
+        </section>
+      </div>
+    </div>
+    <div class="pane dark"></div>
+  </div>
+</section>
+
+<!-- ============ Otto base ============ -->
+<section class="spec" id="otto-base">
+  <h2>Otto: base styles only</h2>
+  <p class="note">What this document fixes: the mark (a mulberry tile with Otto's room and the pen dot, at 28 / 24 / 20 / 16 / 14 px), the 2 px mulberry rule on Otto's paragraphs, the tool card with its 3 px mulberry left edge on paper, the History row on <code>--ai-tint</code>, the composer, and the one mulberry button. Every state and the writing are in <code>03-otto.md</code> / <code>otto.html</code>.</p>
+  <div class="pair">
+    <div class="pane">
+      <div class="st" style="align-items:flex-end"><svg class="otto-mark" width="28" height="28"><use href="#otto"/></svg><svg class="otto-mark" width="24" height="24"><use href="#otto"/></svg><svg class="otto-mark" width="20" height="20"><use href="#otto"/></svg><svg class="otto-mark" width="16" height="16"><use href="#otto"/></svg><svg class="otto-mark" width="14" height="14"><use href="#otto"/></svg><span class="caption">28 · 24 · 20 · 16 · 14</span></div>
+      <div style="margin-top:14px;display:flex;flex-direction:column;gap:10px;max-width:360px">
+        <div style="align-self:flex-end;max-width:85%;background:var(--elevated);border-radius:8px 8px 2px 8px;padding:6px 10px;font-size:13px">Make the wall into the kitchen a 1.2 m opening, no door.</div>
+        <div class="ai-card" style="display:grid;grid-template-columns:16px 1fr;gap:8px;font-size:12px"><svg class="ico s16" style="color:var(--success);margin-top:1px"><use href="#i-okc"/></svg><div><div style="font-weight:500;color:var(--fg)">Apply many edits at once</div><div class="caption"><span class="mono">plan.apply</span> · Ground floor · Structure · undoable, by Otto</div></div></div>
+        <div class="ai-rule" style="font-size:13px">Done. The partition now has a 1 200 mm opening centred where the door was. The living room is still 17.5 m².</div>
+        <div class="ai-row" style="display:flex;align-items:center;gap:8px;padding:6px 12px;font-size:12px;border-radius:6px"><svg class="otto-mark" width="16" height="16"><use href="#otto"/></svg><span style="flex:1"><span style="display:block">Widen opening to 1 200 mm</span><span class="caption">Otto · Structure · <span class="mono">plan.apply</span> · <i>just now</i></span></span></div>
+        <div style="display:flex;align-items:center;gap:8px;padding:6px 12px;font-size:12px"><span class="sb" style="padding:0;border:0;background:none;height:auto"><span class="dot" style="background:var(--muted)"></span></span><span style="flex:1"><span style="display:block">Add wall</span><span class="caption">You · Structure · <i>3 min ago</i></span></span></div>
+      </div>
+    </div>
+    <div class="pane dark"></div>
+  </div>
+</section>
+
+<!-- ============ MOCKS ============ -->
+<section class="spec" id="mocks">
+  <h2>Full-size mocks</h2>
+  <p class="note">The smoke window (1512 × 816 CSS px at 125 %, the reference 1890 × 1020) scaled to the page. Every piece is the component CSS above; nothing is drawn specially for the mock.</p>
+</section>
+
+<div class="frame-title"><h3>Settings</h3><span>light</span></div>
+<div class="frame"><div class="mock" id="m-settings">
+  <div class="tb">
+    <div class="brand"><svg width="22" height="22"><use href="#app-icon"/></svg><span class="wm">Hollin<span class="dot">.</span></span></div>
+    <div class="strip">
+      <button class="tab pinned" aria-selected="false"><svg class="ico s14"><use href="#i-house"/></svg></button>
+      <button class="tab" aria-selected="false">Smoke House<span class="x"><svg class="ico s12"><use href="#i-x"/></svg></span></button>
+      <button class="tab" aria-selected="false">Tower<span class="x"><svg class="ico s12"><use href="#i-x"/></svg></span></button>
+      <button class="tab" aria-selected="true">Settings<span class="x"><svg class="ico s12"><use href="#i-x"/></svg></span></button>
+    </div>
+    <div class="spacer"></div>
+    <div class="tbr" style="padding-right:150px"><button class="pal-btn"><svg class="ico s14"><use href="#i-search"/></svg><span class="t">Search commands…</span><kbd class="key">Ctrl K</kbd></button><button class="ibtn"><svg class="ico"><use href="#i-gear"/></svg></button></div>
+  </div>
+  <div style="flex:1;overflow:hidden;position:relative">
+    <div class="settings">
+      <h1 class="h-page">Settings</h1>
+      <section><h2 class="h-panel">Appearance</h2><label class="label" style="margin-top:8px">Theme</label><select class="sel" style="width:192px"><option>Follow system</option></select></section>
+      <section><h2 class="h-panel">Units</h2><p class="desc">How lengths are shown and typed. Designs are always stored in millimetres, so switching never changes them.</p>
+        <div class="grid">
+          <span class="k">System</span><div class="choices"><button class="choice" aria-checked="true">Metric</button><button class="choice" aria-checked="false">Imperial</button></div>
+          <span class="k">Unit</span><div class="choices"><button class="choice mono" aria-checked="true">mm</button><button class="choice mono" aria-checked="false">cm</button><button class="choice mono" aria-checked="false">m</button></div>
+          <span class="k">Precision</span><div class="choices"><button class="choice mono" aria-checked="true">1</button><button class="choice mono" aria-checked="false">0.1</button><button class="choice mono" aria-checked="false">0.01</button><button class="choice mono" aria-checked="false">0.001</button></div>
+          <span class="k">Example</span><span class="mono" style="font-size:13px">3 213 <span class="unit">mm</span> · 915 <span class="unit">mm</span></span>
+        </div>
+      </section>
+      <section><h2 class="h-panel">Library</h2><p class="desc">All projects live in one library folder that the app manages. Move it, for example, to a drive that is backed up.</p>
+        <div style="display:flex;align-items:center;gap:8px"><code class="code" style="flex:1">C:\Users\beshe\Documents\Hollin\Library</code><button class="btn secondary sm"><svg class="ico"><use href="#i-folder"/></svg>Move…</button><button class="btn ghost sm"><svg class="ico"><use href="#i-refresh"/></svg>Rescan</button></div>
+        <p class="caption" style="margin:4px 0 0">10 projects, 0 in the trash · default location</p>
+      </section>
+      <section><h2 class="h-panel">Rules</h2><p class="desc">Stairs and ramps are checked against these limits; what breaks them shows in a project's Warnings. A stair's own riser and tread values take precedence.</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px 24px;max-width:540px">
+          <div><label class="label">Highest riser</label><div class="len"><input class="inp mono" value="190"><span class="unit">mm</span></div></div>
+          <div><label class="label">Lowest riser</label><div class="len"><input class="inp mono" value="100"><span class="unit">mm</span></div></div>
+          <div><label class="label">Narrowest tread</label><div class="len"><input class="inp mono" value="250"><span class="unit">mm</span></div></div>
+          <div><label class="label">Steepest ramp</label><div class="len"><input class="inp mono" value="8"><span class="unit">%</span></div></div>
+        </div>
+      </section>
+    </div>
+    <div class="scrollbar"></div>
+  </div>
+  <div class="sb"><span>No project open</span><span class="spacer"></span><button class="item"><svg class="ico s12"><use href="#i-ruler"/></svg><span class="mono">mm</span></button><button class="item"><span class="dot ai"></span>Otto · ready</button><button class="item"><svg class="ico s12"><use href="#i-plug"/></svg><span class="dot ok"></span>MCP <span class="mono">:63282</span></button><button class="item"><svg class="ico s12"><use href="#i-moon"/></svg></button></div>
+</div></div>
+
+<div class="frame-title"><h3>Export dialog over a project</h3><span>dark</span></div>
+<div class="frame"><div class="mock dark" id="m-export">
+  <div class="tb">
+    <div class="brand"><svg width="22" height="22"><use href="#app-icon"/></svg><span class="wm">Hollin<span class="dot">.</span></span></div>
+    <div class="strip">
+      <button class="tab pinned" aria-selected="false"><svg class="ico s14"><use href="#i-house"/></svg></button>
+      <button class="tab" aria-selected="false">Smoke House<span class="x"><svg class="ico s12"><use href="#i-x"/></svg></span></button>
+      <button class="tab" aria-selected="false">Tower<span class="x"><svg class="ico s12"><use href="#i-x"/></svg></span></button>
+      <button class="tab" aria-selected="true">Duplex<span class="x"><svg class="ico s12"><use href="#i-x"/></svg></span></button>
+    </div>
+    <div class="spacer"></div>
+    <div class="tbr" style="padding-right:150px"><button class="pal-btn"><svg class="ico s14"><use href="#i-search"/></svg><span class="t">Search commands…</span><kbd class="key">Ctrl K</kbd></button><button class="ibtn"><svg class="ico"><use href="#i-gear"/></svg></button></div>
+  </div>
+  <div class="ph">
+    <input class="pname" value="Duplex" aria-label="Project name"><span class="saved">Saved just now</span><span class="spacer"></span>
+    <div class="group"><button class="ibtn"><svg class="ico"><use href="#i-undo"/></svg></button><button class="ibtn" disabled><svg class="ico"><use href="#i-redo"/></svg></button></div><span class="vr"></span>
+    <button class="btn ghost sm"><svg class="ico"><use href="#i-save"/></svg>Save</button><button class="btn ghost sm"><svg class="ico"><use href="#i-download"/></svg>Export project…</button><button class="btn ghost sm"><svg class="ico"><use href="#i-copy"/></svg>Duplicate</button><button class="btn danger sm"><svg class="ico"><use href="#i-trash"/></svg>Trash</button>
+  </div>
+  <div class="win">
+    <div class="left">
+      <div class="section-header"><span class="cap">Levels</span><div class="actions"><button class="ibtn sm"><svg class="ico"><use href="#i-plus"/></svg></button></div></div>
+      <div style="padding:0 6px 8px;display:flex;flex-direction:column">
+        <div class="row" aria-selected="false"><svg class="ico grip"><use href="#i-grip"/></svg><span class="name">Upper floor</span><span class="el">3 000 mm</span></div>
+        <div class="row" aria-selected="true"><svg class="ico grip"><use href="#i-grip"/></svg><span class="name">Ground floor</span><span class="g">G</span><span class="el">0 mm</span></div>
+      </div>
+      <div class="card-editor">
+        <div class="full"><label class="label">Name</label><input class="inp" value="Ground floor"></div>
+        <div><label class="label">Elevation</label><div class="len"><input class="inp mono" value="0"><span class="unit">mm</span></div></div>
+        <div><label class="label">Floor to floor</label><div class="len"><input class="inp mono" value="3 000"><span class="unit">mm</span></div></div>
+        <div><label class="label">Slab</label><div class="len"><input class="inp mono" value="200"><span class="unit">mm</span></div></div>
+        <div class="foot"><button class="ibtn sm"><svg class="ico"><use href="#i-copy"/></svg></button><button class="ibtn sm"><svg class="ico"><use href="#i-layers"/></svg></button></div>
+      </div>
+      <div class="section-header"><span class="cap">Layers · Ground floor</span><div class="actions"><button class="ibtn sm"><svg class="ico"><use href="#i-plus"/></svg></button></div></div>
+      <div style="padding:0 6px 12px;display:flex;flex-direction:column;gap:2px">
+        <div class="layer"><div class="top"><button class="ibtn sm"><svg class="ico"><use href="#i-eye"/></svg></button><button class="ibtn sm"><svg class="ico"><use href="#i-unlock"/></svg></button><span class="name">Structure</span><span class="kind">Structure</span><span class="count">3</span></div><div class="opacity-row">Opacity<input class="range" type="range" value="100" style="--pct:100%"><span class="pct">100%</span></div></div>
+        <div class="layer"><div class="top"><button class="ibtn sm"><svg class="ico"><use href="#i-eye"/></svg></button><button class="ibtn sm"><svg class="ico"><use href="#i-unlock"/></svg></button><span class="name">Interior</span><span class="kind">Interior</span><span class="count">0</span></div><div class="opacity-row">Opacity<input class="range" type="range" value="100" style="--pct:100%"><span class="pct">100%</span></div></div>
+        <div class="layer"><div class="top"><button class="ibtn sm"><svg class="ico"><use href="#i-eye"/></svg></button><button class="ibtn sm"><svg class="ico"><use href="#i-unlock"/></svg></button><span class="name">Decor</span><span class="kind">Decor</span><span class="count">0</span></div><div class="opacity-row">Opacity<input class="range" type="range" value="100" style="--pct:100%"><span class="pct">100%</span></div></div>
+      </div>
+    </div>
+    <div class="centre">
+      <div class="ctabs"><button class="seg" aria-selected="true">Plan</button><button class="seg" aria-selected="false">Section</button><button class="seg" aria-selected="false">3D</button><span class="spacer"></span><button class="btn ghost sm"><svg class="ico"><use href="#i-fileout"/></svg>Export…</button><button class="btn ghost sm"><svg class="ico"><use href="#i-filein"/></svg>Import DXF…</button><span class="vr"></span><button class="ibtn sm"><svg class="ico"><use href="#i-columns"/></svg></button></div>
+      <div class="tools" data-tools></div>
+      <div class="tools" style="height:32px"><button class="ibtn sm" aria-pressed="true" style="color:var(--accent)"><svg class="ico"><use href="#i-magnet"/></svg></button><button class="ibtn sm" aria-pressed="true" style="color:var(--accent)"><svg class="ico"><use href="#i-rulerd"/></svg></button><svg class="ico s12" style="color:var(--muted)"><use href="#i-chev"/></svg><span class="spacer"></span><button class="ibtn sm"><svg class="ico"><use href="#i-zoomout"/></svg></button><span class="mono" style="font-size:12px;color:var(--muted)">1:71</span><button class="ibtn sm"><svg class="ico"><use href="#i-zoomin"/></svg></button><button class="ibtn sm"><svg class="ico"><use href="#i-fit"/></svg></button></div>
+      <div class="canvas"><svg viewBox="0 0 904 568" data-plan="stairs"></svg></div>
+      <div class="cfoot"><span>1 240 mm, 3 180 mm</span><span style="flex:1"></span><span class="l">Ground floor</span><span>1 selected</span><span>Stair selected · drag to move · drag a grip to reshape the walk line</span></div>
+    </div>
+    <div class="right">
+      <div class="rtabs"><button class="rtab" aria-selected="true">Properties</button><button class="rtab" aria-selected="false">Catalog</button><button class="rtab" aria-selected="false">History</button><button class="rtab" aria-selected="false"><svg class="otto-mark" width="16" height="16"><use href="#otto"/></svg>Otto</button><button class="rtab" aria-selected="false">Warnings</button><button class="rtab" aria-selected="false">Project</button></div>
+      <div class="panel-title"><div class="h-panel">Stair</div></div>
+      <div class="props">
+        <div><label class="label">Name</label><input class="inp" placeholder="—"></div>
+        <div><label class="label">Shape</label><select class="sel w-full"><option>Straight</option></select></div>
+        <div class="two"><div><label class="label">From</label><select class="sel w-full"><option>Ground floor</option></select></div><div><label class="label">Above its floor</label><div class="len"><input class="inp mono" value="0"><span class="unit">mm</span></div></div></div>
+        <div class="two"><div><label class="label">To</label><select class="sel w-full"><option>Upper floor</option></select></div><div><label class="label">Above its floor</label><div class="len"><input class="inp mono" value="0"><span class="unit">mm</span></div></div></div>
+        <div class="two"><div><label class="label">Width</label><div class="len"><input class="inp mono" value="1 000"><span class="unit">mm</span></div></div><div><label class="label">Risers</label><div class="len"><input class="inp mono" placeholder="auto"><span class="unit"></span></div></div></div>
+        <div style="display:flex;align-items:center;gap:16px;font-size:12px;color:var(--muted)">Handrails <label class="check-label sm"><input class="chk" type="checkbox" checked>Left</label><label class="check-label sm"><input class="chk" type="checkbox" checked>Right</label></div>
+        <pre class="code" style="white-space:pre-line">16 risers of 188 mm
+Treads 250 mm on the walk line
+1 flight · Rise 3 000 mm</pre>
+        <div class="caption">Drag the grips on the plan to reshape its walk line; click a corner to round it.</div>
+      </div>
+    </div>
+  </div>
+  <div class="sb"><span class="proj">Duplex</span><span class="saved">Saved just now</span><span class="spacer"></span><button class="item"><svg class="ico s12"><use href="#i-ruler"/></svg><span class="mono">mm</span></button><button class="item"><span class="dot ai"></span>Otto · ready</button><button class="item"><svg class="ico s12"><use href="#i-plug"/></svg><span class="dot ok"></span>MCP <span class="mono">:63282</span></button><button class="item"><svg class="ico s12"><use href="#i-sun"/></svg></button></div>
+  <div class="overlay scrim" style="padding-top:48px">
+    <div class="dialog wide">
+      <div class="h-dialog">Export</div>
+      <div class="msg" style="margin:0 0 12px">Duplex</div>
+      <div class="fmt">
+        <label><input type="radio" name="mfmt" checked><span class="fmt-card"><b>PDF</b><span>Plan drawing to print</span></span></label>
+        <label><input type="radio" name="mfmt"><span class="fmt-card"><b>SVG</b><span>Plan drawing, vector</span></span></label>
+        <label><input type="radio" name="mfmt"><span class="fmt-card"><b>DXF</b><span>Plan for CAD</span></span></label>
+        <label><input type="radio" name="mfmt"><span class="fmt-card"><b>glTF</b><span>Building in 3D</span></span></label>
+        <label><input type="radio" name="mfmt"><span class="fmt-card"><b>PNG</b><span>Image of the plan or 3D</span></span></label>
+      </div>
+      <div style="margin-top:16px;display:flex;flex-direction:column;gap:12px">
+        <div><span class="label">Levels</span><div class="radios"><label><input class="radio" type="radio" name="mlv">Current level <span class="muted">(Ground floor)</span></label><label><input class="radio" type="radio" name="mlv" checked>All levels <span class="muted">(2)</span></label></div><div class="caption" style="margin-top:4px">One file, a page per level (2)</div></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+          <div><label class="label">Page</label><select class="sel w-full"><option>A3</option></select></div>
+          <div><label class="label">Orientation</label><select class="sel w-full"><option>Landscape</option></select></div>
+          <div><label class="label">Scale</label><select class="sel w-full"><option>Fit to page</option></select></div>
+        </div>
+      </div>
+      <div class="foot"><button class="btn ghost">Cancel</button><button class="btn primary">Export…</button></div>
+    </div>
+  </div>
+</div></div>
+
+<div class="frame-title"><h3>Command palette over Home</h3><span>light</span></div>
+<div class="frame"><div class="mock" id="m-home">
+  <div class="tb">
+    <div class="brand"><svg width="22" height="22"><use href="#app-icon"/></svg><span class="wm">Hollin<span class="dot">.</span></span></div>
+    <div class="strip">
+      <button class="tab pinned" aria-selected="true"><svg class="ico s14"><use href="#i-house"/></svg></button>
+      <button class="tab" aria-selected="false">Smoke House<span class="x"><svg class="ico s12"><use href="#i-x"/></svg></span></button>
+      <button class="tab" aria-selected="false">Tower<span class="x"><svg class="ico s12"><use href="#i-x"/></svg></span></button>
+    </div>
+    <div class="spacer"></div>
+    <div class="tbr" style="padding-right:150px"><button class="pal-btn"><svg class="ico s14"><use href="#i-search"/></svg><span class="t">Search commands…</span><kbd class="key">Ctrl K</kbd></button><button class="ibtn"><svg class="ico"><use href="#i-gear"/></svg></button></div>
+  </div>
+  <div class="home" style="position:relative">
+    <div class="inner">
+      <div class="head"><h1 class="h-page" style="margin:0 8px 0 0">Projects</h1><button class="btn primary"><svg class="ico"><use href="#i-plus"/></svg>New project</button><button class="btn secondary"><svg class="ico"><use href="#i-upload"/></svg>Import…</button><span style="flex:1"></span><button class="btn ghost"><svg class="ico"><use href="#i-trash"/></svg>Trash <span class="mono muted">(0)</span></button></div>
+      <div class="filters"><div class="search" style="width:320px"><svg class="ico s14"><use href="#i-search"/></svg><input class="inp" placeholder="Search projects"></div><select class="sel"><option>Last changed</option></select><button class="chip">residential <span class="n">3</span></button><button class="chip">renovation <span class="n">2</span></button><button class="chip">flat <span class="n">1</span></button><button class="chip">garden room <span class="n">1</span></button></div>
+      <div class="grid">
+        <div class="hcomposer"><div class="ttl"><svg class="otto-mark mark"><use href="#otto"/></svg>Start with Otto</div><textarea class="inp" placeholder="Describe the place: 'a 5 by 7 m studio with a bathroom in the corner'"></textarea><div class="foot"><span class="rule">Otto asks before it deletes anything.</span><button class="btn ai sm">Draft it</button></div></div>
+        <button class="hcard"><span class="thumb"><svg viewBox="0 0 220 165" data-thumb="1"></svg></span><span class="body"><span class="nm">Our house, as it is</span><span class="mt"><span class="meta">Edited just now</span><span class="muted">·</span><span class="mono">2 levels</span></span><span class="tags"><span class="tag">residential</span><span class="tag">renovation</span></span></span></button>
+        <button class="hcard"><span class="thumb"><svg viewBox="0 0 220 165" data-thumb="2"></svg></span><svg class="otto-mark otto" width="14" height="14"><use href="#otto"/></svg><span class="body"><span class="nm">Kitchen, knocked through</span><span class="mt"><span class="meta">Edited 2 hours ago</span><span class="muted">·</span><span class="mono">1 level</span></span><span class="tags"><span class="tag">renovation</span></span></span></button>
+        <button class="hcard"><span class="thumb t-sage"><svg viewBox="0 0 220 165" data-doodle="a"></svg><span class="ini">Gr</span></span><span class="body"><span class="nm">Garden room</span><span class="mt"><span class="meta">Edited yesterday</span><span class="muted">·</span><span class="mono">1 level</span></span><span class="tags"><span class="tag">garden room</span></span></span></button>
+        <button class="hcard"><span class="thumb"><svg viewBox="0 0 220 165" data-thumb="3"></svg></span><span class="body"><span class="nm">Flat on Elm Street</span><span class="mt"><span class="meta">Edited 3 days ago</span><span class="muted">·</span><span class="mono">1 level</span></span><span class="tags"><span class="tag">flat</span></span></span></button>
+        <button class="hcard"><span class="thumb t-clay"><svg viewBox="0 0 220 165" data-doodle="b"></svg><span class="ini">Lo</span></span><span class="body"><span class="nm">Loft idea</span><span class="mt"><span class="meta">Edited last week</span><span class="muted">·</span><span class="mono">1 level</span></span></span></button>
+        <button class="hcard"><span class="thumb"><svg viewBox="0 0 220 165" data-thumb="4"></svg></span><span class="body"><span class="nm">Duplex</span><span class="mt"><span class="meta">Edited last week</span><span class="muted">·</span><span class="mono">2 levels</span></span><span class="tags"><span class="tag">residential</span></span></span></button>
+        <button class="hcard"><span class="thumb t-straw"><svg viewBox="0 0 220 165" data-doodle="c"></svg><span class="ini">Ca</span></span><span class="body"><span class="nm">Cabin by the lake</span><span class="mt"><span class="meta">Edited 2 weeks ago</span><span class="muted">·</span><span class="mono">1 level</span></span></span></button>
+        <button class="hcard"><span class="thumb t-slate"><svg viewBox="0 0 220 165" data-doodle="d"></svg><span class="ini">St</span></span><span class="body"><span class="nm">Studio over the garage</span><span class="mt"><span class="meta">Edited a month ago</span><span class="muted">·</span><span class="mono">1 level</span></span></span></button>
+        <button class="hcard"><span class="thumb"><svg viewBox="0 0 220 165" data-thumb="1"></svg></span><span class="body"><span class="nm">Smoke House</span><span class="mt"><span class="meta">Edited a month ago</span><span class="muted">·</span><span class="mono">1 level</span></span><span class="tags"><span class="tag">residential</span></span></span></button>
+      </div>
+    </div>
+  </div>
+  <div class="sb"><span>No project open</span><span class="spacer"></span><button class="item"><svg class="ico s12"><use href="#i-ruler"/></svg><span class="mono">mm</span></button><button class="item"><span class="dot ai"></span>Otto · ready</button><button class="item"><svg class="ico s12"><use href="#i-plug"/></svg><span class="dot ok"></span>MCP <span class="mono">:63282</span></button><button class="item"><svg class="ico s12"><use href="#i-moon"/></svg></button></div>
+  <div class="overlay scrim" style="padding-top:98px">
+    <div class="palette">
+      <input class="in" value="settings" aria-label="Command">
+      <div class="list">
+        <div class="heading">App</div>
+        <div class="item" aria-selected="true"><span class="t">Settings</span><kbd class="key">Ctrl+,</kbd></div>
+        <div class="heading">Commands</div>
+        <div class="item"><span class="t">Read settings</span><span class="id">config.get</span></div>
+        <div class="item"><span class="t">Search the catalog</span><span class="id">catalog.search</span></div>
+        <div class="item"><span class="t">Inspect a DXF file…</span><span class="id">import.dxf.probe</span></div>
+        <div class="item"><span class="t">MCP server status</span><span class="id">mcp.status</span></div>
+        <div class="item"><span class="t">Export project…</span><span class="id">project.export</span></div>
+        <div class="item"><span class="t">Duplicate project…</span><span class="id">project.duplicate</span></div>
+        <div class="item"><span class="t">Rename project…</span><span class="id">project.update</span></div>
+        <div class="item"><span class="t">List projects</span><span class="id">project.list</span></div>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<div class="frame-title"><h3>Catalog panel, Materials</h3><span>light</span></div>
+<div class="frame"><div class="mock" id="m-catalog">
+  <div class="tb">
+    <div class="brand"><svg width="22" height="22"><use href="#app-icon"/></svg><span class="wm">Hollin<span class="dot">.</span></span></div>
+    <div class="strip">
+      <button class="tab pinned" aria-selected="false"><svg class="ico s14"><use href="#i-house"/></svg></button>
+      <button class="tab" aria-selected="false">Smoke House<span class="x"><svg class="ico s12"><use href="#i-x"/></svg></span></button>
+      <button class="tab" aria-selected="false">Tower<span class="x"><svg class="ico s12"><use href="#i-x"/></svg></span></button>
+      <button class="tab" aria-selected="false">Duplex<span class="x"><svg class="ico s12"><use href="#i-x"/></svg></span></button>
+      <button class="tab" aria-selected="true">Decor Living<span class="x"><svg class="ico s12"><use href="#i-x"/></svg></span></button>
+      <button class="tab" aria-selected="false">Scene<span class="x"><svg class="ico s12"><use href="#i-x"/></svg></span></button>
+    </div>
+    <div class="spacer"></div>
+    <div class="tbr" style="padding-right:150px"><button class="pal-btn"><svg class="ico s14"><use href="#i-search"/></svg><span class="t">Search commands…</span><kbd class="key">Ctrl K</kbd></button><button class="ibtn"><svg class="ico"><use href="#i-gear"/></svg></button></div>
+  </div>
+  <div class="ph">
+    <input class="pname" value="Decor Living" aria-label="Project name"><span class="saved">Saved just now</span><span class="spacer"></span>
+    <div class="group"><button class="ibtn"><svg class="ico"><use href="#i-undo"/></svg></button><button class="ibtn" disabled><svg class="ico"><use href="#i-redo"/></svg></button></div><span class="vr"></span>
+    <button class="btn ghost sm"><svg class="ico"><use href="#i-save"/></svg>Save</button><button class="btn ghost sm"><svg class="ico"><use href="#i-download"/></svg>Export project…</button><button class="btn ghost sm"><svg class="ico"><use href="#i-copy"/></svg>Duplicate</button><button class="btn danger sm"><svg class="ico"><use href="#i-trash"/></svg>Trash</button>
+  </div>
+  <div class="win">
+    <div class="left">
+      <div class="section-header"><span class="cap">Levels</span><div class="actions"><button class="ibtn sm"><svg class="ico"><use href="#i-plus"/></svg></button></div></div>
+      <div style="padding:0 6px 8px;display:flex;flex-direction:column"><div class="row" aria-selected="true"><svg class="ico grip"><use href="#i-grip"/></svg><span class="name">Ground floor</span><span class="g">G</span><span class="el">0 mm</span></div></div>
+      <div class="card-editor">
+        <div class="full"><label class="label">Name</label><input class="inp" value="Ground floor"></div>
+        <div><label class="label">Elevation</label><div class="len"><input class="inp mono" value="0"><span class="unit">mm</span></div></div>
+        <div><label class="label">Floor to floor</label><div class="len"><input class="inp mono" value="3 000"><span class="unit">mm</span></div></div>
+        <div><label class="label">Slab</label><div class="len"><input class="inp mono" value="200"><span class="unit">mm</span></div></div>
+        <div class="foot"><button class="ibtn sm"><svg class="ico"><use href="#i-copy"/></svg></button><button class="ibtn sm"><svg class="ico"><use href="#i-layers"/></svg></button></div>
+      </div>
+      <div class="section-header"><span class="cap">Layers · Ground floor</span><div class="actions"><button class="ibtn sm"><svg class="ico"><use href="#i-plus"/></svg></button></div></div>
+      <div style="padding:0 6px 12px;display:flex;flex-direction:column;gap:2px">
+        <div class="layer"><div class="top"><button class="ibtn sm"><svg class="ico"><use href="#i-eye"/></svg></button><button class="ibtn sm"><svg class="ico"><use href="#i-unlock"/></svg></button><span class="name">Structure</span><span class="kind">Structure</span><span class="count">5</span></div><div class="opacity-row">Opacity<input class="range" type="range" value="100" style="--pct:100%"><span class="pct">100%</span></div></div>
+        <div class="layer"><div class="top"><button class="ibtn sm"><svg class="ico"><use href="#i-eye"/></svg></button><button class="ibtn sm"><svg class="ico"><use href="#i-unlock"/></svg></button><span class="name">Interior</span><span class="kind">Interior</span><span class="count">1</span></div><div class="opacity-row">Opacity<input class="range" type="range" value="100" style="--pct:100%"><span class="pct">100%</span></div></div>
+        <div class="layer"><div class="top"><button class="ibtn sm"><svg class="ico"><use href="#i-eye"/></svg></button><button class="ibtn sm"><svg class="ico"><use href="#i-unlock"/></svg></button><span class="name">Decor</span><span class="kind">Decor</span><span class="count">0</span></div><div class="opacity-row">Opacity<input class="range" type="range" value="100" style="--pct:100%"><span class="pct">100%</span></div></div>
+      </div>
+    </div>
+    <div class="centre">
+      <div class="ctabs"><button class="seg" aria-selected="true">Plan</button><button class="seg" aria-selected="false">Section</button><button class="seg" aria-selected="false">3D</button><span class="spacer"></span><button class="btn ghost sm"><svg class="ico"><use href="#i-fileout"/></svg>Export…</button><button class="btn ghost sm"><svg class="ico"><use href="#i-filein"/></svg>Import DXF…</button><span class="vr"></span><button class="ibtn sm"><svg class="ico"><use href="#i-columns"/></svg></button></div>
+      <div class="tools" data-tools></div>
+      <div class="tools" style="height:32px"><button class="ibtn sm" aria-pressed="true" style="color:var(--accent)"><svg class="ico"><use href="#i-magnet"/></svg></button><button class="ibtn sm" aria-pressed="true" style="color:var(--accent)"><svg class="ico"><use href="#i-rulerd"/></svg></button><svg class="ico s12" style="color:var(--muted)"><use href="#i-chev"/></svg><span class="spacer"></span><button class="ibtn sm"><svg class="ico"><use href="#i-zoomout"/></svg></button><span class="mono" style="font-size:12px;color:var(--muted)">1:42</span><button class="ibtn sm"><svg class="ico"><use href="#i-zoomin"/></svg></button><button class="ibtn sm"><svg class="ico"><use href="#i-fit"/></svg></button></div>
+      <div class="canvas"><svg viewBox="0 0 904 568" data-plan="living"></svg></div>
+      <div class="cfoot"><span>2 410 mm, 1 900 mm</span><span style="flex:1"></span><span class="l">Ground floor</span><span>Click to select · Shift: add · drag: window (→) or crossing (←)</span></div>
+    </div>
+    <div class="right">
+      <div class="rtabs"><button class="rtab" aria-selected="false">Properties</button><button class="rtab" aria-selected="true">Catalog</button><button class="rtab" aria-selected="false">History</button><button class="rtab" aria-selected="false"><svg class="otto-mark" width="16" height="16"><use href="#otto"/></svg>Otto</button><button class="rtab" aria-selected="false">Warnings</button><button class="rtab" aria-selected="false">Project</button></div>
+      <div class="segmented" style="margin:0 8px"><button class="seg" aria-selected="false">Furniture</button><button class="seg" aria-selected="true">Materials</button></div>
+      <div style="display:flex;gap:6px;padding:10px 12px 0"><div class="search sm" style="flex:1"><svg class="ico s14"><use href="#i-search"/></svg><input class="inp sm" placeholder="Search"></div></div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px;padding:8px 12px 0"><button class="chip cat on">All</button><button class="chip cat">Paint</button><button class="chip cat">Wood</button><button class="chip cat">Tile</button><button class="chip cat">Stone</button><button class="chip cat">Concrete</button><button class="chip cat">Carpet</button><button class="chip cat">Brick</button><button class="chip cat">Fabric</button><button class="chip cat">Metal</button><button class="chip cat">Glass</button><button class="chip cat">Ceramic</button><button class="chip cat">Nature</button></div>
+      <div class="cat-grid" style="overflow:hidden">
+        <button class="cat-card"><span class="img" style="background:#efe9df"></span><span class="nm">White paint</span><span class="cp">paint</span></button>
+        <button class="cat-card"><span class="img" style="background:#c9b9a4"></span><span class="nm">Warm grey paint</span><span class="cp">paint</span></button>
+        <button class="cat-card"><span class="img" style="background:#8b9a6b"></span><span class="nm">Sage paint</span><span class="cp">paint</span></button>
+        <button class="cat-card"><span class="img" style="background:#2f3b57"></span><span class="nm">Navy paint</span><span class="cp">paint</span></button>
+        <button class="cat-card"><span class="img" style="background:#c0613a"></span><span class="nm">Terracotta paint</span><span class="cp">paint</span></button>
+        <button class="cat-card"><span class="img" style="background:repeating-linear-gradient(90deg,#c59a62 0 9px,#b8894f 9px 11px)"></span><span class="nm">Oak boards</span><span class="cp">wood · 140 mm</span></button>
+      </div>
+    </div>
+  </div>
+  <div class="sb"><span class="proj">Decor Living</span><span class="saved">Saved just now</span><span class="spacer"></span><button class="item"><svg class="ico s12"><use href="#i-ruler"/></svg><span class="mono">mm</span></button><button class="item"><span class="dot ai"></span>Otto · ready</button><button class="item"><svg class="ico s12"><use href="#i-plug"/></svg><span class="dot ok"></span>MCP <span class="mono">:63282</span></button><button class="item"><svg class="ico s12"><use href="#i-moon"/></svg></button></div>
+</div></div>
+
+</div>
+
+<script>
+(() => {
+  const NS = 'http://www.w3.org/2000/svg';
+  const el = (tag, attrs = {}, parent) => { const n = document.createElementNS(NS, tag); for (const [k, val] of Object.entries(attrs)) n.setAttribute(k, val); if (parent) parent.appendChild(n); return n; };
+  const v = (name) => `var(--${name})`;
+  const label = (svg, x, y, text, o = {}) => { const t = el('text', { x, y, 'text-anchor': o.anchor || 'middle', 'font-family': o.mono ? 'IBM Plex Mono, monospace' : 'Alegreya Sans, sans-serif', 'font-size': o.size || 12, 'font-weight': o.weight || 400, fill: o.fill || v('fg') }, svg); t.textContent = text; return t; };
+
+  /* Interface swatches, read back from the stylesheet. */
+  const names = ['canvas','surface','elevated','fg','muted','edge','accent','accent-hover','accent-fg','danger','success','warning','ai','ai-hover','ai-fg','ai-tint'];
+  const probe = document.createElement('div'); document.body.appendChild(probe);
+  const cs = getComputedStyle(probe);
+  const grid = document.querySelector('[data-swatches]');
+  for (const n of names) grid.insertAdjacentHTML('beforeend', `<div class="sw"><i style="background:var(--${n})"></i><div><b>--${n}</b><small data-hex="${n}">${cs.getPropertyValue('--' + n).trim()}</small></div></div>`);
+  probe.remove();
+
+  /* Thumbnails: ground floors in the plan colours; doodles: pencil footprints. */
+  function thumb(svg, variant) {
+    const g = el('g', { transform: 'translate(110 82)' }, svg);
+    const t = 5;
+    const W = (x, y, w, h) => el('rect', { x, y, width: w, height: h, fill: v('plan-wall'), stroke: v('plan-wall-line'), 'stroke-width': .7 }, g);
+    const R = (x, y, w, h) => el('rect', { x, y, width: w, height: h, fill: v('plan-room'), 'fill-opacity': .18 }, g);
+    const L = (x, y, s, size = 8) => label(g, x, y, s, { size, fill: v('muted') });
+    if (variant === 1) { R(-80, -50, 160, 100); W(-80, -50, 160, t); W(-80, 45, 160, t); W(-80, -50, t, 100); W(75, -50, t, 100); W(8, -50, t, 64); W(8, 0, 70, t); L(-36, 0, 'Living'); L(-36, 10, '17.5 m²', 6); L(44, -26, 'Kitchen'); L(44, 28, 'Study'); el('rect', { x: -58, y: 14, width: 36, height: 14, fill: 'none', stroke: v('plan-decor'), 'stroke-width': .7 }, g); }
+    else if (variant === 2) { R(-86, -44, 172, 88); W(-86, -44, 172, t); W(-86, 39, 172, t); W(-86, -44, t, 88); W(81, -44, t, 88); el('rect', { x: -28, y: -44, width: 56, height: t, fill: v('canvas'), stroke: v('plan-wall-line'), 'stroke-width': .5 }, g); L(0, 2, 'Kitchen & dining'); L(0, 12, '28.3 m²', 6); el('rect', { x: -72, y: -28, width: 22, height: 56, fill: 'none', stroke: v('plan-decor'), 'stroke-width': .7 }, g); el('rect', { x: 14, y: -8, width: 50, height: 26, fill: 'none', stroke: v('plan-decor'), 'stroke-width': .7 }, g); const d = el('g', { stroke: v('plan-dim'), 'stroke-width': .7 }, g); el('line', { x1: -86, y1: 56, x2: 86, y2: 56 }, d); el('line', { x1: -86, y1: 52, x2: -86, y2: 60 }, d); el('line', { x1: 86, y1: 52, x2: 86, y2: 60 }, d); label(g, 0, 54, '8 400', { mono: true, size: 6, fill: v('plan-dim') }); }
+    else if (variant === 3) { R(-64, -56, 128, 112); W(-64, -56, 128, t); W(-64, 51, 128, t); W(-64, -56, t, 112); W(59, -56, t, 112); W(-64, 0, 78, t); W(14, -56, t, 42); L(-28, -26, 'Bedroom'); L(36, -26, 'Bath', 7); L(0, 30, 'Living'); L(0, 40, '14.1 m²', 6); }
+    else { R(-86, -50, 172, 100); W(-86, -50, 172, t); W(-86, 45, 172, t); W(-86, -50, t, 100); W(81, -50, t, 100); W(-2, -50, t, 100); L(-44, 0, 'Flat A'); L(42, 0, 'Flat B'); const s = el('g', { stroke: v('plan-connector'), 'stroke-width': .6, fill: 'none' }, g); el('rect', { x: -30, y: 14, width: 22, height: 28 }, s); for (let y = 18; y < 42; y += 4) el('line', { x1: -30, y1: y, x2: -8, y2: y }, s); }
+  }
+  function doodle(svg, kind) {
+    const g = el('g', { fill: 'none', stroke: v('fg'), 'stroke-width': 1.1, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', opacity: .55, transform: 'translate(110 74) scale(.72)' }, svg);
+    const d = { a: 'M-70 40 V-20 L0 -60 L70 -20 V40 Z M-20 40 V0 H20 V40 M-70 -20 H70', b: 'M-80 30 H80 M-80 30 V-30 H-10 L0 -50 L10 -30 H80 V30 M-50 30 V-10 H-20 V30 M30 -5 H60 V15 H30 Z', c: 'M-70 40 H70 M-60 40 V-10 L0 -55 L60 -10 V40 M-25 40 V5 H25 V40 M30 -40 V-55 H42 V-30', d: 'M-80 40 H80 M-80 40 V-20 H0 V40 M0 -20 L40 -50 L80 -20 V40 M-50 10 H-30 M20 -10 H60' }[kind];
+    el('path', { d }, g);
+    el('path', { d: 'M-70 62 H70 M-70 56 V68 M70 56 V68', stroke: v('plan-dim'), opacity: .7, 'stroke-width': 1 }, g);
+  }
+  document.querySelectorAll('[data-thumb]').forEach((s) => thumb(s, Number(s.dataset.thumb)));
+  document.querySelectorAll('[data-doodle]').forEach((s) => doodle(s, s.dataset.doodle));
+
+  /* Plan canvases in the mocks (904 × 568 px). */
+  function gridLines(svg, w, h) { const g = el('g', {}, svg); for (let x = 12; x <= w; x += 20) el('line', { x1: x, y1: 0, x2: x, y2: h, stroke: v((x - 12) % 100 === 0 ? 'plan-grid-major' : 'plan-grid') }, g); for (let y = 8; y <= h; y += 20) el('line', { x1: 0, y1: y, x2: w, y2: y, stroke: v((y - 8) % 100 === 0 ? 'plan-grid-major' : 'plan-grid') }, g); }
+  function plan(svg, kind) {
+    gridLines(svg, 904, 568);
+    const T = 16, x0 = 150, y0 = 70, x1 = 760, y1 = 500;
+    const wall = (x, y, w, h) => el('rect', { x, y, width: w, height: h, fill: v('plan-wall'), stroke: v('plan-wall-line'), 'stroke-width': 1.4 }, svg);
+    el('rect', { x: x0, y: y0, width: x1 - x0, height: y1 - y0, fill: v('plan-slab') }, svg);
+    el('rect', { x: x0 + T, y: y0 + T, width: x1 - x0 - 2 * T, height: y1 - y0 - 2 * T, fill: v('plan-room'), 'fill-opacity': .18 }, svg);
+    wall(x0, y0, x1 - x0, T); wall(x0, y1 - T, x1 - x0, T); wall(x0, y0, T, y1 - y0); wall(x1 - T, y0, T, y1 - y0);
+    if (kind === 'living') {
+      label(svg, 455, 280, 'Living', { size: 15 }); label(svg, 455, 298, '24.94 m²', { mono: true, size: 11, fill: v('muted') });
+      el('rect', { x: 330, y: 300, width: 150, height: 56, rx: 4, fill: 'none', stroke: v('plan-decor'), 'stroke-width': 1.3 }, svg);
+      el('rect', { x: 520, y: 150, width: 80, height: 50, fill: 'none', stroke: v('plan-decor'), 'stroke-width': 1.3 }, svg);
+      return;
+    }
+    wall(450, y0, T, 430 - y0);
+    label(svg, 300, 250, 'Flat A', { size: 15 }); label(svg, 300, 268, '13.2 m²', { mono: true, size: 11, fill: v('muted') });
+    label(svg, 610, 250, 'Flat B', { size: 15 }); label(svg, 610, 268, '13.2 m²', { mono: true, size: 11, fill: v('muted') });
+    const stairs = [[230, 300, true], [560, 300, false]];
+    for (const [sx, sy, sel] of stairs) {
+      const g = el('g', { stroke: v('plan-connector'), 'stroke-width': 1.2, fill: 'none' }, svg);
+      el('rect', { x: sx, y: sy, width: 70, height: 160 }, g);
+      for (let y = sy + 10; y < sy + 160; y += 10) el('line', { x1: sx, y1: y, x2: sx + 70, y2: y }, g);
+      el('path', { d: `M${sx + 35} ${sy + 160} V${sy + 6} M${sx + 28} ${sy + 14} L${sx + 35} ${sy + 6} L${sx + 42} ${sy + 14}`, 'stroke-dasharray': '4 3' }, g);
+      label(svg, sx + 35, sy + 176, 'UP 16 R', { mono: true, size: 9, fill: v('plan-connector') });
+      if (sel) { el('rect', { x: sx - 1, y: sy - 1, width: 72, height: 162, fill: 'none', stroke: v('plan-selection'), 'stroke-width': 2 }, svg); for (const [gx, gy] of [[sx + 35, sy], [sx + 35, sy + 160], [sx + 35, sy + 80]]) el('circle', { cx: gx, cy: gy, r: 4, fill: v('canvas'), stroke: v('plan-selection'), 'stroke-width': 1.6 }, svg); }
+    }
+    const d = el('g', { stroke: v('plan-dim'), 'stroke-width': 1.1, fill: 'none' }, svg);
+    el('line', { x1: x0, y1: y1 + 30, x2: x1, y2: y1 + 30 }, d); el('line', { x1: x0, y1: y1 + 6, x2: x0, y2: y1 + 36 }, d); el('line', { x1: x1, y1: y1 + 6, x2: x1, y2: y1 + 36 }, d);
+    el('path', { d: `M${x0 - 4} ${y1 + 34} l8 -8 M${x1 - 4} ${y1 + 34} l8 -8`, 'stroke-width': 1.4 }, d);
+    el('rect', { x: 420, y: y1 + 22, width: 70, height: 16, fill: v('canvas') }, svg);
+    label(svg, 455, y1 + 34, '12 200 mm', { mono: true, size: 11, fill: v('plan-dim') });
+  }
+  document.querySelectorAll('[data-plan]').forEach((s) => plan(s, s.dataset.plan));
+
+  /* The plan tool strip. */
+  const tools = ['pointer', 'wall', 'door', 'window', 'square', '|', 'stairs', 'room', 'sofa', 'bulb', 'paint', '|', 'circle', 'rulerd', 'type'];
+  document.querySelectorAll('[data-tools]').forEach((bar) => {
+    for (const t of tools) {
+      if (t === '|') { bar.insertAdjacentHTML('beforeend', '<span class="gap"></span>'); continue; }
+      bar.insertAdjacentHTML('beforeend', `<button class="ibtn sm"${t === 'pointer' ? ' aria-pressed="true" style="color:var(--accent)"' : ''}><svg class="ico"><use href="#i-${t}"/></svg></button>`);
+    }
+    bar.insertAdjacentHTML('beforeend', '<span class="spacer"></span><select class="sel sm" style="width:180px"><option>Ground floor · 0 mm</option></select><select class="sel sm" style="width:140px;margin-left:6px"><option>No reference</option></select>');
+  });
+
+  /* Every light pane is cloned into its dark twin, so the two columns are one markup. */
+  for (const pair of document.querySelectorAll('.pair')) {
+    const [light, dark] = pair.querySelectorAll(':scope > .pane');
+    for (const child of light.childNodes) dark.appendChild(child.cloneNode(true));
+    dark.querySelectorAll('[data-theme-icon] use').forEach((u) => u.setAttribute('href', '#i-sun'));
+    dark.querySelectorAll('[data-hex]').forEach((s) => { s.textContent = getComputedStyle(dark).getPropertyValue('--' + s.dataset.hex).trim(); });
+  }
+  for (const r of document.querySelectorAll('input[type=radio]')) { /* keep clones' radio groups apart */ if (r.closest('.dark')) r.name = r.name + '-d'; }
+
+  /* Fit the 1512 × 816 mocks into their 1890 × 1020 frames. */
+  const fit = () => { for (const f of document.querySelectorAll('.frame')) { const m = f.querySelector('.mock'); if (m) m.style.transform = `scale(${f.clientWidth / 1512})`; } };
+  new ResizeObserver(fit).observe(document.body); fit();
+})();
+</script>
+</body>
+</html>

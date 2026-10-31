@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 691 170" width="691" height="170">
+  <!--
+    Hollin (working name): the wordmark "Hollin." as outlined paths, so no font is needed to draw
+    it (icon, About, installer). The letterforms are a hand-drawn soft serif after Fraunces
+    Semibold (opsz 144, SOFT 80, tracking -0.015 em): bracketed serifs, a flag serif on the l, i
+    and n, a round tittle, and the full stop in terracotta. Baseline y = 150, cap height 130,
+    x-height 94, stem 30. Ink #2a2521 (--fg light) with the dot #b9552f (--accent light); on the
+    dark desk recolour to #ebe3d6 and #e07c50. The 2.4 px same-colour stroke with round joins is
+    what softens the corners (SOFT); keep it when scaling.
+  -->
+  <path transform="translate(16 0)" d="M-15 150 L-15 140 Q0 140 0 127 L0 43 Q0 30 -15 30 L-15 20 L45 20 L45 30 Q30 30 30 43 L30 127 Q30 140 45 140 L45 150 Z" fill="#2a2521" stroke="#2a2521" stroke-width="2.4" stroke-linejoin="round"/>
+  <path transform="translate(16 0)" d="M79 150 L79 140 Q94 140 94 127 L94 43 Q94 30 79 30 L79 20 L139 20 L139 30 Q124 30 124 43 L124 127 Q124 140 139 140 L139 150 Z" fill="#2a2521" stroke="#2a2521" stroke-width="2.4" stroke-linejoin="round"/>
+  <path transform="translate(16 0)" d="M30 80 H94 V93 H30 Z" fill="#2a2521" stroke="#2a2521" stroke-width="2.4" stroke-linejoin="round"/>
+  <path transform="translate(219 103)" d="M-50 0 a50 50 0 1 0 100 0 a50 50 0 1 0 -100 0 Z M-22 0 a22 40 0 1 0 44 0 a22 40 0 1 0 -44 0 Z" fill="#2a2521" stroke="#2a2521" stroke-width="2.4" stroke-linejoin="round" fill-rule="evenodd"/>
+  <path transform="translate(296 0)" d="M-15 150 L-15 140 Q0 140 0 127 L0 35 Q0 22 -15 22 L-15 18 L0 12 L30 12 L30 127 Q30 140 45 140 L45 150 Z" fill="#2a2521" stroke="#2a2521" stroke-width="2.4" stroke-linejoin="round"/>
+  <path transform="translate(364 0)" d="M-15 150 L-15 140 Q0 140 0 127 L0 35 Q0 22 -15 22 L-15 18 L0 12 L30 12 L30 127 Q30 140 45 140 L45 150 Z" fill="#2a2521" stroke="#2a2521" stroke-width="2.4" stroke-linejoin="round"/>
+  <path transform="translate(434 0)" d="M-15 150 L-15 140 Q0 140 0 127 L0 79 Q0 66 -15 66 L-15 62 L0 56 L30 56 L30 127 Q30 140 45 140 L45 150 Z" fill="#2a2521" stroke="#2a2521" stroke-width="2.4" stroke-linejoin="round"/>
+  <path transform="translate(434 0)" d="M2 32 a13 13 0 1 0 26 0 a13 13 0 1 0 -26 0 Z" fill="#2a2521" stroke="#2a2521" stroke-width="2.4" stroke-linejoin="round"/>
+  <path transform="translate(504 0)" d="M-15 150 L-15 140 Q0 140 0 127 L0 79 Q0 66 -15 66 L-15 62 L0 56 L30 56 L30 127 Q30 140 45 140 L45 150 Z" fill="#2a2521" stroke="#2a2521" stroke-width="2.4" stroke-linejoin="round"/>
+  <path transform="translate(504 0)" d="M69 150 L69 140 Q84 140 84 127 L84 100 L84 100 L114 100 L114 127 Q114 140 129 140 L129 150 Z" fill="#2a2521" stroke="#2a2521" stroke-width="2.4" stroke-linejoin="round"/>
+  <path transform="translate(504 0)" d="M30 104 C30 76 46 54 72 54 C98 54 114 74 114 108 L114 122 L84 122 L84 112 C84 88 76 68 62 68 C46 68 30 84 30 118 Z" fill="#2a2521" stroke="#2a2521" stroke-width="2.4" stroke-linejoin="round"/>
+  <path transform="translate(660 135)" d="M-15 0 a15 15 0 1 0 30 0 a15 15 0 1 0 -30 0 Z" fill="#b9552f" stroke="#b9552f" stroke-width="2.4" stroke-linejoin="round"/>
+</svg>

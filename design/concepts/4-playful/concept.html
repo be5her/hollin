@@ -1,0 +1,802 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cubby — playful identity concept</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ---------- the two palettes, exactly as README.md tables them ---------- */
+.light {
+  --canvas: #fbf7f1; --surface: #f3ece2; --elevated: #e9dfd1; --fg: #2b2320; --muted: #7c6f66; --edge: #e2d8c9;
+  --accent: #0f8a7e; --accent-hover: #0b6f66; --accent-fg: #ffffff; --danger: #d4372e; --success: #2f9a47; --warning: #d9930c;
+  --titlebar: #f3ece2; --titlebar-fg: #2b2320;
+  --plan-grid: #efe6d9; --plan-grid-major: #e0d4c3; --plan-wall: #4a3f38; --plan-wall-line: #2b2320; --plan-room: #f07a4a;
+  --plan-slab: #f1eadf; --plan-dim: #5b5fd8; --plan-underlay: #b5a898; --plan-snap: #6cb41e; --plan-selection: #0f8a7e;
+  --plan-warning: #d9930c; --plan-connector: #3d342f; --plan-decor: #a0623b;
+  --scene-edge: #4a3f38; --scene-wall: #f4ece0; --scene-slab: #cdbfae; --scene-column: #e4d8c7; --scene-glass: #8fd0c7;
+  --scene-connector: #e8cfae; --scene-rail: #5e5048; --scene-car: #0f8a7e; --scene-stand-in: #b5a898;
+  --coral: #f07a4a; --berry: #5b5fd8; --shadow: 0 1px 2px rgba(43,35,32,.06), 0 8px 24px rgba(43,35,32,.08);
+  color-scheme: light;
+}
+.dark {
+  --canvas: #221c1b; --surface: #2a2322; --elevated: #352c2a; --fg: #f3eae1; --muted: #a99b91; --edge: #3e3432;
+  --accent: #3fc9b9; --accent-hover: #66d8ca; --accent-fg: #14211f; --danger: #f27a6a; --success: #6fd088; --warning: #f2b438;
+  --titlebar: #2a2322; --titlebar-fg: #f3eae1;
+  --plan-grid: #2b2423; --plan-grid-major: #3a302e; --plan-wall: #d9ccbf; --plan-wall-line: #f6efe7; --plan-room: #f58c5e;
+  --plan-slab: #2d2625; --plan-dim: #9095f7; --plan-underlay: #7d716a; --plan-snap: #8fd63c; --plan-selection: #3fc9b9;
+  --plan-warning: #f2b438; --plan-connector: #e3d8cc; --plan-decor: #d9a071;
+  --scene-edge: #171211; --scene-wall: #c9b9a9; --scene-slab: #7a6a5c; --scene-column: #a89684; --scene-glass: #4fb0a4;
+  --scene-connector: #b0937a; --scene-rail: #e3d8cc; --scene-car: #3fc9b9; --scene-stand-in: #6a5e55;
+  --coral: #f58c5e; --berry: #9095f7; --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+  color-scheme: dark;
+}
+
+/* ---------- the page itself ---------- */
+html { background: #fbf7f1; }
+body { margin: 0; font-family: 'Rubik', system-ui, sans-serif; color: #2b2320; background: #fbf7f1; -webkit-font-smoothing: antialiased; }
+.page { max-width: 1320px; margin: 0 auto; padding: 48px 32px 120px; }
+h1, h2, h3 { font-weight: 700; letter-spacing: -0.01em; margin: 0; }
+h1 { font-size: 44px; letter-spacing: -0.025em; }
+h2 { font-size: 24px; margin: 72px 0 8px; }
+h3 { font-size: 15px; color: #7c6f66; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; margin: 36px 0 12px; }
+p.lead { font-size: 17px; line-height: 1.5; max-width: 760px; color: #4a3f38; margin: 12px 0 0; }
+p.note { font-size: 13px; color: #7c6f66; margin: 8px 0 0; line-height: 1.5; max-width: 820px; }
+.row { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-end; }
+.chip { display: inline-block; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; background: #e9dfd1; color: #4a3f38; margin-right: 6px; }
+.mono { font-family: 'Spline Sans Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+
+/* brand hero */
+.hero { display: grid; grid-template-columns: 1fr auto; gap: 32px; align-items: center; }
+.wordmark { font-family: 'Rubik'; font-weight: 800; letter-spacing: -0.035em; line-height: 1; display: inline-flex; align-items: center; gap: .32em; }
+.wordmark .ico { flex: none; }
+.sizes { display: flex; gap: 40px; align-items: flex-end; flex-wrap: wrap; margin-top: 24px; }
+.sizes figure { margin: 0; text-align: center; }
+.sizes figcaption { font-size: 12px; color: #7c6f66; margin-top: 10px; }
+.sizes .frame { display: inline-flex; align-items: center; justify-content: center; }
+.winframe { background: #efe6d9; padding: 24px; border-radius: 8px; }
+.pxgrid { image-rendering: pixelated; }
+
+/* type specimen */
+.spec { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
+.spec .card { background: #fff; border: 1px solid #e2d8c9; border-radius: 16px; padding: 28px 32px; }
+.spec table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.spec td { padding: 10px 0; border-top: 1px solid #efe6d9; vertical-align: baseline; }
+.spec td:first-child { color: #7c6f66; width: 150px; }
+.spec tr:first-child td { border-top: 0; }
+
+/* palette */
+.pal { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.pal .sheet { border-radius: 18px; padding: 24px; background: var(--canvas); color: var(--fg); border: 1px solid var(--edge); }
+.pal .sheet h4 { margin: 0 0 14px; font-size: 13px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; margin-bottom: 20px; }
+.sw { border-radius: 12px; overflow: hidden; border: 1px solid var(--edge); background: var(--surface); }
+.sw i { display: block; height: 44px; }
+.sw b { display: block; font-size: 11px; font-weight: 600; padding: 7px 9px 1px; }
+.sw span { display: block; font-size: 10.5px; padding: 0 9px 7px; color: var(--muted); }
+
+/* mocks */
+.mockwrap { position: relative; width: 100%; border-radius: 18px; overflow: hidden; box-shadow: 0 2px 4px rgba(43,35,32,.06), 0 24px 60px rgba(43,35,32,.14); border: 1px solid #e2d8c9; margin-top: 16px; }
+.mock { width: 1890px; height: 1020px; transform-origin: 0 0; position: absolute; left: 0; top: 0; background: var(--canvas); color: var(--fg); font-size: 13px; font-family: 'Rubik', system-ui, sans-serif; display: flex; flex-direction: column; overflow: hidden; }
+.mock *, .mock *::before, .mock *::after { box-sizing: border-box; }
+.ic { width: 18px; height: 18px; flex: none; }
+.caption { font-size: 13px; color: #7c6f66; margin: 10px 0 0; }
+
+/* title bar */
+.titlebar { height: 52px; background: var(--titlebar); color: var(--titlebar-fg); display: flex; align-items: center; padding: 0 12px 0 16px; gap: 4px; border-bottom: 1px solid var(--edge); flex: none; }
+.titlebar .brand { display: flex; align-items: center; gap: 9px; margin-right: 14px; font-weight: 800; font-size: 17px; letter-spacing: -0.03em; }
+.tab { height: 40px; padding: 0 20px; display: flex; align-items: center; gap: 10px; border-radius: 12px 12px 0 0; color: var(--muted); font-size: 14px; align-self: flex-end; }
+.tab.on { background: var(--canvas); color: var(--fg); }
+.tab.home { padding: 0 16px; }
+.tab .x { margin-left: 4px; opacity: .7; }
+.cmd { margin-left: auto; width: 316px; height: 34px; border-radius: 999px; background: var(--canvas); border: 1px solid var(--edge); display: flex; align-items: center; gap: 10px; padding: 0 8px 0 14px; color: var(--muted); font-size: 14px; }
+.cmd kbd { margin-left: auto; font-family: 'Spline Sans Mono'; font-size: 11px; padding: 2px 7px; border-radius: 6px; background: var(--elevated); color: var(--fg); }
+.gear { width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; margin-left: 10px; color: var(--muted); }
+
+/* home */
+.home { padding: 44px 0 0 226px; flex: 1; overflow: hidden; position: relative; }
+.home .hrow { display: flex; align-items: center; gap: 16px; width: 1426px; }
+.home h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; margin-right: 12px; }
+.btn { height: 40px; padding: 0 18px; border-radius: 12px; display: inline-flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14.5px; border: 1px solid var(--edge); background: var(--surface); color: var(--fg); }
+.btn.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.btn.ghost { border-color: transparent; background: transparent; }
+.btn.danger { color: var(--danger); border-color: transparent; background: transparent; }
+.home .trash { margin-left: auto; }
+.home .frow { display: flex; align-items: center; gap: 10px; margin-top: 24px; width: 1426px; }
+.search { width: 420px; height: 40px; border-radius: 12px; border: 1px solid var(--edge); background: var(--surface); display: flex; align-items: center; gap: 10px; padding: 0 14px; color: var(--muted); font-size: 15px; }
+.sel { height: 40px; border-radius: 12px; border: 1px solid var(--edge); background: var(--surface); display: inline-flex; align-items: center; gap: 10px; padding: 0 14px; font-size: 15px; white-space: nowrap; }
+.pill { height: 30px; border-radius: 999px; border: 1px solid var(--edge); display: inline-flex; align-items: center; padding: 0 12px; font-size: 13px; color: var(--muted); background: transparent; }
+.pill b { font-weight: 500; color: var(--fg); margin-right: 5px; }
+.grid { display: grid; grid-template-columns: repeat(4, 340px); gap: 22px; margin-top: 28px; }
+.card { border-radius: 16px; border: 1px solid var(--edge); background: var(--surface); overflow: hidden; height: 336px; display: flex; flex-direction: column; }
+.card .thumb { height: 236px; background: var(--canvas); position: relative; overflow: hidden; }
+.card .thumb svg { width: 100%; height: 100%; display: block; }
+.card .meta { padding: 14px 16px 0; }
+.card .name { font-weight: 600; font-size: 15.5px; }
+.card .sub { color: var(--muted); font-size: 13px; margin-top: 4px; }
+.card .tags { margin-top: 8px; display: flex; gap: 6px; }
+.card .tags span { font-size: 11.5px; padding: 2px 9px; border-radius: 999px; background: var(--elevated); color: var(--fg); }
+.card.sel { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* status bar */
+.status { height: 30px; flex: none; border-top: 1px solid var(--edge); background: var(--surface); display: flex; align-items: center; padding: 0 16px; gap: 16px; font-size: 13px; color: var(--muted); }
+.status .r { margin-left: auto; display: flex; align-items: center; gap: 14px; }
+.status .ic { width: 15px; height: 15px; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--success); display: inline-block; margin-right: 6px; }
+
+/* project */
+.phead { height: 64px; flex: none; border-bottom: 1px solid var(--edge); display: flex; align-items: center; padding: 0 20px 0 24px; gap: 16px; }
+.phead .pname { font-size: 19px; font-weight: 700; letter-spacing: -0.015em; width: 380px; }
+.phead .saved { color: var(--muted); font-size: 14.5px; }
+.phead .acts { margin-left: auto; display: flex; align-items: center; gap: 4px; }
+.phead .acts .btn { height: 38px; font-weight: 500; }
+.phead .ur { display: flex; gap: 6px; margin-right: 16px; color: var(--muted); }
+.phead .ur span { width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
+.body { flex: 1; display: flex; min-height: 0; }
+.lpanel { width: 378px; flex: none; border-right: 1px solid var(--edge); padding: 14px 16px; overflow: hidden; }
+.rpanel { width: 420px; flex: none; border-left: 1px solid var(--edge); display: flex; flex-direction: column; }
+.ph { display: flex; align-items: center; font-size: 11.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); font-weight: 600; height: 32px; padding: 0 2px; }
+.ph .plus { margin-left: auto; color: var(--muted); }
+.lvl { height: 46px; display: flex; align-items: center; gap: 10px; padding: 0 10px 0 6px; border-radius: 12px; font-size: 15px; font-weight: 500; margin: 2px 0; }
+.lvl .grip { color: var(--muted); opacity: .6; }
+.lvl .mm { margin-left: auto; font-family: 'Spline Sans Mono'; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.lvl .mm b { font-weight: 500; color: var(--muted); margin-right: 6px; }
+.lvl.on { background: color-mix(in srgb, var(--accent) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); }
+.lvl.on .mm { color: var(--fg); }
+.lvl .neg { color: var(--warning); }
+.editor { margin-top: 10px; border: 1px solid var(--edge); border-radius: 16px; background: var(--surface); padding: 14px 14px 10px; }
+.fld { font-size: 14.5px; font-weight: 500; margin: 8px 0 6px; }
+.inp { height: 40px; border-radius: 10px; border: 1px solid var(--edge); background: var(--canvas); display: flex; align-items: center; padding: 0 14px; font-size: 15.5px; }
+.inp.mono { font-family: 'Spline Sans Mono'; font-size: 15px; font-variant-numeric: tabular-nums; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.layer { padding: 8px 2px; }
+.layer .t { display: flex; align-items: center; gap: 12px; font-size: 15px; font-weight: 500; }
+.layer .t .ic { color: var(--muted); width: 17px; height: 17px; }
+.layer .t .kind { margin-left: auto; font-size: 11px; letter-spacing: .08em; color: var(--muted); font-weight: 600; }
+.layer .t .n { font-family: 'Spline Sans Mono'; font-size: 13px; color: var(--muted); width: 14px; text-align: right; }
+.layer .o { display: flex; align-items: center; gap: 12px; padding-left: 72px; font-size: 12.5px; color: var(--muted); margin-top: 6px; }
+.slider { flex: 1; height: 4px; border-radius: 2px; background: var(--accent); position: relative; max-width: 150px; }
+.slider::after { content: ''; position: absolute; right: -8px; top: -6px; width: 16px; height: 16px; border-radius: 50%; background: var(--accent); border: 2px solid var(--canvas); box-shadow: 0 0 0 1px var(--accent); }
+.centre { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.vtabs { height: 48px; flex: none; display: flex; align-items: center; padding: 0 10px 0 8px; border-bottom: 1px solid var(--edge); gap: 2px; }
+.vtab { height: 48px; display: flex; align-items: center; padding: 0 16px; font-size: 15px; color: var(--muted); font-weight: 500; position: relative; }
+.vtab.on { color: var(--fg); }
+.vtab.on::after { content: ''; position: absolute; left: 12px; right: 12px; bottom: 0; height: 3px; border-radius: 3px 3px 0 0; background: var(--accent); }
+.vtabs .r { margin-left: auto; display: flex; align-items: center; gap: 4px; }
+.vtabs .r .btn { height: 34px; font-weight: 500; border-color: transparent; background: transparent; font-size: 14.5px; }
+.tools { height: 46px; flex: none; display: flex; align-items: center; padding: 0 8px; gap: 2px; border-bottom: 1px solid var(--edge); }
+.tool { width: 32px; height: 32px; border-radius: 9px; display: flex; align-items: center; justify-content: center; color: var(--fg); }
+.tool.on { background: var(--accent); color: var(--accent-fg); }
+.tool .ic { width: 19px; height: 19px; }
+.vsep { width: 1px; height: 20px; background: var(--edge); margin: 0 8px; }
+.tools .sel { height: 36px; font-size: 14.5px; margin-left: 8px; }
+.tools .r { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.tools2 { height: 38px; flex: none; display: flex; align-items: center; padding: 0 8px; gap: 2px; border-bottom: 1px solid var(--edge); }
+.tools2 .r { margin-left: auto; display: flex; align-items: center; gap: 14px; color: var(--muted); }
+.tools2 .zoom { font-family: 'Spline Sans Mono'; color: var(--fg); font-size: 13.5px; }
+.cnv { flex: 1; position: relative; background: var(--canvas); min-height: 0; overflow: hidden; }
+.cnv > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.cfoot { height: 30px; flex: none; display: flex; align-items: center; padding: 0 16px; font-family: 'Spline Sans Mono'; font-size: 13px; color: var(--muted); gap: 28px; border-top: 1px solid var(--edge); }
+.cfoot .mid { margin-left: auto; margin-right: auto; display: flex; gap: 24px; }
+.rtabs { display: flex; flex-wrap: wrap; padding: 6px 12px 0; border-bottom: 1px solid var(--edge); }
+.rtab { height: 42px; display: flex; align-items: center; padding: 0 12px; font-size: 15px; color: var(--muted); font-weight: 500; position: relative; gap: 8px; }
+.rtab.on { color: var(--fg); }
+.rtab.on::after { content: ''; position: absolute; left: 10px; right: 10px; bottom: -1px; height: 3px; border-radius: 3px 3px 0 0; background: var(--accent); }
+.rtab .badge { font-family: 'Spline Sans Mono'; font-size: 11.5px; min-width: 20px; height: 20px; border-radius: 999px; background: color-mix(in srgb, var(--warning) 22%, transparent); color: var(--fg); display: inline-flex; align-items: center; justify-content: center; padding: 0 6px; }
+.props { padding: 18px 20px; }
+.props h4 { margin: 0 0 18px; font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
+.props .kv { font-size: 14px; color: var(--muted); margin: 14px 0 8px; }
+.props .kv b { color: var(--fg); font-weight: 500; }
+.props .kv .mono { color: var(--fg); font-weight: 500; }
+.props .sect { font-size: 11.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); font-weight: 600; margin: 22px 0 10px; }
+.frow { display: grid; grid-template-columns: 90px 1fr 36px; gap: 12px; align-items: center; margin: 8px 0; font-size: 14.5px; color: var(--muted); }
+.frow .sw2 { width: 34px; height: 34px; border-radius: 9px; border: 1px solid var(--edge); background: var(--elevated); }
+.frow .sw2.c1 { background: #c9a27a; } .frow .sw2.c2 { background: #e9e1d2; } .frow .sw2.c3 { background: #f6f1e8; }
+
+/* assistant */
+.chat { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.chat .who { display: flex; align-items: center; gap: 10px; padding: 14px 20px; font-size: 14.5px; font-weight: 600; border-bottom: 1px solid var(--edge); }
+.chat .who .clear { margin-left: auto; font-weight: 500; color: var(--muted); display: flex; gap: 6px; align-items: center; }
+.chat .log { flex: 1; padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; font-size: 15px; line-height: 1.4; }
+.chat .u { align-self: flex-end; background: color-mix(in srgb, var(--accent) 12%, transparent); padding: 9px 14px; border-radius: 16px 16px 4px 16px; max-width: 86%; }
+.chat .a { align-self: flex-start; max-width: 100%; }
+.chat .call { border: 1px solid var(--edge); border-radius: 12px; padding: 10px 12px; font-size: 14px; display: grid; grid-template-columns: 20px 1fr; gap: 4px 10px; background: var(--surface); }
+.chat .call .ic { width: 17px; height: 17px; color: var(--success); margin-top: 2px; }
+.chat .call .ic.ask { color: var(--coral); }
+.chat .call small { grid-column: 2; color: var(--muted); font-size: 13px; }
+.chat .ask { display: flex; gap: 8px; }
+.chat .ask .btn { height: 34px; font-size: 14px; }
+.chat .in { margin: 12px 16px 16px; border: 1px solid var(--edge); border-radius: 14px; background: var(--surface); display: flex; align-items: flex-end; padding: 12px 10px 10px 14px; color: var(--muted); font-size: 15px; min-height: 76px; gap: 8px; }
+.chat .in .send { margin-left: auto; height: 36px; padding: 0 14px; border-radius: 10px; background: var(--accent); color: var(--accent-fg); display: inline-flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; }
+
+/* empty states */
+.emptycnv { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center; }
+.emptycnv h5 { margin: 18px 0 0; font-size: 22px; font-weight: 700; letter-spacing: -0.015em; }
+.emptycnv p { margin: 0; color: var(--muted); font-size: 15px; max-width: 420px; line-height: 1.45; }
+.emptycnv .acts { display: flex; gap: 10px; margin-top: 12px; }
+.emptycnv kbd { font-family: 'Spline Sans Mono'; font-size: 12px; padding: 1px 6px; border-radius: 6px; background: var(--elevated); color: var(--fg); }
+.moments { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 16px; }
+.moment { border-radius: 18px; border: 1px solid var(--edge); background: var(--canvas); color: var(--fg); padding: 36px 32px; min-height: 360px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 8px; font-family: 'Rubik'; }
+.moment h5 { font-size: 22px; margin: 16px 0 0; font-weight: 700; letter-spacing: -0.015em; }
+.moment p { margin: 0; color: var(--muted); font-size: 15px; max-width: 400px; line-height: 1.45; }
+.moment .acts { display: flex; gap: 10px; margin-top: 14px; }
+.moment .btn { font-family: 'Rubik'; }
+.moment .ver { font-family: 'Spline Sans Mono'; color: var(--muted); font-size: 13px; }
+.moment .dots { display: flex; gap: 8px; margin-top: 6px; }
+.moment .dots i { width: 14px; height: 14px; border-radius: 50%; }
+
+/* 3D mini mocks */
+.threes { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 16px; }
+.three { border-radius: 18px; border: 1px solid var(--edge); background: var(--canvas); color: var(--fg); overflow: hidden; font-family: 'Rubik'; }
+.three .bar { height: 44px; display: flex; align-items: center; gap: 18px; padding: 0 16px; font-size: 14px; font-weight: 500; border-bottom: 1px solid var(--edge); color: var(--muted); }
+.three .bar b { color: var(--fg); font-weight: 600; }
+.three .bar .r { margin-left: auto; display: flex; gap: 14px; }
+.three > svg { display: block; width: 100%; height: 380px; }
+.three .hint { height: 30px; font-size: 12.5px; color: var(--muted); display: flex; align-items: center; padding: 0 16px; border-top: 1px solid var(--edge); }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 12px; color: #7c6f66; margin-top: 10px; }
+.legend i { display: inline-block; width: 12px; height: 12px; border-radius: 4px; vertical-align: -2px; margin-right: 6px; border: 1px solid rgba(0,0,0,.08); }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ============ hero ============ -->
+  <div class="hero">
+    <div>
+      <div style="font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#7c6f66;font-weight:600">Concept 4 · playful</div>
+      <h1 style="margin-top:10px">Cubby</h1>
+      <p class="lead">A home you make, not a document you file. Coral for the home, teal for your hand, blueberry for the numbers: three colours that belong together, one friendly sans, one honest mono, and a canvas that stays as exact as the millimetres on it.</p>
+      <div style="margin-top:14px"><span class="chip">Rubik</span><span class="chip">Spline Sans Mono</span><span class="chip">accent #0f8a7e</span><span class="chip">coral #f07a4a</span><span class="chip">blueberry #5b5fd8</span></div>
+    </div>
+    <div class="wordmark light" style="font-size:72px;color:#2b2320"><span class="ico" data-icon="88"></span>cubby</div>
+  </div>
+
+  <h3>Icon at 1024 · 128 · 32 · 16 px, and the wordmark</h3>
+  <div class="sizes">
+    <figure>
+      <div class="frame"><span data-icon="1024" data-display="512"></span></div>
+      <figcaption>1024 px artwork, macOS rounded square (shown at 50 %)</figcaption>
+    </figure>
+    <figure>
+      <div class="frame winframe"><span data-icon="256" data-win="1"></span></div>
+      <figcaption>Windows square, 256 px tile with the 32 px pad</figcaption>
+    </figure>
+    <figure><div class="frame"><span data-icon="128"></span></div><figcaption>128 px</figcaption></figure>
+    <figure><div class="frame"><span data-icon="32"></span></div><figcaption>32 px</figcaption></figure>
+    <figure><div class="frame"><span data-icon="16"></span></div><figcaption>16 px</figcaption></figure>
+    <figure><div class="frame"><span data-icon="16" data-display="128" class="pxgrid"></span></div><figcaption>16 px, enlarged 8×</figcaption></figure>
+  </div>
+  <div class="row" style="margin-top:36px;gap:48px">
+    <div class="wordmark light" style="font-size:40px;color:#2b2320"><span class="ico" data-icon="48"></span>cubby</div>
+    <div class="wordmark dark" style="font-size:40px;color:#f3eae1;background:#221c1b;padding:16px 24px;border-radius:16px"><span class="ico" data-icon="48"></span>cubby</div>
+    <div class="wordmark light" style="font-size:17px;color:#2b2320;background:#f3ece2;padding:14px 18px;border-radius:12px;letter-spacing:-0.03em"><span class="ico" data-icon="20"></span>cubby <span style="font-weight:400;color:#7c6f66;margin-left:8px;letter-spacing:0">title bar, 20 px mark</span></div>
+    <div class="wordmark light" style="font-size:22px;color:#0f8a7e;letter-spacing:-0.03em">cubby<span style="color:#f07a4a">.</span> <span style="font-weight:400;color:#7c6f66;font-size:13px;letter-spacing:0;margin-left:8px">About / splash: teal with the coral stop</span></div>
+  </div>
+  <p class="note">The wordmark is Rubik ExtraBold, lowercase, tracked to −3.5 %: the round bowls of c, u, b, b, y repeat the icon's radii. It is always ink (fg) in the chrome and sits beside the mark; the one decorated form, teal with a coral full stop, is reserved for About and the first-launch screen.</p>
+
+  <!-- ============ type ============ -->
+  <h2>Type</h2>
+  <p class="note">Rubik (OFL, variable 300–900) for everything you read; Spline Sans Mono (OFL, variable 300–700) for everything you measure. Both ship as one variable file each, bundled under <code>font-src 'self'</code>. Rubik's slightly rounded corners carry the mood at 13 px without ever looking bubbly; Spline Sans Mono has the same soft terminals but a strict grid, tabular figures and a slashed zero, so <span class="mono">3000 mm</span> still reads as exact.</p>
+  <div class="spec">
+    <div class="card">
+      <table>
+        <tr><td>Display 26 / 700</td><td style="font-size:26px;font-weight:700;letter-spacing:-0.02em">Projects</td></tr>
+        <tr><td>Heading 19 / 700</td><td style="font-size:19px;font-weight:700;letter-spacing:-0.015em">Ground floor</td></tr>
+        <tr><td>Title 15.5 / 600</td><td style="font-size:15.5px;font-weight:600">Smoke House</td></tr>
+        <tr><td>Body 13 / 400</td><td style="font-size:13px">Both ends follow a wall or shape corner. Drag a grip to resize, Ctrl to copy.</td></tr>
+        <tr><td>Control 14.5 / 500</td><td style="font-size:14.5px;font-weight:500">New project &nbsp; Import… &nbsp; Export…</td></tr>
+        <tr><td>Label 11 / 600 caps</td><td style="font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:#7c6f66">Levels &nbsp; Layers · Ground floor &nbsp; Finishes</td></tr>
+        <tr><td>Hint 12.5 / 400</td><td style="font-size:12.5px;color:#7c6f66">Drag to orbit · right-drag or Shift+drag to pan · wheel to zoom</td></tr>
+      </table>
+    </div>
+    <div class="card">
+      <table class="mono">
+        <tr><td style="font-family:Rubik">Readout 15 / 500</td><td style="font-size:15px;font-weight:500">3000 mm &nbsp; 1500 mm &nbsp; 200 mm</td></tr>
+        <tr><td style="font-family:Rubik">Value 13 / 400</td><td style="font-size:13px">Area 24.6 m² · Perimeter 20 200 mm</td></tr>
+        <tr><td style="font-family:Rubik">Canvas 13 / 500</td><td style="font-size:13px;font-weight:500;color:#5b5fd8">6000 mm</td></tr>
+        <tr><td style="font-family:Rubik">Status 13 / 400</td><td style="font-size:13px;color:#7c6f66">−2000 mm, −1004 mm &nbsp; 1:71 &nbsp; MCP :63282</td></tr>
+        <tr><td style="font-family:Rubik">Id 12 / 400</td><td style="font-size:12px;color:#7c6f66">plan.apply &nbsp; project.export &nbsp; builtin:sofa-3</td></tr>
+        <tr><td style="font-family:Rubik">Figures</td><td style="font-size:15px">0123456789 &nbsp; 0O 1lI &nbsp; ×·−+= &nbsp; m² mm° %</td></tr>
+        <tr><td style="font-family:Rubik">Key cap</td><td><span style="font-size:11px;padding:2px 7px;border-radius:6px;background:#e9dfd1">Ctrl K</span> <span style="font-size:11px;padding:2px 7px;border-radius:6px;background:#e9dfd1">Shift+S</span></td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- ============ palette ============ -->
+  <h2>Palette</h2>
+  <p class="note">Every semantic variable in <code>styles.css</code>, both themes. Light is cream, not white; dark is warm charcoal, not black. Teal is the accent and the selection: it is what <em>you</em> do. Coral is the home: room fills, cards, the illustrations, and the assistant. Blueberry is the number: dimensions. Snap is a leaf green, warning an amber, danger a red: five canvas hues at five distinct angles (teal 174°, coral 18°, blueberry 238°, leaf 88°, amber 40°), so nothing on the plan is ever mistaken for anything else.</p>
+  <div class="pal" id="palettes"></div>
+
+  <!-- ============ mocks ============ -->
+  <h2>Home, light</h2>
+  <div class="mockwrap light" data-mock="home-light"></div>
+  <p class="caption">Cards become little homes: a project with a thumbnail shows its ground floor on cream in the plan colours; one without shows a coral plan doodle with the project's initials in a round badge, never a random gradient.</p>
+
+  <h2>Home, dark</h2>
+  <div class="mockwrap dark" data-mock="home-dark"></div>
+
+  <h2>Project window, plan view, light</h2>
+  <div class="mockwrap light" data-mock="plan-light"></div>
+  <p class="caption">A selected room (teal outline and grips over the coral fill), an aligned dimension in blueberry, a stair with an amber riser warning, a sofa in the decor brown, a snap marker in leaf green at the corner under the pointer.</p>
+
+  <h2>Project window, plan view, dark</h2>
+  <div class="mockwrap dark" data-mock="plan-dark"></div>
+
+  <h2>The 3D view</h2>
+  <div class="threes">
+    <div class="three light" data-three="light"></div>
+    <div class="three dark" data-three="dark"></div>
+  </div>
+  <p class="caption">Cream walls, a cocoa slab, teal-tinted glass, a warm-wood stair and the elevator car in the accent; the dark scene keeps the warm charcoal background so a night render glows instead of floating in black.</p>
+
+  <h2>Empty project</h2>
+  <div class="mockwrap light" data-mock="plan-empty"></div>
+  <p class="caption">The canvas says what to do in one line and offers both ways to begin: draw, or ask Cub. The illustration is a doodle of a plan in the three colours, not a stock house.</p>
+
+  <h2>First launch and About</h2>
+  <div class="moments">
+    <div class="moment light" data-moment="first"></div>
+    <div class="moment dark" data-moment="about"></div>
+  </div>
+
+</div>
+
+<script>
+/* ---------- the app icon as a function of size (same art as icon.svg) ---------- */
+function iconSvg(size, { win = false } = {}) {
+  const tile = win
+    ? `<rect x="32" y="32" width="960" height="960" rx="120" fill="#f07a4a"/>`
+    : `<rect x="64" y="64" width="896" height="896" rx="200" fill="#f07a4a"/>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="${size}" height="${size}" style="display:block">
+    ${tile}
+    <ellipse cx="512" cy="812" rx="300" ry="26" fill="#2b2320" opacity="0.10"/>
+    <rect x="640" y="300" width="80" height="200" rx="22" fill="#fbf7f1"/>
+    <circle cx="700" cy="226" r="34" fill="#fbf7f1" opacity="0.75"/>
+    <path d="M306 486 H718 V752 a48 48 0 0 1 -48 48 H354 a48 48 0 0 1 -48 -48 Z" fill="#fbf7f1"/>
+    <path d="M248 482 L512 254 L776 482 Z" fill="#fbf7f1" stroke="#fbf7f1" stroke-width="64" stroke-linejoin="round"/>
+    <circle cx="512" cy="412" r="46" fill="#0f8a7e"/>
+    <path d="M452 800 V660 a60 60 0 0 1 120 0 V800 Z" fill="#0f8a7e"/>
+    <circle cx="546" cy="724" r="9" fill="#fbf7f1"/>
+  </svg>`;
+}
+document.querySelectorAll('[data-icon]').forEach(el => {
+  const size = +el.dataset.icon, display = +(el.dataset.display || size);
+  el.innerHTML = iconSvg(size, { win: !!el.dataset.win });
+  const svg = el.firstElementChild;
+  svg.setAttribute('width', display); svg.setAttribute('height', display);
+  if (el.classList.contains('pxgrid')) {
+    // rasterise at the true size, then enlarge, so the 16 px reading is honest
+    const c = document.createElement('canvas'); c.width = size; c.height = size;
+    const img = new Image();
+    img.onload = () => { c.getContext('2d').drawImage(img, 0, 0, size, size); c.style.width = display + 'px'; c.style.height = display + 'px'; c.style.imageRendering = 'pixelated'; el.innerHTML = ''; el.appendChild(c); };
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(iconSvg(size));
+  }
+});
+
+/* ---------- the assistant's mark: Cub, a coral round with the door ---------- */
+function cubMark(size = 18) {
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" style="flex:none"><circle cx="12" cy="12" r="11" fill="var(--coral)"/><path d="M9.2 17.5V11.6a2.8 2.8 0 0 1 5.6 0v5.9Z" fill="#fbf7f1"/><circle cx="12" cy="7.4" r="1.5" fill="#fbf7f1"/></svg>`;
+}
+
+/* ---------- Lucide-like icons ---------- */
+const P = {
+  home: '<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/>',
+  search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+  settings: '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
+  x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+  upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/>',
+  download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/>',
+  trash: '<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+  chevron: '<path d="m6 9 6 6 6-6"/>',
+  undo: '<path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/>',
+  redo: '<path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7"/>',
+  save: '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/>',
+  copy: '<rect x="8" y="8" width="14" height="14" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
+  grip: '<circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/>',
+  eye: '<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>',
+  lock: '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  layers: '<path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/>',
+  panel: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M15 3v18"/>',
+  pointer: '<path d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"/>',
+  grid: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/><path d="M15 3v18"/>',
+  wall: '<rect x="3" y="4" width="18" height="16" rx="1"/><path d="M3 10h18"/><path d="M3 16h18"/><path d="M9 4v6"/><path d="M15 10v6"/><path d="M9 16v4"/>',
+  door: '<path d="M13 4h3a2 2 0 0 1 2 2v14"/><path d="M2 20h3"/><path d="M13 20h9"/><path d="M10 12v.01"/><path d="M13 4.562v16.157a1 1 0 0 1-1.242.97L5 20V5.562a2 2 0 0 1 1.515-1.94l4-1A2 2 0 0 1 13 4.561Z"/>',
+  window: '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="M10 4v4"/><path d="M2 8h20"/><path d="M6 4v4"/>',
+  flip: '<path d="M8 3H5a2 2 0 0 0-2 2v14c0 1.1.9 2 2 2h3"/><path d="M16 3h3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-3"/><path d="M12 20v2"/><path d="M12 14v2"/><path d="M12 8v2"/><path d="M12 2v2"/>',
+  stairs: '<path d="M3 20h4v-4h4v-4h4V8h4V4"/>',
+  ramp: '<path d="M22 7 13.5 15.5 8.5 10.5 2 17"/><path d="M16 7h6v6"/>',
+  elevator: '<path d="m17 11-5-5-5 5"/><path d="m17 18-5-5-5 5"/>',
+  ladder: '<path d="M7 7h10v10"/><path d="M7 17 17 7"/>',
+  escalator: '<path d="m5 12 7-7 7 7"/><path d="M12 19V5"/>',
+  column: '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="1"/>',
+  furniture: '<path d="M19 9V6a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v3"/><path d="M3 16a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0v2H7v-2a2 2 0 0 0-4 0Z"/><path d="M5 18v2"/><path d="M19 18v2"/>',
+  light: '<path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1.3.5 2.6 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/>',
+  pentagon: '<path d="M10.83 2.38a2 2 0 0 1 2.34 0l8 5.74a2 2 0 0 1 .73 2.25l-3.04 9.26a2 2 0 0 1-1.9 1.37H7.04a2 2 0 0 1-1.9-1.37L2.1 10.37a2 2 0 0 1 .73-2.25z"/>',
+  square: '<rect x="3" y="3" width="18" height="18" rx="2"/>',
+  circle: '<circle cx="12" cy="12" r="10"/>',
+  ruler: '<path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.41 2.41 0 0 1 0-3.4l2.6-2.6a2.41 2.41 0 0 1 3.4 0Z"/><path d="m14.5 12.5 1.5-1.5"/><path d="m11.5 9.5 1.5-1.5"/><path d="m8.5 6.5 1.5-1.5"/><path d="m17.5 15.5 1.5-1.5"/>',
+  type: '<path d="M12 4v16"/><path d="M4 7V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2"/><path d="M9 20h6"/>',
+  paint: '<path d="m14.622 17.897-10.68-2.913"/><path d="M18.376 2.622a1 1 0 1 1 3.002 3.002L17.36 9.643a.5.5 0 0 0 0 .707l.944.944a2.41 2.41 0 0 1 0 3.408l-.944.944a.5.5 0 0 1-.707 0L8.354 7.348a.5.5 0 0 1 0-.707l.944-.944a2.41 2.41 0 0 1 3.408 0l.944.944a.5.5 0 0 0 .707 0z"/><path d="M9 8c-1.804 2.71-3.97 3.46-6.583 3.948a.507.507 0 0 0-.302.819l7.32 8.883a1 1 0 0 0 1.185.204C12.735 20.405 16 16.792 16 15"/>',
+  magnet: '<path d="m6 15-4-4 6.75-6.77a7.79 7.79 0 0 1 11 11L13 22l-4-4 6.39-6.36a2.14 2.14 0 0 0-3-3L6 15"/><path d="m5 8 4 4"/><path d="m12 15 4 4"/>',
+  angle: '<path d="M4 20 16 4"/><path d="M4 20h16"/><path d="M10 20a8 8 0 0 0-2.4-5.7"/>',
+  zoomin: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/><path d="M11 8v6"/><path d="M8 11h6"/>',
+  zoomout: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/><path d="M8 11h6"/>',
+  fit: '<path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>',
+  moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
+  plug: '<path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  shield: '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>',
+  send: '<path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/>',
+  eraser: '<path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/>',
+  alert: '<circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/>',
+  pencil: '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>',
+  file: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/>',
+};
+const ic = (n, cls = '', sw = 1.75) => `<svg class="ic ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round">${P[n]}</svg>`;
+
+/* ---------- shared pieces ---------- */
+function titlebar(tabs, active) {
+  return `<div class="titlebar">
+    <div class="brand">${iconSvg(22)}<span>cubby</span></div>
+    <div class="tab home ${active === 'home' ? 'on' : ''}">${ic('home')}</div>
+    ${tabs.map(t => `<div class="tab ${t === active ? 'on' : ''}">${t}${t === active ? `<span class="x">${ic('x', '', 2)}</span>` : ''}</div>`).join('')}
+    <div class="cmd">${ic('search')}Search commands…<kbd>Ctrl K</kbd></div>
+    <div class="gear">${ic('settings')}</div>
+  </div>`;
+}
+function statusbar(left, dark) {
+  return `<div class="status"><span>${left}</span><div class="r"><span style="display:flex;align-items:center;gap:6px">${ic('ruler')}<span class="mono">mm</span></span><span style="display:flex;align-items:center;gap:6px">${ic('plug')}<span class="dot"></span>MCP <span class="mono">:63282</span></span>${ic(dark ? 'sun' : 'moon')}</div></div>`;
+}
+
+/* a miniature plan for a Home card thumbnail (plan colours) */
+function miniPlan(kind) {
+  const grid = Array.from({ length: 12 }, (_, i) => `<path d="M${i * 30} 0V236M0 ${i * 30}H340" stroke="var(--plan-grid)" stroke-width="1"/>`).join('');
+  const room = (x, y, w, h, name, area, a = .2) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="color-mix(in srgb, var(--plan-room) ${a * 100}%, transparent)"/><text x="${x + w / 2}" y="${y + h / 2 - 2}" text-anchor="middle" font-family="Rubik" font-size="10" fill="var(--fg)">${name}</text><text x="${x + w / 2}" y="${y + h / 2 + 10}" text-anchor="middle" font-family="Spline Sans Mono" font-size="8" fill="var(--muted)">${area}</text>`;
+  if (kind === 'a') return `<svg viewBox="0 0 340 236">${grid}
+    <rect x="70" y="36" width="200" height="160" fill="var(--plan-slab)"/>
+    ${room(78, 44, 110, 86, 'Living', '24.6 m²')}${room(188, 44, 74, 86, 'Kitchen', '12.1 m²', .12)}${room(78, 130, 184, 58, 'Hall', '13.9 m²', .12)}
+    <path d="M70 36H270V196H70Z M78 44V188H262V44Z" fill="var(--plan-wall)" fill-rule="evenodd"/>
+    <path d="M186 44v86M78 130h184" stroke="var(--plan-wall)" stroke-width="5"/>
+    <path d="M150 188v-28a28 28 0 0 1 28 28" fill="none" stroke="var(--plan-wall-line)" stroke-width="1" stroke-dasharray="2 3"/>
+    <rect x="148" y="186" width="32" height="6" fill="var(--plan-slab)"/>
+    <rect x="104" y="60" width="44" height="18" rx="3" fill="none" stroke="var(--plan-decor)" stroke-width="1.5"/>
+    <rect x="212" y="52" width="40" height="14" fill="none" stroke="var(--plan-decor)" stroke-width="1.2"/>
+    </svg>`;
+  if (kind === 'b') return `<svg viewBox="0 0 340 236">${grid}
+    <rect x="52" y="30" width="236" height="176" fill="var(--plan-slab)"/>
+    ${room(62, 40, 100, 70, 'Bedroom', '15.8 m²')}${room(162, 40, 116, 70, 'Studio', '17.2 m²', .12)}${room(62, 110, 216, 86, 'Living', '38.4 m²', .12)}
+    <path d="M52 30H288V206H52Z M62 40V196H278V40Z" fill="var(--plan-wall)" fill-rule="evenodd"/>
+    <path d="M162 40v70M62 110h216" stroke="var(--plan-wall)" stroke-width="5"/>
+    <g fill="none" stroke="var(--plan-connector)" stroke-width="1"><rect x="226" y="120" width="40" height="66"/>${Array.from({ length: 8 }, (_, i) => `<path d="M226 ${128 + i * 8}h40"/>`).join('')}</g>
+    <rect x="90" y="140" width="56" height="22" rx="4" fill="none" stroke="var(--plan-decor)" stroke-width="1.5"/>
+    </svg>`;
+  return `<svg viewBox="0 0 340 236">${grid}
+    <path d="M60 50h160v80h60v76H60Z" fill="var(--plan-slab)"/>
+    ${room(70, 60, 140, 60, 'Shop', '23.4 m²')}${room(70, 120, 200, 76, 'Workshop', '41.0 m²', .12)}
+    <path d="M60 50h160v80h60v76H60Z M70 60v136h200v-66h-60V60Z" fill="var(--plan-wall)" fill-rule="evenodd"/>
+    <path d="M70 120h140" stroke="var(--plan-wall)" stroke-width="5"/>
+    <circle cx="150" cy="158" r="5" fill="var(--plan-wall)"/><circle cx="230" cy="158" r="5" fill="var(--plan-wall)"/>
+    </svg>`;
+}
+/* the coral doodle for a card without a thumbnail */
+function doodle(initials, hue) {
+  const c = hue === 0 ? 'var(--coral)' : hue === 1 ? 'var(--accent)' : 'var(--berry)';
+  return `<svg viewBox="0 0 340 236">
+    <rect width="340" height="236" fill="color-mix(in srgb, ${c} 10%, var(--canvas))"/>
+    <g fill="none" stroke="${c}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M96 64h148a10 10 0 0 1 10 10v94a10 10 0 0 1-10 10H96a10 10 0 0 1-10-10V74a10 10 0 0 1 10-10Z"/>
+      <path d="M170 64v56M86 120h84"/>
+      <path d="M128 178v-26a26 26 0 0 1 26 26" stroke-dasharray="3 5" stroke-width="1.6"/>
+      <rect x="104" y="80" width="44" height="18" rx="6"/>
+      <circle cx="214" cy="146" r="14"/>
+    </g>
+    <rect x="100" y="120" width="70" height="58" fill="${c}" opacity=".16"/>
+    <rect x="170" y="64" width="84" height="56" fill="${c}" opacity=".10"/>
+    <circle cx="282" cy="186" r="26" fill="${c}"/>
+    <text x="282" y="191" text-anchor="middle" font-family="Rubik" font-weight="700" font-size="16" fill="#fbf7f1">${initials}</text>
+  </svg>`;
+}
+
+function homeMock(dark) {
+  const cards = [
+    { n: 'Smoke House', s: 'Edited just now · 1 level', t: ['residential', 'smoke'], th: miniPlan('a'), sel: true },
+    { n: 'Tower', s: 'Edited just now · 5 levels', th: miniPlan('b') },
+    { n: 'Duplex', s: 'Edited 1 minute ago · 2 levels', th: doodle('DU', 1) },
+    { n: 'Office Block 3', s: 'Edited 1 minute ago · 1 level', t: ['commercial'], th: miniPlan('c') },
+    { n: 'Decor Flat', s: 'Edited 2 minutes ago · 1 level', th: doodle('DF', 0) },
+    { n: 'UI Villa', s: 'Edited 4 minutes ago · 1 level', t: ['villa', 'concept'], th: doodle('UV', 2) },
+    { n: 'Agent Cabin', s: 'Edited 9 minutes ago · 1 level', th: miniPlan('a') },
+    { n: 'Plan', s: 'Edited yesterday · 1 level', th: doodle('PL', 1) },
+  ];
+  return titlebar(['Smoke House', 'Tower'], 'home') + `<div class="home">
+    <div class="hrow"><h1>Projects</h1><span class="btn primary">${ic('plus', '', 2)}New project</span><span class="btn">${ic('upload')}Import…</span><span class="btn ghost trash">${ic('trash')}Trash (0)</span></div>
+    <div class="frow"><div class="search">${ic('search')}Search projects</div><span class="sel">Last changed ${ic('chevron')}</span>
+      <span class="pill"><b>residential</b>2</span><span class="pill"><b>smoke</b>2</span><span class="pill"><b>commercial</b>1</span><span class="pill"><b>concept</b>1</span><span class="pill"><b>villa</b>1</span></div>
+    <div class="grid">${cards.map(c => `<div class="card ${c.sel ? 'sel' : ''}"><div class="thumb">${c.th}</div><div class="meta"><div class="name">${c.n}</div><div class="sub">${c.s}</div>${c.t ? `<div class="tags">${c.t.map(x => `<span>${x}</span>`).join('')}</div>` : ''}</div></div>`).join('')}</div>
+  </div>` + statusbar('No project open', dark);
+}
+
+/* ---------- the plan canvas (1090 × 718 inside the centre) ---------- */
+function planSvg({ empty = false } = {}) {
+  const W = 1092, H = 718;
+  let g = '';
+  for (let x = 20; x < W; x += 36) g += `<path d="M${x} 0V${H}" stroke="var(${(x - 20) % 180 === 0 ? '--plan-grid-major' : '--plan-grid'})" stroke-width="1"/>`;
+  for (let y = 10; y < H; y += 36) g += `<path d="M0 ${y}H${W}" stroke="var(${(y - 10) % 180 === 0 ? '--plan-grid-major' : '--plan-grid'})" stroke-width="1"/>`;
+  if (empty) return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid slice">${g}</svg>`;
+  // building: outer 200..920 x 110..620 (720 × 510 px ~ 10.0 × 7.1 m at 1:71 → 1 m ≈ 72 px)
+  const T = 18; // wall thickness px
+  const outer = `M200 110H920V620H200Z`;
+  const inner = `M${200 + T} ${110 + T}V${620 - T}H${920 - T}V${110 + T}Z`;
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid slice" font-family="Rubik">
+    ${g}
+    <rect x="200" y="110" width="720" height="510" fill="var(--plan-slab)"/>
+    <!-- rooms -->
+    <rect x="218" y="128" width="420" height="300" fill="color-mix(in srgb, var(--plan-room) 24%, transparent)"/>
+    <rect x="656" y="128" width="246" height="300" fill="color-mix(in srgb, var(--plan-room) 11%, transparent)"/>
+    <rect x="218" y="446" width="684" height="156" fill="color-mix(in srgb, var(--plan-room) 11%, transparent)"/>
+    <!-- walls -->
+    <path d="${outer} ${inner}" fill="var(--plan-wall)" fill-rule="evenodd" stroke="var(--plan-wall-line)" stroke-width="1"/>
+    <rect x="638" y="128" width="18" height="300" fill="var(--plan-wall)" stroke="var(--plan-wall-line)" stroke-width="1"/>
+    <rect x="218" y="428" width="684" height="18" fill="var(--plan-wall)" stroke="var(--plan-wall-line)" stroke-width="1"/>
+    <!-- openings: door in the hall wall, window in the top wall -->
+    <rect x="420" y="427" width="86" height="20" fill="var(--plan-slab)"/>
+    <path d="M420 446V360" stroke="var(--plan-wall-line)" stroke-width="1.5"/>
+    <path d="M420 360a86 86 0 0 1 86 86" fill="none" stroke="var(--plan-wall-line)" stroke-width="1" stroke-dasharray="3 5"/>
+    <rect x="300" y="109" width="150" height="20" fill="var(--plan-slab)"/>
+    <path d="M300 116H450M300 122H450" stroke="var(--plan-wall-line)" stroke-width="1.2"/>
+    <rect x="700" y="109" width="110" height="20" fill="var(--plan-slab)"/>
+    <path d="M700 116H810M700 122H810" stroke="var(--plan-wall-line)" stroke-width="1.2"/>
+    <!-- front door with swing in the bottom wall -->
+    <rect x="560" y="601" width="80" height="20" fill="var(--plan-slab)"/>
+    <path d="M560 602V522" stroke="var(--plan-wall-line)" stroke-width="1.5"/>
+    <path d="M560 522a80 80 0 0 1 80 80" fill="none" stroke="var(--plan-wall-line)" stroke-width="1" stroke-dasharray="3 5"/>
+    <!-- stair (connector) with a riser warning -->
+    <g fill="none" stroke="var(--plan-connector)" stroke-width="1.2">
+      <rect x="760" y="300" width="72" height="118"/>
+      ${Array.from({ length: 11 }, (_, i) => `<path d="M760 ${310 + i * 10}h72"/>`).join('')}
+      <path d="M796 418V300" stroke-dasharray="4 4"/><path d="M790 308l6-8 6 8"/>
+    </g>
+    <rect x="758" y="298" width="76" height="122" fill="none" stroke="var(--plan-warning)" stroke-width="2" stroke-dasharray="6 4" rx="2"/>
+    <g transform="translate(846 294)"><circle r="11" fill="var(--plan-warning)"/><path d="M0-5v5M0 4v.5" stroke="#2b2320" stroke-width="2" stroke-linecap="round"/></g>
+    <text x="796" y="436" text-anchor="middle" font-family="Spline Sans Mono" font-size="11" fill="var(--plan-connector)">UP 16 R</text>
+    <!-- decor: sofa, table, bed outline -->
+    <g fill="none" stroke="var(--plan-decor)" stroke-width="1.6">
+      <rect x="260" y="300" width="160" height="60" rx="10"/><path d="M276 300v60M404 300v60M260 316h160"/>
+      <rect x="480" y="312" width="70" height="44" rx="6"/>
+      <rect x="690" y="160" width="110" height="130" rx="6"/><rect x="700" y="170" width="40" height="30" rx="5"/><rect x="750" y="170" width="40" height="30" rx="5"/>
+      <circle cx="320" cy="200" r="34"/><rect x="236" y="176" width="22" height="22" rx="4"/><rect x="236" y="206" width="22" height="22" rx="4"/>
+    </g>
+    <!-- labels -->
+    <text x="428" y="268" text-anchor="middle" font-size="19" font-weight="500" fill="var(--fg)">Living room</text>
+    <text x="428" y="290" text-anchor="middle" font-family="Spline Sans Mono" font-size="13" fill="var(--muted)">24.6 m²</text>
+    <text x="779" y="240" text-anchor="middle" font-size="17" font-weight="500" fill="var(--fg)">Bedroom</text>
+    <text x="779" y="260" text-anchor="middle" font-family="Spline Sans Mono" font-size="12.5" fill="var(--muted)">14.2 m²</text>
+    <text x="330" y="520" text-anchor="middle" font-size="17" font-weight="500" fill="var(--fg)">Hall</text>
+    <text x="330" y="540" text-anchor="middle" font-family="Spline Sans Mono" font-size="12.5" fill="var(--muted)">19.8 m²</text>
+    <!-- selection: the living room -->
+    <rect x="218" y="128" width="420" height="300" fill="none" stroke="var(--plan-selection)" stroke-width="2"/>
+    ${[[218, 128], [638, 128], [218, 428], [638, 428]].map(([x, y]) => `<rect x="${x - 5}" y="${y - 5}" width="10" height="10" fill="var(--canvas)" stroke="var(--plan-selection)" stroke-width="2"/>`).join('')}
+    <circle cx="428" cy="278" r="7" fill="none" stroke="var(--plan-selection)" stroke-width="2"/>
+    <!-- aligned dimension under the building: 10 000 mm -->
+    <g stroke="var(--plan-dim)" stroke-width="1.4" fill="none">
+      <path d="M200 620v60M920 620v60"/>
+      <path d="M200 668H920"/>
+      <path d="M194 674l12-12M914 674l12-12"/>
+    </g>
+    <rect x="520" y="657" width="82" height="20" rx="5" fill="var(--canvas)"/>
+    <text x="561" y="672" text-anchor="middle" font-family="Spline Sans Mono" font-size="13" font-weight="500" fill="var(--plan-dim)">10 000 mm</text>
+    <!-- a second dimension, the living room width, selected-ish -->
+    <g stroke="var(--plan-dim)" stroke-width="1.4" fill="none">
+      <path d="M218 128V76M638 128V76"/><path d="M218 84H638"/><path d="M212 90l12-12M632 90l12-12"/>
+    </g>
+    <rect x="392" y="73" width="74" height="20" rx="5" fill="var(--canvas)"/>
+    <text x="429" y="88" text-anchor="middle" font-family="Spline Sans Mono" font-size="13" font-weight="500" fill="var(--plan-dim)">5 800 mm</text>
+    <!-- snap marker at the hovered corner and the pointer -->
+    <g transform="translate(902 602)"><rect x="-7" y="-7" width="14" height="14" fill="none" stroke="var(--plan-snap)" stroke-width="2"/><path d="M-12 0h-6M12 0h6M0-12v-6M0 12v6" stroke="var(--plan-snap)" stroke-width="2"/></g>
+    <path transform="translate(910 610)" d="M0 0l0 17 4.5-4 3.5 7 2.6-1.3-3.4-6.8 6.3-.9Z" fill="var(--fg)" stroke="var(--canvas)" stroke-width="1.2"/>
+    <!-- reference underlay fragment, top right -->
+    <g stroke="var(--plan-underlay)" stroke-width="1" fill="none" opacity=".8"><path d="M960 180h100v120h-60"/><path d="M980 200h60v60"/></g>
+  </svg>`;
+}
+
+function leftPanel({ empty = false } = {}) {
+  const levels = empty
+    ? `<div class="lvl on">${ic('grip', 'grip')}Ground floor<span class="mm"><b>G</b>0 mm</span></div>`
+    : `<div class="lvl">${ic('grip', 'grip')}Upper floor<span class="mm">3000 mm</span></div>
+       <div class="lvl on">${ic('grip', 'grip')}Ground floor<span class="mm"><b>G</b>0 mm</span></div>
+       <div class="lvl">${ic('grip', 'grip')}Basement<span class="mm neg">−2700 mm</span></div>`;
+  const layer = (n, k, c, ico = 'eye') => `<div class="layer"><div class="t">${ic('eye')}${ic('lock')}${n}<span class="kind">${k}</span><span class="n">${c}</span></div><div class="o">Opacity<span class="slider"></span><span class="mono">100%</span></div></div>`;
+  return `<div class="lpanel">
+    <div class="ph">Levels<span class="plus">${ic('plus')}</span></div>
+    ${levels}
+    <div class="editor">
+      <div class="fld" style="margin-top:0">Name</div><div class="inp">Ground floor</div>
+      <div class="two"><div><div class="fld">Elevation</div><div class="inp mono">0 mm</div></div><div><div class="fld">Floor to floor</div><div class="inp mono">3000 mm</div></div></div>
+      <div class="two"><div><div class="fld">Slab</div><div class="inp mono">200 mm</div></div><div style="display:flex;align-items:flex-end;justify-content:flex-end;gap:14px;padding:0 6px 8px;color:var(--muted)">${ic('copy')}${ic('layers')}</div></div>
+    </div>
+    <div class="ph" style="margin-top:18px">Layers · Ground floor<span class="plus">${ic('plus')}</span></div>
+    ${layer('Structure', 'STRUCTURE', empty ? 0 : 9)}${layer('Interior', 'INTERIOR', empty ? 0 : 6)}${layer('Decor', 'DECOR', empty ? 0 : 5)}
+  </div>`;
+}
+
+function centre({ empty = false } = {}) {
+  const tools = ['pointer', 'grid', 'wall', 'door', 'window', 'flip', '|', 'stairs', 'ramp', 'ladder', 'escalator', 'elevator', 'column', 'furniture', 'light', 'paint', '|', 'pentagon', 'square', 'circle', '|', 'ruler', 'type'];
+  const strip = tools.map((t, i) => t === '|' ? `<span class="vsep"></span>` : `<span class="tool ${i === 0 ? 'on' : ''}">${ic(t)}</span>`).join('');
+  const foot = empty
+    ? `<span>0 mm, 0 mm</span><span class="mid"><span>Ground floor</span><span>Nothing drawn yet</span></span><span>W wall · N door · R room</span>`
+    : `<span>9 440 mm, −1 180 mm</span><span class="mid"><span>Ground floor</span><span>1 selected</span></span><span>Room selected · drag to move (Ctrl: copy) · drag a grip to resize</span>`;
+  const emptyBlock = empty ? `<div class="emptycnv">
+      ${emptyIllustration()}
+      <h5>A blank floor. Nice.</h5>
+      <p>Draw the outside walls with <kbd>W</kbd>, or trace a DXF of the place you already have. Cub can sketch a starting plan from a sentence.</p>
+      <div class="acts"><span class="btn primary">${ic('pencil')}Draw a wall</span><span class="btn">${ic('file')}Trace a DXF…</span><span class="btn">${cubMark(18)}Ask Cub</span></div>
+    </div>` : '';
+  return `<div class="centre">
+    <div class="vtabs"><span class="vtab on">Plan</span><span class="vtab">Section</span><span class="vtab">3D</span>
+      <div class="r"><span class="btn">${ic('download')}Export…</span><span class="btn">${ic('upload')}Import DXF…</span><span class="tool">${ic('panel')}</span></div></div>
+    <div class="tools">${strip}<div class="r"><span class="sel">Ground floor · 0 mm ${ic('chevron')}</span><span class="sel">No reference ${ic('chevron')}</span></div></div>
+    <div class="tools2"><span class="tool">${ic('magnet')}</span><span class="tool">${ic('angle')}</span><span class="tool" style="width:24px">${ic('chevron')}</span>
+      <div class="r">${ic('zoomout')}<span class="zoom">1:71</span>${ic('zoomin')}${ic('fit')}</div></div>
+    <div class="cnv">${planSvg({ empty })}${emptyBlock}</div>
+    <div class="cfoot">${foot}</div>
+  </div>`;
+}
+
+function rightPanel({ empty = false, assistant = false } = {}) {
+  const tabs = `<div class="rtabs"><span class="rtab ${!assistant ? 'on' : ''}">Properties</span><span class="rtab">Catalog</span><span class="rtab">History</span><span class="rtab ${assistant ? 'on' : ''}">${cubMark(16)}Cub</span><span class="rtab">Warnings${empty ? '' : '<span class="badge">1</span>'}</span><span class="rtab">Project</span></div>`;
+  if (assistant) return `<div class="rpanel">${tabs}<div class="chat">
+      <div class="who">${cubMark(20)}Cub · Claude Opus 5.5<span class="clear">${ic('eraser')}Clear</span></div>
+      <div class="log">
+        <div class="u">Make the living room 400 wider and keep the sofa centred.</div>
+        <div class="a">Moving the wall east by 400 mm and nudging the sofa to match.</div>
+        <div class="call">${ic('check')}<span>Apply many edits at once</span><small>Move 1 wall · move 1 item</small></div>
+        <div class="a">Done: the living room is now 6 200 × 4 200 mm, 26.0 m². The stair in the bedroom still has a 190 mm riser; the rule allows 180.</div>
+        <div class="u">Just delete that stair then.</div>
+        <div class="call">${ic('shield', 'ask')}<span>Delete entities</span><small>Removes the stair and its stairwell on the upper floor. Allow?</small></div>
+        <div class="ask"><span class="btn primary">Allow</span><span class="btn">Not this time</span></div>
+      </div>
+      <div class="in">Ask Cub… (Enter sends, Shift+Enter for a new line)<span class="send">${ic('send')}Send</span></div>
+    </div></div>`;
+  const props = empty
+    ? `<div class="props"><h4>Nothing selected</h4><div class="kv">Pick something on the plan, or a level on the left, and its numbers appear here.</div></div>`
+    : `<div class="props"><h4>Room</h4>
+      <div class="fld" style="margin-top:0">Name</div><div class="inp">Living room</div>
+      <div class="fld">Number</div><div class="inp" style="color:var(--muted)">—</div>
+      <div class="kv">Area <span class="mono">24.6 m²</span> · Perimeter <span class="mono">20 200 mm</span></div>
+      <div class="sect">Finishes</div>
+      <div class="frow">Floor<span class="inp" style="justify-content:space-between">Oak, wide boards ${ic('chevron')}</span><span class="sw2 c1"></span></div>
+      <div class="frow">Walls<span class="inp" style="justify-content:space-between">Paint · Linen ${ic('chevron')}</span><span class="sw2 c2"></span></div>
+      <div class="frow">Ceiling<span class="inp" style="justify-content:space-between">None ${ic('chevron')}</span><span class="sw2 c3"></span></div>
+    </div>`;
+  return `<div class="rpanel">${tabs}${props}</div>`;
+}
+
+function projectHead(name) {
+  return `<div class="phead"><span class="pname">${name}</span><span class="saved">Saved just now</span>
+    <div class="acts"><div class="ur"><span>${ic('undo')}</span><span>${ic('redo')}</span></div>
+      <span class="btn ghost">${ic('save')}Save</span><span class="btn ghost">${ic('download')}Export project…</span><span class="btn ghost">${ic('copy')}Duplicate</span><span class="btn danger">${ic('trash')}Trash</span></div></div>`;
+}
+
+function planMock(dark, { empty = false } = {}) {
+  const name = empty ? 'Our flat' : 'Smoke House';
+  return titlebar(['Smoke House', 'Tower', ...(empty ? ['Our flat'] : [])], name) + projectHead(name)
+    + `<div class="body">${leftPanel({ empty })}${centre({ empty })}${rightPanel({ empty, assistant: !empty && dark })}</div>`
+    + statusbar(`${name} &nbsp;&nbsp; <span style="opacity:.8">Saved just now</span>`, dark);
+}
+
+/* the empty-canvas illustration: a plan doodle in the three colours */
+function emptyIllustration() {
+  return `<svg width="300" height="190" viewBox="0 0 300 190" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="80" y="40" width="120" height="100" fill="var(--coral)" opacity=".18"/>
+    <rect x="200" y="40" width="60" height="60" fill="var(--berry)" opacity=".16"/>
+    <rect x="200" y="100" width="60" height="40" fill="var(--accent)" opacity=".16"/>
+    <g stroke="var(--fg)" stroke-width="2.4">
+      <path d="M50 140V52a12 12 0 0 1 12-12h198v100H140"/>
+      <path d="M200 40v100M200 100h60"/>
+      <rect x="104" y="60" width="56" height="22" rx="7" stroke="var(--plan-decor)"/>
+      <circle cx="230" cy="70" r="12" stroke="var(--plan-decor)"/>
+    </g>
+    <path d="M110 140v-30a30 30 0 0 1 30 30" stroke="var(--fg)" stroke-width="1.6" stroke-dasharray="3 5"/>
+    <g stroke="var(--plan-dim)" stroke-width="1.6"><path d="M50 158h210M50 150v16M260 150v16"/></g>
+    <rect x="128" y="149" width="54" height="18" rx="5" fill="var(--canvas)"/>
+    <text x="155" y="162" text-anchor="middle" font-family="Spline Sans Mono" font-size="11" fill="var(--plan-dim)">? mm</text>
+    <g transform="translate(60 150) rotate(-40)"><rect x="-6" y="-60" width="12" height="60" rx="3" fill="var(--accent)"/><path d="M-6 0l6 12 6-12Z" fill="var(--fg)"/><rect x="-6" y="-60" width="12" height="10" rx="3" fill="var(--coral)"/></g>
+    <g transform="translate(286 30)"><circle r="12" fill="var(--coral)"/><path d="M-3 6V0a3 3 0 0 1 6 0v6Z" fill="#fbf7f1"/><circle cy="-5" r="1.6" fill="#fbf7f1"/></g>
+  </svg>`;
+}
+
+function moment(kind) {
+  if (kind === 'first') return `<svg width="320" height="190" viewBox="0 0 320 190" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="40" y="70" width="90" height="80" rx="8" fill="var(--coral)" opacity=".18"/><rect x="130" y="70" width="60" height="80" rx="8" fill="var(--accent)" opacity=".16"/><rect x="190" y="70" width="90" height="80" rx="8" fill="var(--berry)" opacity=".14"/>
+      <g stroke="var(--fg)" stroke-width="2.4"><path d="M40 150V70h240v80"/><path d="M130 70v80M190 70v80"/><path d="M30 70 160 20l130 50"/><rect x="214" y="30" width="18" height="30" rx="4"/></g>
+      <path d="M86 150v-26a26 26 0 0 1 26 26" stroke="var(--fg)" stroke-width="1.6" stroke-dasharray="3 5"/>
+      <g stroke="var(--plan-decor)" stroke-width="2.2"><rect x="54" y="92" width="44" height="18" rx="6"/><circle cx="235" cy="110" r="12"/></g>
+      <g stroke="var(--plan-dim)" stroke-width="1.6"><path d="M40 170h240M40 162v16M280 162v16"/></g>
+      <rect x="130" y="161" width="60" height="18" rx="5" fill="var(--canvas)"/><text x="160" y="174" text-anchor="middle" font-family="Spline Sans Mono" font-size="11" fill="var(--plan-dim)">12 000 mm</text>
+    </svg>
+    <h5>Your first home starts here</h5>
+    <p>Draw it from scratch, trace the plan you already have, or tell Cub what the place is like and start from a sketch.</p>
+    <div class="acts"><span class="btn primary">${ic('plus', '', 2)}New project</span><span class="btn">${ic('upload')}Import…</span></div>`;
+  return `${iconSvg(96)}
+    <div class="wordmark" style="font-size:40px;color:var(--accent);margin-top:14px">cubby<span style="color:var(--coral)">.</span></div>
+    <div class="ver" style="margin-top:6px">Version 0.11.0 · build 2026-10-31</div>
+    <p style="margin-top:14px">Plans, interiors and decor for the home you live in, with an assistant that measures twice.</p>
+    <div class="dots"><i style="background:var(--coral)"></i><i style="background:var(--accent)"></i><i style="background:var(--berry)"></i></div>
+    <div class="acts"><span class="btn">Licences</span><span class="btn">Check for updates</span></div>`;
+}
+
+/* ---------- 3D: a small isometric room in the scene colours ---------- */
+function threeSvg(night = false) {
+  const px = (x, y, z) => [(x - y) * 0.866 * 42 + 360, (x + y) * 0.5 * 42 - z * 42 + 150];
+  const poly = (pts, fill, extra = '') => `<polygon points="${pts.map(p => px(...p).join(',')).join(' ')}" fill="${fill}" stroke="var(--scene-edge)" stroke-width="1" stroke-linejoin="round" ${extra}/>`;
+  const mix = (v, pct) => `color-mix(in srgb, ${v} ${100 - pct}%, ${night ? '#000' : 'var(--scene-edge)'})`;
+  // a box from (x0,y0,z0) to (x1,y1,z1): draws top, +y face, +x face
+  const box = (x0, y0, z0, x1, y1, z1, col) =>
+    poly([[x0, y1, z0], [x1, y1, z0], [x1, y1, z1], [x0, y1, z1]], mix(col, 10)) +
+    poly([[x1, y0, z0], [x1, y1, z0], [x1, y1, z1], [x1, y0, z1]], mix(col, 22)) +
+    poly([[x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]], col);
+  let s = '';
+  s += box(0, 0, -0.3, 8, 6, 0, 'var(--scene-slab)');                 // slab
+  s += box(0, 0, 0, 8, 0.25, 3, 'var(--scene-wall)');                  // back wall along x
+  s += box(0, 0, 0, 0.25, 6, 3, 'var(--scene-wall)');                  // left wall along y
+  // a window in the back wall: glass pane
+  s += poly([[2.2, 0.26, 1], [4.6, 0.26, 1], [4.6, 0.26, 2.4], [2.2, 0.26, 2.4]], 'var(--scene-glass)', 'opacity=".9"');
+  // a glass pane in the left wall
+  s += poly([[0.26, 3.4, 1], [0.26, 5.2, 1], [0.26, 5.2, 2.4], [0.26, 3.4, 2.4]], 'var(--scene-glass)', 'opacity=".9"');
+  // elevator car
+  s += box(0.9, 0.9, 0, 2.4, 2.4, 2.5, 'var(--scene-car)');
+  // column
+  s += box(5.6, 3.6, 0, 6.0, 4.0, 3, 'var(--scene-column)');
+  // stair: 6 steps along +x from (3.2, 4.2)
+  for (let i = 0; i < 7; i++) s += box(3.2 + i * 0.4, 4.2, 0, 3.6 + i * 0.4, 5.4, 0.3 * (i + 1), 'var(--scene-connector)');
+  // rail along the stair
+  s += `<polyline points="${[[3.2, 4.2, 1], [6.0, 4.2, 3.1]].map(p => px(...p).join(',')).join(' ')}" fill="none" stroke="var(--scene-rail)" stroke-width="2.5" stroke-linecap="round"/>`;
+  for (let i = 0; i < 4; i++) { const x = 3.3 + i * 0.9; s += `<line x1="${px(x, 4.2, 0.3 * (i * 2.25 + 1))[0]}" y1="${px(x, 4.2, 0.3 * (i * 2.25 + 1))[1]}" x2="${px(x, 4.2, 1 + (x - 3.2) * 0.75)[0]}" y2="${px(x, 4.2, 1 + (x - 3.2) * 0.75)[1]}" stroke="var(--scene-rail)" stroke-width="1.5"/>`; }
+  // a stand-in (a model not yet loaded)
+  s += box(6.4, 1.2, 0, 7.4, 2.2, 0.8, 'var(--scene-stand-in)');
+  // night: a warm pool of light
+  const glow = night ? `<ellipse cx="${px(4.5, 3, 0)[0]}" cy="${px(4.5, 3, 0)[1]}" rx="150" ry="70" fill="#f2b438" opacity=".18"/><circle cx="${px(4.5, 3, 2.6)[0]}" cy="${px(4.5, 3, 2.6)[1]}" r="6" fill="#ffe2a0"/>` : '';
+  return `<svg viewBox="0 0 720 380">${night ? '' : ''}${s.split('<!--glow-->')[0]}${glow}</svg>`;
+}
+function threeMock(dark) {
+  return `<div class="bar"><b>3D</b><span>3/4</span><span>Top</span><span>Front</span><span>Side</span><span style="margin-left:8px">All</span><span>Isolate</span><span>Cutaway</span><span class="r"><span style="display:flex;gap:6px;align-items:center;${dark ? '' : 'color:var(--fg)'}">${ic('sun')}Day</span><span style="display:flex;gap:6px;align-items:center;${dark ? 'color:var(--fg)' : ''}">${ic('moon')}Night</span></span></div>${threeSvg(dark)}<div class="hint">Drag to orbit · right-drag or Shift+drag to pan · wheel to zoom · Home to fit · double-click a floor to walk</div>`;
+}
+
+/* ---------- palettes (the README tables are these arrays) ---------- */
+const VARS = {
+  ui: ['canvas', 'surface', 'elevated', 'fg', 'muted', 'edge', 'accent', 'accent-hover', 'accent-fg', 'danger', 'success', 'warning', 'titlebar', 'titlebar-fg'],
+  plan: ['plan-grid', 'plan-grid-major', 'plan-wall', 'plan-wall-line', 'plan-room', 'plan-slab', 'plan-dim', 'plan-underlay', 'plan-snap', 'plan-selection', 'plan-warning', 'plan-connector', 'plan-decor'],
+  scene: ['scene-edge', 'scene-wall', 'scene-slab', 'scene-column', 'scene-glass', 'scene-connector', 'scene-rail', 'scene-car', 'scene-stand-in'],
+};
+function paletteSheet(theme) {
+  const probe = document.createElement('div'); probe.className = theme; document.body.appendChild(probe);
+  const cs = getComputedStyle(probe);
+  const group = (title, names) => `<h4>${title}</h4><div class="swatches">${names.map(n => `<div class="sw"><i style="background:var(--${n})"></i><b>--${n}</b><span class="mono">${cs.getPropertyValue('--' + n).trim()}</span></div>`).join('')}</div>`;
+  probe.remove();
+  return `<div class="sheet ${theme}">${group(theme === 'light' ? 'Light · chrome' : 'Dark · chrome', VARS.ui)}${group('Plan canvas', VARS.plan)}${group('3D scene', VARS.scene)}</div>`;
+}
+document.getElementById('palettes').innerHTML = paletteSheet('light') + paletteSheet('dark');
+
+/* ---------- stamp the mocks ---------- */
+const MOCKS = {
+  'home-light': () => homeMock(false), 'home-dark': () => homeMock(true),
+  'plan-light': () => planMock(false), 'plan-dark': () => planMock(true),
+  'plan-empty': () => planMock(false, { empty: true }),
+};
+document.querySelectorAll('[data-mock]').forEach(w => { w.innerHTML = `<div class="mock">${MOCKS[w.dataset.mock]()}</div>`; });
+document.querySelectorAll('[data-three]').forEach(w => { w.innerHTML = threeMock(w.dataset.three === 'dark'); });
+document.querySelectorAll('[data-moment]').forEach(w => { w.innerHTML = moment(w.dataset.moment); });
+function fit() {
+  document.querySelectorAll('.mockwrap').forEach(w => {
+    const s = w.clientWidth / 1890; w.style.height = Math.round(1020 * s) + 'px';
+    w.querySelector('.mock').style.transform = `scale(${s})`;
+  });
+}
+fit(); addEventListener('resize', fit);
+</script>
+</body>
+</html>

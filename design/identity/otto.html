@@ -1,0 +1,545 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Otto — every state and place</title>
+<!-- Preview only: in the app the three families are bundled (OFL). -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Alegreya+Sans:ital,wght@0,400;0,500;0,700;1,400;1,500&family=Fraunces:ital,opsz,wght,SOFT@0,9..144,400..700,0..100;1,9..144,400..700,0..100&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ---------- Palette: Craft §e, both themes, plus decisions §4 (the five --ai* values) ---------- */
+:root {
+  --canvas: #f6f1e8; --surface: #efe8dc; --elevated: #e6ddcd; --fg: #2a2521; --muted: #7b7064; --edge: #dcd2c2;
+  --accent: #b9552f; --accent-hover: #9c4525; --accent-fg: #fbf6ee; --danger: #b5392c; --success: #4f7d3d; --warning: #b8841f;
+  --titlebar: #efe8dc; --titlebar-fg: #2a2521;
+  --plan-grid: #ebe4d7; --plan-grid-major: #dbd1bf; --plan-wall: #3b3531; --plan-wall-line: #231f1c; --plan-room: #8b9a6b; --plan-slab: #e9e1d2;
+  --plan-dim: #3f5390; --plan-underlay: #a89c8c; --plan-snap: #2f8a57; --plan-selection: #b9552f; --plan-warning: #b8841f; --plan-connector: #4b433d; --plan-decor: #8c6b4a;
+  --ai: #8a3f6f; --ai-hover: #733259; --ai-fg: #fbf6ee; --ai-tint: #f1e3ea; --plan-ai: #8a3f6f;
+  --font-mono: 'IBM Plex Mono', ui-monospace, Consolas, monospace;
+  --font-sans: 'Alegreya Sans', 'Segoe UI', system-ui, sans-serif;
+  --font-display: 'Fraunces', Georgia, serif;
+}
+.dark {
+  --canvas: #1d1a17; --surface: #262220; --elevated: #332d29; --fg: #ebe3d6; --muted: #a2968a; --edge: #3c3531;
+  --accent: #e07c50; --accent-hover: #ea9471; --accent-fg: #1d1a17; --danger: #e8705f; --success: #8fbf6e; --warning: #e2b24a;
+  --titlebar: #262220; --titlebar-fg: #ebe3d6;
+  --plan-grid: #272320; --plan-grid-major: #352f2b; --plan-wall: #d8cfc2; --plan-wall-line: #f3ece1; --plan-room: #a4b385; --plan-slab: #2a2623;
+  --plan-dim: #91a4e0; --plan-underlay: #7a7066; --plan-snap: #6fcf8a; --plan-selection: #e07c50; --plan-warning: #e2b24a; --plan-connector: #e3dacc; --plan-decor: #d4a97a;
+  --ai: #d892bd; --ai-hover: #e3a9cb; --ai-fg: #1d1a17; --ai-tint: #332631; --plan-ai: #d892bd;
+}
+
+/* ---------- The page ---------- */
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--canvas); color: var(--fg); font: 15px/1.5 var(--font-sans); -webkit-font-smoothing: antialiased; }
+.page { max-width: 1480px; margin: 0 auto; padding: 48px 32px 120px; }
+h1, h2, h3 { font-family: var(--font-display); font-weight: 600; font-variation-settings: 'SOFT' 60, 'opsz' 48; margin: 0; }
+h1 { font-size: 52px; line-height: 1.05; letter-spacing: -0.01em; }
+h1 .ai { color: var(--ai); font-style: italic; }
+h2 { font-size: 28px; margin: 88px 0 6px; }
+h3 { font-size: 18px; margin: 28px 0 4px; }
+.lede { color: var(--muted); max-width: 72ch; margin: 10px 0 0; }
+.note { color: var(--muted); font-size: 14px; max-width: 86ch; margin: 0 0 14px; }
+.eyebrow { font: 500 11px/1 var(--font-mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.lab { font: 500 11px/1 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 26px 0 8px; }
+.ex { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; }
+.t { background: var(--canvas); color: var(--fg); padding: 20px; border: 1px solid var(--edge); border-radius: 10px; font: 13px/18px var(--font-sans); }
+.t.dark { border-color: #3c3531; }
+.ico { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.ico.s { width: 16px; height: 16px; }
+.ico.xs { width: 14px; height: 14px; }
+.otto { display: inline-flex; flex: none; vertical-align: middle; }
+.otto svg { width: 100%; height: 100%; display: block; }
+kbd { font: 500 11px/16px var(--font-mono); background: var(--elevated); color: var(--fg); border-radius: 4px; padding: 0 5px; }
+.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+/* buttons */
+.btn { height: 28px; padding: 0 10px; border-radius: 6px; border: 1px solid var(--edge); background: var(--surface); color: var(--fg); display: inline-flex; align-items: center; gap: 6px; font: 500 13px/1 var(--font-sans); white-space: nowrap; }
+.btn.pri { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.btn.ai { background: var(--ai); color: var(--ai-fg); border-color: var(--ai); height: 32px; padding: 0 14px; }
+.btn.ghost { border-color: transparent; background: transparent; color: var(--muted); }
+.btn.danger { border-color: transparent; background: transparent; color: var(--danger); }
+.btn.dis { opacity: .5; }
+.btn.lg { height: 36px; padding: 0 14px; font-size: 14px; }
+
+/* spinner, caret, pulse */
+.spin { animation: spin .9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.caret { display: inline-block; width: 2px; height: 14px; background: var(--ai); vertical-align: -2px; margin-left: 2px; animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.pulse { animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .4; } }
+@media (prefers-reduced-motion: reduce) { .spin, .caret, .pulse { animation: none; } }
+
+/* ---------- The chat panel, 418 px ---------- */
+.panel { width: 418px; background: var(--surface); border: 1px solid var(--edge); border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; color: var(--fg); }
+.panel .hd { height: 44px; flex: none; display: flex; align-items: center; gap: 10px; padding: 0 12px; border-bottom: 1px solid var(--edge); }
+.panel .hd .n { font-family: var(--font-display); font-weight: 600; font-size: 18px; line-height: 22px; font-variation-settings: 'opsz' 20, 'SOFT' 50; }
+.panel .hd .m { font-size: 11px; line-height: 14px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.panel .hd .m .mono { font-size: 11px; }
+.panel .hd .sp { flex: 1; min-width: 0; }
+.panel .log { padding: 12px; display: flex; flex-direction: column; gap: 10px; position: relative; }
+.msg { white-space: pre-wrap; }
+.msg.u { align-self: flex-end; max-width: 85%; background: var(--elevated); border-radius: 8px 8px 2px 8px; padding: 7px 12px; }
+.msg.o { padding-left: 12px; border-left: 2px solid var(--ai); }
+.msg.note { padding-left: 12px; border-left: 2px solid var(--edge); font-style: italic; font-size: 12px; line-height: 16px; color: var(--muted); }
+.card { background: var(--surface); border: 1px solid var(--edge); border-left: 3px solid var(--ai); border-radius: 8px; padding: 8px 10px; display: grid; grid-template-columns: 16px 1fr; column-gap: 8px; row-gap: 2px; }
+.card .g { grid-row: 1 / span 4; padding-top: 1px; display: flex; }
+.card .g .ico { width: 16px; height: 16px; }
+.card .l1 { display: flex; align-items: baseline; gap: 8px; font-weight: 500; min-width: 0; }
+.card .l1 .ttl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card .l1 .id { margin-left: auto; font: 11px/14px var(--font-mono); color: var(--muted); flex: none; }
+.card .l2 { font-size: 11px; line-height: 14px; color: var(--muted); }
+.card .l3 { font-size: 12px; line-height: 16px; }
+.card .l3.err { color: var(--danger); }
+.card .l3.mut { color: var(--muted); font-style: italic; }
+.card.wait { border-color: var(--warning); border-left-color: var(--ai); }
+.card .pre { font: 11px/16px var(--font-mono); background: var(--canvas); border-radius: 4px; padding: 6px 8px; margin-top: 4px; max-height: 60px; overflow: hidden; position: relative; white-space: pre; }
+.card .pre::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 16px; background: linear-gradient(transparent, var(--canvas)); }
+.card .more { font-size: 11px; line-height: 14px; color: var(--muted); text-align: right; margin-top: 2px; }
+.card .acts { display: flex; gap: 8px; margin-top: 6px; }
+.card .shot { margin-top: 6px; border: 1px solid var(--edge); border-radius: 6px; background: var(--canvas); overflow: hidden; max-height: 180px; }
+.card .shot svg { display: block; width: 100%; height: auto; }
+.card .clip { max-height: 48px; overflow: hidden; position: relative; }
+.card .clip::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 16px; background: linear-gradient(transparent, var(--surface)); }
+.working { display: flex; align-items: center; gap: 8px; font-style: italic; font-size: 12px; line-height: 16px; color: var(--muted); }
+.errline { display: flex; align-items: flex-start; gap: 6px; color: var(--danger); font-size: 12px; line-height: 16px; }
+.errline .ico { width: 14px; height: 14px; margin-top: 1px; }
+.pill { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); height: 28px; padding: 0 12px 0 10px; border-radius: 999px; background: var(--surface); border: 1px solid var(--edge); display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--fg); }
+.pill .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ai); }
+.panel .mcp { margin: 0 12px 10px; background: var(--surface); border: 1px solid var(--warning); border-radius: 8px; padding: 8px 10px; display: flex; gap: 8px; align-items: flex-start; font-size: 12px; line-height: 16px; }
+.panel .mcp .ico { color: var(--warning); width: 16px; height: 16px; margin-top: 1px; }
+.panel .comp { border-top: 1px solid var(--edge); padding: 10px 12px 8px; display: flex; flex-direction: column; gap: 6px; }
+.panel .comp .row { display: flex; gap: 8px; align-items: flex-end; }
+.panel .ta { flex: 1; height: 58px; background: var(--canvas); border: 1px solid var(--edge); border-radius: 6px; padding: 8px 10px; color: var(--muted); }
+.panel .ta.focus { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent); color: var(--fg); }
+.panel .ta.dis { background: var(--surface); opacity: .6; }
+.panel .hint { display: flex; justify-content: space-between; align-items: center; font-size: 11px; line-height: 14px; color: var(--muted); gap: 8px; }
+.panel .hint .k { display: flex; gap: 8px; align-items: center; white-space: nowrap; }
+.empty { padding: 36px 24px 32px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; }
+.empty h4 { margin: 4px 0 0; font-family: var(--font-display); font-weight: 600; font-size: 18px; line-height: 24px; font-variation-settings: 'opsz' 20, 'SOFT' 50; }
+.empty p { margin: 0; color: var(--muted); max-width: 300px; }
+.empty p .mono { font-size: 12px; }
+.empty .chips { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.empty .chip { background: var(--canvas); border: 1px solid var(--edge); border-radius: 4px; padding: 4px 8px; font-size: 12px; font-style: italic; }
+.empty .acts { display: flex; gap: 8px; margin-top: 8px; }
+.opts { display: flex; flex-direction: column; gap: 8px; width: 100%; text-align: left; margin-top: 8px; }
+.opt { border: 1px solid var(--edge); border-radius: 8px; padding: 10px 12px; display: grid; grid-template-columns: 16px 1fr; gap: 4px 10px; background: var(--surface); }
+.opt.on { border-color: var(--accent); }
+.opt .r { width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid var(--muted); margin-top: 2px; }
+.opt.on .r { border-color: var(--accent); box-shadow: inset 0 0 0 3px var(--surface); background: var(--accent); }
+.opt .ot { font-weight: 500; }
+.opt .od { grid-column: 2; font-size: 12px; line-height: 16px; color: var(--muted); }
+.opt .of { grid-column: 2; display: flex; gap: 8px; margin-top: 6px; align-items: center; }
+.field { height: 28px; border: 1px solid var(--edge); border-radius: 6px; background: var(--canvas); padding: 0 8px; display: flex; align-items: center; color: var(--muted); font: 12px/1 var(--font-mono); flex: 1; }
+.link { font-size: 12px; color: var(--muted); text-decoration: underline; text-decoration-color: var(--edge); margin-top: 8px; }
+
+/* ---------- Canvas excerpt ---------- */
+.cvx { width: 480px; border: 1px solid var(--edge); border-radius: 8px; overflow: hidden; background: var(--canvas); }
+.cvx svg { display: block; width: 100%; height: auto; }
+.cvx .cf { height: 28px; border-top: 1px solid var(--edge); display: flex; align-items: center; gap: 22px; padding: 0 12px; font: 11px/1 var(--font-mono); color: var(--muted); }
+.cvx .cf b { color: var(--fg); font-weight: 500; }
+
+/* ---------- History ---------- */
+.hist { width: 418px; background: var(--surface); border: 1px solid var(--edge); border-radius: 8px; overflow: hidden; }
+.hist .hd { height: 40px; display: flex; align-items: center; gap: 6px; padding: 0 12px; border-bottom: 1px solid var(--edge); }
+.hist .row { display: grid; grid-template-columns: 16px 1fr auto; align-items: center; gap: 10px; padding: 7px 12px; min-height: 38px; position: relative; }
+.hist .row .by { display: block; font-size: 11px; line-height: 14px; color: var(--muted); }
+.hist .row .by i { font-style: italic; }
+.hist .row .tm { font-size: 11px; font-style: italic; color: var(--muted); }
+.hist .row .d { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); margin: 0 auto; }
+.hist .row .ring { width: 6px; height: 6px; border-radius: 50%; border: 1.5px solid var(--muted); margin: 0 auto; }
+.hist .row.ai { background: var(--ai-tint); }
+.hist .row.newest::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: var(--accent); }
+.hist .row.newest .lbl { font-weight: 500; }
+.hist .row.wait { opacity: .45; }
+.hist .row.redo { color: var(--muted); opacity: .7; text-decoration: line-through; }
+
+/* ---------- Status bar ---------- */
+.sb { width: 560px; height: 24px; border: 1px solid var(--edge); border-radius: 6px; background: var(--surface); display: flex; align-items: center; padding: 0 12px; gap: 12px; font-size: 11px; color: var(--muted); }
+.sb .sp { flex: 1; }
+.sb .it { display: flex; align-items: center; gap: 4px; }
+.sb .it .ico { width: 12px; height: 12px; }
+.sb .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ai); }
+.sb .dot.mut { background: var(--muted); }
+.sb .dot.ok { background: var(--success); }
+.sb .dot.dng { background: var(--danger); }
+
+/* ---------- Home cards ---------- */
+.cards { display: grid; grid-template-columns: repeat(2, 340px); gap: 18px; }
+.hcard { width: 340px; border: 1px solid var(--edge); border-radius: 8px; background: var(--surface); overflow: hidden; }
+.hcard.compose { background: var(--ai-tint); border-left: 3px solid var(--ai); padding: 18px; display: flex; flex-direction: column; gap: 10px; }
+.hcard.compose .tt { display: flex; align-items: center; gap: 10px; font-family: var(--font-display); font-weight: 600; font-size: 20px; line-height: 26px; font-variation-settings: 'opsz' 24, 'SOFT' 60; }
+.hcard.compose .d { color: var(--muted); }
+.hcard.compose .ta { background: var(--canvas); border: 1px solid var(--edge); border-radius: 6px; padding: 8px 10px; min-height: 72px; color: var(--muted); font-style: italic; }
+.hcard.compose .ta.said { color: var(--fg); }
+.hcard.compose .ta.dis { background: var(--surface); opacity: .6; }
+.hcard.compose .ft { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 11px; line-height: 14px; color: var(--muted); }
+.hcard .thumb { height: 160px; position: relative; background: var(--canvas); border-bottom: 1px solid var(--edge); overflow: hidden; }
+.hcard .thumb svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.hcard .corner { position: absolute; right: 10px; top: 10px; box-shadow: 0 0 0 1.5px var(--surface); border-radius: 4px; }
+.hcard .body { padding: 12px 16px 14px; }
+.hcard .name { font-size: 17px; font-weight: 500; }
+.hcard .meta { color: var(--muted); font-size: 13px; margin-top: 2px; font-style: italic; }
+
+/* ---------- Empty project card ---------- */
+.ep { width: 520px; background: var(--surface); border: 1px solid var(--edge); border-radius: 8px; padding: 24px 26px 22px; display: flex; flex-direction: column; gap: 10px; }
+.ep h4 { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 26px; line-height: 32px; font-variation-settings: 'opsz' 36, 'SOFT' 80; }
+.ep p { margin: 0; color: var(--muted); }
+.ep .keys { display: flex; gap: 14px; flex-wrap: wrap; color: var(--muted); }
+.ep .keys span { display: inline-flex; gap: 6px; align-items: center; }
+.ep .acts { display: flex; gap: 10px; margin-top: 2px; }
+.ep .ask { display: flex; align-items: center; gap: 10px; margin-top: 6px; padding: 8px 12px; border-radius: 6px; background: var(--ai-tint); }
+.ep .ask .inp { font-style: italic; border-bottom: 1px dotted var(--muted); padding-bottom: 1px; }
+.ep .sketch { width: 200px; height: 110px; align-self: center; }
+
+/* ---------- Settings ---------- */
+.set { width: 640px; background: var(--surface); border: 1px solid var(--edge); border-radius: 8px; padding: 20px 24px 22px; }
+.set h4 { margin: 0 0 4px; display: flex; align-items: center; gap: 8px; font-family: var(--font-display); font-weight: 600; font-size: 18px; line-height: 24px; font-variation-settings: 'opsz' 20, 'SOFT' 50; padding-bottom: 6px; border-bottom: 1px solid var(--edge); }
+.set p { margin: 6px 0 0; color: var(--muted); font-size: 12px; line-height: 16px; max-width: 64ch; }
+.set .lbl { display: block; font-size: 11px; line-height: 14px; color: var(--muted); margin: 14px 0 4px; font-weight: 500; }
+.set .sel { height: 28px; width: 288px; border: 1px solid var(--edge); border-radius: 6px; background: var(--canvas); padding: 0 8px; display: flex; align-items: center; justify-content: space-between; }
+.set .in { height: 28px; border: 1px solid var(--edge); border-radius: 6px; background: var(--canvas); padding: 0 8px; display: flex; align-items: center; font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+.set .r { display: flex; gap: 8px; align-items: center; }
+.set .st { font-size: 12px; line-height: 16px; margin-top: 6px; }
+.set .st.ok { color: var(--success); }
+.set .st.warn { color: var(--warning); }
+.set .badge { font-size: 11px; padding: 1px 6px; border-radius: 4px; background: var(--elevated); color: var(--muted); }
+.calls { border: 1px solid var(--edge); border-radius: 6px; margin-top: 8px; }
+.calls .cr { display: flex; align-items: center; gap: 10px; height: 32px; padding: 0 10px; font-size: 12px; border-top: 1px solid var(--edge); }
+.calls .cr:first-child { border-top: 0; }
+.calls .cr .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); }
+.calls .cr .dot.bad { background: var(--danger); }
+.calls .cr .who { color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.calls .cr .ring { width: 6px; height: 6px; border-radius: 50%; border: 1.5px solid var(--muted); }
+.calls .cr .tm { margin-left: auto; font-style: italic; color: var(--muted); }
+.about { width: 520px; background: var(--surface); border: 1px solid var(--edge); border-radius: 10px; padding: 24px 28px; }
+.about .wm { font-family: var(--font-display); font-weight: 600; font-size: 34px; line-height: 1; font-variation-settings: 'SOFT' 80, 'opsz' 144; letter-spacing: -0.015em; }
+.about .wm .dot { color: var(--accent); }
+.about p { margin: 8px 0 0; color: var(--muted); font-size: 13px; max-width: 52ch; }
+.about .credit { margin-top: 14px; font-family: var(--font-display); font-weight: 600; font-size: 17px; font-variation-settings: 'opsz' 18, 'SOFT' 50; }
+.about .credit .ai { color: var(--ai); font-style: italic; }
+.about .v { font: 12px/1.5 var(--font-mono); color: var(--muted); margin-top: 6px; }
+.marks { display: flex; align-items: flex-end; gap: 22px; }
+.marks .c { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.marks .c small { font: 11px/1 var(--font-mono); color: var(--muted); }
+.swrow { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+.sw { display: flex; gap: 8px; align-items: center; padding: 5px 8px 5px 5px; border: 1px solid var(--edge); border-radius: 6px; background: var(--surface); font-size: 12px; }
+.sw i { width: 24px; height: 24px; border-radius: 4px; display: block; }
+.sw small { display: block; font: 11px/1.2 var(--font-mono); color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="page">
+
+<div class="eyebrow">Identity · 03</div>
+<h1>Otto, <span class="ai">in every state</span></h1>
+<p class="lede">The assistant as it appears on Craft's paper: the mark, the chat panel in each of its states, the canvas halo and tag, History, the status bar, Home, the empty project and Settings. Light on the left, dark on the right. Every colour is a variable from Craft §e or decisions §4; mulberry never asks you to click it, except Draft it.</p>
+
+<h2>The mark</h2>
+<p class="note">A mulberry tile (<code class="mono">--ai</code>) with Otto's room on it: a paper-coloured outlined square (<code class="mono">--ai-fg</code>) and the pen, a dot, still on its top-right corner. 28 px in the panel header, 24 on the Home composer, 20 on the empty-project line and in Settings, 16 in History rows, 14 on card corners and in the call log. Tile radius 7 / 6 / 5 / 4 / 3.5 px; the room's stroke is 2 px at 24 and up, 2.4 px below so it survives. The glyph without its tile is what the canvas tag carries.</p>
+<div id="marks" class="ex"></div>
+
+<h2>The chat panel</h2>
+<p class="note">418 px wide, the right column of the project tab. The header carries the mark, Otto in Fraunces, the model in mono and the standing rule. Your messages sit on the elevated paper, right-aligned; Otto's are paragraphs with a 2 px mulberry rule on the left. Tool calls are paper cards with a 3 px mulberry left edge. Every deciding button is yours: terracotta or paper.</p>
+<div id="panels"></div>
+
+<h2>The canvas</h2>
+<p class="note">What Otto changed in the last minute carries a 34 px halo of <code class="mono">--plan-ai</code> at 22 % alpha with round end nodes and one tag on a short leader; a pending destructive call draws its target with a dashed outline until you answer. Here the kitchen is selected by you in terracotta at the same time, a moss snap mark sits on a corner, and the dimension stays indigo. Sizes are screen pixels and do not follow the zoom.</p>
+<div id="canvas" class="ex"></div>
+
+<h2>History</h2>
+<p class="note">Newest first. Your rows have a graphite dot, Otto's the 16 px mark on <code class="mono">--ai-tint</code> and a signature with layer and command id, MCP agents' a hollow ring and no tint. The newest entry carries a 2 px terracotta bar: it is the one Ctrl+Z takes. A call waiting for your yes sits greyed at the top and is not yet an undo step.</p>
+<div id="history" class="ex"></div>
+
+<h2>The status bar</h2>
+<p class="note">Between the units and MCP: a mulberry dot and a short state. The dot pulses while Otto works, goes graphite when Otto cannot work, danger for six seconds after a failed run. The button around it is paper; clicking it opens the Assistant tab.</p>
+<div id="status" class="ex"></div>
+
+<h2>Home</h2>
+<p class="note">The first slot is the composer card on <code class="mono">--ai-tint</code> with the one mulberry button in the app, Draft it. While Otto drafts, the card shows the sentence and a spinner; without a key the field is disabled and the button is a paper Set up Otto. A project Otto has worked on carries the 14 px mark in its thumbnail's corner.</p>
+<div id="home" class="ex"></div>
+
+<h2>The empty project</h2>
+<p class="note">Concept 1's card, plus the line on <code class="mono">--ai-tint</code>: "Or tell Otto:" with an editable example sentence; Enter sends it as the first message. First launch carries the same line under New project and Import.</p>
+<div id="emptyproj" class="ex"></div>
+
+<h2>Settings and About</h2>
+<p class="note">Settings &gt; Assistant names the provider, explains the rule, and holds the key or the Claude Code command and its status. The MCP call log attributes Otto's calls with the 14 px mark and other agents' with a hollow ring, untinted. About has the one two-colour credit line.</p>
+<div id="settings" class="ex"></div>
+<div id="about" class="ex" style="margin-top:20px"></div>
+
+</div>
+
+<script>
+/* ---------- Icons: Lucide-like, 24 grid, 1.6 px stroke ---------- */
+const P = {
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  shield: '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="M12 8v4"/><path d="M12 16h.01"/>',
+  alert: '<circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/>',
+  camera: '<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/>',
+  eraser: '<path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/>',
+  send: '<path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/>',
+  stop: '<rect x="6" y="6" width="12" height="12" rx="1.5" fill="currentColor" stroke="none"/>',
+  x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  key: '<path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5"/>',
+  refresh: '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
+  plug: '<path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8z"/>',
+  down: '<path d="M12 5v14"/><path d="m19 12-7 7-7-7"/>',
+  undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11"/>',
+  redo: '<path d="m15 14 5-5-5-5"/><path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5A5.5 5.5 0 0 0 9.5 20H13"/>',
+  ruler: '<path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.41 2.41 0 0 1 0-3.4l2.6-2.6a2.41 2.41 0 0 1 3.4 0Z"/><path d="m14.5 12.5 2-2"/><path d="m11.5 9.5 2-2"/><path d="m8.5 6.5 2-2"/><path d="m17.5 15.5 2-2"/>',
+  moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>',
+  plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+  upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/>',
+  trash: '<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><path d="M10 11v6"/><path d="M14 11v6"/>',
+  wall: '<rect x="3" y="5" width="18" height="14" rx="1"/><path d="M3 12h18"/><path d="M12 5v7"/><path d="M7.5 12v7"/><path d="M16.5 12v7"/>',
+  chev: '<path d="m6 9 6 6 6-6"/>',
+  spinner: '<path d="M21 12a9 9 0 1 1-9-9"/>',
+};
+const ic = (n, cls = '', style = '') => `<svg class="ico ${cls}" viewBox="0 0 24 24" style="${style}" aria-hidden="true">${P[n]}</svg>`;
+const spin = (color = 'var(--ai)', px = 16) => `<svg class="ico spin" viewBox="0 0 24 24" style="width:${px}px;height:${px}px;color:${color}" aria-hidden="true">${P.spinner}</svg>`;
+
+/* ---------- Otto's mark ---------- */
+const OTTO = (px = 24, label = 'Otto', style = '') => {
+  const r = px >= 28 ? 7 : px >= 24 ? 6 : px >= 20 ? 5 : px >= 16 ? 4 : 3.5;
+  const sw = px >= 24 ? 2 : 2.4, dr = px >= 20 ? 2.7 : 3;
+  const aria = label ? `role="img" aria-label="${label}"` : 'aria-hidden="true"';
+  return `<span class="otto" style="width:${px}px;height:${px}px;${style}" ${aria}><svg viewBox="0 0 24 24"><rect width="24" height="24" rx="${(r / px) * 24}" fill="var(--ai)"/><rect x="6.5" y="7.5" width="10" height="10" rx="1.2" fill="none" stroke="var(--ai-fg)" stroke-width="${sw}"/><circle cx="16.5" cy="7.5" r="${dr}" fill="var(--ai-fg)"/></svg></span>`;
+};
+/* the room glyph alone (for the canvas tag), in --ai-fg */
+const GLYPH = (px = 14) => `<svg viewBox="0 0 24 24" style="width:${px}px;height:${px}px;display:block" aria-hidden="true"><rect x="5" y="7" width="12" height="12" rx="1.5" fill="none" stroke="var(--ai-fg)" stroke-width="2.4"/><circle cx="17.5" cy="6.5" r="3" fill="var(--ai-fg)"/></svg>`;
+
+/* ---------- Helpers: render a fragment in both themes ---------- */
+let SUF = 0;
+const pair = (host, label, build, width) => {
+  const el = typeof host === 'string' ? document.getElementById(host) : host;
+  const w = width ? `style="width:${width}px"` : '';
+  const html = ['light', 'dark'].map((t) => { SUF++; return `<div class="t ${t}" ${w}>${build(t, SUF)}</div>`; }).join('');
+  el.insertAdjacentHTML('beforeend', (label ? `<div class="lab" style="flex-basis:100%">${label}</div>` : '') + html);
+};
+const btn = (text, kind = '', icon = '', extra = '') => `<span class="btn ${kind} ${extra}">${icon ? ic(icon, 'xs') : ''}${text}</span>`;
+
+/* ---------- Marks ---------- */
+pair('marks', '', () => `<div class="marks">${[28, 24, 20, 16, 14].map((px) => `<div class="c">${OTTO(px)}<small>${px} px</small></div>`).join('')}
+  <div class="c" style="margin-left:14px"><span style="display:inline-flex;align-items:center;height:24px;padding:0 10px 0 6px;border-radius:6px;background:var(--plan-ai);color:var(--ai-fg);font:500 12px/24px var(--font-sans);gap:6px">${GLYPH(14)}Otto · Add a 3 m wall · now</span><small>the tag</small></div></div>
+  <div class="swrow">${[['--ai', 'var(--ai)'], ['--ai-hover', 'var(--ai-hover)'], ['--ai-fg', 'var(--ai-fg)'], ['--ai-tint', 'var(--ai-tint)'], ['--plan-ai', 'var(--plan-ai)']].map(([n, v]) => `<div class="sw"><i style="background:${v};border:1px solid var(--edge)"></i><div>${n}<small data-var="${n}"></small></div></div>`).join('')}</div>`);
+// print the hex of each --ai* variable as resolved in its theme
+document.querySelectorAll('#marks .t').forEach((t) => { const cs = getComputedStyle(t); t.querySelectorAll('[data-var]').forEach((s) => { s.textContent = cs.getPropertyValue(s.dataset.var).trim(); }); });
+
+/* ---------- The chat panel ---------- */
+const header = (model = '<span class="mono">Claude Opus 5.5</span> · asks before deleting', right = `${btn('Clear', 'ghost', 'eraser')}`) =>
+  `<div class="hd">${OTTO(28)}<div class="sp"><div class="n">Otto</div><div class="m">${model}</div></div>${right}</div>`;
+const composer = (opts = {}) => {
+  const ta = opts.disabled ? `<div class="ta dis">${opts.placeholder || 'Ask Otto…'}</div>` : `<div class="ta ${opts.focus ? 'focus' : ''}">${opts.text || 'Ask Otto…'}</div>`;
+  const right = opts.stop ? `<span class="btn" aria-label="Stop Otto">${ic('stop', 'xs')}Stop</span>` : opts.stopping ? `<span class="btn dis">${spin('var(--fg)', 14)}Stop</span>` : btn('Send', 'pri', 'send', opts.text ? '' : 'dis');
+  return `<div class="comp"><div class="row">${ta}${right}</div><div class="hint"><span>Edits land on your undo stack, signed Otto.</span><span class="k"><kbd>Enter</kbd> send · <kbd>Shift Enter</kbd> new line</span></div></div>`;
+};
+const card = (o) => {
+  const g = o.status === 'running' ? spin() : o.status === 'ok' ? ic('check', '', 'color:var(--success)') : o.status === 'wait' ? ic('shield', '', 'color:var(--warning)') : o.status === 'declined' ? ic('shield', '', 'color:var(--muted)') : o.status === 'error' ? ic('alert', '', 'color:var(--danger)') : o.status === 'stopped' ? ic('stop', '', 'color:var(--muted)') : ic('camera', '', 'color:var(--muted)');
+  return `<div class="card ${o.status === 'wait' ? 'wait' : ''}" data-status="${o.status}"><span class="g">${g}</span>
+    <div class="l1"><span class="ttl">${o.title}</span><span class="id">${o.id}</span></div>
+    <div class="l2">${o.meta}</div>
+    ${o.pre ? `<div class="pre">${o.pre}</div><div class="more">More</div>` : ''}
+    ${o.text ? `<div class="l3 ${o.cls || ''}">${o.text}</div>` : ''}
+    ${o.clip ? `<div class="clip l3">${o.clip}</div><div class="more">More</div>` : ''}
+    ${o.shot ? `<div class="shot">${o.shot}</div>` : ''}
+    ${o.acts ? `<div class="acts">${o.acts}</div>` : ''}
+  </div>`;
+};
+const u = (t) => `<div class="msg u">${t}</div>`;
+const o = (t, caret) => `<div class="msg o">${t}${caret ? '<span class="caret"></span>' : ''}</div>`;
+const note = (t) => `<div class="msg note">${t}</div>`;
+const panel = (hd, log, comp, extra = '') => `<div class="panel">${hd}<div class="log">${log}</div>${extra}${comp}</div>`;
+
+const states = [
+  ['Empty conversation · before the first message', () => panel(header(),
+    `<div class="empty">${OTTO(28)}<h4>Tell Otto what the place is.</h4><p>Otto reads the plan before it draws, and every edit it makes is one undo step, signed Otto. It asks before it deletes anything.</p>
+     <div class="chips"><span class="chip">add a 4 by 5 m bedroom next to the living room</span><span class="chip">how big is the kitchen, and does the stair meet my rules?</span></div></div>`,
+    composer({ focus: true }))],
+  ['A conversation · running, done, a batch, a long result collapsed', (t, s) => panel(header(),
+    u('Close the kitchen off from the hall. A proper wall, not the half-wall.') +
+    card({ status: 'ok', title: 'Describe the plan', id: 'plan.describe', meta: 'Ground floor · read only', clip: 'Ground floor, 4 rooms: Kitchen 10.5 m² (3 400 × 3 100 mm), Hall 7.4 m², Bedroom 11.2 m², Living 19.8 m². 9 walls, 200 mm; 3 doors (900 mm), 2 windows (1 200 mm). One connector: the stair to the upper floor, 12 risers of 190 mm, 3 300 mm run. Rules: 1 warning (riser height).' }) +
+    o('There are two 3 000 mm walls on the ground floor. I\'ll take the one between the kitchen and the hall and make it 200 mm thick like the others.') +
+    card({ status: 'ok', title: 'Add a 3 m wall and a door', id: 'plan.apply', meta: 'Ground floor · 2 edits · one undo step, by Otto' }) +
+    o('Added a 3 000 mm wall between the kitchen and the hall, 200 mm thick like the others, with a 900 mm door at the hall end. It\'s highlighted on the plan.') +
+    u('And the half-wall?') +
+    card({ status: 'running', title: 'Query the plan', id: 'plan.query', meta: 'Ground floor · read only · <i>running…</i>' }) +
+    `<div class="working">${OTTO(16, '')}Working…</div>`,
+    composer({ disabled: true, placeholder: 'Otto is working…', stop: true }))],
+  ['Waiting for your yes · the ochre shield, Allow and Keep it', () => panel(header(),
+    u('Get rid of the old half-wall.') +
+    o('Removing the half-wall takes its 900 mm door with it. I\'ve asked above; nothing changes until you answer.') +
+    card({ status: 'wait', title: 'Remove the half-wall', id: 'plan.entity.delete', meta: 'Otto asks before deleting. wall_8f2 · 1 200 mm · Structure', pre: '{\n "ids": ["wall_8f2"],\n "level": "lvl_ground",\n "withOpenings": true\n}', acts: btn('Allow', 'pri', 'check') + btn('Keep it', '', 'x') }),
+    composer({ disabled: true, placeholder: 'Otto is waiting for your answer above' }))],
+  ['Declined, and failed', () => panel(header(),
+    card({ status: 'declined', title: 'Remove the half-wall', id: 'plan.entity.delete', meta: 'wall_8f2 · 1 200 mm · Structure', text: 'Kept. Otto was told no.', cls: 'mut' }) +
+    o('I left it alone. The kitchen still opens to the hall over the half-wall.') +
+    u('Then extend the new wall to the garden side.') +
+    card({ status: 'error', title: 'Add a 3 m wall', id: 'plan.apply', meta: 'Ground floor · 1 edit, by Otto', text: 'INVALID: the wall\'s end (7 400, 2 980) lies inside connector str_2a1.', cls: 'err' }) +
+    o('The wall didn\'t land: its far end would sit inside the stair. The plan is as it was. Tell me where it should stop, or I can end it 300 mm short of the stair.') +
+    card({ status: 'stopped', title: 'Add a 3 m wall', id: 'plan.apply', meta: 'Ground floor · 1 edit, by Otto', text: 'Stopped.', cls: 'mut' }),
+    composer())],
+  ['Snapshot taken · the camera and the inline image', (t, s) => panel(header(),
+    u('Does the new wall block the window?') +
+    card({ status: 'shot', title: 'Snapshot of a level or the building', id: 'view.snapshot', meta: 'Ground floor · plan', shot: planSvg({ id: 'shot' + s, mini: true, w: 390, h: 180 }) }) +
+    o('I looked at the ground floor; the picture is above. The new wall ends 450 mm short of the window, so the window stays clear. Want me to look from the hall side in 3D too?'),
+    composer())],
+  ['Streaming reply, scrolled up · the caret and the "New from Otto" pill', () => panel(header(),
+    u('Would a 6-riser step up to the study work?') +
+    card({ status: 'ok', title: 'Check the rules', id: 'rules.check', meta: 'Building · read only' }) +
+    o('Six risers at 2 400 mm floor-to-floor would be 400 mm each, well over the 190 mm limit in your rules. Twelve risers of 200 mm fit along the study\'s east wall, with a 3 300 mm run', true) +
+    `<div class="pill">${ic('down', 'xs')}<span class="dot"></span>New from Otto</div>`,
+    composer({ disabled: true, placeholder: 'Otto is writing…', stop: true }))],
+  ['Rate-limited, and a network error · the danger line and Send again', () => panel(header(),
+    u('Add a 1 200 mm window on the garden wall of the bedroom.') +
+    `<div class="errline">${ic('alert')}<span>The Claude API is rate-limiting this key. Try again in a moment.</span></div>` +
+    `<div>${btn('Send again', '', 'refresh')}</div>` +
+    note('Later, after a connection drop:') +
+    `<div class="errline">${ic('alert')}<span>Could not reach the Claude API. Check the connection.</span></div>` +
+    `<div>${btn('Send again', '', 'refresh')}</div>`,
+    composer())],
+  ['No API key · the provider picker', () => panel(header('<span class="mono">no provider yet</span> · asks before deleting', ''),
+    `<div class="empty">${OTTO(28)}<h4>Otto needs a key, or your Claude Code.</h4><p>Pick how Otto reaches Claude. Both stay on this computer.</p>
+     <div class="opts">
+       <div class="opt on"><span class="r"></span><span class="ot">Claude API, with your key</span><span class="od">The default. The key is stored encrypted here and never shared or exported.</span><span class="of"><span class="field">sk-ant-…</span>${btn('Save key', 'pri', 'key')}</span></div>
+       <div class="opt"><span class="r"></span><span class="ot">Claude Code, your local install</span><span class="od">Uses the Claude Code you installed and logged in. Counts against its usage limits.</span></div>
+     </div><span class="link">All assistant settings…</span></div>`,
+    '')],
+  ['Claude Code not found, and not logged in', () => panel(header('<span class="mono">Claude Code</span> · asks before deleting', ''),
+    `<div class="empty">${OTTO(28)}<h4>Claude Code not found</h4><p>No <span class="mono">claude</span> on PATH. Install Claude Code, or set its path in Settings.</p><div class="acts">${btn('Open Settings', 'pri', 'key')}${btn('Check again', '', 'refresh')}</div></div>
+     <div style="height:1px;background:var(--edge);margin:0 -12px"></div>
+     <div class="empty">${OTTO(28)}<h4>Claude Code is not logged in</h4><p>I can't work yet: Claude Code is not logged in. Run <span class="mono">claude</span> in a terminal and log in, then press Check again. Hollin never handles your login.</p><div class="acts">${btn('Check again', 'pri', 'refresh')}</div></div>`,
+    '')],
+  ['Claude Code · MCP server off, stopping (busy), resumed session', () => panel(header('<span class="mono">Claude Code 2.1.283 · opus · high effort</span> · asks before deleting'),
+    note('Continuing your earlier Claude Code session; its messages are not shown. Clear starts a new one.') +
+    u('Add a 900 mm door between the hall and the bedroom.') +
+    card({ status: 'stopped', title: 'Add a door', id: 'plan.apply', meta: 'Ground floor · 1 edit, by Otto', text: 'Stopped.', cls: 'mut' }),
+    composer({ disabled: true, placeholder: 'Stopping the last run…', stopping: true }),
+    `<div class="mcp">${ic('plug')}<div style="display:flex;flex-direction:column;gap:6px"><span>Otto works through the MCP server with Claude Code, and it is off.</span><span>${btn('Enable MCP server', 'pri', 'plug')}</span></div></div>`)],
+];
+for (const [label, build] of states) pair('panels', label, build);
+// the panels section lays its pairs out as rows
+document.getElementById('panels').classList.add('ex');
+
+/* ---------- The plan excerpt (1 px = 20 mm) ---------- */
+function planSvg({ id, mini = false, w = 480, h = 300 }) {
+  const g = [];
+  const sx = w / 480, sy = h / 300;
+  g.push(`<svg viewBox="0 0 480 300" width="${w}" height="${h}" style="width:100%;height:auto" role="img" aria-label="Plan excerpt with Otto's halo and a selected room">`);
+  g.push(`<defs><pattern id="g${id}" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M10 0H0V10" fill="none" stroke="var(--plan-grid)" stroke-width="1"/></pattern><pattern id="G${id}" width="50" height="50" patternUnits="userSpaceOnUse"><rect width="50" height="50" fill="url(#g${id})"/><path d="M50 0H0V50" fill="none" stroke="var(--plan-grid-major)" stroke-width="1"/></pattern></defs>`);
+  g.push(`<rect width="480" height="300" fill="var(--canvas)"/><rect width="480" height="300" fill="url(#G${id})"/>`);
+  // slab and rooms (18 % sage wash)
+  g.push(`<rect x="40" y="40" width="400" height="240" fill="var(--plan-slab)"/>`);
+  g.push(`<g fill="var(--plan-room)" fill-opacity="0.18"><rect x="45" y="45" width="150" height="140"/><rect x="205" y="45" width="110" height="140"/><rect x="325" y="45" width="110" height="140"/><rect x="45" y="195" width="390" height="80"/></g>`);
+  // Otto's halo: under the walls, one group, alpha once
+  if (!mini) g.push(`<g opacity="0.22"><path d="M200 40V190" stroke="var(--plan-ai)" stroke-width="34" stroke-linecap="round" fill="none"/></g>`);
+  // walls (200 mm = 10 px), graphite fill with ink edge
+  const wall = (x, y, ww, hh) => `<rect x="${x}" y="${y}" width="${ww}" height="${hh}" fill="var(--plan-wall)" stroke="var(--plan-wall-line)" stroke-width="1"/>`;
+  g.push(wall(35, 35, 410, 10), wall(35, 275, 410, 10), wall(35, 35, 10, 250), wall(435, 35, 10, 250), wall(35, 185, 410, 10), wall(315, 35, 10, 160));
+  // Otto's wall with its 900 mm door (45 px) near the hall end
+  g.push(wall(195, 35, 10, 105), wall(195, 185, 10, 10));
+  g.push(`<path d="M200 140v45" stroke="var(--plan-wall-line)" stroke-width="1"/><path d="M205 185 A45 45 0 0 0 250 140" fill="none" stroke="var(--plan-wall-line)" stroke-width="1" stroke-dasharray="2 2"/><path d="M205 140 L250 140" stroke="var(--plan-wall-line)" stroke-width="1.5"/>`);
+  // a window on the top wall of the bedroom
+  g.push(`<rect x="355" y="35" width="60" height="10" fill="var(--canvas)" stroke="var(--plan-wall-line)" stroke-width="1"/><path d="M355 40H415" stroke="var(--plan-wall-line)" stroke-width="1"/>`);
+  // the stair in the living room (connector)
+  g.push(`<g stroke="var(--plan-connector)" fill="none" stroke-width="1"><rect x="360" y="200" width="60" height="70"/>${[210, 220, 230, 240, 250, 260].map((y) => `<path d="M360 ${y}H420"/>`).join('')}<path d="M390 266V205" stroke-width="1.2"/><path d="M386 210l4-5 4 5"/></g>`);
+  if (mini) { g.push('</svg>'); return g.join(''); }
+  // room labels
+  g.push(`<g font-family="IBM Plex Mono, monospace" font-size="10" fill="var(--muted)"><text x="52" y="62">Kitchen</text><text x="52" y="75">10.5 m²</text><text x="212" y="62">Hall</text><text x="332" y="62">Bedroom</text><text x="52" y="212">Living</text></g>`);
+  // dimension in indigo over the top wall
+  g.push(`<g stroke="var(--plan-dim)" fill="var(--plan-dim)" font-family="IBM Plex Mono, monospace" font-size="10"><path d="M35 22H445" stroke-width="1"/><path d="M35 18v8M445 18v8" stroke-width="1"/><path d="M32 25l6-6M442 25l6-6" stroke-width="1"/><text x="222" y="17" text-anchor="middle" stroke="none">8 200</text></g>`);
+  // end nodes of Otto's wall
+  g.push(`<g fill="var(--plan-ai)" stroke="var(--canvas)" stroke-width="1.5"><circle cx="200" cy="40" r="4"/><circle cx="200" cy="190" r="4"/></g>`);
+  // the kitchen selected by you: terracotta outline inset 2 px, square grips, seed
+  g.push(`<g stroke="var(--plan-selection)" fill="none" stroke-width="1.5"><rect x="47" y="47" width="146" height="136"/></g><g fill="var(--plan-selection)" stroke="var(--canvas)" stroke-width="1"><rect x="43" y="43" width="7" height="7"/><rect x="189" y="43" width="7" height="7"/><rect x="43" y="179" width="7" height="7"/><rect x="189" y="179" width="7" height="7"/><circle cx="120" cy="115" r="3.5"/></g>`);
+  // a pending delete: the stair, dashed mulberry outline 3 px outside
+  g.push(`<rect x="357" y="197" width="66" height="76" fill="none" stroke="var(--plan-ai)" stroke-width="1.5" stroke-dasharray="6 4"/>`);
+  // a snap mark (moss) where the pointer is, with a short tracking ray
+  g.push(`<g stroke="var(--plan-snap)" stroke-width="1.5" fill="none"><path d="M200 185h30" stroke-dasharray="3 3" opacity="0.7"/><path d="M196 186l8 8M204 186l-8 8"/><circle cx="200" cy="190" r="6"/></g>`);
+  // the tag with its leader
+  g.push(`<path d="M200 115L218 97" stroke="var(--plan-ai)" stroke-width="1.5"/>`);
+  g.push(`<g transform="translate(218 73)"><rect width="150" height="24" rx="6" fill="var(--plan-ai)"/><rect x="7.5" y="7.5" width="9" height="9" rx="1.2" fill="none" stroke="var(--ai-fg)" stroke-width="1.8"/><circle cx="16.5" cy="7" r="2.2" fill="var(--ai-fg)"/><text x="24" y="16.5" font-family="Alegreya Sans, sans-serif" font-weight="500" font-size="12" fill="var(--ai-fg)">Otto · Add a 3 m wall · now</text></g>`);
+  g.push('</svg>');
+  return g.join('');
+}
+pair('canvas', '', (t, s) => `<div class="cvx">${planSvg({ id: 'c' + s })}<div class="cf"><span>7 412 mm, −2 980 mm</span><span><b>Ground floor</b></span><span><b>1 selected</b></span><span>Kitchen · Otto · waiting for your yes</span></div></div>`);
+
+/* ---------- History ---------- */
+const hrow = (kind, lbl, by, tm, cls = '') => {
+  const g = kind === 'you' ? '<span class="d"></span>' : kind === 'otto' ? OTTO(16, '') : '<span class="ring"></span>';
+  return `<div class="row ${kind === 'otto' ? 'ai' : ''} ${cls}">${g}<span class="min"><span class="lbl">${lbl}</span><span class="by">${by}</span></span><span class="tm">${tm}</span></div>`;
+};
+pair('history', '', () => `<div class="hist">
+  <div class="hd">${btn('Undo', '', 'undo')}${btn('Redo', '', 'redo')}</div>
+  ${hrow('you', 'Move window', 'You · Structure · plan.transform', '14:09', 'redo')}
+  ${hrow('otto', 'Remove the half-wall', '<i>Otto · waiting for your yes</i>', '', 'wait')}
+  ${hrow('mcp', 'Add wall', 'MCP · Cursor · Structure · plan.wall.add', '14:07', 'newest')}
+  ${hrow('otto', 'Add a 3 m wall and a door', 'Otto · Structure · plan.apply', '14:06')}
+  ${hrow('otto', 'Name the room Kitchen', 'Otto · Structure · plan.room.update', '14:06')}
+  ${hrow('you', 'Place door 900', 'You · Structure · plan.door.add', '14:03')}
+  ${hrow('you', 'Draw wall', 'You · Structure · plan.wall.add', '14:02')}
+</div>`);
+
+/* ---------- Status bar ---------- */
+const sbar = (state, dot = '', pulse = false) => `<div class="sb"><span style="color:var(--fg)">Harbour Flat</span><span><i>Saved just now</i></span><span class="sp"></span>
+  <span class="it">${ic('ruler')}mm</span><span class="it" aria-label="${state}"><span class="dot ${dot} ${pulse ? 'pulse' : ''}" aria-hidden="true"></span>${state}</span><span class="it">${ic('plug')}<span class="dot ok"></span>MCP :7433</span><span class="it">${ic('moon')}</span></div>`;
+pair('status', '', () => `<div style="display:flex;flex-direction:column;gap:10px">${sbar('Otto · ready')}${sbar('Otto · Add a 3 m wall…', '', true)}${sbar('Otto · waiting for your yes')}${sbar('Otto · couldn\'t reach Claude', 'dng')}${sbar('Otto · needs a key', 'mut')}</div>`);
+
+/* ---------- Home ---------- */
+const compose = (state) => {
+  const tt = `<div class="tt">${OTTO(24)}Start with Otto</div>`;
+  const d = `<div class="d">Describe the place and Otto drafts the ground floor: rooms, walls and doors in millimetres you can change.</div>`;
+  if (state === 'ready') return `<div class="hcard compose">${tt}${d}<div class="ta">A two-bedroom flat with an open kitchen, about 65 m², bathroom off the hall</div><div class="ft"><span>Otto asks before it deletes anything.</span>${btn('Draft it', 'ai')}</div></div>`;
+  if (state === 'working') return `<div class="hcard compose">${tt}${d}<div class="ta said">A two-bedroom flat with an open kitchen, about 65 m², bathroom off the hall, and a small study.</div><div class="ft"><span style="display:flex;align-items:center;gap:8px">${spin()}<i>Otto is drafting…</i></span>${btn('Open', 'ghost')}</div></div>`;
+  return `<div class="hcard compose">${tt}${d}<div class="ta dis">A two-bedroom flat with an open kitchen, about 65 m², bathroom off the hall</div><div class="ft"><span>Otto needs a Claude API key, or your Claude Code.</span>${btn('Set up Otto', '')}</div></div>`;
+};
+pair('home', '', (t, s) => `<div class="cards">${compose('ready')}${compose('working')}${compose('nokey')}
+  <div class="hcard"><div class="thumb">${planSvg({ id: 'h' + s, mini: true, w: 340, h: 160 })}<span class="corner" title="Otto has worked on Harbour Flat">${OTTO(14, 'Otto has worked on Harbour Flat')}</span></div><div class="body"><div class="name">Harbour Flat</div><div class="meta">Edited just now · <span class="num" style="font-style:normal">2</span> levels</div></div></div>
+</div>`);
+
+/* ---------- Empty project ---------- */
+pair('emptyproj', '', () => `<div class="ep">
+  <svg class="sketch" viewBox="0 0 200 110" aria-hidden="true"><g fill="none" stroke="var(--plan-wall-line)" stroke-width="1.6" stroke-linecap="round"><path d="M30 20h140v70H30z"/><path d="M30 60v-8"/><path d="M30 52a18 18 0 0 1 18 18" stroke="var(--accent)" stroke-dasharray="3 3"/><path d="M100 20v-2M100 90v2"/><path d="M120 18h20" stroke="var(--plan-wall-line)"/></g><g stroke="var(--plan-dim)" stroke-width="1" fill="var(--plan-dim)" font-family="IBM Plex Mono, monospace" font-size="9"><path d="M30 102H170"/><path d="M30 98v8M170 98v8"/><text x="100" y="99" text-anchor="middle" stroke="none">4 000</text></g></svg>
+  <h4>Draw the first wall.</h4>
+  <p>Press <kbd>W</kbd>, click a corner, type a length. The room takes its wash the moment the walls close.</p>
+  <div class="keys"><span><kbd>W</kbd> wall</span><span><kbd>D</kbd> door</span><span><kbd>N</kbd> window</span><span><kbd>Ctrl K</kbd> every command</span></div>
+  <div class="acts">${btn('Draw a wall', 'pri lg', 'wall')}${btn('Import a DXF to trace', 'lg', 'upload')}</div>
+  <div class="ask">${OTTO(20)}<span>Or tell Otto: <span class="inp">a 5 by 7 m studio with a bathroom in the corner</span></span></div>
+</div>`);
+
+/* ---------- Settings, call log, About ---------- */
+pair('settings', '', () => `<div class="set">
+  <h4>${OTTO(20, '')}Assistant</h4>
+  <p>Otto, the assistant in every project tab, reaches Claude through the Claude API with your own key (the default) or through the Claude Code you have installed and logged in on this computer.</p>
+  <p>Otto asks before it deletes or overwrites anything: the question appears in the chat and nothing runs until you answer. Ordinary edits need no yes: they land on your undo stack as one step each, signed Otto, and Ctrl+Z takes them back.</p>
+  <span class="lbl">Provider</span><div class="sel"><span>Claude API, with your key</span>${ic('chev', 'xs', 'color:var(--muted)')}</div>
+  <span class="lbl">Model</span><div class="sel"><span>Claude Opus 5.5 · Recommended</span>${ic('chev', 'xs', 'color:var(--muted)')}</div>
+  <p>The key is stored encrypted on this computer and is never shared with agents or exported.</p>
+  <span class="lbl">Claude API key</span><div class="r"><span style="display:flex;align-items:center;gap:6px">${ic('key', 'xs', 'color:var(--success)')}A key is set</span><span class="badge">this session only</span>${btn('Remove', 'danger', 'trash')}</div>
+  <div style="height:1px;background:var(--edge);margin:18px 0 4px"></div>
+  <span class="lbl">Claude Code command <span style="font-weight:400">(when Claude Code is the provider)</span></span>
+  <div class="r"><div class="in" style="width:384px">claude (on PATH)</div>${btn('Check again', '', 'refresh')}</div>
+  <div class="st ok">Claude Code 2.1.283, logged in</div>
+  <div class="st warn">Claude Code 2.1.283, not logged in: run <span class="mono">claude</span> in a terminal and log in</div>
+  <div class="st warn">Not found: No <span class="mono">claude</span> on PATH. Install Claude Code, or set its path in Settings.</div>
+  <div style="height:1px;background:var(--edge);margin:18px 0 4px"></div>
+  <span class="lbl">Recent agent calls <span style="font-weight:400">(Settings › MCP)</span></span>
+  <div class="calls">
+    <div class="cr"><span class="dot"></span><span class="mono">plan_apply</span><span class="who">${OTTO(14, '')}Otto · Claude Opus 5.5</span><span class="tm">14:06</span></div>
+    <div class="cr"><span class="dot bad"></span><span class="mono">plan_entity_delete</span><span class="who">${OTTO(14, '')}Otto · claude-code 2.1.283</span><span class="badge">MUTATION_DECLINED</span><span class="tm">14:04</span></div>
+    <div class="cr"><span class="dot"></span><span class="mono">plan_wall_add</span><span class="who"><span class="ring"></span>MCP · Cursor</span><span class="tm">14:07</span></div>
+  </div>
+</div>`);
+pair('about', '', () => `<div class="about"><div class="wm">Hollin<span class="dot">.</span></div>
+  <p>Design your home, floor by floor, with exact numbers and a helping hand. Hollin is a drawing board for people who are not architects and a tidy file for the ones who are.</p>
+  <div class="credit">Hollin <span class="ai">with Otto</span></div>
+  <div class="v">Claude Opus 5.5 · the Claude API with your key · asks before it deletes</div>
+  <div class="v">Version 1.0.0 · Alegreya Sans, IBM Plex Mono, Fraunces (OFL) · Lucide (ISC) · Licences…</div></div>`);
+</script>
+</body>
+</html>
