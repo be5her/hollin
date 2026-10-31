@@ -9,7 +9,7 @@ import { moduleById } from '../modules';
   imports: [EmptyState, NgComponentOutlet],
   template: `
     @if (module(); as mod) {
-      <div class="flex items-center h-9 px-3 text-xs font-semibold uppercase tracking-wide text-muted border-b border-edge shrink-0">{{ mod.title }}</div>
+      <div class="flex items-center h-9 px-3 heading-panel text-fg border-b border-edge shrink-0">{{ mod.title }}</div>
       <div class="flex-1 min-h-0 overflow-y-auto">
         @if (blocked()) {
           <x-empty-state title="No project on screen" hint="Open a project to use this panel." />

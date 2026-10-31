@@ -11,7 +11,7 @@ import { ShellActions } from '../shell-actions';
   template: `
     <div class="max-w-2xl mx-auto w-full px-8 py-16 flex flex-col gap-6" data-testid="home">
       <div>
-        <h1 class="text-2xl font-semibold tracking-tight">{{ productName }}</h1>
+        <h1 class="heading-page text-fg">{{ productName }}</h1>
         <p class="text-sm text-muted mt-1">{{ description }}</p>
       </div>
       <div class="flex gap-2">

@@ -1,7 +1,7 @@
 import { DOCUMENT, Component, DestroyRef, ElementRef, Injector, afterNextRender, afterRenderEffect, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
 import { FormField, form } from '@angular/forms/signals';
 import { DEFAULT_RULE_LIMITS, deriveLevels, type DimensionKind, type GlobalConfig, type ProjectDoc, type Vec2, parseAngle } from '@studio/core';
-import { AppState, Checkbox, ContextMenu, HostBridge, Icon, IconButton, Input, LengthInput, ProjectDocs, ProjectView, Select, Toasts, Units, type ContextMenuItem } from '@studio/ui';
+import { AppState, AssistantDrafts, Checkbox, ContextMenu, HostBridge, Icon, IconButton, Input, Kbd, LengthInput, OttoMark, ProjectDocs, ProjectView, RoomSketch, Select, Toasts, Units, type ContextMenuItem } from '@studio/ui';
 import { DEFAULT_TOOL_OPTIONS, LIGHT_THEME, Plan2dEditor, drawingScale, readPlanTheme, renderLevelToPng, type Camera, type ShapeOptions, type SnapResult, type StairShape, type TextRequest, type ToolId, type UnderlayMode, type WallOptions } from '@studio/viewport';
 import { ArrowBigUp, Blinds, BrickWall, ChevronDown, ChevronsUp, Circle, CircleDot, DoorOpen, DraftingCompass, Footprints, LandPlot, Lightbulb, Magnet, Maximize, MousePointer2, MoveUpRight, Pentagon, Ruler, SeparatorVertical, Sofa, Square, TrendingUp, Type, ZoomIn, ZoomOut } from 'lucide';
 import { PlanGeometry } from './plan-geometry';
@@ -38,7 +38,7 @@ const SNAP_KINDS: { key: keyof EditorConfig; label: string }[] = [
  */
 @Component({
   selector: 'x-plan-view',
-  imports: [Checkbox, FormField, Icon, IconButton, Input, LengthInput, Select],
+  imports: [Checkbox, FormField, Icon, IconButton, Input, Kbd, LengthInput, OttoMark, RoomSketch, Select],
   templateUrl: './plan-view.html',
   host: { class: 'flex flex-col h-full min-h-0', 'data-testid': 'plan-view' },
 })
@@ -52,6 +52,7 @@ export class PlanView {
   private readonly planSelection = inject(PlanSelection);
   private readonly planTools = inject(PlanTools);
   private readonly planGeometry = inject(PlanGeometry);
+  private readonly assistantDrafts = inject(AssistantDrafts);
   private readonly document = inject(DOCUMENT);
   private readonly destroyRef = inject(DestroyRef);
   private readonly injector = inject(Injector);
@@ -94,6 +95,15 @@ export class PlanView {
   });
   protected readonly entityCount = signal(0);
   protected readonly connectorCount = signal(0);
+  /** The active level has nothing on it yet: the "Draw the first wall." guide shows over the grid. */
+  protected readonly levelEmpty = computed(() => {
+    const doc = this.doc();
+    const id = this.activeLevelId();
+    if (!doc || !id || !doc.levels[id]) return false;
+    return Object.keys(doc.levelData[id]?.entities ?? {}).length === 0 && this.connectorCount() === 0;
+  });
+  /** The sentence the empty level's guide offers to Otto. */
+  protected readonly ottoExample = 'a 5 by 7 m studio with a bathroom in the corner';
   protected readonly frameMs = signal('0');
   /** The level the last frame drew: the canvas shows it, whatever the switcher already says. */
   protected readonly frameLevel = signal<string | null>(null);
@@ -562,6 +572,13 @@ export class PlanView {
   }
 
   // ---------- tools ----------
+
+  /** The empty level's Otto line: the assistant panel opens with the example sentence in its message field, unsent. */
+  protected tellOtto(): void {
+    const id = this.projectId();
+    this.view.set(id, 'rightPanel', 'assistant');
+    this.assistantDrafts.offer(id, this.ottoExample);
+  }
 
   protected chooseTool(tool: ToolId): void {
     this.editor.setTool(tool);

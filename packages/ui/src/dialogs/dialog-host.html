@@ -25,7 +25,7 @@
       >
         @if (pending.kind === 'prompt') {
           <form (submit)="submitPrompt($event, pending)" (keydown)="promptKeys($event, pending)">
-            <h2 class="text-sm font-semibold mb-3">{{ pending.options.title }}</h2>
+            <h2 class="heading-dialog text-fg mb-3">{{ pending.options.title }}</h2>
             @if (pending.options.label) {
               <label xLabel>{{ pending.options.label }}</label>
             }
@@ -54,7 +54,7 @@
           </form>
         } @else if (pending.kind === 'form') {
           <form (submit)="submitForm($event, pending)" (keydown.escape)="cancel(pending)" data-testid="form-dialog">
-            <h2 class="text-sm font-semibold mb-1">{{ pending.options.title }}</h2>
+            <h2 class="heading-dialog text-fg mb-1">{{ pending.options.title }}</h2>
             @if (pending.options.message) {
               <p class="text-sm text-muted mb-2">{{ pending.options.message }}</p>
             }
@@ -86,7 +86,7 @@
           </form>
         } @else {
           <div (keydown.escape)="cancel(pending)">
-            <h2 class="text-sm font-semibold mb-1">{{ pending.options.title }}</h2>
+            <h2 class="heading-dialog text-fg mb-1">{{ pending.options.title }}</h2>
             @if (pending.options.message) {
               <p class="text-sm text-muted">{{ pending.options.message }}</p>
             }

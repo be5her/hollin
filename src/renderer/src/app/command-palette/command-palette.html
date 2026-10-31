@@ -4,7 +4,7 @@
       @if (pending(); as p) {
         <form class="p-4 flex flex-col gap-3" (submit)="submit($event)" data-testid="palette-form" [attr.data-command]="p.command.id">
           <div>
-            <h2 class="text-sm font-semibold">{{ p.command.title }}</h2>
+            <h2 class="heading-panel text-fg">{{ p.command.title }}</h2>
             <p class="text-xs text-muted mt-0.5">{{ p.command.description }}</p>
           </div>
           @for (field of p.fields; track field.key; let first = $first) {

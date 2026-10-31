@@ -1,6 +1,6 @@
 import { Component, ElementRef, afterRenderEffect, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
 import { AI_MODELS, type AssistantEvent, type AssistantStatus, type ChatSnapshot, type TranscriptItem } from '@studio/core';
-import { AppState, Button, EmptyState, HostBridge, Icon, Spinner, TabsState, Toasts, injectHostEvent, invokeResource } from '@studio/ui';
+import { AppState, AssistantDrafts, Button, EmptyState, HostBridge, Icon, Spinner, TabsState, Toasts, injectHostEvent, invokeResource } from '@studio/ui';
 import { Check, CircleAlert, Eraser, KeyRound, Plug, RefreshCw, Send, ShieldAlert, Sparkles, Square, Wrench, X } from 'lucide';
 
 /** Why the chat cannot run yet, as the empty state the panel shows instead. */
@@ -22,6 +22,7 @@ export class AssistantPanel {
   private readonly app = inject(AppState);
   private readonly tabs = inject(TabsState);
   private readonly toasts = inject(Toasts);
+  private readonly drafts = inject(AssistantDrafts);
 
   readonly projectId = input.required<string>();
 
@@ -72,6 +73,14 @@ export class AssistantPanel {
     effect(() => {
       const id = this.projectId();
       untracked(() => void this.load(id));
+    });
+    // A sentence handed over from Home's composer or the empty project's Otto line lands in the message field, unsent.
+    effect(() => {
+      const offer = this.drafts.pending();
+      const id = this.projectId();
+      if (offer?.projectId !== id) return;
+      const text = untracked(() => this.drafts.take(id));
+      if (text !== null) this.draft.set(text);
     });
     injectHostEvent('assistant.event', ({ projectId, event }) => {
       if (projectId !== untracked(this.projectId)) return;

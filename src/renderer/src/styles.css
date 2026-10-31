@@ -242,3 +242,52 @@ option {
 ::selection {
   background: color-mix(in srgb, var(--accent) 30%, transparent);
 }
+
+/*
+ * Fraunces headings (01-brand.md §d): only Home's and Settings' page titles and the empty moments
+ * (page), dialog titles and the project name (dialog), panel titles, Settings section headings and
+ * empty-state titles (panel). Nowhere else.
+ */
+@utility heading-page {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 28px;
+  line-height: 34px;
+  letter-spacing: -0.01em;
+  font-variation-settings: 'SOFT' 60, 'opsz' 36;
+}
+
+@utility heading-dialog {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 20px;
+  line-height: 26px;
+  letter-spacing: -0.01em;
+  font-variation-settings: 'SOFT' 60, 'opsz' 24;
+}
+
+@utility heading-panel {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 18px;
+  line-height: 24px;
+  letter-spacing: -0.005em;
+  font-variation-settings: 'SOFT' 50, 'opsz' 20;
+}
+
+/* The tinted sheets of Home cards without a thumbnail: paper mixed with a palette colour, so both themes follow. */
+@utility sheet-straw {
+  background-color: color-mix(in srgb, var(--warning) 14%, var(--canvas));
+}
+
+@utility sheet-sage {
+  background-color: color-mix(in srgb, var(--plan-room) 18%, var(--canvas));
+}
+
+@utility sheet-clay {
+  background-color: color-mix(in srgb, var(--accent) 12%, var(--canvas));
+}
+
+@utility sheet-slate {
+  background-color: color-mix(in srgb, var(--plan-dim) 10%, var(--canvas));
+}

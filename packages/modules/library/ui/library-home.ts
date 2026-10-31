@@ -9,6 +9,8 @@ import {
   HostBridge,
   Icon,
   Input,
+  HouseDoodle,
+  OttoMark,
   Select,
   Toasts,
   hueOf,
@@ -19,16 +21,27 @@ import {
   type TabComponent,
 } from '@studio/ui';
 import { ArchiveRestore, Download, Plus, Search, Trash2, TriangleAlert, Upload } from 'lucide';
+import { FirstLaunch } from './first-launch';
 import { LibraryActions } from './library-actions';
+import { OttoComposer } from './otto-composer';
 import { ProjectsSync } from './projects-sync';
 
+/** The four tinted sheets of a card without a thumbnail (paper mixed with a palette colour, the `sheet-*` utilities in `styles.css`). */
+const SHEETS = [
+  { tint: 'straw', sheet: 'sheet-straw' },
+  { tint: 'sage', sheet: 'sheet-sage' },
+  { tint: 'clay', sheet: 'sheet-clay' },
+  { tint: 'slate', sheet: 'sheet-slate' },
+] as const;
+
 /**
- * The Home tab: every project in the library as a card (thumbnail, name, when it changed, tags),
- * with search, tag filters and sorting; New, Import, and the trash.
+ * The Home tab: Otto's composer card first, then every project in the library as a card (thumbnail or a
+ * tinted sheet with the initials, name, when it changed, tags), with search, tag filters and sorting; New,
+ * Import, and the trash. An empty library shows the first-launch guide instead.
  */
 @Component({
   selector: 'x-library-home',
-  imports: [Button, EmptyState, FormField, Icon, Input, Select],
+  imports: [Button, EmptyState, FirstLaunch, FormField, HouseDoodle, Icon, Input, OttoComposer, OttoMark, Select],
   templateUrl: './library-home.html',
   host: { class: 'flex-1 overflow-auto', 'data-testid': 'library-home' },
 })
@@ -57,14 +70,26 @@ export class LibraryHome implements TabComponent {
   protected readonly tags = invokeResource<{ tag: string; count: number }[]>('project.tags', () => ({}), { projectId: null, refreshOnEvents: ['library.changed'] });
   protected readonly info = invokeResource<LibraryInfo>('library.info', () => ({}), { projectId: null, refreshOnEvents: ['library.changed'] });
   protected readonly filtering = computed(() => Boolean(this.filters().query.trim() || this.selectedTags().length));
+  /** Nothing in the library yet (the trash aside): the first-launch guide replaces the filters and the grid. */
+  protected readonly firstLaunch = computed(() => !this.showTrash() && !this.filtering() && this.info.value()?.projects === 0);
 
   protected thumb(p: ProjectSummary): string | null {
     return thumbnailUrl(p);
   }
 
-  protected placeholder(p: ProjectSummary): { label: string; background: string } {
-    const hue = hueOf(p.id);
-    return { label: initials(p.name), background: `linear-gradient(135deg, hsl(${hue} 45% 52%), hsl(${(hue + 40) % 360} 50% 40%))` };
+  /** A card without a thumbnail: one of four tinted sheets and doodles, stable for the project id, and its initials. */
+  protected placeholder(p: ProjectSummary): { label: string; tint: string; sheet: string; doodle: number } {
+    const hash = hueOf(p.id);
+    return { label: initials(p.name), ...SHEETS[hash % 4], doodle: Math.floor(hash / 4) % 4 };
+  }
+
+  /**
+   * Whether Otto (the in-app assistant) has edited this project, for the 14 px mark in the card's corner.
+   * The library index has no such field yet (a later step adds one, filled from assistant-authored edits),
+   * so no card carries the mark today.
+   */
+  protected ottoWorked(_p: ProjectSummary): boolean {
+    return false;
   }
 
   protected ago(iso: string | null): string {

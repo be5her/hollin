@@ -1,6 +1,6 @@
 <div class="max-w-6xl mx-auto w-full px-8 py-8 flex flex-col gap-5">
   <div class="flex items-center gap-3 flex-wrap">
-    <h1 class="text-xl font-semibold tracking-tight mr-2">{{ showTrash() ? 'Trash' : 'Projects' }}</h1>
+    <h1 class="heading-page text-fg mr-2" data-testid="library-heading">{{ showTrash() ? 'Trash' : 'Projects' }}</h1>
     @if (!showTrash()) {
       <button xButton variant="primary" [icon]="icons.Plus" (click)="actions.create()" data-testid="library-new">New project</button>
       <button xButton [icon]="icons.Upload" (click)="actions.importProject()" data-testid="library-import">Import…</button>
@@ -21,7 +21,7 @@
     </div>
   }
 
-  @if (!showTrash()) {
+  @if (!showTrash() && !firstLaunch()) {
     <div class="flex items-center gap-2 flex-wrap">
       <div class="relative w-80">
         <svg [xIcon]="icons.Search" class="size-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none"></svg>
@@ -36,13 +36,13 @@
       @for (t of tags.value() ?? []; track t.tag) {
         <button
           type="button"
-          class="h-6 px-2 rounded-full border text-[11px] transition-colors"
-          [class]="selectedTags().includes(t.tag) ? 'border-accent bg-accent/10 text-fg' : 'border-edge text-muted hover:text-fg'"
+          class="inline-flex items-center gap-1 h-6 px-2 rounded border text-[11px] transition-colors"
+          [class]="selectedTags().includes(t.tag) ? 'border-accent bg-accent/10 text-fg' : 'border-edge text-muted hover:text-fg hover:bg-elevated'"
           [attr.aria-pressed]="selectedTags().includes(t.tag)"
           data-testid="library-tag"
           (click)="toggleTag(t.tag)"
         >
-          {{ t.tag }} <span class="text-muted">{{ t.count }}</span>
+          {{ t.tag }} <span class="font-mono text-muted">{{ t.count }}</span>
         </button>
       }
     </div>
@@ -55,7 +55,7 @@
           @for (p of list; track p.id) {
             <div class="flex items-center gap-3 px-3 py-2 text-sm" data-testid="trash-item" [attr.data-name]="p.name" (contextmenu)="showMenu($event, p)">
               <span class="flex-1 truncate">{{ p.name }}</span>
-              <span class="text-xs text-muted">Trashed {{ ago(p.trashedAt) }}</span>
+              <span class="text-xs italic text-muted">Trashed {{ ago(p.trashedAt) }}</span>
               <button xButton size="sm" [icon]="icons.ArchiveRestore" (click)="actions.restore(p)" data-testid="trash-restore">Restore</button>
               <button xButton size="sm" variant="danger" (click)="actions.deleteForever(p)" data-testid="trash-delete">Delete</button>
             </div>
@@ -63,31 +63,48 @@
         </div>
       } @else {
         <div class="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4" data-testid="project-grid">
+          @if (!filtering()) {
+            <x-otto-composer />
+          }
           @for (p of list; track p.id) {
             <button
               type="button"
-              class="group flex flex-col justify-start text-left rounded-lg border border-edge bg-surface hover:border-accent/60 transition overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+              class="group relative flex flex-col justify-start text-left rounded-lg border border-edge bg-surface hover:border-accent/60 transition-colors overflow-hidden focus:outline-none focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-1"
               data-testid="project-card"
               [attr.data-id]="p.id"
               [attr.data-name]="p.name"
               (click)="open(p)"
               (contextmenu)="showMenu($event, p)"
             >
-              <div class="aspect-[4/3] bg-elevated relative">
+              <div class="aspect-[4/3] relative border-b border-edge bg-canvas">
                 @if (thumb(p); as src) {
                   <img [src]="src" alt="" class="absolute inset-0 size-full object-cover" data-testid="project-thumbnail" />
                 } @else {
                   @let ph = placeholder(p);
-                  <div class="absolute inset-0 grid place-items-center text-white/90 text-2xl font-semibold tracking-wide" [style.background]="ph.background">{{ ph.label }}</div>
+                  <div class="absolute inset-0" [class]="ph.sheet" [attr.data-tint]="ph.tint" data-testid="project-placeholder">
+                    <x-house-doodle class="absolute inset-0" [variant]="ph.doodle" />
+                    <span
+                      class="absolute left-3.5 bottom-2.5 font-display italic font-medium text-[30px] leading-none tracking-[-0.01em] text-fg opacity-[.78]"
+                      style="font-variation-settings: 'SOFT' 100, 'opsz' 36"
+                      data-testid="project-initials"
+                      >{{ ph.label }}</span
+                    >
+                  </div>
+                }
+                @if (ottoWorked(p)) {
+                  <span class="absolute right-2.5 top-2.5 rounded-[5px] ring-[1.5px] ring-surface leading-none" title="Otto has worked on this project" data-testid="project-otto-mark"><x-otto-mark size="14" /></span>
                 }
               </div>
               <div class="px-3 py-2.5">
-                <div class="text-sm font-medium truncate" data-testid="project-card-name">{{ p.name }}</div>
-                <div class="text-[11px] text-muted mt-0.5">Edited {{ ago(p.updatedAt) }} · {{ p.levelCount }} level{{ p.levelCount === 1 ? '' : 's' }}</div>
+                <div class="text-[15px] leading-5 font-medium truncate" data-testid="project-card-name">{{ p.name }}</div>
+                <div class="flex gap-1.5 items-baseline mt-0.5 text-muted">
+                  <span class="text-xs italic">Edited {{ ago(p.updatedAt) }}</span><span class="text-xs">·</span
+                  ><span class="font-mono text-[11px]">{{ p.levelCount }} level{{ p.levelCount === 1 ? '' : 's' }}</span>
+                </div>
                 @if (p.tags.length) {
                   <div class="flex flex-wrap gap-1 mt-1.5">
                     @for (tag of p.tags; track tag) {
-                      <span class="px-1.5 rounded bg-elevated text-[10px] text-muted">{{ tag }}</span>
+                      <span class="inline-flex items-center h-[18px] px-1.5 rounded bg-elevated text-[11px] text-muted">{{ tag }}</span>
                     }
                   </div>
                 }
@@ -103,9 +120,7 @@
         <button xButton size="sm" (click)="clearFilters()">Clear filters</button>
       </x-empty-state>
     } @else {
-      <x-empty-state title="No projects yet" hint="Start a new project, or import one someone shared with you.">
-        <button xButton variant="primary" [icon]="icons.Plus" (click)="actions.create()">New project</button>
-      </x-empty-state>
+      <x-first-launch />
     }
   }
 </div>

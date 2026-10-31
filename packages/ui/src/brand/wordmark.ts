@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, input, numberAttribute } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, numberAttribute } from '@angular/core';
 import { BRANDING } from '@studio/core';
 
 /**
@@ -12,7 +12,8 @@ import { BRANDING } from '@studio/core';
   host: {
     class: 'inline-block whitespace-nowrap font-display font-semibold text-fg',
     '[style.font-size.px]': 'size()',
-    style: "line-height: 1; letter-spacing: -0.01em; font-variation-settings: 'SOFT' 80, 'opsz' 18",
+    '[style.font-variation-settings]': 'variation()',
+    style: 'line-height: 1; letter-spacing: -0.01em',
   },
   template: `{{ name }}<span class="text-accent">.</span>`,
 })
@@ -20,4 +21,6 @@ export class Wordmark {
   /** Font size in pixels. */
   readonly size = input(16, { transform: numberAttribute });
   protected readonly name = BRANDING.productName;
+  /** Fraunces' optical size follows the drawn size (about 19 in the title bar, 48 in About, 67 on first launch). */
+  protected readonly variation = computed(() => `'SOFT' 80, 'opsz' ${Math.min(144, Math.round(this.size() * 1.2))}`);
 }

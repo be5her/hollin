@@ -2,8 +2,9 @@ import { NgComponentOutlet, NgTemplateOutlet } from '@angular/common';
 import { Component, ElementRef, afterRenderEffect, computed, effect, inject, input, linkedSignal, signal, untracked } from '@angular/core';
 import { FormField, form, max, min, required } from '@angular/forms/signals';
 import { AI_MODELS, AI_PROVIDERS, BRANDING, CLAUDE_CODE_EFFORTS, CLAUDE_CODE_MODEL_ALIASES, clientSnippets, defaultConfig, type AiProvider, type AssistantStatus, type ClaudeCodeEffort, type ConfigPatch, type GlobalConfig, type McpCallEntry, type ThemePreference, type UnitSettings } from '@studio/core';
-import { AppState, Badge, Button, Checkbox, HostBridge, Icon, Input, Label, SETTINGS_LATE, Select, SettingsSections, Theme, Toasts, invokeResource, type Tab, type TabComponent } from '@studio/ui';
+import { AppMark, AppState, Badge, Button, Checkbox, Dialogs, HostBridge, Icon, Input, Label, SETTINGS_LATE, Select, SettingsSections, Theme, Toasts, Wordmark, invokeResource, type Tab, type TabComponent } from '@studio/ui';
 import { Copy, KeyRound, RefreshCw, Trash2 } from 'lucide';
+import { LicencesDialog } from './licences-dialog';
 import { UnitsEditor } from './units-editor';
 
 interface Draft {
@@ -52,7 +53,7 @@ interface AppInfo {
  */
 @Component({
   selector: 'x-settings-tab',
-  imports: [Badge, Button, Checkbox, FormField, Icon, Input, Label, NgComponentOutlet, NgTemplateOutlet, Select, UnitsEditor],
+  imports: [AppMark, Badge, Button, Checkbox, FormField, Icon, Input, Label, NgComponentOutlet, NgTemplateOutlet, Select, UnitsEditor, Wordmark],
   templateUrl: './settings-tab.html',
   host: { class: 'flex-1 overflow-auto', 'data-testid': 'settings' },
 })
@@ -61,6 +62,7 @@ export class SettingsTab implements TabComponent {
   private readonly host = inject(HostBridge);
   private readonly theme = inject(Theme);
   private readonly toasts = inject(Toasts);
+  private readonly dialogs = inject(Dialogs);
   private readonly element = inject<ElementRef<HTMLElement>>(ElementRef);
 
   readonly tab = input.required<Tab>();
@@ -71,6 +73,7 @@ export class SettingsTab implements TabComponent {
   protected readonly claudeCodeModels = CLAUDE_CODE_MODEL_ALIASES;
   protected readonly claudeCodeEfforts = CLAUDE_CODE_EFFORTS;
   protected readonly productName = BRANDING.productName;
+  protected readonly description = BRANDING.description;
   protected readonly config = this.app.config;
   protected readonly mcp = this.app.mcpStatus;
   /** Sections other modules add, e.g. the library's location (after Units) and Updates (before About). */
@@ -103,6 +106,13 @@ export class SettingsTab implements TabComponent {
     if (!cc.found) return `Not found: ${cc.error ?? cc.path}`;
     const version = cc.version ? `Claude Code ${cc.version}` : 'Claude Code';
     return cc.loggedIn === false ? `${version}, not logged in: run \`claude\` in a terminal and log in` : cc.loggedIn ? `${version}, logged in` : `${version}${cc.error ? `: ${cc.error}` : ''}`;
+  });
+  /** About's credit: the model and who provides it, as the assistant is set up now. */
+  protected readonly assistantCredit = computed(() => {
+    const s = this.assistant.value();
+    if (!s) return null;
+    if (s.provider === 'claude-code') return { model: `Claude Code${s.claudeCode?.version ? ` ${s.claudeCode.version}` : ''}`, provider: 'your own install' };
+    return { model: AI_MODELS.find((m) => m.id === s.model)?.label ?? s.model, provider: 'Anthropic' };
   });
   protected readonly calls = invokeResource<McpCallEntry[]>('mcp.calls', () => ({}), { projectId: null, refreshOnEvents: ['mcp.call'] });
   protected readonly recentCalls = computed(() => [...(this.calls.value() ?? [])].reverse().slice(0, 8));
@@ -219,6 +229,10 @@ export class SettingsTab implements TabComponent {
     } catch (err) {
       this.toasts.error(err);
     }
+  }
+
+  protected showLicences(): void {
+    void this.dialogs.open(LicencesDialog, null);
   }
 
   protected copy(text: string): void {

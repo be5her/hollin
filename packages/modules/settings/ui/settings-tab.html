@@ -1,8 +1,8 @@
 <div class="max-w-3xl mx-auto w-full px-8 py-8 flex flex-col gap-10">
-  <h1 class="text-xl font-semibold tracking-tight">Settings</h1>
+  <h1 class="heading-page text-fg">Settings</h1>
 
   <section data-section="appearance">
-    <h2 class="text-sm font-semibold mb-3 pb-1 border-b border-edge">Appearance</h2>
+    <h2 class="heading-panel text-fg mb-3 pb-1 border-b border-edge">Appearance</h2>
     <label xLabel for="settings-theme">Theme</label>
     <select xSelect id="settings-theme" class="w-48" [formField]="settings.theme" data-testid="settings-theme">
       <option value="system">Follow system</option>
@@ -12,21 +12,21 @@
   </section>
 
   <section data-section="units">
-    <h2 class="text-sm font-semibold mb-1 pb-1 border-b border-edge">Units</h2>
-    <p class="text-xs text-muted mb-3">How lengths are shown and typed. Designs are always stored in millimetres, so switching never changes them.</p>
+    <h2 class="heading-panel text-fg mb-1 pb-1 border-b border-edge">Units</h2>
+    <p class="text-[13px] text-muted mb-3">How lengths are shown and typed. Designs are always stored in millimetres, so switching never changes them.</p>
     <x-units-editor [formField]="settings.units" />
   </section>
 
   @for (section of sections(); track section.id) {
     <section [attr.data-section]="section.id">
-      <h2 class="text-sm font-semibold mb-1 pb-1 border-b border-edge">{{ section.title }}</h2>
+      <h2 class="heading-panel text-fg mb-1 pb-1 border-b border-edge">{{ section.title }}</h2>
       <ng-container *ngComponentOutlet="section.component" />
     </section>
   }
 
   <section data-section="mcp">
-    <h2 class="text-sm font-semibold mb-1 pb-1 border-b border-edge">MCP server</h2>
-    <p class="text-xs text-muted mb-3">
+    <h2 class="heading-panel text-fg mb-1 pb-1 border-b border-edge">MCP server</h2>
+    <p class="text-[13px] text-muted mb-3">
       AI agents such as Claude Desktop and Claude Code can work on your designs through this local server. Every command in the palette is available to them. Agents act on
       the project on screen unless they name another.
     </p>
@@ -56,7 +56,7 @@
         </div>
       }
     </div>
-    <h3 class="text-xs font-semibold text-muted mt-5 mb-1.5">Recent agent calls</h3>
+    <h3 class="text-xs font-medium text-muted mt-5 mb-1.5">Recent agent calls</h3>
     @if (recentCalls().length) {
       <div class="border border-edge rounded-md divide-y divide-edge text-xs" data-testid="settings-mcp-calls">
         @for (call of recentCalls(); track $index) {
@@ -78,8 +78,8 @@
   </section>
 
   <section data-section="ai">
-    <h2 class="text-sm font-semibold mb-1 pb-1 border-b border-edge">Assistant</h2>
-    <p class="text-xs text-muted mb-3">The in-app assistant reaches Claude through the Claude API with your own key (the default), or through the Claude Code you have installed and logged in on this computer.</p>
+    <h2 class="heading-panel text-fg mb-1 pb-1 border-b border-edge">Assistant</h2>
+    <p class="text-[13px] text-muted mb-3">The in-app assistant reaches Claude through the Claude API with your own key (the default), or through the Claude Code you have installed and logged in on this computer.</p>
     <label xLabel for="settings-provider">Provider</label>
     <select xSelect id="settings-provider" class="w-72" [formField]="settings.provider" data-testid="settings-provider">
       @for (p of providers; track p.id) {
@@ -142,23 +142,36 @@
 
   @for (section of lateSections(); track section.id) {
     <section [attr.data-section]="section.id">
-      <h2 class="text-sm font-semibold mb-1 pb-1 border-b border-edge">{{ section.title }}</h2>
+      <h2 class="heading-panel text-fg mb-1 pb-1 border-b border-edge">{{ section.title }}</h2>
       <ng-container *ngComponentOutlet="section.component" />
     </section>
   }
 
   <section data-section="about">
-    <h2 class="text-sm font-semibold mb-3 pb-1 border-b border-edge">About</h2>
-    @if (info.value(); as about) {
-      <dl class="grid grid-cols-[9rem_1fr] gap-y-1.5 text-xs" data-testid="settings-about">
-        <dt class="text-muted">Version</dt>
-        <dd>{{ about.productName }} {{ about.version }}</dd>
-        <dt class="text-muted">Platform</dt>
-        <dd>{{ about.platform }} · Electron {{ about.runtime['electron'] }} · Chromium {{ about.runtime['chrome'] }}</dd>
-        <dt class="text-muted">Data folder</dt>
-        <dd class="font-mono break-all">{{ about.dataDir }}</dd>
-      </dl>
-    }
+    <h2 class="heading-panel text-fg mb-1 pb-1 border-b border-edge">About</h2>
+    <div class="grid grid-cols-[112px_1fr] gap-8 items-start mt-5" data-testid="settings-about">
+      <x-app-mark size="112" />
+      <div class="min-w-0">
+        <x-wordmark size="40" />
+        <p class="mt-2.5 text-[14px] leading-5 text-muted max-w-[60ch]" data-testid="about-description">{{ description }}</p>
+        <p class="heading-dialog mt-3.5" data-testid="about-credit"><span class="text-fg">{{ productName }}</span><span class="text-ai"> with Otto</span></p>
+        <p class="mt-1 text-[13px] text-muted" data-testid="about-assistant">
+          @if (assistantCredit(); as credit) {
+            <span class="font-mono text-[12px]">{{ credit.model }}</span> · {{ credit.provider }} ·
+          }
+          Otto asks before it deletes anything, and signs its work in History.
+        </p>
+        <p class="mt-3.5 font-mono text-xs leading-5 text-muted" data-testid="about-version">
+          Version {{ info.value()?.version }} · Alegreya Sans, IBM Plex Mono, Fraunces (OFL 1.1) · Lucide (ISC) · three.js, Electron (MIT) ·
+          <button type="button" class="text-accent hover:underline focus:outline-none focus-visible:outline-2 focus-visible:outline-accent" (click)="showLicences()" data-testid="about-licences">Licences…</button>
+        </p>
+        @if (info.value(); as about) {
+          <p class="mt-1 text-[11px] leading-[14px] text-muted break-all" data-testid="about-runtime">
+            {{ about.platform }} · Electron {{ about.runtime['electron'] }} · Chromium {{ about.runtime['chrome'] }} · data in <span class="font-mono">{{ about.dataDir }}</span>
+          </p>
+        }
+      </div>
+    </div>
   </section>
 </div>
 

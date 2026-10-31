@@ -2,7 +2,7 @@ import { NgTemplateOutlet } from '@angular/common';
 import { Component, computed, inject, input, linkedSignal, untracked } from '@angular/core';
 import { FormField, form } from '@angular/forms/signals';
 import { arcGeometry, bulgeOf, connectorPath, dimensionGeometry, distance, findEntity, formatArea, isConnectorId, pathLength, pathOfEntity, resolveDimension, signedArea, wallSidesFacing, type Connector, type Entity, type Path, type Vec2 } from '@studio/core';
-import { AngleInput, Checkbox, EmptyState, HostBridge, Input, LengthInput, ProjectDocs, Select, Toasts, Units } from '@studio/ui';
+import { AngleInput, Checkbox, EmptyState, HostBridge, Input, Kbd, LengthInput, ProjectDocs, Select, Toasts, Units } from '@studio/ui';
 import { ConnectorProperties } from './connector-properties';
 import { ItemProperties } from './item-properties';
 import { LightProperties } from './light-properties';
@@ -58,7 +58,7 @@ interface VertexDraft {
  */
 @Component({
   selector: 'x-properties-panel',
-  imports: [AngleInput, Checkbox, ConnectorProperties, EmptyState, FormField, Input, ItemProperties, LengthInput, LightProperties, MaterialPicker, NgTemplateOutlet, Select],
+  imports: [AngleInput, Checkbox, ConnectorProperties, EmptyState, FormField, Input, ItemProperties, Kbd, LengthInput, LightProperties, MaterialPicker, NgTemplateOutlet, Select],
   templateUrl: './properties-panel.html',
   host: { class: 'flex flex-col', 'data-testid': 'properties-panel' },
 })

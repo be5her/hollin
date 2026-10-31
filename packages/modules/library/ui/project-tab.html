@@ -1,7 +1,7 @@
 @if (project(); as p) {
   <div class="flex items-center gap-3 px-4 h-12 border-b border-edge shrink-0">
     <input
-      class="min-w-0 w-72 bg-transparent text-[15px] font-semibold tracking-tight outline-none rounded px-1 -mx-1 focus:ring-2 focus:ring-accent/30"
+      class="min-w-0 w-72 bg-transparent heading-dialog text-fg outline-none rounded px-1 -mx-1 focus:ring-2 focus:ring-accent/30"
       [formField]="nameForm.name"
       (blur)="saveName()"
       (keydown.enter)="$any($event.target).blur()"

@@ -442,6 +442,37 @@
     [attr.data-selection]="selectionAttr()"
     [attr.data-vertex]="vertexAttr()"
   ></canvas>
+  @if (levelEmpty()) {
+    <!-- The empty level's guide. It never takes the canvas's pointer events, except on Otto's line while the Select tool is on. -->
+    <div
+      class="absolute inset-0 flex items-center justify-center pointer-events-none select-none overflow-hidden p-4 transition-opacity"
+      [class.opacity-50]="tool() !== 'select'"
+      data-testid="plan-empty"
+    >
+      <div class="flex flex-col items-center text-center max-w-[600px]">
+        <x-room-sketch class="w-[200px] h-[125px] mb-4" />
+        <h2 class="heading-page text-fg mb-2">Draw the first wall.</h2>
+        <p class="text-[14px] leading-5 text-muted max-w-[54ch]">Press <span class="font-medium text-fg">W</span>, click where a corner is, and type a length from your tape measure. Rooms appear by themselves once the walls close.</p>
+        <div class="flex flex-wrap justify-center gap-x-6 gap-y-2 mt-4 text-[13px] text-muted" data-testid="plan-empty-keys">
+          <span class="inline-flex items-center gap-1.5"><kbd xKbd>W</kbd>Wall</span>
+          <span class="inline-flex items-center gap-1.5"><kbd xKbd>D</kbd>Door</span>
+          <span class="inline-flex items-center gap-1.5"><kbd xKbd>N</kbd>Window</span>
+          <span class="inline-flex items-center gap-1.5"><kbd xKbd>Ctrl K</kbd>Every command</span>
+        </div>
+        <button
+          type="button"
+          class="inline-flex items-center gap-2.5 mt-5 rounded-md bg-ai-tint pl-2.5 pr-3.5 py-2 text-[13px] text-fg text-left hover:bg-[color-mix(in_srgb,var(--ai)_14%,var(--ai-tint))] transition-colors focus:outline-none focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-1"
+          [class.pointer-events-auto]="tool() === 'select'"
+          title="Put this sentence in Otto's message field, where you can change it before sending"
+          (click)="tellOtto()"
+          data-testid="plan-empty-otto"
+        >
+          <x-otto-mark size="20" />
+          <span>Or tell Otto: <span class="italic underline decoration-dotted decoration-muted underline-offset-4">“{{ ottoExample }}”</span></span>
+        </button>
+      </div>
+    </div>
+  }
   @if (dynamicInput(); as d) {
     <input
       #dynamicInput

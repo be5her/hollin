@@ -1,16 +1,18 @@
 @if (connector(); as c) {
   <div class="px-4 py-3 border-b border-edge">
-    <div class="text-sm font-semibold" data-testid="properties-title">{{ connectorName(c) }}</div>
+    <div class="heading-panel text-fg" data-testid="properties-title">{{ connectorName(c) }}</div>
   </div>
   @if (vertexRef() && vertexPath()) {
     <ng-container *ngTemplateOutlet="vertexEditor" />
   }
   <x-connector-properties [projectId]="projectId()" [connector]="c" />
 } @else if (!entities().length) {
-  <x-empty-state title="Nothing selected" hint="Click an entity on the plan to see and change its properties." />
+  <x-empty-state title="Nothing selected" hint="Pick a wall, a room or a door to see its numbers here." data-testid="properties-empty">
+    <p class="text-[13px] text-muted"><kbd xKbd>Esc</kbd> clears, <kbd xKbd>V</kbd> is the pointer.</p>
+  </x-empty-state>
 } @else {
   <div class="px-4 py-3 border-b border-edge">
-    <div class="text-sm font-semibold" data-testid="properties-title">
+    <div class="heading-panel text-fg" data-testid="properties-title">
       @if (entity(); as e) {
         {{ typeName(e) }}
       } @else {

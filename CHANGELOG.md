@@ -4,7 +4,11 @@ Every notable change to the app, newest first. The format follows [Keep a Change
 
 ## [Unreleased]
 
+### Added
+- A first-launch guide, an empty-project guide and a "Start with Otto" card on Home.
+
 ### Changed
+- Home cards without a thumbnail show a tinted sheet with the project's initials; About shows the icon, the wordmark and the fonts' licences.
 - The look: a paper and ink palette with a terracotta accent, Alegreya Sans, IBM Plex Mono and Fraunces bundled, lighter icons; the plan, the 3D view and the exports' renders follow.
 - A new app icon: two rooms, yours and the assistant's; the title bar shows the icon and the wordmark.
 

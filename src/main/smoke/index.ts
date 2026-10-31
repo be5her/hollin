@@ -17,6 +17,7 @@ import { smokeDecorAgentUi } from './decor-agent-ui';
 import { smokeExchange, smokeExchangeDecor } from './exchange';
 import { smokeExchangeDialogs, smokeExchangeUi } from './exchange-ui';
 import { smokeHost } from './host';
+import { smokeIdentityUi } from './identity-ui';
 import { smokeLibrary } from './library';
 import { smokeLibraryUi } from './library-ui';
 import { smokeMcp } from './mcp';
@@ -80,6 +81,7 @@ export async function runSmoke(host: Host, openWindow: () => BrowserWindow): Pro
     await smoke.run('project.close', { id: flatId });
     await smokeAssistantUi(smoke, duplexId);
     await smokeAssistantClaudeCode(smoke, duplexId);
+    await smokeIdentityUi(smoke);
     await smokePerf(smoke);
     smoke.check('renderer has no console errors', smoke.consoleErrors.length === 0, smoke.consoleErrors);
   } catch (err) {

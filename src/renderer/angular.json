@@ -22,7 +22,8 @@
               "base": "../../out/renderer",
               "browser": ""
             },
-            "styles": ["src/styles.css"]
+            "styles": ["src/styles.css"],
+            "loader": { ".txt": "text" }
           },
           "configurations": {
             "production": {
