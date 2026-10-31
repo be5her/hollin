@@ -5,6 +5,7 @@ import path from 'node:path';
 import { strToU8, zipSync, type Zippable } from 'fflate';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { newProjectDoc } from '../doc/defaults';
+import type { EditContext } from '../doc/engine';
 import { newId } from '../ids';
 import { testHost } from '../test-host';
 import { Library } from './library';
@@ -305,6 +306,37 @@ describe('ProjectService', () => {
     expect(() => session.setDoc({ ...session.doc })).toThrow(/closed/);
     expect(host.events.filter((e) => e.event === 'project.changed' && (e.payload as { kind: string }).kind === 'closed')).toHaveLength(1);
     await svc.stop();
+  });
+
+  it("records in the index when a save holds Otto's edit, and keeps it through a rebuild", async () => {
+    const { svc } = await service();
+    const a = await svc.create({ name: 'A' });
+    await svc.open(a.id);
+    const project = (await svc.resolve(a.id))!;
+    const levelId = project.doc.building.stack[0];
+    const layerId = Object.keys(project.doc.layers)[0];
+    const label = (id: string) => (tx: EditContext) => tx.apply([{ t: 'ins', c: 'entity', id, lv: levelId, v: { id, type: 'label', levelId, layerId, text: 'x', at: [0, 0], size: 250, rotation: 0 } }]);
+    await project.edit({ kind: 'user', name: 'You' }, 'Add label', label('lbl_0000000000000001'));
+    await svc.session(a.id)!.flush();
+    await vi.waitFor(() => expect(svc.library.get(a.id)?.updatedAt).toBeDefined());
+    expect(svc.library.get(a.id)?.assistantEditedAt).toBeUndefined();
+    await project.edit({ kind: 'assistant', name: 'claude-test' }, 'Add label', label('lbl_0000000000000002'));
+    await svc.session(a.id)!.flush();
+    await vi.waitFor(() => expect(svc.library.get(a.id)?.assistantEditedAt).toMatch(/^\d{4}-/));
+    const at = svc.library.get(a.id)!.assistantEditedAt;
+    await svc.library.reindex();
+    expect(svc.library.get(a.id)?.assistantEditedAt).toBe(at);
+    // An index written before the field existed reads as "never".
+    await svc.close(a.id);
+    await svc.stop();
+    const index = JSON.parse(await fs.readFile(path.join(library.root, 'index.json'), 'utf8')) as { projects: Record<string, unknown>[] };
+    for (const p of index.projects) delete p.assistantEditedAt;
+    await fs.writeFile(path.join(library.root, 'index.json'), JSON.stringify(index));
+    const again = new Library(library.root, { appVersion: 'test' });
+    await again.open();
+    expect(again.get(a.id)).toMatchObject({ name: 'A' });
+    expect(again.get(a.id)?.assistantEditedAt).toBeUndefined();
+    await again.close();
   });
 
   it('keeps a project open and its edits when saving it on close fails', async () => {

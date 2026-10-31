@@ -1,7 +1,16 @@
 import type { Entity } from '@studio/core';
 import { FakeClaude } from '@studio/modules/assistant/fake-api';
+import { DARK_THEME, LIGHT_THEME } from '@studio/viewport';
 import type { Smoke } from './harness';
-import { openProjectTab, tab } from './plan-canvas';
+import { canvas, canvasAttr, openProjectTab, tab, view } from './plan-canvas';
+import { colorDistance, rgbOf } from './scene-canvas';
+
+/** `under` with `color` laid over it at `alpha`, as the canvas composites it. */
+function over(under: string, color: string, alpha: number): string {
+  const a = under.split(',').map(Number);
+  const b = color.split(',').map(Number);
+  return a.map((v, i) => Math.round(v * (1 - alpha) + b[i] * alpha)).join(',');
+}
 
 /**
  * Otto's presence (`design/identity/03-otto.md` §b, §d, §e) against the fake Claude API: the right tab
@@ -9,7 +18,9 @@ import { openProjectTab, tab } from './plan-canvas';
  * going ready → thinking (a held answer) → waiting for your yes → ready and opening the Otto tab, a
  * done card with its level and "one undo step, by Otto", the waiting card with Allow and Keep it and the
  * greyed waiting row at the top of History, History's rows for you and for Otto (the tint, the mark, the
- * signature and the newest bar), and a snapshot card with its image. The real API is never called.
+ * signature and the newest bar), and a snapshot card with its image. On the plan (§c): Otto's new wall
+ * carries the 22 % mulberry halo and the tag, under a selection, until your next edit; the wall a
+ * destructive call names is outlined, dashed, until Keep it. The real API is never called.
  */
 export async function smokeOttoUi(smoke: Smoke, duplexId: string): Promise<void> {
   smoke.section('otto');
@@ -51,6 +62,20 @@ export async function smokeOttoUi(smoke: Smoke, duplexId: string): Promise<void>
     await smoke.click(`${panel} [data-testid=assistant-example]`);
     smoke.check('an example goes into the message field, unsent', (await smoke.js<string>(`document.querySelector('${panel} [data-testid=assistant-input]').value`)).startsWith('add a 4 by 5 m bedroom') && fake.requests.length === 0);
 
+    // The plan of the ground floor, where Otto's wall will land.
+    if ((await canvasAttr(smoke, 'level')) !== ground) {
+      await smoke.waitFor(`${tab} [data-testid=plan-level] option[value="${ground}"]`);
+      await smoke.fill(`${tab} [data-testid=plan-level]`, ground);
+    }
+    smoke.check('the plan shows the ground floor', await smoke.until(async () => (await canvasAttr(smoke, 'frameLevel')) === ground));
+    const wallIds = new Set(Object.keys(doc().levelData[ground].entities));
+    const dark = await smoke.js<boolean>(`document.documentElement.classList.contains('dark')`);
+    const ai = rgbOf((dark ? DARK_THEME : LIGHT_THEME).ai);
+    // A point on the halo: 11 px below the new wall's axis (outside its 150 mm body, inside the 34 px band), away from its middle where the tag's leader starts and clear of the elevator placed at (4000, 6500) earlier.
+    const plan = await view(smoke);
+    const onHalo = [5500, 6500 - 11 / plan.cam.scale] as const;
+    const paper = await plan.pixel(onHalo);
+
     // An edit: the first answer is held, so the status bar shows Otto thinking and the composer offers Stop.
     const before = walls();
     fake.script(
@@ -64,18 +89,46 @@ export async function smokeOttoUi(smoke: Smoke, duplexId: string): Promise<void>
     smoke.check('the edit lands as a done card titled by the batch', await smoke.waitFor(`${panel} [data-testid=assistant-tool][data-command="plan.apply"][data-status=ok] [data-testid=assistant-tool-title]`, 8000, 'Add a 3 m wall'));
     smoke.check('the card names the command, the level and one undo step by Otto', (await smoke.waitFor(`${panel} [data-testid=assistant-tool][data-command="plan.apply"] [data-testid=assistant-tool-command]`, 3000, 'plan.apply')) && (await smoke.waitFor(`${panel} [data-testid=assistant-tool][data-command="plan.apply"] [data-testid=assistant-tool-meta]`, 3000, `${groundName} · 1 edit · one undo step, by Otto`)), await smoke.text(`${panel} [data-testid=assistant-tool-meta]`));
     smoke.check('the wall was added', await smoke.until(() => walls() === before + 1));
+    const ottoWall = Object.values(doc().levelData[ground].entities).find((e: Entity) => e.type === 'wall' && !wallIds.has(e.id))!;
+
+    // On the plan: the halo along Otto's wall, its tag, and your selection over both.
+    smoke.check('the plan marks the edit Otto just made, with one tag', (await smoke.until(async () => (await canvasAttr(smoke, 'aiHighlights')) === '1', 5000)) && (await smoke.until(async () => (await canvasAttr(smoke, 'aiTag')) === 'Otto · Add a 3 m wall · now', 5000)), await canvasAttr(smoke, 'aiTag'));
+    const halo = { wanted: over(paper ?? '', ai, 0.22), got: null as string | null, paper };
+    smoke.check('a 22 % mulberry halo lies along the new wall', await smoke.until(async () => {
+      halo.got = await (await view(smoke)).pixel(onHalo);
+      return colorDistance(halo.got, halo.wanted) <= 4;
+    }), halo);
+    const box = (await canvasAttr(smoke, 'aiTagBox'))?.split(',').map(Number);
+    const rect = (await smoke.rect(canvas))!;
+    const chip = box ? await smoke.canvasPixel(canvas, rect.x + box[0] + 3, rect.y + box[1] + box[3] / 2) : null;
+    smoke.check("the tag is a chip in Otto's ink", !!box && colorDistance(chip, ai) <= 4, { box, chip, ai });
+    smoke.check('the Select tool is on', (await canvasAttr(smoke, 'tool')) === 'select');
+    const wallAt = (await view(smoke)).at([5700, 6500]);
+    await smoke.clickAt(wallAt.x, wallAt.y);
+    smoke.check('the wall Otto drew can be selected under its halo', await smoke.until(async () => ((await canvasAttr(smoke, 'selection')) ?? '').split(' ').includes(ottoWall.id)), await canvasAttr(smoke, 'selection'));
+    smoke.check('and the halo stays while you select', (await canvasAttr(smoke, 'aiHighlights')) === '1');
+    await smoke.shots('70-otto-canvas');
+    await smoke.key('Escape');
+    smoke.check('Escape clears the selection', await smoke.until(async () => !(await canvasAttr(smoke, 'selection'))));
     smoke.check("Otto's reply is a margin note", (await smoke.waitFor(`${panel} [data-testid=assistant-item][data-kind=assistant]`, 8000, 'Added a 3 000 mm wall')) && (await smoke.js<boolean>(`[...document.querySelectorAll('${panel} [data-testid=assistant-item][data-kind=assistant]')].every((e) => e.classList.contains('border-ai'))`)));
     smoke.check('the status bar is ready again', await statusIs('ready', 'Otto · ready'));
     await idle();
 
     // Your own edit, then a destructive call Otto waits on.
     await run('plan.wall.add', { levelId: ground, from: [3000, 7500], to: [6000, 7500], thickness: 150 });
+    const cleared = { paper, got: null as string | null };
+    smoke.check('your next edit clears the halo and the tag', (await smoke.until(async () => (await canvasAttr(smoke, 'aiHighlights')) === '0', 3000)) && !(await canvasAttr(smoke, 'aiTag')) && (await smoke.until(async () => {
+      cleared.got = await (await view(smoke)).pixel(onHalo);
+      return colorDistance(cleared.got, paper) <= 1;
+    })), cleared);
     fake.reset();
-    fake.script({ tools: [{ name: 'smoke_destroy', input: {} }] }, { text: 'Kept it. Nothing changed.' });
+    fake.script({ tools: [{ name: 'smoke_destroy', input: { ids: [ottoWall.id] } }] }, { text: 'Kept it. Nothing changed.' });
     await send('Wipe it');
     smoke.check('a destructive call waits in the chat with Allow and Keep it', (await smoke.waitFor(`${panel} [data-testid=assistant-confirm][data-command="smoke.destroy"]`, 5000)) && (await smoke.text(`${panel} [data-testid=assistant-allow]`)) === 'Allow' && (await smoke.text(`${panel} [data-testid=assistant-decline]`)) === 'Keep it');
     smoke.check('the waiting card says Otto asks before deleting, and takes focus', (await smoke.waitFor(`${panel} [data-testid=assistant-confirm]`, 3000, 'Otto asks before deleting.')) && (await smoke.until(() => smoke.js<boolean>(`document.activeElement?.dataset?.testid === 'assistant-confirm'`), 3000)));
     smoke.check('the status bar says Otto is waiting for your yes', await statusIs('waiting', 'Otto · waiting for your yes'));
+    smoke.check('the plan outlines the wall the call names, dashed', await smoke.until(async () => (await canvasAttr(smoke, 'aiPending')) === '1'), await canvasAttr(smoke, 'aiPending'));
+    await smoke.shots('71-otto-pending');
     smoke.check('the composer waits too', (await smoke.js<string>(`document.querySelector('${panel} [data-testid=assistant-input]').placeholder`)) === 'Otto is waiting for your answer above');
 
     await smoke.click(`${tab} [data-testid=right-tab-history]`);
@@ -92,6 +145,7 @@ export async function smokeOttoUi(smoke: Smoke, duplexId: string): Promise<void>
     await smoke.click(`${panel} [data-testid=assistant-decline]`);
     smoke.check('Keep it turns the card into declined', await smoke.waitFor(`${panel} [data-testid=assistant-tool][data-command="smoke.destroy"][data-status=declined]`, 5000, 'Kept. Otto was told no.'));
     smoke.check('and the status bar is ready again', await statusIs('ready', 'Otto · ready', 8000));
+    smoke.check('the dashed outline goes with the answer', await smoke.until(async () => (await canvasAttr(smoke, 'aiPending')) === '0'), await canvasAttr(smoke, 'aiPending'));
     await smoke.click(`${tab} [data-testid=right-tab-history]`);
     smoke.check('the waiting row leaves History', await smoke.gone(`${tab} [data-testid=history-waiting]`, 3000));
     await smoke.click(`${tab} [data-testid=right-tab-assistant]`);

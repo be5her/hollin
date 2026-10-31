@@ -1,7 +1,7 @@
 import { DOCUMENT, Component, DestroyRef, ElementRef, Injector, afterNextRender, afterRenderEffect, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
 import { FormField, form } from '@angular/forms/signals';
 import { DEFAULT_RULE_LIMITS, deriveLevels, type DimensionKind, type GlobalConfig, type ProjectDoc, type Vec2, parseAngle } from '@studio/core';
-import { AppState, AssistantDrafts, Checkbox, ContextMenu, HostBridge, Icon, IconButton, Input, Kbd, LengthInput, OttoMark, ProjectDocs, ProjectView, RoomSketch, Select, Toasts, Units, type ContextMenuItem } from '@studio/ui';
+import { AppState, AssistantDrafts, Checkbox, ContextMenu, HostBridge, Icon, IconButton, Input, Kbd, LengthInput, OttoEdits, OttoMark, ProjectDocs, ProjectView, RoomSketch, Select, TabsState, Toasts, Units, type ContextMenuItem } from '@studio/ui';
 import { DEFAULT_TOOL_OPTIONS, LIGHT_THEME, Plan2dEditor, drawingScale, readPlanTheme, renderLevelToPng, type Camera, type ShapeOptions, type SnapResult, type StairShape, type TextRequest, type ToolId, type UnderlayMode, type WallOptions } from '@studio/viewport';
 import { ArrowBigUp, Blinds, BrickWall, ChevronDown, ChevronsUp, Circle, CircleDot, DoorOpen, DraftingCompass, Footprints, LandPlot, Lightbulb, Magnet, Maximize, MousePointer2, MoveUpRight, Pentagon, Ruler, SeparatorVertical, Sofa, Square, TrendingUp, Type, ZoomIn, ZoomOut } from 'lucide';
 import { PlanGeometry } from './plan-geometry';
@@ -53,6 +53,8 @@ export class PlanView {
   private readonly planTools = inject(PlanTools);
   private readonly planGeometry = inject(PlanGeometry);
   private readonly assistantDrafts = inject(AssistantDrafts);
+  private readonly ottoEdits = inject(OttoEdits);
+  private readonly tabs = inject(TabsState);
   private readonly document = inject(DOCUMENT);
   private readonly destroyRef = inject(DestroyRef);
   private readonly injector = inject(Injector);
@@ -102,9 +104,27 @@ export class PlanView {
     if (!doc || !id || !doc.levels[id]) return false;
     return Object.keys(doc.levelData[id]?.entities ?? {}).length === 0 && this.connectorCount() === 0;
   });
-  /** The sentence the empty level's guide offers to Otto. */
+  /** The sentence the empty level's guide offers to Otto, which the user can change before Enter sends it. */
   protected readonly ottoExample = 'a 5 by 7 m studio with a bathroom in the corner';
+  private readonly ottoDraft = signal({ sentence: this.ottoExample });
+  protected readonly ottoForm = form(this.ottoDraft);
+  /** Otto can work here (a key, or a ready Claude Code); otherwise Enter on its line opens Settings. */
+  protected readonly ottoReady = computed(() => {
+    const otto = this.app.assistant();
+    return !otto || otto.opens !== 'settings';
+  });
   protected readonly frameMs = signal('0');
+  /** Otto's marks the last frame drew: how many recent edits, the tag's words and box (`x,y,w,h` in canvas pixels), and how many pending targets it outlined. */
+  protected readonly aiHighlights = signal(0);
+  protected readonly aiTag = signal<string | null>(null);
+  protected readonly aiTagBox = signal<string | null>(null);
+  protected readonly aiPending = signal(0);
+  /** Otto's recent edits in this project, and the targets of the destructive call it waits on here. */
+  private readonly recentEdits = this.ottoEdits.of(() => this.projectId());
+  private readonly pendingIds = computed(() => {
+    const otto = this.app.assistant();
+    return otto?.projectId === this.projectId() ? (otto.pending?.ids ?? []) : [];
+  });
   /** The level the last frame drew: the canvas shows it, whatever the switcher already says. */
   protected readonly frameLevel = signal<string | null>(null);
   protected readonly tool = signal<ToolId>('select');
@@ -198,6 +218,10 @@ export class PlanView {
       this.connectorCount.set(stats.connectors);
       this.frameMs.set(stats.ms.toFixed(1));
       this.frameLevel.set(stats.levelId);
+      this.aiHighlights.set(stats.highlights);
+      this.aiTag.set(stats.aiTag?.text ?? null);
+      this.aiTagBox.set(stats.aiTag ? [stats.aiTag.x, stats.aiTag.y, stats.aiTag.width, stats.aiTag.height].map((n) => n.toFixed(1)).join(',') : null);
+      this.aiPending.set(stats.pending ?? 0);
     },
     onLevelStep: (direction) => this.stepLevel(direction),
     onToolChange: (tool, hint) => {
@@ -227,6 +251,8 @@ export class PlanView {
       this.editor.setDocument(state?.doc, state?.seq ?? 0, state?.epoch ?? 1);
     });
     effect(() => this.editor.setLevel(this.activeLevelId()));
+    effect(() => this.editor.setHighlights(this.recentEdits()));
+    effect(() => this.editor.setPending(this.pendingIds()));
     effect(() => {
       // A selection asked for from outside (a warning clicked): once the level matches, select it and bring it into view.
       const request = this.planSelection.requested(this.projectId())();
@@ -573,11 +599,25 @@ export class PlanView {
 
   // ---------- tools ----------
 
-  /** The empty level's Otto line: the assistant panel opens with the example sentence in its message field, unsent. */
-  protected tellOtto(): void {
+  /**
+   * Enter on the empty level's Otto line (`03-otto.md` §g): the sentence is sent to Otto as the chat's
+   * first message and the Otto tab opens. If Otto cannot work yet, Settings opens at the assistant; if
+   * a run is going, the sentence waits in the panel's message field instead.
+   */
+  protected async tellOtto(): Promise<void> {
     const id = this.projectId();
+    const text = untracked(this.ottoDraft).sentence.trim();
+    if (!text) return;
+    if (!untracked(this.ottoReady)) {
+      this.tabs.open({ type: 'settings.main', title: 'Settings', data: { key: 'settings', section: 'ai' } }, { singletonKey: 'settings.main:settings' });
+      return;
+    }
     this.view.set(id, 'rightPanel', 'assistant');
-    this.assistantDrafts.offer(id, this.ottoExample);
+    try {
+      await this.host.invoke('assistant.send', { text }, id);
+    } catch {
+      this.assistantDrafts.offer(id, text);
+    }
   }
 
   protected chooseTool(tool: ToolId): void {

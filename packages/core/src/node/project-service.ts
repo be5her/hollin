@@ -47,6 +47,8 @@ export class ProjectService implements ProjectsApi {
   private order: string[] = [];
   private activeId: string | null = null;
   private readonly lastSave = new Map<string, SaveStatus['state']>();
+  /** Open projects with a change by Otto (the in-app assistant) since their last save: the next save records it in the library index. */
+  private readonly assistantUnsaved = new Set<string>();
 
   constructor(private readonly opts: ProjectServiceOptions) {
     this.library = this.makeLibrary(opts.libraryRoot);
@@ -198,6 +200,7 @@ export class ProjectService implements ProjectsApi {
     });
     const engine = new DocumentEngine(doc, {
       onChange: (next, patch) => {
+        if (patch.tx.author.kind === 'assistant' && patch.tx.kind !== 'meta' && patch.tx.kind !== 'replace') this.assistantUnsaved.add(id);
         session.setDoc(next);
         this.opts.emit('doc.patched', { projectId: id, ...patch });
       },
@@ -218,7 +221,10 @@ export class ProjectService implements ProjectsApi {
     this.lastSave.set(id, state.state);
     this.opts.emit('project.changed', { projectId: id, kind: 'save', save: state });
     const session = this.sessions.get(id);
-    if (state.state === 'saved' && session) void this.library.noteSaved(session.doc).catch(() => {});
+    if (state.state === 'saved' && session) {
+      const assistant = this.assistantUnsaved.delete(id);
+      void this.library.noteSaved(session.doc, { assistant }).catch(() => {});
+    }
   }
 
   async close(id: string): Promise<void> {
@@ -230,6 +236,7 @@ export class ProjectService implements ProjectsApi {
     this.engines.delete(id);
     this.snapshotted.delete(id);
     this.lastSave.delete(id);
+    this.assistantUnsaved.delete(id);
     this.order = this.order.filter((o) => o !== id);
     if (this.activeId === id) this.activeId = this.order[this.order.length - 1] ?? null;
     await this.remember();

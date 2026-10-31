@@ -4,7 +4,8 @@ import { planConnectors, type PlanConnector } from './connectors';
 import { LevelGeometryCache } from './geometry-cache';
 import { sameVertex, type VertexRef } from './grips';
 import { hitTest, marqueeSelect, type Hit } from './hit';
-import { drawSnap, renderPlan, worldSpace, type RenderFrame, type RenderStats } from './render';
+import { highlightAnimating, highlightOpacity, type PlanHighlight } from './highlights';
+import { drawPendingOutline, drawSnap, renderPlan, worldSpace, type RenderFrame, type RenderStats } from './render';
 import { DEFAULT_SNAP_SETTINGS, SnapIndex, snapPoint, type SnapOptions, type SnapResult, type SnapSettings } from './snap';
 import { createLevelScene, entityBox, sceneBox, syncLevelScene, type LevelScene } from './scene';
 import { LIGHT_THEME, type PlanTheme } from './theme';
@@ -24,6 +25,9 @@ import { LightTool } from './tools/light';
 import { PaintTool } from './tools/paint';
 
 export type UnderlayMode = 'none' | 'below' | 'above';
+
+/** The user asked the system for less motion: Otto's fades are cuts. */
+const reducedMotion = (): boolean => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 /** How far from an outline a click still hits, in CSS pixels. */
 const HIT_PX = 6;
@@ -94,7 +98,12 @@ export class Plan2dEditor {
   private epochValue = 1;
   clipboard: Clipboard | null = null;
   showGrid = true;
-  lastStats: RenderStats = { drawn: 0, connectors: 0, levelId: null, ms: 0 };
+  lastStats: RenderStats = { drawn: 0, connectors: 0, levelId: null, ms: 0, highlights: 0, aiTag: null, pending: 0 };
+  /** What Otto changed in the last minute (oldest first), and what a destructive call it waits on would touch. */
+  private highlights: readonly PlanHighlight[] = [];
+  private pending: ReadonlySet<string> = new Set();
+  /** The next redraw the highlights need (a fade step, the tag's age), when nothing else asks for one. */
+  private highlightTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(
     private readonly callbacks: EditorCallbacks = {},
@@ -200,6 +209,8 @@ export class Plan2dEditor {
     for (const off of this.listeners.splice(0)) off();
     if (this.frameId && typeof cancelAnimationFrame !== 'undefined') cancelAnimationFrame(this.frameId);
     this.frameId = 0;
+    clearTimeout(this.highlightTimer);
+    this.highlightTimer = undefined;
     this.canvas = null;
     this.ctx = null;
   }
@@ -317,6 +328,24 @@ export class Plan2dEditor {
     this.callbacks.onSelectionChange?.([...next]);
     this.activeTool.selectionChanged?.();
     this.callbacks.onToolChange?.(this.activeTool.id, this.activeTool.hint());
+    this.invalidate();
+  }
+
+  /**
+   * Otto's recent edits, oldest first: each gets a halo and end nodes and the newest a tag, for a minute
+   * (`highlights.ts` has the timing). The host keeps the list: it adds an edit when Otto's transaction
+   * lands, drops it on undo and marks them cleared on your next edit.
+   */
+  setHighlights(highlights: readonly PlanHighlight[]): void {
+    this.highlights = highlights;
+    this.invalidate();
+  }
+
+  /** The entities and connectors a destructive call Otto waits on would touch: outlined, dashed, until you answer. */
+  setPending(ids: Iterable<string>): void {
+    const next = new Set(ids);
+    if (next.size === this.pending.size && [...next].every((id) => this.pending.has(id))) return;
+    this.pending = next;
     this.invalidate();
   }
 
@@ -531,17 +560,37 @@ export class Plan2dEditor {
       underlay: under ? (this.scenes.get(under) ?? null) : null,
       showGrid: this.showGrid,
       connectors: this.levelConnectors(),
+      highlights: this.highlights,
+      now: Date.now(),
+      reducedMotion: reducedMotion(),
     };
-    this.lastStats = renderPlan(this.ctx, frame);
+    const stats = renderPlan(this.ctx, frame);
     if (this.activeTool.draw) {
       worldSpace(this.ctx, frame);
       this.activeTool.draw(this.ctx, frame);
     }
+    // Above the selection, below the snap marks.
+    worldSpace(this.ctx, frame);
+    this.lastStats = { ...stats, pending: drawPendingOutline(this.ctx, frame, this.pending) };
+    this.scheduleHighlights(frame.now!, frame.reducedMotion!);
     if (this.lastSnap && (this.activeTool.busy || this.activeTool.id !== 'select')) {
       worldSpace(this.ctx, frame);
       drawSnap(this.ctx, frame, this.lastSnap);
     }
     this.callbacks.onFrame?.(this.lastStats);
+  }
+
+  /** While a highlight fades or leaves, a frame every 50 ms; while one holds, a frame a second for the tag's age. */
+  private scheduleHighlights(now: number, reduced: boolean): void {
+    clearTimeout(this.highlightTimer);
+    this.highlightTimer = undefined;
+    const live = this.highlights.filter((h) => highlightOpacity(h, now, reduced) > 0);
+    if (!live.length) return;
+    const delay = live.some((h) => highlightAnimating(h, now, reduced)) ? 50 : 1000;
+    this.highlightTimer = setTimeout(() => {
+      this.highlightTimer = undefined;
+      this.invalidate();
+    }, delay);
   }
 
   private local(e: MouseEvent): Vec2 {

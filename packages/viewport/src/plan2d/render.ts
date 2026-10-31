@@ -1,8 +1,9 @@
-import { add, columnPolygon, DEG, dimensionGeometry, dimensionMarks, dimensionOutline, flatten, formatArea, formatLength, itemFootprint, itemModel, itemSize, openingFrame, openingMisfits, openingSymbol, perp, PLAN_GLYPHS, polygonCentroid, resolveDimension, resolvePath, scale as vscale, wallBody, type DimensionGeometry, type Entity, type EntityType, type Layer, type LevelGeometry, type LevelWalls, type Path, type Region, type UnitSettings, type Vec2 } from '@studio/core';
+import { add, columnPolygon, inflatePolygons, type Polygon, DEG, dimensionGeometry, dimensionMarks, dimensionOutline, flatten, formatArea, formatLength, itemFootprint, itemModel, itemSize, openingFrame, openingMisfits, openingSymbol, perp, PLAN_GLYPHS, polygonCentroid, resolveDimension, resolvePath, scale as vscale, wallBody, type DimensionGeometry, type Entity, type EntityType, type Layer, type LevelGeometry, type LevelWalls, type Path, type Region, type UnitSettings, type Vec2 } from '@studio/core';
 import { visibleBox, worldToScreen, type Camera, type Size } from './camera';
 import { drawConnector, traceConnector, type PlanConnector } from './connectors';
 import { tracePath, tracePolygon, traceRegion, traceSegments } from './draw';
 import { entityBox, footprintOf, searchScene, type LevelScene, type SceneItem } from './scene';
+import { highlightOpacity, highlightTag, type PlanHighlight } from './highlights';
 import { withAlpha, type PlanTheme } from './theme';
 
 /** Everything one frame needs. The renderer keeps no state of its own. */
@@ -25,6 +26,16 @@ export interface RenderFrame {
   connectors?: readonly PlanConnector[];
   /** Leave the background unpainted (cleared to transparent), for a render laid over something else. */
   transparent?: boolean;
+  /**
+   * What Otto changed in the last minute, oldest first: a halo under the walls, end nodes over them and
+   * one tag for the newest (`03-otto.md` §c). Only the editor sets it: thumbnails, snapshots and exports
+   * never carry Otto's marks.
+   */
+  highlights?: readonly PlanHighlight[];
+  /** The time the highlights are drawn at (ms since the epoch); `Date.now()` when absent. */
+  now?: number;
+  /** `prefers-reduced-motion`: the highlights' fade and removal are cuts. */
+  reducedMotion?: boolean;
 }
 
 /** The joined walls' outlines as a `Path2D`, kept per derived geometry. */
@@ -126,6 +137,21 @@ export interface RenderStats {
   /** The level this frame drew (null without a scene), so a host can tell a frame of the new level from a stale one. */
   levelId: string | null;
   ms: number;
+  /** Otto's highlights drawn this frame (edits with an opacity above 0). */
+  highlights: number;
+  /** The tag drawn for the newest of them, in CSS pixels on the canvas, or null. */
+  aiTag: AiTag | null;
+  /** The targets of a pending destructive call the editor outlined (set by the editor, not by `renderPlan`). */
+  pending?: number;
+}
+
+/** Where the tag on Otto's newest edit was drawn, and what it says. */
+export interface AiTag {
+  text: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 /** Back to front. */
@@ -190,6 +216,8 @@ export function renderPlan(ctx: CanvasRenderingContext2D, frame: RenderFrame): R
       const layer = frame.layers[item.layerId];
       if (layer && !layer.visible) continue;
       if (DRAW_ORDER[item.type] >= DRAW_ORDER.wall && !wallsDrawn) {
+        // Otto's halo goes over the rooms and the slab and under the walls, so a wall sits on its own halo.
+        drawAiHalos(ctx, frame);
         drawWalls(ctx, frame);
         wallsDrawn = true;
       }
@@ -201,9 +229,12 @@ export function renderPlan(ctx: CanvasRenderingContext2D, frame: RenderFrame): R
       drawEntity(ctx, item, frame, texts);
       drawn++;
     }
-    if (!wallsDrawn) drawWalls(ctx, frame);
+    if (!wallsDrawn) {
+      drawAiHalos(ctx, frame);
+      drawWalls(ctx, frame);
+    }
     ctx.globalAlpha = 1;
-  }
+  } else drawAiHalos(ctx, frame);
   let connectors = 0;
   for (const pc of frame.connectors ?? []) {
     if (pc.box.maxX < visible.minX || pc.box.minX > visible.maxX || pc.box.maxY < visible.minY || pc.box.minY > visible.maxY) continue;
@@ -211,7 +242,9 @@ export function renderPlan(ctx: CanvasRenderingContext2D, frame: RenderFrame): R
     connectors++;
   }
   drawTexts(ctx, frame, texts);
-  return { drawn, connectors, levelId: frame.scene?.levelId ?? null, ms: performance.now() - started };
+  const otto = drawAiMarks(ctx, frame);
+  worldSpace(ctx, frame);
+  return { drawn, connectors, levelId: frame.scene?.levelId ?? null, ms: performance.now() - started, ...otto };
 }
 
 /** Text at a world position, drawn in screen space; for tools and overlays. Restores the world transform afterwards. */
@@ -379,6 +412,262 @@ export function drawSelection(ctx: CanvasRenderingContext2D, frame: RenderFrame,
       ctx.stroke();
     }
   }
+}
+
+// ---------- Otto's marks (03-otto.md §c): sizes in screen pixels, whatever the zoom ----------
+
+/** The halo's alpha and width. */
+const HALO_ALPHA = 0.22;
+const HALO_PX = 34;
+
+/** The highlights worth drawing now, each with its opacity. */
+function liveHighlights(frame: RenderFrame): { h: PlanHighlight; opacity: number }[] {
+  const now = frame.now ?? Date.now();
+  const out: { h: PlanHighlight; opacity: number }[] = [];
+  for (const h of frame.highlights ?? []) {
+    const opacity = highlightOpacity(h, now, frame.reducedMotion);
+    if (opacity > 0) out.push({ h, opacity });
+  }
+  return out;
+}
+
+const connectorOf = (frame: RenderFrame, id: string) => frame.connectors?.find((pc) => pc.id === id);
+
+/** A shown entity of the frame's scene (its layer visible), or undefined. */
+function shownItem(frame: RenderFrame, id: string): SceneItem | undefined {
+  const item = frame.scene?.items.get(id);
+  if (!item || frame.layers[item.layerId]?.visible === false) return undefined;
+  return item;
+}
+
+/** Traces the line Otto's halo follows for one entity or connector; false when it is not on this plan. */
+function traceHalo(ctx: CanvasRenderingContext2D, frame: RenderFrame, id: string): boolean {
+  const item = shownItem(frame, id);
+  if (item) {
+    const e = item.entity;
+    if (e.type === 'wall') {
+      tracePath(ctx, e.path);
+      return true;
+    }
+    if (e.type === 'opening') {
+      const wall = frame.scene?.items.get(e.wallId)?.entity;
+      if (!wall || wall.type !== 'wall') return false;
+      const { jambs } = openingFrame(wall, e);
+      ctx.moveTo(jambs[0][0], jambs[0][1]);
+      ctx.lineTo(jambs[1][0], jambs[1][1]);
+      return true;
+    }
+    if (!traceOutline(ctx, item, frame)) ctx.rect(item.minX, item.minY, item.maxX - item.minX, item.maxY - item.minY);
+    return true;
+  }
+  const pc = connectorOf(frame, id);
+  if (!pc) return false;
+  traceConnector(ctx, pc);
+  return true;
+}
+
+/** Each highlight's halo: one stroke per edit, so overlapping entities of one edit do not darken. */
+function drawAiHalos(ctx: CanvasRenderingContext2D, frame: RenderFrame): void {
+  const live = liveHighlights(frame);
+  if (!live.length) return;
+  ctx.save();
+  ctx.strokeStyle = frame.theme.ai;
+  ctx.lineWidth = px(frame, HALO_PX);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  for (const { h, opacity } of live) {
+    ctx.beginPath();
+    let any = false;
+    for (const id of h.ids) any = traceHalo(ctx, frame, id) || any;
+    if (!any) continue;
+    ctx.globalAlpha = HALO_ALPHA * opacity;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/** Where an entity's end nodes sit: a wall's or a line's two ends, an opening's jambs, a room's corners, an item's or a light's centre. */
+function nodesOf(frame: RenderFrame, id: string): Vec2[] {
+  const item = shownItem(frame, id);
+  if (!item) return [];
+  const e = item.entity;
+  const ends = (path: Path): Vec2[] => (path.closed ? path.v.slice(0, 12).map((v) => v.p) : [path.v[0].p, path.v[path.v.length - 1].p]);
+  switch (e.type) {
+    case 'wall':
+    case 'separator':
+    case 'shape':
+      return ends(e.path);
+    case 'opening': {
+      const wall = frame.scene?.items.get(e.wallId)?.entity;
+      return wall?.type === 'wall' ? [...openingFrame(wall, e).jambs] : [];
+    }
+    case 'room':
+    case 'slab':
+    case 'void':
+    case 'shaft': {
+      const region = regionOf(e);
+      return region ? region.outer.v.slice(0, 12).map((v) => v.p) : [];
+    }
+    case 'light':
+      return [[e.at[0], e.at[1]]];
+    case 'item':
+      return [[(item.minX + item.maxX) / 2, (item.minY + item.maxY) / 2]];
+    default:
+      return [];
+  }
+}
+
+type Bounds = { minX: number; minY: number; maxX: number; maxY: number };
+
+/** The box of what an edit shows on this plan, for the tag's anchor. */
+function highlightBox(frame: RenderFrame, h: PlanHighlight): Bounds | null {
+  let box: Bounds | null = null;
+  for (const id of h.ids) {
+    const b: Bounds | undefined = shownItem(frame, id) ?? connectorOf(frame, id)?.box;
+    if (!b) continue;
+    box = box ? { minX: Math.min(box.minX, b.minX), minY: Math.min(box.minY, b.minY), maxX: Math.max(box.maxX, b.maxX), maxY: Math.max(box.maxY, b.maxY) } : { minX: b.minX, minY: b.minY, maxX: b.maxX, maxY: b.maxY };
+  }
+  return box;
+}
+
+/** The tag's size: 22 px tall, the room glyph, then the words in mono 11 px. */
+const TAG_HEIGHT = 22;
+const TAG_TEXT_X = 6 + 12 + 5;
+
+/** The end nodes over the walls, and the tag on the newest edit (on a short leader from its halo), in screen space. */
+function drawAiMarks(ctx: CanvasRenderingContext2D, frame: RenderFrame): { highlights: number; aiTag: AiTag | null } {
+  const live = liveHighlights(frame);
+  if (!live.length) return { highlights: 0, aiTag: null };
+  const { theme, size } = frame;
+  screenSpace(ctx, frame);
+  ctx.save();
+  for (const { h, opacity } of live) {
+    ctx.globalAlpha = opacity;
+    ctx.fillStyle = theme.ai;
+    ctx.strokeStyle = theme.background;
+    ctx.lineWidth = 1.5;
+    for (const id of h.ids) {
+      for (const p of nodesOf(frame, id)) {
+        const [x, y] = worldToScreen(frame.camera, size, p);
+        if (x < -8 || y < -8 || x > size.width + 8 || y > size.height + 8) continue;
+        ctx.beginPath();
+        ctx.arc(x, y, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+    }
+  }
+  // One tag, on the newest edit that shows here.
+  let tag: AiTag | null = null;
+  for (let i = live.length - 1; i >= 0 && !tag; i--) {
+    const { h, opacity } = live[i];
+    const box = highlightBox(frame, h);
+    if (!box) continue;
+    const [ax, ay] = worldToScreen(frame.camera, size, [(box.minX + box.maxX) / 2, (box.minY + box.maxY) / 2]);
+    if (ax < 0 || ay < 0 || ax > size.width || ay > size.height) continue;
+    const text = highlightTag(h.label, (frame.now ?? Date.now()) - h.at);
+    ctx.globalAlpha = opacity;
+    ctx.font = `11px ${theme.fontMono}`;
+    const width = Math.ceil(TAG_TEXT_X + ctx.measureText(text).width + 9);
+    // Out at 45° towards the side with more free canvas, from the halo's edge, 18 px long.
+    const dx = ax <= size.width / 2 ? 1 : -1;
+    const dy = ay >= size.height / 2 ? -1 : 1;
+    const d = Math.SQRT1_2;
+    const sx = ax + dx * d * (HALO_PX / 2);
+    const sy = ay + dy * d * (HALO_PX / 2);
+    const ex = sx + dx * d * 18;
+    const ey = sy + dy * d * 18;
+    // The leader ends at the tag's corner nearest the halo; the tag stays 8 px inside the canvas.
+    const x = Math.min(Math.max(8, dx > 0 ? ex : ex - width), Math.max(8, size.width - 8 - width));
+    const y = Math.min(Math.max(8, dy < 0 ? ey - TAG_HEIGHT : ey), Math.max(8, size.height - 8 - TAG_HEIGHT));
+    ctx.strokeStyle = theme.ai;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(ex, ey);
+    ctx.stroke();
+    ctx.fillStyle = theme.ai;
+    ctx.beginPath();
+    if (typeof ctx.roundRect === 'function') ctx.roundRect(x, y, width, TAG_HEIGHT, 6);
+    else ctx.rect(x, y, width, TAG_HEIGHT);
+    ctx.fill();
+    // The room glyph of Otto's mark: the paper square with the pen still on its top-right corner.
+    ctx.strokeStyle = theme.aiFg;
+    ctx.fillStyle = theme.aiFg;
+    ctx.lineWidth = 1.2;
+    ctx.strokeRect(x + 8.5, y + 7.5, 8, 8);
+    ctx.beginPath();
+    ctx.arc(x + 16.5, y + 7.5, 1.6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, x + TAG_TEXT_X, y + TAG_HEIGHT / 2 + 0.5);
+    tag = { text, x, y, width, height: TAG_HEIGHT };
+  }
+  ctx.restore();
+  return { highlights: live.length, aiTag: tag };
+}
+
+/** The polygons a pending call's target is outlined round (before the 3 px offset). */
+function pendingPolygons(frame: RenderFrame, id: string): Polygon[] {
+  const item = shownItem(frame, id);
+  if (item) {
+    const e = item.entity;
+    const box: Polygon = [
+      [item.minX, item.minY],
+      [item.maxX, item.minY],
+      [item.maxX, item.maxY],
+      [item.minX, item.maxY],
+    ];
+    switch (e.type) {
+      case 'wall':
+        return frame.walls?.bodies.get(e.id)?.polygons.map((p) => [...p]) ?? [box];
+      case 'opening': {
+        const wall = frame.scene?.items.get(e.wallId)?.entity;
+        return wall?.type === 'wall' ? [openingFrame(wall, e).cut] : [box];
+      }
+      case 'column':
+        return [columnPolygon(e)];
+      case 'room':
+      case 'slab':
+      case 'void':
+      case 'shaft': {
+        const region = regionOf(e);
+        return region ? [flatten(region.outer)] : [box];
+      }
+      case 'item':
+        return item.footprint?.length ? item.footprint.map((p) => [...p]) : [box];
+      default:
+        return [box];
+    }
+  }
+  const pc = connectorOf(frame, id);
+  return pc ? pc.geometry.footprint.map((p) => [...p]) : [];
+}
+
+/**
+ * The dashed outline round each target of a destructive call Otto waits on: 1.5 px `--plan-ai`, dashes
+ * 6 / 4 px, 3 px outside the entity's outline, no fill (`03-otto.md` §c). The editor draws it above the
+ * selection; it returns how many targets it outlined.
+ */
+export function drawPendingOutline(ctx: CanvasRenderingContext2D, frame: RenderFrame, ids: ReadonlySet<string>): number {
+  if (!ids.size) return 0;
+  let drawn = 0;
+  ctx.save();
+  ctx.strokeStyle = frame.theme.ai;
+  ctx.lineWidth = px(frame, 1.5);
+  ctx.lineJoin = 'round';
+  ctx.setLineDash([px(frame, 6), px(frame, 4)]);
+  ctx.beginPath();
+  for (const id of ids) {
+    const polys = pendingPolygons(frame, id).filter((p) => p.length >= 3);
+    if (!polys.length) continue;
+    for (const poly of inflatePolygons(polys, px(frame, 3), 'round')) tracePolygon(ctx, poly);
+    drawn++;
+  }
+  if (drawn) ctx.stroke();
+  ctx.restore();
+  return drawn;
 }
 
 /** Traces an entity's outline; false when it has none worth drawing (its box is used instead), 'open' for a line that must not be filled. */

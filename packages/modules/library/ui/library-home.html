@@ -92,7 +92,7 @@
                   </div>
                 }
                 @if (ottoWorked(p)) {
-                  <span class="absolute right-2.5 top-2.5 rounded-[5px] ring-[1.5px] ring-surface leading-none" title="Otto has worked on this project" data-testid="project-otto-mark"><x-otto-mark size="14" /></span>
+                  <span class="absolute right-2.5 top-2.5 rounded-[5px] ring-[1.5px] ring-surface leading-none" title="Otto has worked on this project" data-testid="project-otto-mark"><x-otto-mark size="14" [label]="'Otto has worked on ' + p.name" /></span>
                 }
               </div>
               <div class="px-3 py-2.5">

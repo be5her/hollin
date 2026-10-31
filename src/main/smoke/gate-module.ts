@@ -20,10 +20,10 @@ export const smokeModules: ModuleMain[] = [
       defineCommand({
         id: 'smoke.destroy',
         title: 'Smoke: destroy',
-        description: 'Pretends to delete data. Smoke test only.',
+        description: 'Pretends to delete data (the entities or connectors named by ids, if any). Smoke test only.',
         scope: 'global',
         mutating: true,
-        input: z.object({}),
+        input: z.object({ ids: z.array(z.string()).optional() }),
         handler: async () => ({ destroyed: true }),
       }),
       defineCommand({

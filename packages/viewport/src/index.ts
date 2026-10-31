@@ -4,6 +4,7 @@ export * from './plan2d/theme';
 export * from './plan2d/scene';
 export * from './plan2d/draw';
 export * from './plan2d/render';
+export * from './plan2d/highlights';
 export * from './plan2d/hit';
 export * from './plan2d/grips';
 export * from './plan2d/snap';

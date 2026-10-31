@@ -435,9 +435,13 @@
     [attr.data-level]="activeLevelId()"
     [attr.data-underlay]="underlay()"
     [attr.data-entities]="entityCount()"
-      [attr.data-connectors]="connectorCount()"
+    [attr.data-connectors]="connectorCount()"
     [attr.data-frame-ms]="frameMs()"
     [attr.data-frame-level]="frameLevel()"
+    [attr.data-ai-highlights]="aiHighlights()"
+    [attr.data-ai-tag]="aiTag()"
+    [attr.data-ai-tag-box]="aiTagBox()"
+    [attr.data-ai-pending]="aiPending()"
     [attr.data-tool]="tool()"
     [attr.data-selection]="selectionAttr()"
     [attr.data-vertex]="vertexAttr()"
@@ -459,17 +463,24 @@
           <span class="inline-flex items-center gap-1.5"><kbd xKbd>N</kbd>Window</span>
           <span class="inline-flex items-center gap-1.5"><kbd xKbd>Ctrl K</kbd>Every command</span>
         </div>
-        <button
-          type="button"
-          class="inline-flex items-center gap-2.5 mt-5 rounded-md bg-ai-tint pl-2.5 pr-3.5 py-2 text-[13px] text-fg text-left hover:bg-[color-mix(in_srgb,var(--ai)_14%,var(--ai-tint))] transition-colors focus:outline-none focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-1"
+        <label
+          class="flex items-center gap-2.5 mt-5 rounded-md bg-ai-tint pl-2.5 pr-3.5 py-2 text-[13px] text-fg text-left w-[min(460px,100%)]"
           [class.pointer-events-auto]="tool() === 'select'"
-          title="Put this sentence in Otto's message field, where you can change it before sending"
-          (click)="tellOtto()"
-          data-testid="plan-empty-otto"
+          data-testid="plan-empty-otto-line"
+          [attr.data-ready]="ottoReady()"
         >
           <x-otto-mark size="20" />
-          <span>Or tell Otto: <span class="italic underline decoration-dotted decoration-muted underline-offset-4">“{{ ottoExample }}”</span></span>
-        </button>
+          <span class="shrink-0">{{ ottoReady() ? 'Or tell Otto:' : 'Or tell Otto, once it has a key:' }}</span>
+          <input
+            type="text"
+            class="min-w-0 flex-1 bg-transparent border-0 p-0 italic text-[13px] text-fg underline decoration-dotted decoration-muted underline-offset-4 rounded-sm focus:outline-none focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
+            [formField]="ottoForm.sentence"
+            aria-label="A sentence for Otto: Enter sends it"
+            [title]="ottoReady() ? 'Enter sends this to Otto, who drafts it on this level' : 'Enter opens Settings, where Otto gets its key'"
+            (keydown.enter)="tellOtto(); $event.preventDefault()"
+            data-testid="plan-empty-otto"
+          />
+        </label>
       </div>
     </div>
   }

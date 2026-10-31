@@ -21,6 +21,8 @@ export interface PlanTheme {
   decor: string;
   /** Otto's ink: what the assistant changed (the halo, its tag, a pending outline). */
   ai: string;
+  /** Text on Otto's ink: the tag's words. */
+  aiFg: string;
   fontSans: string;
   fontMono: string;
 }
@@ -45,6 +47,7 @@ export const LIGHT_THEME: PlanTheme = {
   connector: '#4b433d',
   decor: '#8c6b4a',
   ai: '#8a3f6f',
+  aiFg: '#fbf6ee',
   fontSans: "'Alegreya Sans', system-ui, sans-serif",
   fontMono: "'IBM Plex Mono', ui-monospace, monospace",
 };
@@ -69,6 +72,7 @@ export const DARK_THEME: PlanTheme = {
   connector: '#e3dacc',
   decor: '#d4a97a',
   ai: '#d892bd',
+  aiFg: '#1d1a17',
   fontSans: "'Alegreya Sans', system-ui, sans-serif",
   fontMono: "'IBM Plex Mono', ui-monospace, monospace",
 };
@@ -93,6 +97,7 @@ export const PLAN_THEME_VARIABLES: Record<keyof PlanTheme, string> = {
   connector: '--plan-connector',
   decor: '--plan-decor',
   ai: '--plan-ai',
+  aiFg: '--ai-fg',
   fontSans: '--font-sans',
   fontMono: '--font-mono',
 };

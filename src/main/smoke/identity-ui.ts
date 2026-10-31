@@ -1,15 +1,18 @@
 import { BRANDING, type ProjectSummary } from '@studio/core';
+import { FakeClaude, type FakeTurn } from '@studio/modules/assistant/fake-api';
 import { wait, type Smoke } from './harness';
-import { canvas, canvasAttr, tab } from './plan-canvas';
+import { canvas, canvasAttr, openProjectTab, tab } from './plan-canvas';
 
 const card = (name: string) => `[data-testid=project-card][data-name="${name}"]`;
 const composer = '[data-testid=otto-composer]';
 
 /**
  * The identity's moments: Home's cards (tinted sheets with initials, never a gradient) and Otto's composer
- * card, the empty project's guide and its Otto line, Properties' "Nothing selected", About with the credit
- * line and the licences, and the first-launch guide on a library with nothing in it (every project moved to
- * the trash for the check, then restored).
+ * card (Draft it creates the project, opens it and sends the sentence to Otto, who drafts the ground floor
+ * through the fake Claude API while the card says so; the project's card then carries Otto's mark), the
+ * empty project's guide and its Otto line (Enter sends the sentence), Properties' "Nothing selected", About
+ * with the credit line and the licences, and the first-launch guide on a library with nothing in it (every
+ * project moved to the trash for the check, then restored).
  */
 export async function smokeIdentityUi(smoke: Smoke): Promise<void> {
   const { host } = smoke;
@@ -30,7 +33,7 @@ export async function smokeIdentityUi(smoke: Smoke): Promise<void> {
   smoke.check('the tint is stable for the project', (await smoke.js<string>(`document.querySelector('${card('Garden room sketch')} [data-testid=project-placeholder]').dataset.tint`)) === sheet.tint);
   smoke.check('the card names are not in the display face', await smoke.js<boolean>(`!getComputedStyle(document.querySelector('${card('Garden room sketch')} [data-testid=project-card-name]')).fontFamily.includes('Fraunces')`));
   smoke.check('Home\'s heading is in Fraunces', await smoke.js<boolean>(`getComputedStyle(document.querySelector('[data-testid=library-heading]')).fontFamily.includes('Fraunces')`));
-  smoke.check('no card carries Otto\'s mark yet (the library does not record it)', (await smoke.count('[data-testid=project-otto-mark]')) === 0);
+  smoke.check("a project Otto never worked on carries no mark", (await smoke.count(`${card('Garden room sketch')} [data-testid=project-otto-mark]`)) === 0);
 
   smoke.section('identity: Start with Otto');
   smoke.check("Otto's composer is the grid's first card", await smoke.until(() => smoke.js<boolean>(`document.querySelector('[data-testid=project-grid]')?.firstElementChild?.matches('${composer}') ?? false`)));
@@ -38,6 +41,8 @@ export async function smokeIdentityUi(smoke: Smoke): Promise<void> {
   await smoke.click(`${composer} [data-testid=otto-composer-setup]`);
   smoke.check('Set up Otto opens Settings at the assistant', (await smoke.waitFor('[data-section=ai]')) && (await smoke.until(() => smoke.js<boolean>(`(() => { const r = document.querySelector('[data-section=ai]')?.getBoundingClientRect(); return !!r && r.top >= -2 && r.top < innerHeight / 2; })()`))));
   await smoke.click('[data-testid=tab][data-type="shell.home"]');
+  const fake = new FakeClaude();
+  process.env.STUDIO_AI_BASE_URL = await fake.start();
   try {
     await smoke.run('ai.key.set', { key: 'sk-ant-smoke-key-0000' });
     smoke.check('with a key the composer is ready', await smoke.waitFor(`${composer}[data-state=idle] [data-testid=otto-composer-draft]`));
@@ -46,13 +51,34 @@ export async function smokeIdentityUi(smoke: Smoke): Promise<void> {
     await smoke.fill(`${composer} [data-testid=otto-composer-input]`, sentence);
     smoke.check('and is enabled once there is one', await smoke.until(() => smoke.js<boolean>(`!document.querySelector('${composer} [data-testid=otto-composer-draft]').disabled`)));
     await smoke.shots('64-home-cards');
+    // Otto's first answer is held until the project exists, then drafts four walls on its ground floor.
+    const drafting: FakeTurn = { hold: true, text: 'Drafting the cabin.', tools: [{ name: 'plan_apply', input: {} }] };
+    fake.script(drafting, { text: 'I drafted the cabin: four walls, 6 by 4 m. Change any length you like.' });
     await smoke.click(`${composer} [data-testid=otto-composer-draft]`);
     const named = 'A small cabin by the lake';
     smoke.check('Draft it creates a project named from the sentence and opens it', (await smoke.until(() => host.projects.list().some((p) => p.name === named && p.description === sentence))) && (await smoke.until(() => smoke.js<boolean>(`document.querySelector('${tab} [data-testid=project-name]')?.value === ${JSON.stringify(named)}`))));
-    smoke.check('with the assistant showing and the sentence in its field, not sent', (await smoke.waitFor(`${tab} [data-testid=assistant-panel] [data-testid=assistant-input]`)) && (await smoke.until(() => smoke.js<boolean>(`document.querySelector('${tab} [data-testid=assistant-input]')?.value === ${JSON.stringify(sentence)}`))) && (await smoke.count(`${tab} [data-testid=assistant-item]`)) === 0);
+    const cabin = host.projects.list().find((p) => p.name === named)!;
+    smoke.check('with the Otto tab showing and the sentence sent as the first message', (await smoke.waitFor(`${tab} [data-testid=assistant-panel] [data-testid=assistant-item][data-kind=user]`, 5000, sentence)) && (await smoke.until(() => fake.held === 1)));
+    const ground = host.projects.session(cabin.id)!.doc.building.groundLevelId;
+    drafting.tools![0].input = { label: 'Draft the cabin', steps: [{ command: 'plan.wall.add', input: { levelId: ground, points: [{ p: [0, 0] }, { p: [6000, 0] }, { p: [6000, 4000] }, { p: [0, 4000] }], closed: true, thickness: 200 } }] };
+    await smoke.click('[data-testid=tab][data-type="shell.home"]');
+    smoke.check('while Otto drafts, the card says so with the sentence and Open', (await smoke.waitFor(`${composer}[data-state=drafting][data-project="${cabin.id}"] [data-testid=otto-composer-drafting]`, 3000, 'Otto is drafting…')) && (await smoke.waitFor(`${composer} [data-testid=otto-composer-sentence]`, 3000, sentence)) && (await smoke.count(`${composer} [data-testid=otto-composer-draft]`)) === 0, await smoke.js(`document.querySelector('${composer}')?.dataset.state`));
+    await smoke.shots('72-home-drafting');
+    await smoke.click(`${composer} [data-testid=otto-composer-open]`);
+    smoke.check('Open goes to the project Otto is drafting', await smoke.until(() => smoke.js<boolean>(`document.querySelector('${tab} [data-testid=project-name]')?.value === ${JSON.stringify(named)}`)));
+    fake.release();
+    const walls = () => Object.values(host.projects.session(cabin.id)?.doc.levelData[ground]?.entities ?? {}).filter((e) => e.type === 'wall').length;
+    smoke.check('Otto drafts the ground floor', (await smoke.until(() => walls() === 4, 8000)) && (await smoke.waitFor(`${tab} [data-testid=assistant-item][data-kind=assistant]`, 8000, 'I drafted the cabin')), { walls: walls(), items: (await smoke.run<{ items: { kind: string; text?: string; summary?: string }[] }>('assistant.state', {}, { projectId: cabin.id })).items });
+    smoke.check('and marks what it drew on the plan', await smoke.until(async () => (await canvasAttr(smoke, 'aiTag')) === 'Otto · Draft the cabin · now', 5000), await canvasAttr(smoke, 'aiTag'));
+    await smoke.click('[data-testid=tab][data-type="shell.home"]');
+    smoke.check('when Otto is done the composer is empty again', await smoke.waitFor(`${composer}[data-state=idle]`, 5000));
+    smoke.check("and the project's card carries Otto's mark once the save lands", (await smoke.until(() => Boolean(host.projects.list().find((p) => p.id === cabin.id)?.assistantEditedAt), 10_000)) && (await smoke.waitFor(`${card(named)} [data-testid=project-otto-mark] x-otto-mark[aria-label="Otto has worked on ${named}"]`, 5000)));
+    await wait(150);
+    await smoke.shots('73-home-otto-mark');
 
     smoke.section('identity: the empty project');
-    const cabin = host.projects.list().find((p) => p.name === named)!;
+    const studio = await smoke.run<ProjectSummary>('project.create', { name: 'Studio sketch', open: false });
+    await openProjectTab(smoke, studio.id);
     smoke.check('a new project shows "Draw the first wall."', (await smoke.waitFor(`${tab} [data-testid=plan-empty]`, 5000, 'Draw the first wall.')) && (await smoke.js<boolean>(`getComputedStyle(document.querySelector('${tab} [data-testid=plan-empty] h2')).fontFamily.includes('Fraunces')`)));
     smoke.check('with the four keys', (await smoke.js<string[]>(`[...document.querySelectorAll('${tab} [data-testid=plan-empty-keys] kbd')].map((k) => k.textContent.trim())`)).join() === 'W,D,N,Ctrl K');
     const through = await smoke.js<{ overlay: string; hit: boolean }>(`(() => {
@@ -64,14 +90,23 @@ export async function smokeIdentityUi(smoke: Smoke): Promise<void> {
     smoke.check('the guide lets the pointer through to the canvas', through.overlay === 'none' && through.hit, through);
     await smoke.click(`${tab} [data-testid=right-tab-properties]`);
     smoke.check('Properties says "Nothing selected" in Fraunces, with the keys', (await smoke.waitFor(`${tab} [data-testid=properties-empty]`, 3000, 'Nothing selected')) && (await smoke.waitFor(`${tab} [data-testid=properties-empty] kbd`, 3000, 'Esc')) && (await smoke.js<boolean>(`getComputedStyle(document.querySelector('${tab} [data-testid=properties-empty] [data-testid=empty-state-title]')).fontFamily.includes('Fraunces')`)));
+    smoke.check("Otto's line holds an editable sentence", (await smoke.js<string>(`document.querySelector('${tab} [data-testid=plan-empty-otto]')?.value ?? ''`)) === 'a 5 by 7 m studio with a bathroom in the corner' && (await smoke.waitFor(`${tab} [data-testid=plan-empty-otto-line][data-ready=true]`, 3000, 'Or tell Otto:')));
     await smoke.shots('66-empty-project');
-    await smoke.click(`${tab} [data-testid=plan-empty-otto]`);
-    smoke.check("Otto's line opens the assistant with its sentence in the field", (await smoke.waitFor(`${tab} [data-testid=assistant-input]`)) && (await smoke.until(() => smoke.js<boolean>(`document.querySelector('${tab} [data-testid=assistant-input]')?.value === 'a 5 by 7 m studio with a bathroom in the corner'`))));
-    const ground = host.projects.session(cabin.id)!.doc.building.groundLevelId;
-    await smoke.run('plan.wall.add', { levelId: ground, from: [0, 0], to: [4000, 0], thickness: 200 }, { projectId: cabin.id });
+    fake.reset();
+    fake.script({ text: 'A 5 by 7 m studio: shall I put the bathroom in the north-east corner?' });
+    const told = 'a 5 by 7 m studio with a bathroom in the north corner';
+    await smoke.fill(`${tab} [data-testid=plan-empty-otto]`, told);
+    await smoke.js(`document.querySelector('${tab} [data-testid=plan-empty-otto]').focus()`);
+    await smoke.key('Enter');
+    smoke.check("Enter on Otto's line sends the sentence and opens the Otto tab", (await smoke.waitFor(`${tab} [data-testid=assistant-panel] [data-testid=assistant-item][data-kind=user]`, 5000, told)) && (await smoke.waitFor(`${tab} [data-testid=assistant-item][data-kind=assistant]`, 8000, 'shall I put the bathroom')));
+    await smoke.until(async () => (await smoke.run<{ status: string }>('assistant.state', {}, { projectId: studio.id })).status === 'idle');
+    const studioGround = host.projects.session(studio.id)!.doc.building.groundLevelId;
+    await smoke.run('plan.wall.add', { levelId: studioGround, from: [0, 0], to: [4000, 0], thickness: 200 }, { projectId: studio.id });
     smoke.check('the guide is gone once the level has a wall', (await smoke.until(async () => Number(await canvasAttr(smoke, 'entities')) > 0)) && (await smoke.gone(`${tab} [data-testid=plan-empty]`)));
     await smoke.click(`${tab} [data-testid=right-tab-properties]`);
   } finally {
+    delete process.env.STUDIO_AI_BASE_URL;
+    await fake.close();
     await smoke.run('ai.key.clear');
   }
 

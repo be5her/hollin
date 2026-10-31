@@ -11,6 +11,8 @@ export interface ProjectSummary {
   /** Changes whenever the thumbnail does (for cache busting); null without one. */
   thumbnail: string | null;
   trashedAt: string | null;
+  /** When a save last landed after an edit by Otto (the in-app assistant); absent when Otto never worked on it. Home marks the card. */
+  assistantEditedAt?: string;
 }
 
 export interface SnapshotInfo {

@@ -8,8 +8,9 @@ export interface AssistantDraftOffer {
 
 /**
  * How Home's composer and the empty project's Otto line put a sentence into a project's assistant
- * panel without sending it: `offer` it, and the panel (once it is shown for that project) takes it into
- * its message field. Nothing is sent: the user reads, edits and sends it.
+ * panel without sending it, when Otto could not start the chat they send (a run already going there):
+ * `offer` it, and the panel (once it is shown for that project) takes it into its message field.
+ * Nothing is sent: the user reads, edits and sends it.
  */
 @Service()
 export class AssistantDrafts {

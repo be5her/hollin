@@ -18,8 +18,8 @@ export interface AssistantPresence {
   pulse: boolean;
   /** Where a click goes: the project's Otto tab, or Settings > Assistant for the setup states. */
   opens: 'panel' | 'settings';
-  /** The destructive call waiting for the user's yes, if any: History shows it greyed at the top. */
-  pending: { title: string; command: string } | null;
+  /** The destructive call waiting for the user's yes, if any: History shows it greyed at the top, the plan outlines `ids` (what its input names; empty when it names none). */
+  pending: { title: string; command: string; ids: string[] } | null;
 }
 
 /** What the whole renderer shares: config, the command list, host status and what is on screen. */

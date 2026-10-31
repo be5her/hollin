@@ -1,5 +1,5 @@
 import { Service, computed, effect, inject, signal, untracked } from '@angular/core';
-import type { AssistantStatus, ChatSnapshot, ToolItem } from '@studio/core';
+import { targetIdsOf, type AssistantStatus, type ChatSnapshot, type ToolItem } from '@studio/core';
 import { AppState, HostBridge, injectHostEvent, invokeResource, type AssistantPresence } from '@studio/ui';
 
 /** How long the status bar keeps "stopped" and "couldn't reach Claude" before it says ready again. */
@@ -36,7 +36,7 @@ export class OttoPresence {
     const projectId = this.app.activeProjectId();
     if (!projectId) return null;
     const chat = this.chats()[projectId];
-    const pending = chat?.confirm ? { title: chat.confirm.command.title, command: chat.confirm.command.id } : null;
+    const pending = chat?.confirm ? { title: chat.confirm.command.title, command: chat.confirm.command.id, ids: targetIdsOf(chat.confirm.input) } : null;
     const make = (state: string, text: string, tone: AssistantPresence['tone'] = 'ai', pulse = false, opens: AssistantPresence['opens'] = 'panel'): AssistantPresence => ({ projectId, state, text: `Otto · ${text}`, tone, pulse, opens, pending });
 
     if (chat?.status === 'waiting') return make('waiting', 'waiting for your yes');

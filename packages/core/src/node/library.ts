@@ -39,6 +39,8 @@ const SummarySchema = z.object({
   levelCount: z.number(),
   thumbnail: z.string().nullable(),
   trashedAt: z.string().nullable(),
+  // Added after the index's first format: an older index.json without it still loads (read as "never").
+  assistantEditedAt: z.string().optional(),
 });
 const IndexSchema = z.object({ version: z.literal(INDEX_VERSION), projects: z.array(SummarySchema) });
 
@@ -235,6 +237,8 @@ export class Library {
       levelCount: Object.keys(raw?.levels ?? {}).length,
       thumbnail: thumb ? String(Math.round(thumb.mtimeMs)) : null,
       trashedAt: trashed ? (trashInfo?.trashedAt ?? known?.trashedAt ?? new Date().toISOString()) : null,
+      // Only the index knows it: a rebuild keeps the entry's value, a lost index.json forgets it.
+      ...(known?.assistantEditedAt ? { assistantEditedAt: known.assistantEditedAt } : {}),
     };
   }
 
@@ -295,11 +299,13 @@ export class Library {
     return summary;
   }
 
-  /** Updates the listing after a project was saved. */
-  async noteSaved(doc: ProjectDoc): Promise<void> {
+  /** Updates the listing after a project was saved; `assistant`: the save holds an edit by Otto, which the entry records. */
+  async noteSaved(doc: ProjectDoc, options: { assistant?: boolean } = {}): Promise<void> {
     const known = this.index.get(doc.meta.id);
     if (!known) return;
-    this.index.set(doc.meta.id, this.summaryOf(doc, known));
+    const summary = this.summaryOf(doc, known);
+    if (options.assistant) summary.assistantEditedAt = new Date().toISOString();
+    this.index.set(doc.meta.id, summary);
     await this.changed('updated', doc.meta.id);
   }
 
@@ -322,6 +328,7 @@ export class Library {
       levelCount: Object.keys(doc.levels).length,
       thumbnail: known?.thumbnail ?? null,
       trashedAt: known?.trashedAt ?? null,
+      ...(known?.assistantEditedAt ? { assistantEditedAt: known.assistantEditedAt } : {}),
     };
   }
 
@@ -352,7 +359,8 @@ export class Library {
     await fs.cp(path.join(from, 'assets'), path.join(staging, 'assets'), { recursive: true }).catch(() => {});
     await fs.copyFile(path.join(from, 'thumbnail.png'), path.join(staging, 'thumbnail.png')).catch(() => {});
     await renameWithRetry(staging, this.projectDir(copy.meta.id));
-    const summary = { ...this.summaryOf(copy, null), thumbnail: source.thumbnail };
+    // The copy holds Otto's work too.
+    const summary = { ...this.summaryOf(copy, null), thumbnail: source.thumbnail, ...(source.assistantEditedAt ? { assistantEditedAt: source.assistantEditedAt } : {}) };
     this.index.set(summary.id, summary);
     await this.changed('created', summary.id);
     return summary;

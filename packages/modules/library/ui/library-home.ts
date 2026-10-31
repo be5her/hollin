@@ -84,12 +84,11 @@ export class LibraryHome implements TabComponent {
   }
 
   /**
-   * Whether Otto (the in-app assistant) has edited this project, for the 14 px mark in the card's corner.
-   * The library index has no such field yet (a later step adds one, filled from assistant-authored edits),
-   * so no card carries the mark today.
+   * Whether Otto (the in-app assistant) has worked on this project, for the 14 px mark in the card's
+   * corner: the library index records when a save last held an edit by Otto (`assistantEditedAt`).
    */
-  protected ottoWorked(_p: ProjectSummary): boolean {
-    return false;
+  protected ottoWorked(p: ProjectSummary): boolean {
+    return Boolean(p.assistantEditedAt);
   }
 
   protected ago(iso: string | null): string {
