@@ -6,6 +6,7 @@ Every notable change to the app, newest first. The format follows [Keep a Change
 
 ### Changed
 - The look: a paper and ink palette with a terracotta accent, Alegreya Sans, IBM Plex Mono and Fraunces bundled, lighter icons; the plan, the 3D view and the exports' renders follow.
+- A new app icon: two rooms, yours and the assistant's; the title bar shows the icon and the wordmark.
 
 ## [0.1.0] - 2026-10-28
 

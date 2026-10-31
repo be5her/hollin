@@ -33,3 +33,6 @@ export * from './context-menu/context-menu';
 export * from './context-menu/context-menu-host';
 export * from './reorder/drag-reorder';
 export * from './reorder/drop-marker';
+export * from './brand/app-mark';
+export * from './brand/otto-mark';
+export * from './brand/wordmark';

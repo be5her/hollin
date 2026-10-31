@@ -1,10 +1,29 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
-  <!-- Placeholder mark until the visual design is decided: a floor plan with a door swing. -->
-  <rect x="64" y="64" width="896" height="896" rx="200" fill="#2f6fda"/>
-  <g fill="none" stroke="#ffffff" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M272 292 H752 V732 H272 Z" stroke-width="56"/>
-    <path d="M512 292 V500" stroke-width="40"/>
-    <path d="M272 556 H420" stroke-width="40"/>
-    <path d="M420 556 A148 148 0 0 1 568 704" stroke-width="24" stroke-dasharray="2 34" opacity="0.9"/>
-  </g>
+  <!--
+    App icon: two rooms.
+    The same paper tile and hairline as candidate A. Your room is finished in ink on the left,
+    its door open with the terracotta swing; Otto's room is on the right: three walls in mulberry
+    ink and the pen, a dot, still on the last corner. The two rooms share the ink wall between
+    them. At 16 px it is two boxes, one ink and one mulberry, on a light square.
+    Colours: paper #f6f1e8, hairline #d9cebc, ink #2a2521, terracotta #b9552f,
+    mulberry #8a3f6f (the AI variable, light). The icon does not follow the theme.
+  -->
+  <!-- Paper tile with its hairline edge -->
+  <rect x="64" y="64" width="896" height="896" rx="200" fill="#f6f1e8"/>
+  <rect x="70" y="70" width="884" height="884" rx="194" fill="none" stroke="#d9cebc" stroke-width="12"/>
+  <!-- Your room's door: terracotta swing and ink leaf, hinge on the inner face of the left wall -->
+  <path d="M264 640 H464 A200 200 0 0 0 264 440 Z" fill="#b9552f"/>
+  <path d="M264 640 H464" stroke="#2a2521" stroke-width="24" stroke-linecap="butt"/>
+  <!-- Your room: ink walls 88 thick, x 176..560, y 256..768, opening in the left wall y 440..640 -->
+  <rect x="176" y="256" width="384" height="88" fill="#2a2521"/>
+  <rect x="176" y="680" width="384" height="88" fill="#2a2521"/>
+  <rect x="472" y="256" width="88" height="512" fill="#2a2521"/>
+  <rect x="176" y="256" width="88" height="184" fill="#2a2521"/>
+  <rect x="176" y="640" width="88" height="128" fill="#2a2521"/>
+  <!-- Otto's room: bottom wall, right wall, and the top wall still being drawn -->
+  <rect x="560" y="680" width="288" height="88" fill="#8a3f6f"/>
+  <rect x="760" y="256" width="88" height="512" fill="#8a3f6f"/>
+  <rect x="672" y="256" width="176" height="88" fill="#8a3f6f"/>
+  <!-- The pen on the last corner -->
+  <circle cx="672" cy="300" r="66" fill="#8a3f6f"/>
 </svg>

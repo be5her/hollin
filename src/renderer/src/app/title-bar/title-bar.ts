@@ -1,17 +1,17 @@
 import { Component, ElementRef, afterRenderEffect, computed, inject, untracked, viewChild } from '@angular/core';
 import { BRANDING } from '@studio/core';
-import { AppState, ContextMenu, DropMarker, HostBridge, Icon, IconButton, Kbd, TabsState, dragReorder, type Tab } from '@studio/ui';
+import { AppMark, AppState, ContextMenu, DropMarker, HostBridge, Icon, IconButton, Kbd, TabsState, Wordmark, dragReorder, type Tab } from '@studio/ui';
 import { House, Search, Settings, X } from 'lucide';
 import { ShellActions } from '../shell-actions';
 
 /**
- * The window's title bar: the app name, the document tabs (Home, projects, Settings; drag to reorder,
+ * The window's title bar: the app icon and name (the lockup), the document tabs (Home, projects, Settings; drag to reorder,
  * middle-click or Ctrl+W to close, right-click for more), the palette and the Settings gear. The OS draws its window
  * buttons over the right end (left on macOS), so those areas stay empty.
  */
 @Component({
   selector: 'header[xTitleBar]',
-  imports: [DropMarker, Icon, IconButton, Kbd],
+  imports: [AppMark, DropMarker, Icon, IconButton, Kbd, Wordmark],
   templateUrl: './title-bar.html',
   host: {
     class: 'app-drag flex items-stretch h-10 border-b border-edge shrink-0 select-none',
