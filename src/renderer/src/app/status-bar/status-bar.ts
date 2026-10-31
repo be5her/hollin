@@ -1,9 +1,9 @@
 import { Component, computed, inject } from '@angular/core';
-import { AppState, Icon, OpenProjects, relativeTime } from '@studio/ui';
+import { AppState, Icon, OpenProjects, ProjectView, relativeTime } from '@studio/ui';
 import { CircleAlert, Moon, Plug, Ruler, Sun } from 'lucide';
 import { ShellActions } from '../shell-actions';
 
-/** The project and its save state on the left; units, the MCP server and the theme on the right. */
+/** The project and its save state on the left; units, Otto's state, the MCP server and the theme on the right. */
 @Component({
   selector: 'footer[xStatusBar]',
   imports: [Icon],
@@ -30,6 +30,12 @@ import { ShellActions } from '../shell-actions';
     <button type="button" class="flex items-center gap-1 hover:text-fg" title="Display units" data-testid="status-units" (click)="shell.openSettings('units')">
       <svg [xIcon]="icons.Ruler" class="size-3"></svg>{{ unitsLabel() }}
     </button>
+    @if (otto(); as o) {
+      <button type="button" class="flex items-center gap-1 hover:text-fg max-w-72" [title]="o.text" [attr.aria-label]="o.text" aria-live="polite" data-testid="status-otto" [attr.data-state]="o.state" (click)="openOtto()">
+        <span class="size-1.5 rounded-full shrink-0" [class]="(o.tone === 'ai' ? 'bg-ai' : o.tone === 'danger' ? 'bg-danger' : 'bg-muted') + (o.pulse ? ' otto-pulse' : '')" aria-hidden="true" data-testid="status-otto-dot"></span>
+        <span class="truncate">{{ o.text }}</span>
+      </button>
+    }
     <button type="button" class="flex items-center gap-1 hover:text-fg" [title]="mcp()?.error ?? 'MCP server'" data-testid="status-mcp" (click)="shell.openSettings('mcp')">
       <svg [xIcon]="icons.Plug" class="size-3"></svg>
       <span class="size-1.5 rounded-full" [class]="mcp()?.running ? 'bg-success' : 'bg-danger'"></span>
@@ -39,11 +45,19 @@ import { ShellActions } from '../shell-actions';
       <svg [xIcon]="theme() === 'dark' ? icons.Sun : icons.Moon" class="size-3"></svg>
     </button>
   `,
+  styles: `
+    .otto-pulse { animation: otto-pulse 1.2s ease-in-out infinite; }
+    @keyframes otto-pulse { 50% { opacity: 0.4; } }
+    @media (prefers-reduced-motion: reduce) { .otto-pulse { animation: none; } }
+  `,
   host: { class: 'flex items-center h-6 px-3 gap-3 text-[11px] border-t border-edge bg-surface text-muted shrink-0 select-none' },
 })
 export class StatusBar {
   private readonly app = inject(AppState);
+  private readonly view = inject(ProjectView);
   protected readonly shell = inject(ShellActions);
+  /** Otto's state in the project on screen, published by the assistant module. */
+  protected readonly otto = this.app.assistant;
 
   protected readonly icons = { CircleAlert, Moon, Plug, Ruler, Sun };
   protected readonly mcp = this.app.mcpStatus;
@@ -53,6 +67,14 @@ export class StatusBar {
     const save = this.project()?.save;
     return save?.state === 'saved' ? relativeTime(save.savedAt) : '';
   });
+  /** Opens the project's Otto tab, or Settings > Assistant while Otto cannot work. */
+  protected openOtto(): void {
+    const o = this.otto();
+    if (!o) return;
+    if (o.opens === 'settings') this.shell.openSettings('ai');
+    else this.view.set(o.projectId, 'rightPanel', 'assistant');
+  }
+
   protected readonly unitsLabel = computed(() => {
     const units = this.app.units();
     if (!units) return '';

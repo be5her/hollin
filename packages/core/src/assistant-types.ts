@@ -11,7 +11,37 @@ export type TranscriptItem =
   /** A reply, streamed: `text` grows with `assistant.event` text deltas. */
   | { kind: 'assistant'; id: string; text: string; at: string }
   /** A tool call: the command it ran, what it was given, and how it ended. */
-  | { kind: 'tool'; id: string; name: string; command: string; title: string; input: unknown; status: 'running' | 'ok' | 'error' | 'declined'; summary: string; at: string };
+  | ToolItem;
+
+/**
+ * A tool call in the chat. `status` `stopped`: the run was stopped while the call ran. The optional fields
+ * are what the card's second line says, filled in main where the call carries them: the level and layer
+ * of the edit it made (from the undo entry it left) or of the level it named, how many edits a batch
+ * held, whether it only read, whether it left an undo step, what a snapshot showed, and that it
+ * returned an image (fetched with `assistant.image`, never sent with the chat).
+ */
+export interface ToolItem {
+  kind: 'tool';
+  id: string;
+  name: string;
+  command: string;
+  title: string;
+  input: unknown;
+  status: 'running' | 'ok' | 'error' | 'declined' | 'stopped';
+  summary: string;
+  at: string;
+  level?: string;
+  layer?: string;
+  /** The number of edits in a `plan.apply` batch. */
+  ops?: number;
+  readOnly?: boolean;
+  /** The call left an undo step (signed by the assistant). */
+  undoable?: boolean;
+  /** For a snapshot: `plan` or `3D, night` and so on. */
+  view?: string;
+  /** The call returned an image, kept in main for this chat while the project is open. */
+  image?: { mimeType: string };
+}
 
 /** A mutating command the assistant wants to run; the user allows or declines it in the chat. */
 export interface PendingConfirmation {
@@ -33,6 +63,8 @@ export interface ChatSnapshot {
   provider: AiProvider;
   /** The Claude Code session this chat continues (stored in the project's view state), if any. */
   sessionId: string | null;
+  /** Stop was pressed and the run (with Claude Code, its process) has not ended yet: the next message waits for it. */
+  stopping: boolean;
 }
 
 /** What `assistant.event` carries: the whole chat after a structural change, or one text delta while a reply streams. */

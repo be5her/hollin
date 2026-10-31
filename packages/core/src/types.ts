@@ -37,7 +37,8 @@ export interface ProjectApi {
    * Inside `plan.apply`, edits join the batch's transaction instead. With `dryRun` the change is
    * checked but not applied.
    */
-  edit<T>(author: Author, label: string, fn: (tx: EditContext) => T | Promise<T>, options?: { coalesce?: string; dryRun?: boolean }): Promise<EditResult<T>>;
+  /** `command` names the command that made the change, for History. */
+  edit<T>(author: Author, label: string, fn: (tx: EditContext) => T | Promise<T>, options?: { coalesce?: string; dryRun?: boolean; command?: string }): Promise<EditResult<T>>;
   undo(ifTop?: string): Promise<HistoryState>;
   redo(): Promise<HistoryState>;
   history(): { undo: HistoryInfo[]; redo: HistoryInfo[]; seq: number; epoch: number };
@@ -78,7 +79,7 @@ export function assertUnchanged(ctx: CommandContext, id: string, what: string, b
 export function editProject<T>(ctx: CommandContext, label: string, fn: (tx: EditContext) => T | Promise<T>, options?: { coalesce?: string }): Promise<EditResult<T>> {
   if (!ctx.project) throw new Error('editProject needs a project');
   const { label: _display, ...author } = authorFrom(ctx);
-  return ctx.project.edit(author, label, fn, options);
+  return ctx.project.edit(author, label, fn, { ...options, ...(ctx.command ? { command: ctx.command } : {}) });
 }
 
 /** The project library and the open projects, as commands see them. */
@@ -225,6 +226,8 @@ export interface CommandContext {
   agent?: string;
   host: HostApi;
   project?: ProjectApi;
+  /** The command being run, set by the registry (the outermost one, when a command runs others), so its edits name it in History. */
+  command?: string;
 }
 
 export type AnyZodObject = z.ZodObject<z.ZodRawShape>;
@@ -342,6 +345,8 @@ export interface HostEvents {
   'view.snapshot.request': { id: string; projectId: string; levelId: string; width: number; height: number; view: 'plan' | '3d'; azimuth: number; elevation: number; display: 'all' | 'isolate' | 'cutaway'; explode: number; lighting: 'day' | 'night'; theme: 'light' | 'dark'; transparent: boolean };
   /** The assistant's chat for a project changed: the whole chat after a structural change, or a text delta while a reply streams. */
   'assistant.event': { projectId: string; event: AssistantEvent };
+  /** The assistant module started (`checking: true`) or finished probing the user's Claude Code (`claude --version`, `claude auth status`). */
+  'assistant.probe': { checking: boolean };
   /** An export wrote files outside the library (`export.plan`, `export.building`, `export.image`): the format and the full paths written. */
   'exchange.exported': { projectId: string; format: string; files: string[] };
   /** The in-app update moved on: checking, found, downloading (progress), ready, failed. */

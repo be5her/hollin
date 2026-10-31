@@ -21,7 +21,7 @@ const alive = (pid: number): boolean => {
  * the smoke's data folder) whose tool calls go through the app's real MCP server: the provider switched
  * in Settings, the not-found and not-logged-in empty states, the MCP server turned off in Settings with
  * the notice and its button in the chat, a plan_apply edit landing as one undoable transaction by
- * "Assistant (claude-code 9.9.9)", a destructive call waiting until declined then allowed, Stop killing
+ * Otto ("claude-code 9.9.9" on the undo entry), a destructive call waiting until declined then allowed, Stop killing
  * the process and the next message resuming the stored session with its history, the project closed
  * and reopened, and the call log with the calls as the assistant. The real Claude Code is never run.
  */
@@ -43,8 +43,12 @@ export async function smokeAssistantClaudeCode(smoke: Smoke, duplexId: string): 
   const run = <T = unknown>(id: string, input: unknown = {}) => smoke.run<T>(id, input, { projectId: duplexId });
   const panel = `${tab} [data-testid=assistant-panel]`;
   const send = async (text: string) => {
-    // The reply's last words show before the run ends and Send is enabled again: wait for idle, or the click is lost.
-    await smoke.until(async () => (await run<{ status: string }>('assistant.state')).status === 'idle');
+    // The reply's last words show before the run ends and Send is enabled again: wait for idle, and for a stopped process to be gone
+    // (the composer is disabled until then), or the click is lost.
+    await smoke.until(async () => {
+      const state = await run<{ status: string; stopping: boolean }>('assistant.state');
+      return state.status === 'idle' && !state.stopping;
+    }, 30_000);
     await smoke.gone(`${panel} [data-testid=assistant-stop]`, 3000);
     await smoke.fill(`${panel} [data-testid=assistant-input]`, text);
     await smoke.click(`${panel} [data-testid=assistant-send]`);
@@ -83,6 +87,9 @@ export async function smokeAssistantClaudeCode(smoke: Smoke, duplexId: string): 
       probed && (await smoke.waitFor(`${panel} [data-testid=assistant-empty][data-reason=not-logged-in]`, 5000)),
       `showing ${await smoke.js<string>(`document.querySelector('${panel} [data-testid=assistant-empty]')?.dataset.reason ?? (document.querySelector('${panel} [data-testid=assistant-input]') ? 'the chat' : 'nothing')`)}`,
     );
+    smoke.check("the logged-out state speaks in Otto's voice, with the mark", (await smoke.waitFor(`${panel} [data-testid=assistant-empty][data-reason=not-logged-in]`, 3000, "I can't work yet: Claude Code is not logged in")) && (await smoke.count(`${panel} [data-testid=assistant-empty] x-otto-mark[aria-label=Otto]`)) === 1);
+    smoke.check('the header says so in place of the model', await smoke.waitFor(`${panel} [data-testid=assistant-setup-line]`, 3000, 'Claude Code not logged in'));
+    smoke.check('the status bar says Otto needs Claude Code logged in', await smoke.waitFor('[data-testid=status-otto][data-state=not-logged-in]', 5000, 'Otto · Claude Code not logged in'));
     delete process.env.FAKE_CLAUDE_LOGGED_OUT;
     await smoke.click(`${panel} [data-testid=assistant-check-again]`);
     // Check again probes anew; wait for that probe to answer before looking at the panel.
@@ -116,9 +123,9 @@ export async function smokeAssistantClaudeCode(smoke: Smoke, duplexId: string): 
     smoke.check('the tool call is shown done, with the batch label', (await smoke.waitFor(`${panel} [data-testid=assistant-tool][data-command="plan.apply"][data-status=ok]`, 3000)) && (await smoke.text(`${panel} [data-testid=assistant-tool]`))?.includes('Add a 3 m wall') === true);
     smoke.check('the wall was added', await smoke.until(() => walls() === before + 1));
     const history = await run<{ undo: HistoryInfo[] }>('edit.history');
-    smoke.check('the history has one entry labelled by the batch, by Assistant (claude-code 9.9.9)', history.undo[0]?.label === 'Add a 3 m wall' && history.undo[0].author.kind === 'assistant' && history.undo[0].author.name === 'claude-code 9.9.9', history.undo[0]);
+    smoke.check('the history has one entry labelled by the batch, by the assistant as claude-code 9.9.9', history.undo[0]?.label === 'Add a 3 m wall' && history.undo[0].author.kind === 'assistant' && history.undo[0].author.name === 'claude-code 9.9.9', history.undo[0]);
     await smoke.click(`${tab} [data-testid=right-tab-history]`);
-    smoke.check('the History panel lists the change under the assistant', await smoke.waitFor(`${tab} [data-testid=history-item][data-label="Add a 3 m wall"]`, 3000, 'Assistant (claude-code 9.9.9)'));
+    smoke.check('the History panel lists the change signed Otto', await smoke.waitFor(`${tab} [data-testid=history-item][data-label="Add a 3 m wall"][data-author="Otto"]`, 3000, 'Otto · Structure · plan.apply'));
     await smoke.click(`${tab} [data-testid=right-tab-assistant]`);
     await run('edit.undo');
     smoke.check('one undo removes it', await smoke.until(() => walls() === before));

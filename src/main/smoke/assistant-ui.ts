@@ -22,8 +22,11 @@ export async function smokeAssistantUi(smoke: Smoke, duplexId: string): Promise<
   const run = <T = unknown>(id: string, input: unknown = {}) => smoke.run<T>(id, input, { projectId: duplexId });
   const panel = `${tab} [data-testid=assistant-panel]`;
   const send = async (text: string) => {
-    // The reply's last words show before the run ends and Send is enabled again: wait for idle, or the click is lost.
-    await smoke.until(async () => (await run<{ status: string }>('assistant.state')).status === 'idle');
+    // The reply's last words show before the run ends and Send is enabled again: wait for idle (and a stop to finish), or the click is lost.
+    await smoke.until(async () => {
+      const state = await run<{ status: string; stopping: boolean }>('assistant.state');
+      return state.status === 'idle' && !state.stopping;
+    });
     await smoke.gone(`${panel} [data-testid=assistant-stop]`, 3000);
     await smoke.fill(`${panel} [data-testid=assistant-input]`, text);
     await smoke.click(`${panel} [data-testid=assistant-send]`);
@@ -61,7 +64,7 @@ export async function smokeAssistantUi(smoke: Smoke, duplexId: string): Promise<
     smoke.check('the model got the tool result back', fake.requests.length === 2 && result?.type === 'tool_result' && !result.is_error && typeof result.content === 'string' && (JSON.parse(result.content) as { applied: boolean }).applied === true, result);
     smoke.check('the request carried the key, the tools and the project', fake.requests[0]?.headers['x-api-key'] === 'sk-ant-smoke-key-0000' && fake.requests[0].body.tools!.some((t) => t.name === 'plan_describe') && !fake.requests[0].body.tools!.some((t) => t.name === 'config_update') && JSON.stringify(fake.requests[0].body.system).includes('Duplex'));
     await smoke.click(`${tab} [data-testid=right-tab-history]`);
-    smoke.check('the History panel lists the change under the assistant', await smoke.waitFor(`${tab} [data-testid=history-item][data-label="Add a 3 m wall"]`, 3000, `Assistant (${model})`));
+    smoke.check('the History panel lists the change signed Otto, with the command', (await smoke.waitFor(`${tab} [data-testid=history-item][data-label="Add a 3 m wall"][data-author="Otto"]`, 3000, 'Otto · Structure · plan.apply')) && model !== undefined);
     await smoke.click(`${tab} [data-testid=right-tab-assistant]`);
     await run('edit.undo');
     smoke.check('one undo removes it', await smoke.until(() => walls() === before));

@@ -20,6 +20,7 @@ import { smokeHost } from './host';
 import { smokeIdentityUi } from './identity-ui';
 import { smokeLibrary } from './library';
 import { smokeLibraryUi } from './library-ui';
+import { smokeOttoUi } from './otto-ui';
 import { smokeMcp } from './mcp';
 import { smokePerf } from './perf';
 import { smokePlan } from './plan';
@@ -80,6 +81,7 @@ export async function runSmoke(host: Host, openWindow: () => BrowserWindow): Pro
     await smokeDecorAgentUi(smoke);
     await smoke.run('project.close', { id: flatId });
     await smokeAssistantUi(smoke, duplexId);
+    await smokeOttoUi(smoke, duplexId);
     await smokeAssistantClaudeCode(smoke, duplexId);
     await smokeIdentityUi(smoke);
     await smokePerf(smoke);

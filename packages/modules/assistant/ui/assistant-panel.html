@@ -1,114 +1,228 @@
-@if (emptyReason(); as reason) {
-  @switch (reason) {
-    @case ('key') {
-      <x-empty-state title="Add your Claude API key" hint="The assistant designs with you inside the app, using the Claude API with your own key. The key stays encrypted on this computer." data-testid="assistant-empty" data-reason="key">
-        <button xButton variant="primary" size="sm" [icon]="icons.KeyRound" (click)="openSettings()" data-testid="assistant-open-settings">Open Settings</button>
-      </x-empty-state>
-    }
-    @case ('not-found') {
-      <x-empty-state title="Claude Code not found" [hint]="notFoundHint()" data-testid="assistant-empty" data-reason="not-found">
-        <div class="flex items-center gap-2">
-          <button xButton variant="primary" size="sm" [icon]="icons.KeyRound" (click)="openSettings()" data-testid="assistant-open-settings">Open Settings</button>
-          <button xButton variant="secondary" size="sm" [icon]="icons.RefreshCw" [loading]="checking()" (click)="checkAgain()" data-testid="assistant-check-again">Check again</button>
-        </div>
-      </x-empty-state>
-    }
-    @case ('not-logged-in') {
-      <x-empty-state title="Claude Code is not logged in" hint="Run `claude` in a terminal and log in, then check again. The app never handles your login itself." data-testid="assistant-empty" data-reason="not-logged-in">
-        <button xButton variant="primary" size="sm" [icon]="icons.RefreshCw" [loading]="checking()" (click)="checkAgain()" data-testid="assistant-check-again">Check again</button>
-      </x-empty-state>
-    }
-  }
-} @else {
-  <div class="flex items-center gap-2 px-3 py-2 border-b border-edge text-xs">
-    <svg [xIcon]="icons.Sparkles" class="size-3.5 text-accent shrink-0"></svg>
-    <span class="flex-1 truncate text-muted" data-testid="assistant-model">{{ modelLabel() }}</span>
-    @if (running()) {
-      <button xButton size="sm" variant="secondary" [icon]="icons.Square" (click)="stop()" data-testid="assistant-stop">Stop</button>
+<header class="flex items-center gap-2.5 h-11 shrink-0 px-3 border-b border-edge" [attr.aria-label]="headerLabel()" data-testid="assistant-header">
+  <x-otto-mark size="28" label="Otto" data-testid="assistant-mark" />
+  <div class="flex-1 min-w-0">
+    <div class="font-display font-semibold text-[18px] leading-[22px] text-fg [font-variation-settings:'opsz'_20,'SOFT'_50]">Otto</div>
+    @if (emptyReason()) {
+      <div class="truncate text-[11px] leading-[14px] text-muted" data-testid="assistant-setup-line">{{ setupLine() }}</div>
     } @else {
-      <button xButton size="sm" variant="ghost" [icon]="icons.Eraser" [disabled]="!chat()?.items?.length && !chat()?.sessionId" (click)="clear()" data-testid="assistant-clear">Clear</button>
+      <div class="truncate text-[11px] leading-[14px] text-muted"><span class="font-mono" data-testid="assistant-model">{{ modelLabel() }}</span> · {{ rule }}</div>
     }
   </div>
+  @if (!emptyReason()) {
+    <button xButton size="sm" variant="ghost" class="text-muted hover:text-fg" [icon]="icons.Eraser" [disabled]="!canClear()" (click)="clear()" data-testid="assistant-clear">Clear</button>
+  }
+</header>
 
-  <div #log class="flex-1 min-h-0 overflow-y-auto px-3 py-2 flex flex-col gap-2 text-sm" data-testid="assistant-log">
-    @for (item of chat()?.items ?? []; track item.id) {
-      @switch (item.kind) {
-        @case ('user') {
-          <div class="self-end max-w-[85%] rounded-lg bg-accent/10 px-3 py-1.5 whitespace-pre-wrap break-words" data-testid="assistant-item" data-kind="user">{{ item.text }}</div>
+@if (emptyReason(); as reason) {
+  <div class="flex-1 min-h-0 overflow-y-auto flex flex-col items-center justify-center gap-2 p-8 text-center" data-testid="assistant-empty" [attr.data-reason]="reason">
+    <x-otto-mark size="28" label="Otto" />
+    @switch (reason) {
+      @case ('key') {
+        <p class="heading-panel text-fg mt-1" data-testid="empty-state-title">Otto needs a key, or your Claude Code.</p>
+        <p class="text-[13px] leading-[18px] text-muted max-w-[300px]">Pick how Otto reaches Claude in Settings: the Claude API with your own key, or the Claude Code you installed and logged in. Both stay on this computer.</p>
+        <div class="mt-2">
+          <button xButton variant="primary" size="sm" [icon]="icons.Settings2" (click)="openSettings()" data-testid="assistant-open-settings">Set up Otto</button>
+        </div>
+      }
+      @case ('not-found') {
+        <p class="heading-panel text-fg mt-1" data-testid="empty-state-title">Claude Code not found</p>
+        <p class="text-[12px] leading-4 text-muted max-w-[300px] break-words">{{ notFoundHint() }}</p>
+        <div class="mt-2 flex items-center gap-2">
+          <button xButton variant="primary" size="sm" [icon]="icons.Settings2" (click)="openSettings()" data-testid="assistant-open-settings">Open Settings</button>
+          <button xButton variant="secondary" size="sm" [icon]="icons.RefreshCw" [loading]="checking()" (click)="checkAgain()" data-testid="assistant-check-again">Check again</button>
+        </div>
+      }
+      @case ('not-logged-in') {
+        <p class="heading-panel text-fg mt-1" data-testid="empty-state-title">Claude Code is not logged in</p>
+        @if (checking()) {
+          <p class="text-[13px] leading-[18px] text-muted max-w-[300px] italic">Checking…</p>
+        } @else {
+          <p class="text-[13px] leading-[18px] text-muted max-w-[300px]">I can't work yet: Claude Code is not logged in. Run <span class="font-mono text-[12px]">claude</span> in a terminal and log in, then press Check again. {{ productName }} never handles your login.</p>
         }
-        @case ('assistant') {
-          <div class="whitespace-pre-wrap break-words" data-testid="assistant-item" data-kind="assistant">{{ item.text }}</div>
-        }
-        @case ('tool') {
-          <div class="flex items-start gap-2 rounded-md border border-edge bg-surface px-2.5 py-1.5 text-xs" data-testid="assistant-tool" [attr.data-command]="item.command" [attr.data-status]="item.status">
-            @if (item.status === 'running') {
-              <svg xSpinner class="size-3.5 mt-0.5 shrink-0 text-accent"></svg>
+        <div class="mt-2">
+          <button xButton variant="primary" size="sm" [icon]="icons.RefreshCw" [loading]="checking()" (click)="checkAgain()" data-testid="assistant-check-again">Check again</button>
+        </div>
+      }
+    }
+  </div>
+} @else {
+  <div class="relative flex-1 min-h-0 flex flex-col">
+    <div #log class="flex-1 min-h-0 overflow-y-auto p-3 flex flex-col gap-2.5 text-[13px] leading-[18px] text-fg" role="log" aria-live="polite" aria-label="Conversation with Otto" (scroll)="onScroll()" data-testid="assistant-log">
+      @for (item of chat()?.items ?? []; track item.id) {
+        @switch (item.kind) {
+          @case ('user') {
+            <div class="self-end max-w-[85%] rounded-lg rounded-br-[2px] bg-elevated px-3 py-[7px] whitespace-pre-wrap break-words" data-testid="assistant-item" data-kind="user">{{ item.text }}</div>
+          }
+          @case ('assistant') {
+            <div class="border-l-2 border-ai pl-3 whitespace-pre-wrap break-words" data-testid="assistant-item" data-kind="assistant">{{ item.text }}@if (streamingId() === item.id) {<span class="otto-caret" aria-hidden="true"></span>}</div>
+          }
+          @case ('tool') {
+            @if (item.id === waitingItemId() && chat()?.confirm; as confirm) {
+              <ng-container *ngTemplateOutlet="confirmTpl; context: { $implicit: confirm }" />
             } @else {
-              <svg [xIcon]="toolIcon(item)" class="size-3.5 mt-0.5 shrink-0" [class]="item.status === 'ok' ? 'text-success' : item.status === 'declined' ? 'text-warning' : 'text-danger'"></svg>
+              <div
+                class="grid grid-cols-[16px_minmax(0,1fr)] gap-x-2 gap-y-0.5 rounded-lg border border-edge border-l-[3px] border-l-ai bg-surface px-2.5 py-2"
+                data-testid="assistant-tool"
+                [attr.data-command]="item.command"
+                [attr.data-status]="item.status"
+              >
+                <span class="row-span-4 pt-px flex">
+                  @switch (item.status) {
+                    @case ('running') {
+                      <svg xSpinner class="size-4 text-ai" data-testid="assistant-tool-spinner"></svg>
+                    }
+                    @case ('ok') {
+                      @if (item.image || item.command === 'view.snapshot') {
+                        <svg [xIcon]="icons.Camera" class="size-4 text-muted"></svg>
+                      } @else {
+                        <svg [xIcon]="icons.Check" class="size-4 text-success"></svg>
+                      }
+                    }
+                    @case ('declined') {
+                      <svg [xIcon]="icons.ShieldAlert" class="size-4 text-muted"></svg>
+                    }
+                    @case ('stopped') {
+                      <span class="size-4 flex items-center justify-center"><span class="size-2.5 rounded-[2px] bg-muted"></span></span>
+                    }
+                    @default {
+                      <svg [xIcon]="icons.CircleAlert" class="size-4 text-danger"></svg>
+                    }
+                  }
+                </span>
+                <span class="flex items-baseline gap-2 min-w-0">
+                  <span class="truncate font-medium" data-testid="assistant-tool-title">{{ titleOf(item) }}</span>
+                  <span class="ml-auto shrink-0 font-mono text-[11px] leading-[14px] text-muted" data-testid="assistant-tool-command">{{ item.command }}</span>
+                </span>
+                @if (metaOf(item) || item.status === 'running') {
+                  <span class="text-[11px] leading-[14px] text-muted" data-testid="assistant-tool-meta">{{ metaOf(item) }}@if (item.status === 'running') {
+                    <i>{{ metaOf(item) ? '· ' : '' }}running…</i>
+                  }</span>
+                }
+                @if (summaryOf(item); as summary) {
+                  <ng-container *ngTemplateOutlet="longText; context: { id: item.id, text: summary, cls: item.status === 'error' ? 'text-danger' : item.status === 'declined' || item.status === 'stopped' ? 'italic text-muted' : 'text-fg' }" />
+                }
+                @if (item.image) {
+                  @if (images()[item.id]; as src) {
+                    <button type="button" class="mt-1.5 block w-full overflow-hidden rounded-md border border-edge bg-canvas focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50" [attr.aria-expanded]="expanded().has(item.id + ':img')" (click)="toggle(item.id + ':img')" data-testid="assistant-snapshot">
+                      <img [src]="src" [alt]="imageAlt(item)" class="block w-full object-contain" [class]="expanded().has(item.id + ':img') ? 'max-h-[420px]' : 'max-h-[180px]'" />
+                    </button>
+                  }
+                }
+              </div>
             }
-            <span class="min-w-0 flex-1">
-              <span class="block truncate font-medium">{{ item.title }}</span>
-              @if (item.summary) {
-                <span class="block text-muted break-words">{{ item.summary }}</span>
+          }
+        }
+      } @empty {
+        @if (chat()?.sessionId) {
+          <p class="text-[12px] leading-4 italic text-muted px-1 py-6 text-center" data-testid="assistant-intro" data-resumed="true">Continuing your earlier Claude Code session; its messages are not shown. Clear starts a new one.</p>
+        } @else {
+          <div class="m-auto flex flex-col items-center gap-2 max-w-[300px] py-6 text-center" data-testid="assistant-intro">
+            <x-otto-mark size="28" label="Otto" />
+            <p class="heading-panel text-fg mt-1">Tell Otto what the place is.</p>
+            <p class="text-[13px] leading-[18px] text-muted">Otto reads the plan before it draws, and every edit it makes is one undo step, signed Otto. It asks before it deletes anything.</p>
+            <div class="mt-1.5 flex flex-col items-center gap-1.5">
+              @for (example of examples; track example) {
+                <button type="button" class="rounded border border-edge bg-canvas px-2 py-1 text-[12px] italic text-fg hover:bg-elevated focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50" (click)="useExample(example)" data-testid="assistant-example">{{ example }}</button>
               }
-            </span>
+            </div>
           </div>
         }
       }
-    } @empty {
-      @if (chat()?.sessionId) {
-        <div class="text-xs text-muted px-1 py-6 text-center" data-testid="assistant-intro" data-resumed="true">Continuing the earlier Claude Code session (its messages are not shown). Clear starts a new one.</div>
-      } @else {
-        <div class="text-xs text-muted px-1 py-6 text-center" data-testid="assistant-intro">Ask for a change ("add a 4 by 5 m bedroom next to the living room") or a question about the design. Every edit the assistant makes is undoable and listed in the History panel.</div>
+      @if (chat()?.confirm && !waitingItemId()) {
+        <ng-container *ngTemplateOutlet="confirmTpl; context: { $implicit: chat()!.confirm }" />
       }
-    }
-    @if (busy()) {
-      <div class="flex items-center gap-2 text-xs text-muted" data-testid="assistant-busy"><svg xSpinner class="size-3.5 text-accent"></svg>Working…</div>
-    }
-    @if (chat()?.confirm; as confirm) {
-      <div class="rounded-md border border-warning/50 bg-warning/10 px-3 py-2 text-xs flex flex-col gap-2" data-testid="assistant-confirm" [attr.data-command]="confirm.command.id">
-        <div class="flex items-start gap-2">
-          <svg [xIcon]="icons.ShieldAlert" class="size-4 shrink-0 text-warning"></svg>
-          <div class="min-w-0">
-            <div class="font-medium text-fg">The assistant wants to run "{{ confirm.command.title }}"</div>
-            <div class="text-muted">{{ confirm.command.description }}</div>
-          </div>
+      @if (busy()) {
+        <div class="flex items-center gap-2 text-[12px] leading-4 italic text-muted" data-testid="assistant-busy"><x-otto-mark size="16" />Working…</div>
+      }
+      @if (chat()?.error; as error) {
+        <div class="flex flex-col items-start gap-1.5" data-testid="assistant-error">
+          <div class="flex items-start gap-1.5 text-[12px] leading-4 text-danger"><svg [xIcon]="icons.CircleAlert" class="size-3.5 mt-px shrink-0"></svg><span>{{ error }}</span></div>
+          @if (keyRefused()) {
+            <button type="button" class="text-[12px] text-muted underline decoration-edge hover:text-fg" (click)="openSettings()" data-testid="assistant-error-settings">Open Settings</button>
+          } @else if (!running() && !stopping()) {
+            <button xButton size="sm" variant="secondary" (click)="sendAgain()" data-testid="assistant-retry">Send again</button>
+          }
         </div>
-        <pre class="max-h-32 overflow-auto rounded bg-surface px-2 py-1 font-mono text-[11px] whitespace-pre-wrap break-all">{{ inputPreview(confirm.input) }}</pre>
-        <div class="flex items-center gap-2">
-          <button xButton size="sm" variant="primary" [icon]="icons.Check" (click)="answer(true)" data-testid="assistant-allow">Allow</button>
-          <button xButton size="sm" variant="secondary" [icon]="icons.X" (click)="answer(false)" data-testid="assistant-decline">Decline</button>
-        </div>
-      </div>
-    }
-    @if (chat()?.error; as error) {
-      <div class="flex items-start gap-2 text-xs text-danger" data-testid="assistant-error"><svg [xIcon]="icons.CircleAlert" class="size-3.5 mt-0.5 shrink-0"></svg><span>{{ error }}</span></div>
+      }
+    </div>
+    @if (unseen()) {
+      <button type="button" class="absolute left-1/2 -translate-x-1/2 bottom-2.5 inline-flex items-center gap-1.5 h-7 pl-2.5 pr-3 rounded-full border border-edge bg-surface text-[12px] text-fg hover:bg-elevated focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50" (click)="toBottom()" (keydown.end)="toBottom()" data-testid="assistant-new">
+        <svg [xIcon]="icons.ArrowDown" class="size-3.5"></svg><span class="size-1.5 rounded-full bg-ai" aria-hidden="true"></span>New from Otto
+      </button>
     }
   </div>
 
   @if (mcpOff()) {
-    <div class="mx-3 mb-2 rounded-md border border-warning/50 bg-warning/10 px-3 py-2 text-xs flex items-start gap-2" data-testid="assistant-mcp-off">
-      <svg [xIcon]="icons.Plug" class="size-4 shrink-0 text-warning"></svg>
+    <div class="mx-3 mb-2.5 rounded-lg border border-warning bg-surface px-2.5 py-2 text-[12px] leading-4 flex items-start gap-2" data-testid="assistant-mcp-off">
+      <svg [xIcon]="icons.Plug" class="size-4 mt-px shrink-0 text-warning"></svg>
       <div class="min-w-0 flex-1 flex flex-col gap-1.5">
-        <span class="text-fg">The assistant with Claude Code works through the MCP server, which is off.</span>
+        <span class="text-fg">Otto works through the MCP server with Claude Code, and it is off.</span>
         <div><button xButton size="sm" variant="primary" [loading]="enabling()" (click)="enableMcp()" data-testid="assistant-enable-mcp">Enable MCP server</button></div>
       </div>
     </div>
   }
 
-  <form class="flex items-end gap-2 px-3 py-2 border-t border-edge" (submit)="$event.preventDefault(); send()">
-    <textarea
-      #composer
-      rows="2"
-      class="w-full resize-none rounded-md border border-edge bg-surface px-2.5 py-2 text-sm text-fg placeholder:text-muted/70 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/30 disabled:opacity-50"
-      placeholder="Ask the assistant… (Enter sends, Shift+Enter for a new line)"
-      [value]="draft()"
-      (input)="draft.set($any($event.target).value)"
-      (keydown)="onKeydown($event)"
-      [disabled]="running()"
-      aria-label="Message to the assistant"
-      data-testid="assistant-input"
-    ></textarea>
-    <button xButton type="submit" variant="primary" size="sm" [icon]="icons.Send" [disabled]="!canSend()" [loading]="sending()" aria-label="Send" data-testid="assistant-send">Send</button>
+  <form class="flex flex-col gap-1.5 shrink-0 px-3 pt-2.5 pb-2 border-t border-edge" (submit)="$event.preventDefault(); send()">
+    <div class="flex items-end gap-2">
+      <textarea
+        #composer
+        rows="2"
+        class="flex-1 min-w-0 h-[58px] resize-none rounded-md border border-edge bg-canvas px-2.5 py-2 text-[13px] leading-[18px] text-fg placeholder:text-muted focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/30 disabled:bg-surface disabled:opacity-60"
+        [placeholder]="placeholder()"
+        [value]="draft()"
+        (input)="draft.set($any($event.target).value)"
+        (keydown)="onKeydown($event)"
+        [disabled]="running() || stopping()"
+        aria-label="Message to Otto"
+        data-testid="assistant-input"
+      ></textarea>
+      @if (stopping()) {
+        <span class="inline-flex items-center justify-center h-7 w-9 shrink-0" aria-label="Stopping" data-testid="assistant-stopping"><svg xSpinner class="size-4 text-fg"></svg></span>
+      } @else if (running()) {
+        <button xButton type="button" variant="secondary" size="sm" class="shrink-0" aria-label="Stop Otto" (click)="stop()" data-testid="assistant-stop"><span class="size-2.5 rounded-[2px] bg-fg" aria-hidden="true"></span>Stop</button>
+      } @else {
+        <button xButton type="submit" variant="primary" size="sm" class="shrink-0" [icon]="icons.Send" [disabled]="!canSend()" [loading]="sending()" aria-label="Send" data-testid="assistant-send">Send</button>
+      }
+    </div>
+    <div class="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-[11px] leading-[14px] text-muted" data-testid="assistant-hint">
+      <span>Edits land on your undo stack, signed Otto.</span>
+      <span class="flex items-center gap-1.5 whitespace-nowrap shrink-0"><kbd xKbd>Enter</kbd> send · <kbd xKbd>Shift Enter</kbd> new line</span>
+    </div>
   </form>
 }
+
+<ng-template #confirmTpl let-confirm>
+  <div
+    #confirmCard
+    tabindex="-1"
+    role="group"
+    [attr.aria-label]="confirmLabel(confirm.command.title, confirm.input)"
+    class="grid grid-cols-[16px_minmax(0,1fr)] gap-x-2 gap-y-0.5 rounded-lg border border-warning border-l-[3px] border-l-ai bg-surface px-2.5 py-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+    data-testid="assistant-confirm"
+    [attr.data-command]="confirm.command.id"
+  >
+    <span class="row-span-5 pt-px flex"><svg [xIcon]="icons.ShieldAlert" class="size-4 text-warning"></svg></span>
+    <span class="flex items-baseline gap-2 min-w-0">
+      <span class="truncate font-medium">{{ confirm.command.title }}</span>
+      <span class="ml-auto shrink-0 font-mono text-[11px] leading-[14px] text-muted">{{ confirm.command.id }}</span>
+    </span>
+    <span class="text-[11px] leading-[14px] text-muted">Otto asks before deleting.@if (targetsOf(confirm.input); as targets) { <span class="font-mono">{{ targets }}</span>}</span>
+    <ng-container *ngTemplateOutlet="longText; context: { id: confirm.id, text: inputPreview(confirm.input), cls: 'mt-1 rounded bg-canvas px-2 py-1.5 font-mono text-[11px] leading-4 text-fg whitespace-pre-wrap break-all' }" />
+    <span class="flex items-center gap-2 mt-1.5">
+      <button xButton size="sm" variant="primary" [icon]="icons.Check" (click)="answer(true)" data-testid="assistant-allow">Allow</button>
+      <button xButton size="sm" variant="secondary" [icon]="icons.X" (click)="answer(false)" data-testid="assistant-decline">Keep it</button>
+    </span>
+  </div>
+</ng-template>
+
+<ng-template #longText let-id="id" let-text="text" let-cls="cls">
+  @if (isLong(text) && !expanded().has(id)) {
+    <span class="relative block max-h-[54px] overflow-hidden text-[12px] leading-[18px] [mask-image:linear-gradient(to_bottom,black_calc(100%-16px),transparent)]" [class]="cls" data-testid="assistant-clipped">{{ text }}</span>
+    <button type="button" class="justify-self-end text-[11px] leading-[14px] text-muted hover:underline" (click)="toggle(id)" data-testid="assistant-more">More</button>
+  } @else if (isLong(text)) {
+    <span class="block max-h-60 overflow-y-auto text-[12px] leading-4" [class]="cls">{{ text }}</span>
+    <button type="button" class="justify-self-end text-[11px] leading-[14px] text-muted hover:underline" (click)="toggle(id)">Less</button>
+  } @else {
+    <span class="block text-[12px] leading-4 break-words" [class]="cls" data-testid="assistant-tool-summary">{{ text }}</span>
+  }
+</ng-template>

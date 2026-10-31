@@ -2,7 +2,7 @@ import { NgComponentOutlet, NgTemplateOutlet } from '@angular/common';
 import { Component, ElementRef, afterRenderEffect, computed, effect, inject, input, linkedSignal, signal, untracked } from '@angular/core';
 import { FormField, form, max, min, required } from '@angular/forms/signals';
 import { AI_MODELS, AI_PROVIDERS, BRANDING, CLAUDE_CODE_EFFORTS, CLAUDE_CODE_MODEL_ALIASES, clientSnippets, defaultConfig, type AiProvider, type AssistantStatus, type ClaudeCodeEffort, type ConfigPatch, type GlobalConfig, type McpCallEntry, type ThemePreference, type UnitSettings } from '@studio/core';
-import { AppMark, AppState, Badge, Button, Checkbox, Dialogs, HostBridge, Icon, Input, Label, SETTINGS_LATE, Select, SettingsSections, Theme, Toasts, Wordmark, invokeResource, type Tab, type TabComponent } from '@studio/ui';
+import { AppMark, AppState, Badge, Button, Checkbox, Dialogs, HostBridge, Icon, Input, Label, OttoMark, SETTINGS_LATE, Select, SettingsSections, Theme, Toasts, Wordmark, agentSignature, invokeResource, ottoModelLabel, providerLabel, type Tab, type TabComponent } from '@studio/ui';
 import { Copy, KeyRound, RefreshCw, Trash2 } from 'lucide';
 import { LicencesDialog } from './licences-dialog';
 import { UnitsEditor } from './units-editor';
@@ -53,7 +53,7 @@ interface AppInfo {
  */
 @Component({
   selector: 'x-settings-tab',
-  imports: [AppMark, Badge, Button, Checkbox, FormField, Icon, Input, Label, NgComponentOutlet, NgTemplateOutlet, Select, UnitsEditor, Wordmark],
+  imports: [AppMark, Badge, Button, Checkbox, FormField, Icon, Input, Label, NgComponentOutlet, NgTemplateOutlet, OttoMark, Select, UnitsEditor, Wordmark],
   templateUrl: './settings-tab.html',
   host: { class: 'flex-1 overflow-auto', 'data-testid': 'settings' },
 })
@@ -111,8 +111,8 @@ export class SettingsTab implements TabComponent {
   protected readonly assistantCredit = computed(() => {
     const s = this.assistant.value();
     if (!s) return null;
-    if (s.provider === 'claude-code') return { model: `Claude Code${s.claudeCode?.version ? ` ${s.claudeCode.version}` : ''}`, provider: 'your own install' };
-    return { model: AI_MODELS.find((m) => m.id === s.model)?.label ?? s.model, provider: 'Anthropic' };
+    // In the words Settings uses for the provider, so About and Settings say the same.
+    return { model: ottoModelLabel(s, this.config()?.ai), provider: providerLabel(s.provider) };
   });
   protected readonly calls = invokeResource<McpCallEntry[]>('mcp.calls', () => ({}), { projectId: null, refreshOnEvents: ['mcp.call'] });
   protected readonly recentCalls = computed(() => [...(this.calls.value() ?? [])].reverse().slice(0, 8));
@@ -237,6 +237,11 @@ export class SettingsTab implements TabComponent {
 
   protected copy(text: string): void {
     this.toasts.copy(text);
+  }
+
+  /** How the call log signs a call: "Otto · Claude Opus 5.5" for the assistant, "MCP · <client>" for outside agents. */
+  protected signature(caller: string, agent: string): string {
+    return agentSignature(caller, agent);
   }
 
   protected time(at: string): string {

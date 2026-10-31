@@ -15,7 +15,7 @@ import { drawIcon } from '../icon/icon';
     'stroke-linecap': 'round',
     'stroke-linejoin': 'round',
     'aria-hidden': 'true',
-    class: 'size-4 animate-spin text-muted',
+    class: 'size-4 animate-spin motion-reduce:animate-none text-muted',
   },
 })
 export class Spinner {

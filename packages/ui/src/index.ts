@@ -7,6 +7,7 @@ export * from './state/open-projects';
 export * from './state/project-docs';
 export * from './state/project-view';
 export * from './state/assistant-drafts';
+export * from './state/otto';
 export * from './state/units';
 export * from './state/settings-sections';
 export * from './state/tabs-state';

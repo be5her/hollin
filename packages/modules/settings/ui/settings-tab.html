@@ -63,12 +63,19 @@
           <div class="flex items-center gap-3 px-2.5 py-1.5">
             <span class="size-1.5 rounded-full shrink-0" [class]="call.ok ? 'bg-success' : 'bg-danger'"></span>
             <span class="font-mono">{{ call.tool }}</span>
-            <span class="text-muted truncate">{{ call.caller === 'assistant' ? 'Assistant' : 'via MCP' }}: {{ call.agent }}</span>
+            <span class="flex items-center gap-1.5 min-w-0 text-muted" [attr.data-caller]="call.caller" data-testid="settings-mcp-call-agent">
+              @if (call.caller === 'assistant') {
+                <x-otto-mark size="14" />
+              } @else {
+                <span class="size-1.5 rounded-full border-[1.5px] border-muted box-content shrink-0" aria-hidden="true"></span>
+              }
+              <span class="truncate">{{ signature(call.caller, call.agent) }}</span>
+            </span>
             @if (call.error) {
               <span xBadge>{{ call.error }}</span>
             }
             <span class="flex-1"></span>
-            <span class="text-muted">{{ time(call.at) }}</span>
+            <span class="text-muted italic">{{ time(call.at) }}</span>
           </div>
         }
       </div>
@@ -78,8 +85,9 @@
   </section>
 
   <section data-section="ai">
-    <h2 class="heading-panel text-fg mb-1 pb-1 border-b border-edge">Assistant</h2>
-    <p class="text-[13px] text-muted mb-3">The in-app assistant reaches Claude through the Claude API with your own key (the default), or through the Claude Code you have installed and logged in on this computer.</p>
+    <h2 class="heading-panel text-fg mb-1 pb-1 border-b border-edge flex items-center gap-2"><x-otto-mark size="20" />Assistant</h2>
+    <p class="text-[13px] text-muted mb-2 max-w-2xl" data-testid="settings-ai-intro">Otto, the assistant in every project tab, reaches Claude through the Claude API with your own key (the default) or through the Claude Code you have installed and logged in on this computer.</p>
+    <p class="text-[13px] text-muted mb-3 max-w-2xl" data-testid="settings-ai-rule">Otto edits as a named author on your undo stack and asks before it deletes anything. Before it deletes or overwrites, the question appears in the chat and nothing runs until you answer; ordinary edits need no yes: they land as one step each, signed Otto, and Ctrl+Z takes them back.</p>
     <label xLabel for="settings-provider">Provider</label>
     <select xSelect id="settings-provider" class="w-72" [formField]="settings.provider" data-testid="settings-provider">
       @for (p of providers; track p.id) {

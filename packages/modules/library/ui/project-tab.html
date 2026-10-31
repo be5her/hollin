@@ -100,17 +100,20 @@
             <button
               type="button"
               role="tab"
-              class="px-2.5 h-9 text-xs font-medium border-b-2 -mb-px"
+              class="inline-flex items-center gap-1.5 px-2.5 h-9 text-xs font-medium border-b-2 -mb-px"
               [class]="panel.id === rightPanel()?.id ? 'border-accent text-fg' : 'border-transparent text-muted hover:text-fg'"
               [attr.aria-selected]="panel.id === rightPanel()?.id"
               [attr.data-testid]="'right-tab-' + panel.id"
               (click)="chooseRight(panel.id)"
             >
+              @if (panel.mark === 'otto') {
+                <x-otto-mark size="16" [attr.data-testid]="'right-mark-' + panel.id" />
+              }
               {{ panel.title }}
               @if (panel.badge) {
                 @let count = panel.badge(p.id)();
                 @if (count) {
-                  <span xBadge class="ml-1" [attr.data-testid]="'right-badge-' + panel.id">{{ count }}</span>
+                  <span xBadge [attr.data-testid]="'right-badge-' + panel.id">{{ count }}</span>
                 }
               }
             </button>

@@ -329,6 +329,23 @@ describe('history', () => {
     expect(() => engine.redo()).toThrow(/nothing to redo/);
   });
 
+  it('signs each step with the command, and the level and layer it touched when there is one of each', async () => {
+    const { doc: start } = building(1, 0);
+    const engine = new DocumentEngine(start, { onChange: () => {} });
+    const ground = start.building.groundLevelId;
+    await engine.transact('Add wall', agent, (tx) => tx.apply(addEntityOps(tx.doc, { levelId: ground, entity: { type: 'wall', path: rectPath(0, 0, 5000, 4000), thickness: 200 } }).ops), { command: 'plan.wall.add' });
+    expect(engine.entries().undo[0]).toMatchObject({ label: 'Add wall', command: 'plan.wall.add', levelId: ground, level: 'Ground floor', layer: 'Structure' });
+    expect(engine.history().undo).toMatchObject({ command: 'plan.wall.add', layer: 'Structure' });
+    // A change to a level itself touches no entity: no level or layer to name, and no command when none was given.
+    await engine.transact('Rename', you, (tx) => tx.apply(updateLevelOps(tx.doc, ground, { name: 'Lobby' })));
+    const rename = engine.entries().undo[0];
+    expect(rename.command).toBeUndefined();
+    expect(rename.level).toBeUndefined();
+    expect(rename.layer).toBeUndefined();
+    engine.undo();
+    expect(engine.entries().redo[0]).toMatchObject({ label: 'Rename' });
+  });
+
   it('only undoes the newest change when asked for a specific one', async () => {
     const engine = new DocumentEngine(building(0, 0).doc, { onChange: () => {} });
     const ground = engine.doc.building.groundLevelId;

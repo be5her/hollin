@@ -271,6 +271,11 @@ export class ClaudeCodeProvider {
     return this.proc?.pid;
   }
 
+  /** Resolves once a process Stop killed has reported its exit (at once when none is going), so the chat can say it is still stopping. */
+  whenStopped(): Promise<void> {
+    return this.proc && this.stopped ? this.exited : Promise.resolve();
+  }
+
   /** One user turn: starts the process if needed (resuming the stored session), writes the message, returns when Claude Code reports the turn's result. */
   async send(text: string, events: ClaudeCodeEvents, signal: AbortSignal): Promise<void> {
     this.events = events;

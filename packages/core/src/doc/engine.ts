@@ -21,6 +21,13 @@ export interface HistoryInfo {
   label: string;
   author: Author;
   at: string;
+  /** The command that made the change (`plan.apply` for a batch), when it ran through the registry. */
+  command?: string;
+  /** The one level whose entities the change touched, and its name; absent when it touched none or several. */
+  levelId?: string;
+  level?: string;
+  /** The name of the one layer the touched entities sit on; absent when none or several. */
+  layer?: string;
 }
 
 export interface HistoryState {
@@ -61,6 +68,34 @@ export interface EditContext {
   apply(ops: readonly Op[]): void;
 }
 
+/** Where a change happened, for History's signature line: the one level and layer its entities share, if they share one. */
+function whereOf(doc: ProjectDoc, before: RecordMap, after: RecordMap): Pick<HistoryInfo, 'levelId' | 'level' | 'layer'> {
+  const levels = new Set<string>();
+  const layers = new Set<string>();
+  for (const map of [before, after]) {
+    for (const r of map.values()) {
+      if (r.c !== 'entity') continue;
+      if (r.lv) levels.add(r.lv);
+      const layerId = (r.value as { layerId?: unknown } | undefined)?.layerId;
+      if (typeof layerId === 'string') layers.add(layerId);
+    }
+  }
+  const out: Pick<HistoryInfo, 'levelId' | 'level' | 'layer'> = {};
+  if (levels.size === 1) {
+    const [levelId] = levels;
+    out.levelId = levelId;
+    const name = doc.levels[levelId]?.name;
+    if (name) out.level = name;
+  }
+  if (layers.size === 1) {
+    const name = doc.layers[[...layers][0]]?.name;
+    if (name) out.layer = name;
+  }
+  return out;
+}
+
+const infoOf = (e: Entry): HistoryInfo => ({ id: e.id, label: e.label, author: e.author, at: e.at, ...(e.command ? { command: e.command } : {}), ...(e.levelId ? { levelId: e.levelId } : {}), ...(e.level ? { level: e.level } : {}), ...(e.layer ? { layer: e.layer } : {}) });
+
 const sizeOf = (map: RecordMap) => [...map.values()].reduce((sum, r) => sum + (r.value === undefined ? 8 : JSON.stringify(r.value).length), 0);
 
 /**
@@ -99,21 +134,20 @@ export class DocumentEngine {
   }
 
   history(): HistoryState {
-    const info = (e: Entry | undefined): HistoryInfo | null => (e ? { id: e.id, label: e.label, author: e.author, at: e.at } : null);
+    const info = (e: Entry | undefined): HistoryInfo | null => (e ? infoOf(e) : null);
     return { undo: info(this.undoStack[this.undoStack.length - 1]), redo: info(this.redoStack[this.redoStack.length - 1]) };
   }
 
   /** Newest first. */
   entries(): { undo: HistoryInfo[]; redo: HistoryInfo[] } {
-    const info = (e: Entry): HistoryInfo => ({ id: e.id, label: e.label, author: e.author, at: e.at });
-    return { undo: [...this.undoStack].reverse().map(info), redo: [...this.redoStack].reverse().map(info) };
+    return { undo: [...this.undoStack].reverse().map(infoOf), redo: [...this.redoStack].reverse().map(infoOf) };
   }
 
   /**
    * Runs `fn` against a draft and commits what it changed as one transaction (one undo step). If `fn`
    * throws, or validation fails, nothing changes. Callers serialize transactions per project.
    */
-  async transact<T>(label: string, author: Author, fn: (ctx: EditContext) => T | Promise<T>, options: { coalesce?: string; dryRun?: boolean } = {}): Promise<{ result: T; changed: boolean; txId: string | null }> {
+  async transact<T>(label: string, author: Author, fn: (ctx: EditContext) => T | Promise<T>, options: { coalesce?: string; dryRun?: boolean; command?: string } = {}): Promise<{ result: T; changed: boolean; txId: string | null }> {
     const tx = new Transaction(this.current);
     const result = await fn({
       get doc() {
@@ -140,11 +174,23 @@ export class DocumentEngine {
       for (const [k, a] of after) if (JSON.stringify(a.value) === JSON.stringify(before.get(k)?.value)) after.delete(k);
       for (const k of [...before.keys()]) if (!after.has(k)) before.delete(k);
       this.undoStack.pop();
-      entry = { ...top, before, after, atMs: now, at: new Date(now).toISOString(), bytes: sizeOf(before) + sizeOf(after) };
+      entry = { ...top, before, after, atMs: now, at: new Date(now).toISOString(), bytes: sizeOf(before) + sizeOf(after), ...whereOf(committed.doc, before, after) };
       if (after.size) this.undoStack.push(entry);
       txId = after.size ? entry.id : null;
     } else {
-      entry = { id: newId('tx'), label, author, at: new Date(now).toISOString(), atMs: now, before: committed.before, after: committed.after, coalesce: options.coalesce, bytes: sizeOf(committed.before) + sizeOf(committed.after) };
+      entry = {
+        id: newId('tx'),
+        label,
+        author,
+        at: new Date(now).toISOString(),
+        atMs: now,
+        before: committed.before,
+        after: committed.after,
+        coalesce: options.coalesce,
+        bytes: sizeOf(committed.before) + sizeOf(committed.after),
+        ...(options.command ? { command: options.command } : {}),
+        ...whereOf(committed.doc, committed.before, committed.after),
+      };
       this.undoStack.push(entry);
       txId = entry.id;
     }

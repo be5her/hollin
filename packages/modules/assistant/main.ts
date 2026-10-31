@@ -10,6 +10,7 @@ import {
   defineCommand,
   defineModule,
   deriveLevels,
+  isImageResult,
   newId,
   toErrorPayload,
   toolNameFor,
@@ -23,6 +24,7 @@ import {
   type MutationRequest,
   type PendingConfirmation,
   type ProjectApi,
+  type ToolItem,
   type TranscriptItem,
 } from '@studio/core';
 import { z } from 'zod';
@@ -66,6 +68,10 @@ interface Chat {
   sessionId: string | null;
   /** True when the transcript came from the view state: history the stream replays is then already shown. */
   restored: boolean;
+  /** Stop was pressed and the run, or the Claude Code process it ran in, has not ended yet. */
+  stopping: boolean;
+  /** Images tool calls returned (snapshots), by tool item id, for the cards; in memory only, gone with the chat. */
+  images: Map<string, { mimeType: string; data: string }>;
 }
 
 const chats = new Map<string, Chat>();
@@ -89,6 +95,7 @@ function snapshot(chat: Chat, host: HostApi): ChatSnapshot {
     model: ai.model,
     provider: ai.provider,
     sessionId: ai.provider === 'claude-code' ? chat.sessionId : null,
+    stopping: chat.stopping,
   };
 }
 
@@ -101,7 +108,7 @@ const changed = (host: HostApi, chat: Chat) => emit(host, chat, { type: 'changed
 function chatFor(project: ProjectApi): Chat {
   let chat = chats.get(project.id);
   if (!chat) {
-    chat = { projectId: project.id, project, items: [], status: 'idle', error: null, run: null, confirm: null, provider: null, sessionId: null, restored: false };
+    chat = { projectId: project.id, project, items: [], status: 'idle', error: null, run: null, confirm: null, provider: null, sessionId: null, restored: false, stopping: false, images: new Map() };
     chats.set(project.id, chat);
   }
   chat.project = project;
@@ -109,7 +116,11 @@ function chatFor(project: ProjectApi): Chat {
 }
 
 /** Stops a run: the API call is aborted or the Claude Code process killed, and a pending confirmation counts as declined. */
-function cancel(chat: Chat): void {
+function cancel(chat: Chat, host?: HostApi): void {
+  if (chat.run && host && !chat.stopping) {
+    chat.stopping = true;
+    changed(host, chat);
+  }
   chat.confirm?.resolve(false);
   chat.run?.controller.abort();
   chat.provider?.stop();
@@ -149,7 +160,15 @@ function identifyAssistant(host: HostApi, token: string): AssistantCaller | unde
 
 function claudeCodeStatus(host: HostApi, refresh = false): Promise<ClaudeCodeStatus> {
   const configured = host.config.get().ai.claudeCodePath;
-  if (!probe || probe.path !== configured || refresh) probe = { path: configured, status: probeClaudeCode(configured) };
+  if (!probe || probe.path !== configured || refresh) {
+    // Announced, so the status bar can say "checking Claude Code…" while `claude --version` and `claude auth status` run.
+    host.emit('assistant.probe', { checking: true });
+    const status = probeClaudeCode(configured);
+    probe = { path: configured, status };
+    void status.finally(() => {
+      if (probe?.status === status) host.emit('assistant.probe', { checking: false });
+    });
+  }
   return probe.status;
 }
 
@@ -202,9 +221,22 @@ function toolsFor(host: HostApi): { tools: Anthropic.Tool[]; byName: Map<string,
 }
 
 const STABLE_PROMPT = [
-  `You are the design assistant built into ${BRANDING.productName}, a desktop app for designing buildings, floor plans and interiors. The user is an architect, engineer or interior designer working in the app; they see the plan change as you work.`,
-  'Your tools are the app\'s own commands. Read before you change (plan_describe, building_get), make changes with the editing tools (several steps as one plan_apply batch with a clear label), and look at the result (view_snapshot, rules_check). Every edit you make is undoable and listed in the history under your name.',
-  'Reply briefly in plain text (no markdown headings or tables): what you did, what you found, what you suggest. Ask when a request is ambiguous in a way that matters; otherwise make reasonable choices and say what they were.',
+  `You are Otto, the assistant built into ${BRANDING.productName}, a desktop app for planning buildings, floor plans, interiors and decor. The people you work with are homeowners and hobbyists planning their own place, not professionals. They see the plan change as you work: you are the second author on their sheet, and they keep every decision that loses something.`,
+  'Your tools are the app\'s own commands. Read before you change (plan_describe, building_get), make changes with the editing tools (several steps as one plan_apply batch), and look at the result (view_snapshot, rules_check). Give every plan_apply a short verb-phrase label, such as "Add a 3 m wall and a door": it names the step in the undo history, the card in the chat and the status bar. Every edit you make is one undo step, signed Otto in the history, and the user can take it back with Ctrl+Z. Tool inputs and outputs are always millimetres.',
+  [
+    'How you write:',
+    '- Lead with what happened: the result first ("Added a 3 000 mm wall between the kitchen and the hall"), then one sentence of how or why, then at most one question.',
+    '- Every length carries its unit: millimetres for what you measured or drew (3 000 mm), metres only when echoing the user ("the 3 m wall you asked for"); areas in m² with one decimal. Never "about" for something you can measure.',
+    '- Names, not ids: the kitchen, the north wall, the stair to the upper floor. Use an id only when two things have no other name.',
+    '- Say the choice you made ("200 mm thick like the others", "the door opens into the bedroom") instead of asking for every detail, and offer the flip in a few words.',
+    '- One question at a time, with the alternatives inside it, and only when the answer changes the drawing.',
+    '- Do not guess what you have not read: read the plan or take a snapshot first and say that you looked ("I looked at the ground floor in 3D from the hall side"). When you still cannot tell, say what you need from the user.',
+    '- Ask before deleting: a call that deletes or overwrites anything pauses until the user allows it in the chat. Before it, say what goes with it ("takes its 900 mm door with it"); never argue for the delete.',
+    '- Errors name the fact and the way out: what did not land, what the plan is now, what you or the user can do. Apologise at most once and never blame the app.',
+    '- "I" for you, "you" for the user; never "we" or "let\'s".',
+    '- Plain text: no headings, tables or bold, no list longer than three items, no exclamation marks. Never "I\'d be happy to", "Great question", "Certainly" or "Absolutely".',
+    '- Past tense for what is done, present for what is running. No promises about later turns.',
+  ].join('\n'),
   DESIGN_GUIDELINES,
 ].join('\n\n');
 
@@ -219,6 +251,65 @@ function systemPrompt(host: HostApi, project: ProjectApi): Anthropic.TextBlockPa
     { type: 'text', text: STABLE_PROMPT, cache_control: { type: 'ephemeral' } },
     { type: 'text', text: livePrompt(host, project) },
   ];
+}
+
+/** The level a call names (`levelId`, or the one level every step of a batch names), as its name. */
+function levelOf(project: ProjectApi, input: unknown): string | undefined {
+  const named = new Set<string>();
+  const visit = (value: unknown) => {
+    if (!value || typeof value !== 'object') return;
+    const id = (value as { levelId?: unknown }).levelId;
+    if (typeof id === 'string') named.add(id);
+  };
+  visit(input);
+  const steps = (input as { steps?: unknown } | null)?.steps;
+  if (Array.isArray(steps)) for (const step of steps) visit((step as { input?: unknown } | null)?.input);
+  if (named.size !== 1) return undefined;
+  return project.doc.levels[[...named][0]]?.name;
+}
+
+/** What a snapshot showed, for its card: `plan`, or `3D` with the lighting. */
+function viewOf(input: unknown): string {
+  const i = (input ?? {}) as { view?: unknown; lighting?: unknown };
+  return i.view === '3d' ? `3D${i.lighting === 'night' ? ', night' : ''}` : 'plan';
+}
+
+/** What the card's second line can say before the call runs: from the command's meta and its input. */
+function describeCall(item: ToolItem, meta: CommandMeta | undefined, project: ProjectApi): void {
+  if (meta?.readOnly) item.readOnly = true;
+  const steps = (item.input as { steps?: unknown } | null)?.steps;
+  if (meta?.id === 'plan.apply' && Array.isArray(steps)) item.ops = steps.length;
+  const level = levelOf(project, item.input);
+  if (level) item.level = level;
+  if (meta?.id === 'view.snapshot') {
+    item.view = viewOf(item.input);
+    if (item.view !== 'plan' && !(item.input as { levelId?: unknown } | null)?.levelId) item.level = 'Building';
+  }
+}
+
+/** The id of the newest undo step, to tell afterwards whether a call left one. */
+function newestStep(project: ProjectApi): string | undefined {
+  try {
+    return project.history().undo[0]?.id;
+  } catch {
+    return undefined;
+  }
+}
+
+/** After a call: the undo step it left (signed by the assistant) gives the card its level and layer; an image is kept for the card. */
+function describeOutcome(chat: Chat, item: ToolItem, outcome: ToolOutcome, topBefore: string | undefined): void {
+  if (!outcome.ok) return;
+  const top = chat.project.history().undo[0];
+  if (top && top.id !== topBefore && top.author.kind === 'assistant') {
+    item.undoable = true;
+    if (top.level) item.level = top.level;
+    if (top.layer) item.layer = top.layer;
+  }
+  if (outcome.output === 'image' && isImageResult(outcome.result)) {
+    const { mimeType, data } = outcome.result as { mimeType: string; data: string };
+    chat.images.set(item.id, { mimeType, data });
+    item.image = { mimeType };
+  }
 }
 
 function summarize(meta: CommandMeta, input: unknown, outcome: ToolOutcome): string {
@@ -329,8 +420,10 @@ interface StoredChat {
 function storedItems(items: TranscriptItem[]): TranscriptItem[] {
   return items.slice(-MAX_STORED_ITEMS).map((item) => {
     if (item.kind !== 'tool') return item;
+    // The image lives in memory only: a reopened chat shows the card without it.
+    const { image: _image, ...rest } = item;
     const text = JSON.stringify(item.input) ?? '';
-    return text.length > MAX_STORED_INPUT ? { ...item, input: `${text.slice(0, MAX_STORED_INPUT)}…` } : item;
+    return text.length > MAX_STORED_INPUT ? { ...rest, input: `${text.slice(0, MAX_STORED_INPUT)}…` } : rest;
   });
 }
 
@@ -382,6 +475,7 @@ function historyItem(item: HistoryItem, byName: Map<string, CommandMeta>): Trans
     status: !outcome ? 'ok' : outcome.ok ? 'ok' : outcome.error.code === 'MUTATION_DECLINED' ? 'declined' : 'error',
     summary: meta && outcome ? summarize(meta, item.input, outcome) : '',
     at: now(),
+    ...(meta?.readOnly ? { readOnly: true } : {}),
   };
 }
 
@@ -396,7 +490,9 @@ async function run(host: HostApi, chat: Chat, text: string): Promise<void> {
   changed(host, chat);
 
   const { byName } = toolsFor(host);
-  const toolItems = new Map<string, Extract<TranscriptItem, { kind: 'tool' }>>();
+  const toolItems = new Map<string, ToolItem>();
+  /** The newest undo step when each call started, to tell whether the call left one. */
+  const topBefore = new Map<string, string | undefined>();
   const events: ClaudeCodeEvents = {
     text: (id, delta) => {
       let item = chat.items.find((i): i is Extract<TranscriptItem, { kind: 'assistant' }> => i.kind === 'assistant' && i.id === id);
@@ -410,7 +506,13 @@ async function run(host: HostApi, chat: Chat, text: string): Promise<void> {
     },
     toolStart: (id, name, input) => {
       const meta = byName.get(name);
-      const item: Extract<TranscriptItem, { kind: 'tool' }> = { kind: 'tool', id, name, command: meta?.id ?? name, title: meta?.title ?? name, input, status: 'running', summary: '', at: now() };
+      const item: ToolItem = { kind: 'tool', id, name, command: meta?.id ?? name, title: meta?.title ?? name, input, status: 'running', summary: '', at: now() };
+      try {
+        describeCall(item, meta, chat.project);
+      } catch (err) {
+        console.warn('[assistant] could not describe a call', err);
+      }
+      topBefore.set(id, newestStep(chat.project));
       toolItems.set(id, item);
       chat.items.push(item);
       changed(host, chat);
@@ -421,6 +523,11 @@ async function run(host: HostApi, chat: Chat, text: string): Promise<void> {
       const meta = byName.get(item.name);
       item.status = outcome.ok ? 'ok' : outcome.error.code === 'MUTATION_DECLINED' ? 'declined' : 'error';
       item.summary = meta ? summarize(meta, item.input, outcome) : outcome.ok ? '' : outcome.error.message;
+      try {
+        describeOutcome(chat, item, outcome, topBefore.get(id));
+      } catch (err) {
+        console.warn('[assistant] could not describe a call', err);
+      }
       changed(host, chat);
     },
     note: (id, text) => {
@@ -452,13 +559,19 @@ async function run(host: HostApi, chat: Chat, text: string): Promise<void> {
     // A call still shown as running when the run ends (stopped mid-call, or the process died) is over.
     for (const item of toolItems.values()) {
       if (item.status !== 'running') continue;
-      item.status = 'error';
+      item.status = controller.signal.aborted ? 'stopped' : 'error';
       item.summary = controller.signal.aborted ? 'Stopped.' : 'The run ended before the call did.';
     }
     chat.run = null;
     chat.status = 'idle';
     changed(host, chat);
     storeChat(host, chat);
+    if (chat.stopping) {
+      // A killed Claude Code process reports its exit a little after the run ends: the chat says it is stopping until then.
+      if (provider instanceof ClaudeCodeProvider) await provider.whenStopped().catch(() => {});
+      chat.stopping = false;
+      if (chats.get(chat.projectId) === chat) changed(host, chat);
+    }
   }
 }
 
@@ -543,8 +656,9 @@ export const assistantModule = defineModule({
       input: z.object({}),
       handler: async (_input, ctx) => {
         const chat = chats.get(ctx.project!.id);
-        if (chat) cancel(chat);
-        return { stopped: Boolean(chat?.run) };
+        const going = Boolean(chat?.run);
+        if (chat) cancel(chat, ctx.host);
+        return { stopped: going };
       },
     }),
     defineCommand({
@@ -559,6 +673,7 @@ export const assistantModule = defineModule({
         if (chat.run) throw new StudioError('CONFLICT', 'Stop the assistant first.');
         dropProvider(chat);
         chat.items = [];
+        chat.images.clear();
         chat.error = null;
         chat.sessionId = null;
         chat.restored = false;
@@ -566,6 +681,20 @@ export const assistantModule = defineModule({
         ctx.host.projects.setUiState(chat.projectId, { [UI_KEY]: null }).catch((err) => console.warn('[assistant] could not remove the stored chat', err));
         changed(ctx.host, chat);
         return { cleared: true };
+      },
+    }),
+    defineCommand({
+      id: 'assistant.image',
+      title: 'Image of an assistant tool call',
+      description: 'The image a tool call in the chat returned (a snapshot), as { mimeType, data } in base64, while the project stays open.',
+      scope: 'project',
+      hidden: true,
+      readOnly: true,
+      input: z.object({ id: z.string() }),
+      handler: async ({ id }, ctx) => {
+        const image = chats.get(ctx.project!.id)?.images.get(id);
+        if (!image) throw new StudioError('NOT_FOUND', 'That image is no longer kept.');
+        return image;
       },
     }),
     defineCommand({

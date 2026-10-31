@@ -3,7 +3,7 @@ import { createServer } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { BRANDING, CommandRegistry, ConfigPatchSchema, defineCommand, newProjectDoc, testHost, type AssistantStatus, type ChatSnapshot, type ConfigPatch, type HostEventMessage, type McpStatus, type MutationRequest, type ProjectApi, type ProjectsApi } from '@studio/core';
+import { BRANDING, CommandRegistry, ConfigPatchSchema, defineCommand, newProjectDoc, testHost, type AssistantStatus, type ChatSnapshot, type ConfigPatch, type HostEventMessage, type McpStatus, type MutationRequest, type ProjectApi, type ProjectsApi, type ToolItem } from '@studio/core';
 import { startMcpServer, type RunningMcpServer } from '@studio/mcp';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
@@ -148,10 +148,17 @@ describe('assistant', () => {
     await host.secrets.set(ANTHROPIC_KEY, 'sk-test-key');
     fake.script({ tools: [{ name: 'test_picture', input: {} }] }, { text: 'Looks fine.' });
     await run('assistant.send', { text: 'Show me' });
-    await idle();
+    const final = await idle();
     const result = (fake.requests[1].body.messages[2].content as { type: string; content: { type: string; source?: { media_type: string; data: string }; text?: string }[] }[])[0];
     expect(result.content[0]).toEqual({ type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'iVBORw0KGgo=' } });
     expect(JSON.parse(result.content[1].text!)).toEqual({ width: 1, height: 1 });
+    // The chat's card knows it has an image, which the panel fetches by the card's id: the chat itself never carries it.
+    const card = final.items.find((i) => i.kind === 'tool') as ToolItem;
+    expect(card).toMatchObject({ status: 'ok', image: { mimeType: 'image/png' } });
+    expect(JSON.stringify(final)).not.toContain('iVBORw0KGgo=');
+    expect(await run('assistant.image', { id: card.id })).toEqual({ mimeType: 'image/png', data: 'iVBORw0KGgo=' });
+    await run('assistant.clear');
+    await expect(run('assistant.image', { id: card.id })).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
 
   it('pauses a mutating call until the user answers: declined, then allowed', async () => {
@@ -478,8 +485,8 @@ describe('assistant with Claude Code', { timeout: 30_000 }, () => {
     expect(starts).toHaveLength(2);
     expect(starts[1].resume).toBe('sess-r');
     expect(starts[1].mcpUrl).not.toBe(first.mcpUrl);
-    // The stopped call shows as declined (the decline reached the fake before it was killed) or as stopped (it did not).
-    const texts = resumed.items.map((i) => (i.kind === 'tool' ? `tool:${i.name}:${i.status === 'declined' || i.status === 'error' ? 'ended' : i.status}` : `${i.kind}:${i.text}`));
+    // The stopped call shows as declined (the decline reached the fake before it was killed) or as stopped or failed (it did not).
+    const texts = resumed.items.map((i) => (i.kind === 'tool' ? `tool:${i.name}:${i.status === 'declined' || i.status === 'error' || i.status === 'stopped' ? 'ended' : i.status}` : `${i.kind}:${i.text}`));
     expect(texts).toEqual(['user:Wipe', 'tool:test_wipe:ended', 'user:Earlier question', 'tool:test_add:ok', 'assistant:Earlier answer', 'user:Continue', 'assistant:Back again.']);
 
     await t.run('assistant.cancel');

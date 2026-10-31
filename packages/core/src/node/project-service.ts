@@ -440,7 +440,7 @@ export class ProjectService implements ProjectsApi {
    * One transaction on an open project. The first real edit of each session first keeps the project
    * as it was in an automatic snapshot, because undo does not survive a restart.
    */
-  async edit<T>(id: string, author: Author, label: string, fn: (tx: EditContext) => T | Promise<T>, options: { coalesce?: string; dryRun?: boolean } = {}): Promise<EditResult<T>> {
+  async edit<T>(id: string, author: Author, label: string, fn: (tx: EditContext) => T | Promise<T>, options: { coalesce?: string; dryRun?: boolean; command?: string } = {}): Promise<EditResult<T>> {
     const engine = this.engines.get(id);
     if (!engine) throw new StudioError('NOT_FOUND', `Project ${id} is not open`);
     return this.edits.run(id, async () => {

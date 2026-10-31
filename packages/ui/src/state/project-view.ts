@@ -12,6 +12,8 @@ export interface ProjectPanel {
   component: Type<unknown>;
   /** A count shown on the panel's tab when it is not zero (the Warnings panel). */
   badge?: (projectId: string) => Signal<number>;
+  /** A brand mark drawn before the tab's title: `otto` for the assistant's tab. */
+  mark?: 'otto';
 }
 
 /** The panels of the project tab, contributed by modules (levels and layers, history, details…). */

@@ -29,7 +29,7 @@ export async function smokeBuildingUi(smoke: Smoke, towerId: string): Promise<vo
   await client.callTool({ name: 'building_level_add', arguments: { name: 'Roof' } });
   smoke.check('a level an agent adds appears at once, at the top', await smoke.until(async () => (await smoke.js<string | undefined>(`document.querySelector('${tab} [data-testid=level-row]')?.dataset.name`)) === 'Roof'));
   await smoke.click(`${tab} [data-testid=right-tab-history]`);
-  smoke.check("the history names the agent's change", await smoke.waitFor(`${tab} [data-testid=history-item][data-author="via MCP: smoke-ui-architect 1.0"]`, 3000, 'Add level "Roof"'));
+  smoke.check("the history names the agent's change", await smoke.waitFor(`${tab} [data-testid=history-item][data-author="MCP · smoke-ui-architect 1.0"]`, 3000, 'Add level "Roof"'));
   await smoke.shots('12-history');
   await smoke.click(`${tab} [data-testid=project-undo]`);
   smoke.check('the undo button takes it back', await smoke.gone(row('Roof')));

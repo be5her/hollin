@@ -70,7 +70,7 @@ export class CommandRegistry {
       const mutates = typeof command.mutating === 'function' ? await command.mutating(parsed.data, ctx) : true;
       if (mutates) await authorize(toMeta(entry), parsed.data, ctx);
     }
-    return (await command.handler(parsed.data, ctx)) as O;
+    return (await command.handler(parsed.data, ctx.command ? ctx : { ...ctx, command: id })) as O;
   }
 }
 

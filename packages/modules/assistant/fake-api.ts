@@ -22,6 +22,8 @@ export interface FakeTurn {
   stop?: 'end_turn' | 'tool_use' | 'max_tokens' | 'refusal';
   /** Answer with this HTTP status and error body instead. */
   error?: { status: number; type: string; message: string };
+  /** Holds the answer until `release()`, so a test can look at the app while the model is "thinking". */
+  hold?: boolean;
 }
 
 export interface FakeRequest {
@@ -64,6 +66,8 @@ export class FakeClaude {
   private server: Server | null = null;
   /** Resolvers waiting for the next request to arrive. */
   private readonly waiters: (() => void)[] = [];
+  /** Answers held by a turn's `hold`, let go by `release()`. */
+  private readonly holds: (() => void)[] = [];
   url = '';
 
   /** Queues replies: each request takes the next one; an empty queue answers with a short text. */
@@ -74,6 +78,17 @@ export class FakeClaude {
   reset(): void {
     this.queue.length = 0;
     this.requests.length = 0;
+    this.release();
+  }
+
+  /** How many answers a `hold` is keeping back. */
+  get held(): number {
+    return this.holds.length;
+  }
+
+  /** Lets every held answer go. */
+  release(): void {
+    for (const go of this.holds.splice(0)) go();
   }
 
   /** Resolves once at least `count` requests have been recorded. */
@@ -107,6 +122,7 @@ export class FakeClaude {
   }
 
   async close(): Promise<void> {
+    this.release();
     const server = this.server;
     this.server = null;
     if (!server) return;
@@ -136,6 +152,7 @@ export class FakeClaude {
       return this.fail(res, 400, 'invalid_request_error', unanswered);
     }
     const turn = this.queue.shift() ?? { text: 'Nothing scripted for this request.' };
+    if (turn.hold) await new Promise<void>((resolve) => this.holds.push(resolve));
     if (turn.error) return this.fail(res, turn.error.status, turn.error.type, turn.error.message);
     const id = `msg_fake_${++turnCounter}`;
     const stop = turn.stop ?? (turn.tools?.length ? 'tool_use' : 'end_turn');

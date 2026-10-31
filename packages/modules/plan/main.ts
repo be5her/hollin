@@ -911,7 +911,7 @@ export const planModule = defineModule({
           await ctx.host.projects.autoSnapshot?.(ctx.project!.id, `Before "${label}"`, authorFrom(ctx).label);
         }
         const { label: _display, ...author } = authorFrom(ctx);
-        const outcome = await ctx.project!.edit(author, label, (tx) => runSteps(ctx, steps, tx), { dryRun });
+        const outcome = await ctx.project!.edit(author, label, (tx) => runSteps(ctx, steps, tx), { dryRun, command: ctx.command ?? 'plan.apply' });
         return { ...outcome.result, changed: outcome.changed, applied: !dryRun && outcome.changed, txId: outcome.txId };
       },
     }),
