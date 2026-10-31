@@ -68,7 +68,7 @@ Since milestone 11 step 6 the print palette and the title block changed (the wor
 After the print palette, the title block and the DXF colour indices changed (milestone 11 step 6), the files were read again with **ezdxf 1.4.5** and **pypdf 6.21.4** (a throwaway virtual environment outside the repository): the smoke's duplex, agent and units exports (`SMOKE_KEEP`), the unit tests' two houses (`exchange-samples.manual.test.ts`), and one hand-made drawing with a layer of each colour and a warning-coloured stroke.
 
 - **DXF** (9 files): `ezdxf.readfile` and `audit()`: 0 errors, 0 fixes in each. The layer colour indices are there: Rooms 75, Dimensions 165, decor 35, the warning layer 42 (a warning-coloured stroke on another layer carries its own group 62 of 42, the rest `BYLAYER`), walls 7, slabs 8.
-- **PDF** (10 files): `PdfReader(strict=True)` opens each with no exception, warning or logged message; each page's text holds `Plan Studio.` (the wordmark), the level's name and `Scale 1:<n>`; `/F3` resolves to the standard Helvetica-Bold, next to `/F1` Helvetica and `/F2` Courier.
+- **PDF** (10 files): `PdfReader(strict=True)` opens each with no exception, warning or logged message; each page's text holds the wordmark (`Plan Studio.` at the time; `Hollin.` since the rename), the level's name and `Scale 1:<n>`; `/F3` resolves to the standard Helvetica-Bold, next to `/F1` Helvetica and `/F2` Courier.
 - **SVG**: well-formed, the wordmark one `<text>` with the terracotta full stop as a `<tspan>`.
 - Nothing to fix. The GLB and the Chromium SVG render were not checked again: their writers did not change beyond the glTF fallback colour (`SOLID_FALLBACK`, pinned by `snapshot-theme.test.ts`).
 

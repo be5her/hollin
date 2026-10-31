@@ -8,7 +8,7 @@ A clean sheet on a desk, drawn by two authors. The paper, the ink walls, the gra
 
 ## 2. Name
 
-- **Working name: Hollin** (wordmark `Hollin.` with the terracotta full stop). Alternates kept on the table: **Penrow** (clean in the agents' search) and **Bothy**. The owner checks domains, stores and trademarks before any name goes into `branding.json`; every document says "working name".
+- **The name is Hollin** (wordmark `Hollin.` with the terracotta full stop), confirmed by the owner on 31 Oct 2026 and applied to `branding.json` after the milestone's review. Penrow and Bothy were the alternates. The documents written before that day still say "working name".
 - **The assistant is Otto.** An in-app name, not a product mark. The model and provider stay visible under it (`Claude Opus 5.5`, or "your Claude Code").
 - Outside agents over MCP are not Otto: they are neutral ("MCP · Claude Code", "MCP · Cursor") in History and the call log.
 

@@ -1,6 +1,6 @@
-# Plan Studio
+# Hollin
 
-A desktop studio for engineers, architects and interior designers: buildings with any number of floors, walls and rooms of any shape, interiors and decor, with an AI assistant built in and every feature open to AI agents over MCP. "Plan Studio" is a working name; all product names live in [`branding.json`](branding.json).
+A desktop studio for engineers, architects and interior designers: buildings with any number of floors, walls and rooms of any shape, interiors and decor, with an AI assistant built in and every feature open to AI agents over MCP. The product names live in [`branding.json`](branding.json).
 
 Windows, macOS and Linux, built with Electron and Angular.
 
@@ -25,7 +25,7 @@ Node 24 (see `.nvmrc`; the Angular CLI needs ^22.22.3 or ^24.15).
 
 | Script | What it does |
 |---|---|
-| `npm run dev` | The Angular dev server, then Electron in watch mode: renderer changes reload the window, main/preload changes restart Electron. Uses its own data folder (`Plan Studio Dev`). |
+| `npm run dev` | The Angular dev server, then Electron in watch mode: renderer changes reload the window, main/preload changes restart Electron. Uses its own data folder (`Hollin Dev`). |
 | `npm run build` | electron-vite builds main and preload into `out/`; the Angular CLI builds the renderer into `out/renderer`. |
 | `npm run typecheck` | `tsc -p tsconfig.node.json` (main, preload, core, mcp, modules' Node side) and `ngc -p tsconfig.app.json` (the renderer and every module's `ui/`). |
 | `npm test` | vitest unit tests next to the code in `packages/`, `src/main` and `scripts/`. |

@@ -45,6 +45,6 @@ Commit: `Milestone 11, step 6: exports' title block and print palette`.
 ### Review
 After step 6: one read-only reviewer over `git diff <base>..HEAD` plus the orchestrator's own read, findings merged into one fixes brief that also writes `docs/milestone-11-review.md`. Commit: `Milestone 11: review fixes`.
 
-## Deferred, by design
-- The product rename (`branding.json`, `package.json`, `index.html`, README, CLAUDE.md, the assistant README): one commit once the owner confirms the name. The release note must say that renaming `mcpServerName` breaks users' `mcp__plan-studio__*` allow-lists.
-- Outlining the real Fraunces for `wordmark.svg` is done in step 2 if the fonts allow it from the bundled file; otherwise the hand-drawn paths ship and the README says so.
+## After the review
+- **The product rename** landed as its own commit once the owner confirmed the name (31 Oct 2026): `branding.json` (`Hollin`, `app.hollin.desktop`, data folder `Hollin`, packages `.hollin`, MCP server `hollin`), `package.json`'s `productName`, `index.html`'s title, README, CLAUDE.md, the assistant and exchange READMEs. The changelog says that the MCP server's name changed, so `mcp__plan-studio__*` entries in users' allow-lists must become `mcp__hollin__*`, and that the data folder moved (a library under `Plan Studio` is not picked up by itself).
+- The wordmark ships as live text in the bundled Fraunces (review finding 19, accepted), so `wordmark.svg` is a record only.

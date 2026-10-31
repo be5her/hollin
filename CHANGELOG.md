@@ -11,6 +11,7 @@ Every notable change to the app, newest first. The format follows [Keep a Change
 - The first-launch guide's Otto line takes a sentence: Enter starts a project with it and sends it to Otto.
 
 ### Changed
+- The app is **Hollin**. The window, the installer, the title block of exported sheets and the About page carry the name. Three things follow it: the data folder is now `Hollin` (a library left under the old `Plan Studio` folder is not picked up by itself; move its contents, or point Settings > Library at it), project packages use the `.hollin` extension (a `.psp` package written before is the same format: rename it to `.hollin` to import it), and the MCP server is named `hollin`, so a `mcp__plan-studio__*` entry in a Claude Code, Claude Desktop, Cursor or VS Code allow-list must become `mcp__hollin__*`.
 - The assistant is Otto: its tab, its voice, its edits signed Otto in History and on the status bar; outside MCP agents stay "MCP · <name>".
 - Home cards without a thumbnail show a tinted sheet with the project's initials; About shows the icon, the wordmark and the fonts' licences.
 - The look: a paper and ink palette with a terracotta accent, Alegreya Sans, IBM Plex Mono and Fraunces bundled, lighter icons; the plan, the 3D view and the exports' renders follow.

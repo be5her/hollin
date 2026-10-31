@@ -1,6 +1,6 @@
-# Working on Plan Studio
+# Working on Hollin
 
-Plan Studio (a working name; every product name lives in `branding.json`) is a desktop studio for designing buildings, floor plans, interiors and decor, with AI built in: Electron + an Angular renderer in an npm-workspaces monorepo. `README.md` is the overview; `packages/core/README.md` covers the engine and storage, `src/renderer/README.md` the shell, and each module has its own README under `packages/modules/<name>/`. This file is about how changes get made.
+Hollin (every product name lives in `branding.json`) is a desktop studio for designing buildings, floor plans, interiors and decor, with AI built in: Electron + an Angular renderer in an npm-workspaces monorepo. `README.md` is the overview; `packages/core/README.md` covers the engine and storage, `src/renderer/README.md` the shell, and each module has its own README under `packages/modules/<name>/`. This file is about how changes get made.
 
 ## Workflow
 

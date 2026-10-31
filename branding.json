@@ -1,11 +1,11 @@
 {
   "$comment": "The product's names live here and nowhere else. Renaming the product: change productName (and package.json productName), appId and packageExtension. Keep dataDirName unless existing installs should start over with an empty library.",
-  "productName": "Plan Studio",
-  "shortName": "Studio",
+  "productName": "Hollin",
+  "shortName": "Hollin",
   "description": "Design buildings, floor plans, interiors and decor, with AI built in.",
-  "appId": "app.planstudio.desktop",
-  "dataDirName": "Plan Studio",
-  "packageExtension": "psp",
-  "mcpServerName": "plan-studio",
+  "appId": "app.hollin.desktop",
+  "dataDirName": "Hollin",
+  "packageExtension": "hollin",
+  "mcpServerName": "hollin",
   "defaultMcpPort": 7433
 }
