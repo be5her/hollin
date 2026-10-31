@@ -42,7 +42,7 @@ export async function smokeExchange(smoke: Smoke, duplexId: string): Promise<voi
   let svgOk = svg.files.length === 2;
   for (const [i, f] of svg.files.entries()) {
     const content = await fs.readFile(f.path, 'utf8');
-    svgOk &&= content.includes('<svg ') && content.includes('width="420mm"') && content.includes(`>${xmlEscape(names[i])}</text>`) && content.includes('data-layer="Walls"') && content.includes('>Duplex</text>') && content.includes(`>${xmlEscape(BRANDING.productName)}</text>`) && content.includes('fill="#b9552f">.</text>');
+    svgOk &&= content.includes('<svg ') && content.includes('width="420mm"') && content.includes(`>${xmlEscape(names[i])}</text>`) && content.includes('data-layer="Walls"') && content.includes('>Duplex</text>') && content.includes(`>${xmlEscape(BRANDING.productName)}<tspan fill="#b9552f">.</tspan></text>`);
   }
   smoke.check('SVG writes an A3 sheet per level with its name, its layers and the title block (the product name, a terracotta full stop, the project and the level)', svgOk, svg);
   smoke.check('and fits a standard scale', svg.levels.every((l) => [20, 25, 50, 100, 200, 250, 500, 1000].includes(l.scale)), svg.levels);

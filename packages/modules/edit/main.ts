@@ -1,4 +1,4 @@
-import { defineCommand, defineModule } from '@studio/core';
+import { StudioError, defineCommand, defineModule } from '@studio/core';
 import { z } from 'zod';
 
 /** The document as a whole: loading it into the renderer, undo and redo, the history, view state. */
@@ -43,6 +43,20 @@ export const editModule = defineModule({
       readOnly: true,
       input: z.object({}),
       handler: async (_input, ctx) => ctx.project!.history(),
+    }),
+    defineCommand({
+      id: 'edit.history.changed',
+      title: 'What a change touched',
+      description: 'The entity and connector ids an undo or redo entry added or changed, and the level to show them on, for selecting a History row on the plan.',
+      scope: 'project',
+      hidden: true,
+      readOnly: true,
+      input: z.object({ id: z.string().min(1) }),
+      handler: async ({ id }, ctx) => {
+        const changed = ctx.project!.changed?.(id);
+        if (!changed) throw new StudioError('NOT_FOUND', `No change ${id} in the history`);
+        return changed;
+      },
     }),
     defineCommand({
       id: 'project.ui.get',

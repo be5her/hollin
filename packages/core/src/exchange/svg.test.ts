@@ -62,13 +62,14 @@ describe('drawingToSvg', () => {
     expect(block).toContain('M320 287L410 287M410 287L410 263M410 263L320 263M320 263L320 287M320 271L410 271');
     expect(block).toContain('stroke-width="0.35"');
     const texts = [...block.matchAll(/<text x="([\d.]+)" y="([\d.]+)" font-size="([\d.]+)" font-family="[^"]*"(?: font-weight="(\d+)")? text-anchor="(\w+)" fill="(#\w+)">([^<]*)<\/text>/g)].map((m) => ({ x: Number(m[1]), y: Number(m[2]), size: Number(m[3]), weight: m[4], anchor: m[5], fill: m[6], text: m[7] }));
-    expect(texts.map((t) => t.text)).toEqual([BRANDING.productName, '.', 'Kitchen extension', xmlEscape(drawing.levelName), 'Scale 1:50', '2026-10-31']);
-    expect(texts[0]).toMatchObject({ x: 323, y: 269, weight: '700', anchor: 'start', fill: '#231f1c' });
-    expect(texts[1]).toMatchObject({ y: 269, weight: '700', fill: '#b9552f' });
-    expect(texts[2]).toMatchObject({ x: 407, y: 269, size: 4, anchor: 'end' });
-    expect(texts[3]).toMatchObject({ x: 323, y: 276, size: 3 });
-    expect(texts[4]).toMatchObject({ x: 323, y: 284.2, size: 2.8 });
-    expect(texts[5]).toMatchObject({ x: 407, y: 284.2, anchor: 'end' });
+    // The wordmark is one text, its terracotta full stop a tspan of it, so the stop follows the name in any font.
+    const wordmark = new RegExp(`<text x="323" y="269" font-size="[\\d.]+" font-family="[^"]*" font-weight="700" text-anchor="start" fill="#231f1c">${xmlEscape(BRANDING.productName)}<tspan fill="#b9552f">\\.</tspan></text>`);
+    expect(block).toMatch(wordmark);
+    expect(texts.map((t) => t.text)).toEqual(['Kitchen extension', xmlEscape(drawing.levelName), 'Scale 1:50', '2026-10-31']);
+    expect(texts[0]).toMatchObject({ x: 407, y: 269, size: 4, anchor: 'end' });
+    expect(texts[1]).toMatchObject({ x: 323, y: 276, size: 3 });
+    expect(texts[2]).toMatchObject({ x: 323, y: 284.2, size: 2.8 });
+    expect(texts[3]).toMatchObject({ x: 407, y: 284.2, anchor: 'end' });
     expect(block).toContain('font-family="\'Alegreya Sans\', Helvetica, Arial, sans-serif"');
   });
 

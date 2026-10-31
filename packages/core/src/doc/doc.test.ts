@@ -329,6 +329,22 @@ describe('history', () => {
     expect(() => engine.redo()).toThrow(/nothing to redo/);
   });
 
+  it('names the level and layer of a merged step afresh', async () => {
+    const { doc: start } = building(1, 0);
+    const engine = new DocumentEngine(start, { onChange: () => {} });
+    const [ground, upper] = start.building.stack;
+    const label = (levelId: string) => (tx: { doc: ProjectDoc; apply(ops: Op[]): void }) => tx.apply(addEntityOps(tx.doc, { levelId, entity: { type: 'label', text: 'x', at: [0, 0] } }).ops);
+    await engine.transact('Labels', you, label(ground), { coalesce: 'labels' });
+    expect(engine.entries().undo[0]).toMatchObject({ levelId: ground, level: 'Ground floor' });
+    // The second edit lands on another level and merges into the first step: the step now spans two levels, so it names none.
+    await engine.transact('Labels', you, label(upper), { coalesce: 'labels' });
+    const merged = engine.entries().undo;
+    expect(merged).toHaveLength(1);
+    expect(merged[0].levelId).toBeUndefined();
+    expect(merged[0].level).toBeUndefined();
+    expect(merged[0].layer).toBeUndefined();
+  });
+
   it('signs each step with the command, and the level and layer it touched when there is one of each', async () => {
     const { doc: start } = building(1, 0);
     const engine = new DocumentEngine(start, { onChange: () => {} });

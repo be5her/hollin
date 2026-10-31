@@ -64,6 +64,7 @@ The rule: **mulberry never asks you to click it.** Every deciding button (Allow,
 - Otto's tint being near-invisible against the surface in light is accepted: Otto's rows and cards are identified by the mark and the 3 px mulberry edge.
 - The room wash is 0.18 alpha on the canvas and in exports.
 - The name stays **Hollin (working)** until the owner's own domain, store and trademark check.
+- The wordmark is **live text in the bundled Fraunces**, not outlined paths (accepted at the milestone 11 review): the font ships with the app, live text renders sharper at every size and follows `BRANDING.productName`, so the rename needs no new artwork. `wordmark.svg` stays the drawing reference.
 
 ## 7. Constraints that still hold
 

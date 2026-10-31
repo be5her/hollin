@@ -146,6 +146,8 @@ async function main(): Promise<void> {
     }
     await host.stop();
     await fs.rm(dataDir, { recursive: true, force: true }).catch(() => {});
+    // Chromium's own profile files outlive that (open until exit, some written on the way out): remove the folder again once this process is gone.
+    (await import('./smoke/cleanup')).removeAfterExit(dataDir);
     // Piped stdout is asynchronous on Windows; give the last lines a moment to leave the process.
     await new Promise((r) => setTimeout(r, 150));
     app.exit(code);

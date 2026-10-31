@@ -44,6 +44,8 @@ export interface ProjectApi {
   history(): { undo: HistoryInfo[]; redo: HistoryInfo[]; seq: number; epoch: number };
   /** When a record last changed and by whom (null: not since opening), for conflict checks. */
   lastTouched(id: string): LastTouched | null;
+  /** What an undo or redo entry added or changed and the level to show it on (null: no such entry); see `DocumentEngine.changed`. */
+  changed?(txId: string): { levelId: string | null; ids: string[] } | null;
   /** True inside a `plan.apply` batch. */
   readonly batching?: boolean;
 }

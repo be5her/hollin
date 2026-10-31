@@ -1,4 +1,5 @@
-import { Service, signal } from '@angular/core';
+import { Service, inject, signal } from '@angular/core';
+import { HostBridge } from '../host/host-bridge';
 
 /** A sentence another view hands to a project's assistant panel, to put in its message field. */
 export interface AssistantDraftOffer {
@@ -10,11 +11,18 @@ export interface AssistantDraftOffer {
  * How Home's composer and the empty project's Otto line put a sentence into a project's assistant
  * panel without sending it, when Otto could not start the chat they send (a run already going there):
  * `offer` it, and the panel (once it is shown for that project) takes it into its message field.
- * Nothing is sent: the user reads, edits and sends it.
+ * Nothing is sent: the user reads, edits and sends it. An offer whose project closes before its panel
+ * took it is dropped, so it never lands in the panel when the project is opened again later.
  */
 @Service()
 export class AssistantDrafts {
   private readonly offered = signal<AssistantDraftOffer | null>(null);
+
+  constructor() {
+    inject(HostBridge).on('project.changed', ({ projectId, kind }) => {
+      if (kind === 'closed' && this.offered()?.projectId === projectId) this.offered.set(null);
+    });
+  }
 
   /** The sentence waiting for its project's panel, if any. */
   readonly pending = this.offered.asReadonly();

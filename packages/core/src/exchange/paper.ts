@@ -104,6 +104,11 @@ export interface TitleBlockText {
   bold?: boolean;
   /** Ink, when not the sheet's `fg`. */
   color?: string;
+  /**
+   * The wordmark's full stop. The PDF places it as its own run after the name (measured in Helvetica Bold);
+   * the SVG, whose reader picks the font, writes it as a `<tspan>` of the name's text so it follows the name whatever font draws it.
+   */
+  stop?: boolean;
 }
 
 /** The one colour of the title block: the full stop of the wordmark. */
@@ -135,7 +140,7 @@ export function titleBlock(width: number, info: TitleBlockInfo): { lines: [Vec2,
   const wordmark = nameWidth + stopWidth;
   const texts: TitleBlockText[] = [
     { at: [x0 + 3, y1 - 6], text: name, size: WORDMARK_SIZE, align: 'left', bold: true },
-    { at: [x0 + 3 + nameWidth, y1 - 6], text: '.', size: WORDMARK_SIZE, align: 'left', bold: true, color: TITLE_BLOCK_ACCENT },
+    { at: [x0 + 3 + nameWidth, y1 - 6], text: '.', size: WORDMARK_SIZE, align: 'left', bold: true, color: TITLE_BLOCK_ACCENT, stop: true },
     { at: [x1 - 3, y1 - 6], ...fitText(info.title, 4, Math.max(room - wordmark - 4, 10)), align: 'right' },
     { at: [x0 + 3, y1 - 13], ...fitText(info.levelName, 3, room), align: 'left' },
     { at: [x0 + 3, y0 + 2.8], text: `Scale 1:${formatScale(info.scale)}`, size: 2.8, align: 'left' },

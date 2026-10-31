@@ -29,8 +29,12 @@ export const SOLID_COLORS: Readonly<Record<SolidKind, string>> = {
 
 /** How see-through the 3D view draws glass without a material. */
 const GLASS_OPACITY = 0.35;
-/** The colour a material reference that does not resolve is drawn in, as in the view. */
-const FALLBACK = '#b8b4ac';
+/**
+ * The colour a material reference that does not resolve is drawn in: the palette's stand-in
+ * (`--scene-stand-in` in light, the view's `LIGHT_SCENE_THEME.standIn`), pinned by `snapshot-theme.test.ts`.
+ */
+export const SOLID_FALLBACK = '#a69b8e';
+const FALLBACK = SOLID_FALLBACK;
 
 /** The order kinds are written in, and the name of each kind's node. */
 const KIND_NODES: readonly [SolidKind, string][] = [
@@ -51,7 +55,7 @@ const CONNECTOR_NAMES: Record<string, string> = { stair: 'Stair', ladder: 'Ladde
 /** An sRGB colour (`#rrggbb`) as linear RGB, 0–1: what glTF's `baseColorFactor` holds. */
 export function srgbToLinear(hex: string): [number, number, number] {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
-  const n = m ? parseInt(m[1], 16) : 0xb8b4ac;
+  const n = parseInt(m ? m[1] : FALLBACK.slice(1), 16);
   const lin = (c: number) => {
     const s = c / 255;
     return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { SOLID_COLORS } from '@studio/core';
+import { SOLID_COLORS, SOLID_FALLBACK } from '@studio/core';
 import { DARK_SCENE_THEME, DARK_THEME, LIGHT_SCENE_THEME, LIGHT_THEME, PLAN_THEME_VARIABLES, SCENE_THEME_VARIABLES } from '@studio/viewport';
 
 /** The variables a block of styles.css sets (`:root` or `.dark`). */
@@ -40,5 +40,7 @@ describe('the light render palettes', () => {
 
   it("give the glTF export's kind colours the values of --scene-*", () => {
     for (const kind of ['wall', 'slab', 'column', 'glass', 'connector', 'rail', 'car'] as const) expect([kind, SOLID_COLORS[kind]]).toEqual([kind, light[SCENE_THEME_VARIABLES[kind]]]);
+    // An unresolved material is drawn in the palette's stand-in, as the view draws a model it cannot show.
+    expect(SOLID_FALLBACK).toBe(light[SCENE_THEME_VARIABLES.standIn]);
   });
 });

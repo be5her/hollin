@@ -36,7 +36,7 @@ export class OttoPresence {
     const projectId = this.app.activeProjectId();
     if (!projectId) return null;
     const chat = this.chats()[projectId];
-    const pending = chat?.confirm ? { title: chat.confirm.command.title, command: chat.confirm.command.id, ids: targetIdsOf(chat.confirm.input) } : null;
+    const pending = chat?.confirm ? { title: chat.confirm.command.title, command: chat.confirm.command.id, ids: targetIdsOf(chat.confirm.input, (command) => command === chat.confirm!.command.id) } : null;
     const make = (state: string, text: string, tone: AssistantPresence['tone'] = 'ai', pulse = false, opens: AssistantPresence['opens'] = 'panel'): AssistantPresence => ({ projectId, state, text: `Otto · ${text}`, tone, pulse, opens, pending });
 
     if (chat?.status === 'waiting') return make('waiting', 'waiting for your yes');

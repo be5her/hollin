@@ -530,9 +530,14 @@ function highlightBox(frame: RenderFrame, h: PlanHighlight): Bounds | null {
   return box;
 }
 
-/** The tag's size: 22 px tall, the room glyph, then the words in mono 11 px. */
-const TAG_HEIGHT = 22;
-const TAG_TEXT_X = 6 + 12 + 5;
+/**
+ * The tag (`03-otto.md` §c): a pill 24 px tall, padding 0 10 px 0 6 px, the room glyph at 14 px, then
+ * the words in the sans at 500, 12/24 (`01-brand.md` §d: words are sans, only numbers and ids are mono).
+ */
+const TAG_HEIGHT = 24;
+const TAG_GLYPH = 14;
+const TAG_TEXT_X = 6 + TAG_GLYPH + 5;
+const TAG_PAD_RIGHT = 10;
 
 /** The end nodes over the walls, and the tag on the newest edit (on a short leader from its halo), in screen space. */
 function drawAiMarks(ctx: CanvasRenderingContext2D, frame: RenderFrame): { highlights: number; aiTag: AiTag | null } {
@@ -567,8 +572,8 @@ function drawAiMarks(ctx: CanvasRenderingContext2D, frame: RenderFrame): { highl
     if (ax < 0 || ay < 0 || ax > size.width || ay > size.height) continue;
     const text = highlightTag(h.label, (frame.now ?? Date.now()) - h.at);
     ctx.globalAlpha = opacity;
-    ctx.font = `11px ${theme.fontMono}`;
-    const width = Math.ceil(TAG_TEXT_X + ctx.measureText(text).width + 9);
+    ctx.font = `500 12px ${theme.fontSans}`;
+    const width = Math.ceil(TAG_TEXT_X + ctx.measureText(text).width + TAG_PAD_RIGHT);
     // Out at 45° towards the side with more free canvas, from the halo's edge, 18 px long.
     const dx = ax <= size.width / 2 ? 1 : -1;
     const dy = ay >= size.height / 2 ? -1 : 1;
@@ -594,10 +599,13 @@ function drawAiMarks(ctx: CanvasRenderingContext2D, frame: RenderFrame): { highl
     // The room glyph of Otto's mark: the paper square with the pen still on its top-right corner.
     ctx.strokeStyle = theme.aiFg;
     ctx.fillStyle = theme.aiFg;
-    ctx.lineWidth = 1.2;
-    ctx.strokeRect(x + 8.5, y + 7.5, 8, 8);
+    // In a 14 px box 6 px in, centred on the pill: a 9 px square, the dot on its corner.
+    const gx = x + 6;
+    const gy = y + (TAG_HEIGHT - TAG_GLYPH) / 2;
+    ctx.lineWidth = 1.3;
+    ctx.strokeRect(gx + 2, gy + 3, 9, 9);
     ctx.beginPath();
-    ctx.arc(x + 16.5, y + 7.5, 1.6, 0, Math.PI * 2);
+    ctx.arc(gx + 11, gy + 3, 1.8, 0, Math.PI * 2);
     ctx.fill();
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';

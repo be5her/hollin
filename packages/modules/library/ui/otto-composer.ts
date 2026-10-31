@@ -25,9 +25,12 @@ export function nameFromSentence(sentence: string): string {
 export class OttoDraftRun {
   readonly current = signal<{ projectId: string; text: string } | null>(null);
   private started = false;
+  private readonly host = inject(HostBridge);
+  private readonly view = inject(ProjectView);
+  private readonly drafts = inject(AssistantDrafts);
 
   constructor() {
-    const host = inject(HostBridge);
+    const host = this.host;
     host.on('assistant.event', ({ projectId, event }) => {
       if (event.type !== 'changed' || untracked(this.current)?.projectId !== projectId) return;
       if (event.state.status !== 'idle') this.started = true;
@@ -43,6 +46,35 @@ export class OttoDraftRun {
     this.started = false;
     this.current.set({ projectId, text });
   }
+
+  /**
+   * Draft it, and Enter on first launch's Otto line (`03-otto.md` §f, §g): creates a project named from the
+   * sentence (with the sentence as its description), opens it with the Otto tab showing and sends the
+   * sentence to Otto. If the send is refused (a run already going there), the sentence waits in the panel's
+   * message field instead. Rejects only when the project could not be created; resolves to its id.
+   * `created` runs once the project exists, before the sentence is sent (the composer empties its field then).
+   */
+  async start(text: string, created?: (projectId: string) => void): Promise<string> {
+    const project = await this.host.invoke<OpenProject>('project.create', { name: nameFromSentence(text), description: text }, null);
+    this.view.set(project.id, 'rightPanel', 'assistant');
+    created?.(project.id);
+    try {
+      this.begin(project.id, text);
+      await this.host.invoke('assistant.send', { text }, project.id);
+    } catch {
+      // Otto could not start here: the sentence waits in the panel's field for the user to send.
+      this.current.set(null);
+      this.drafts.offer(project.id, text);
+    }
+    return project.id;
+  }
+}
+
+/** Whether Otto can work with this provider state: a key for the API; Claude Code found, logged in, and the MCP server on. Unknown yet counts as ready. */
+export function ottoCanWork(s: AssistantStatus | undefined | null): boolean {
+  if (!s) return true;
+  if (s.provider === 'api') return s.keySet;
+  return Boolean(s.claudeCode?.found) && s.claudeCode?.loggedIn !== false && s.mcp.running;
 }
 
 /**
@@ -111,21 +143,13 @@ export class OttoDraftRun {
   },
 })
 export class OttoComposer {
-  private readonly host = inject(HostBridge);
   private readonly tabs = inject(TabsState);
-  private readonly view = inject(ProjectView);
-  private readonly drafts = inject(AssistantDrafts);
   private readonly toasts = inject(Toasts);
 
   protected readonly icons = { Settings2 };
   protected readonly status = invokeResource<AssistantStatus>('assistant.status', () => ({}), { projectId: null, refreshOnEvents: ['secrets.changed', 'config.changed', 'mcp.status'] });
   /** The provider can work: a key for the API; Claude Code found, logged in, and the MCP server on. */
-  protected readonly ready = computed(() => {
-    const s = this.status.value();
-    if (!s) return true;
-    if (s.provider === 'api') return s.keySet;
-    return Boolean(s.claudeCode?.found) && s.claudeCode?.loggedIn !== false && s.mcp.running;
-  });
+  protected readonly ready = computed(() => ottoCanWork(this.status.value()));
   protected readonly reason = computed(() => {
     const s = this.status.value();
     if (!s || s.provider === 'api') return 'Otto needs a Claude API key, or your Claude Code.';
@@ -149,17 +173,7 @@ export class OttoComposer {
     if (!text || untracked(this.busy) || !untracked(this.ready)) return;
     this.busy.set(true);
     try {
-      const created = await this.host.invoke<OpenProject>('project.create', { name: nameFromSentence(text), description: text }, null);
-      this.view.set(created.id, 'rightPanel', 'assistant');
-      this.model.set({ sentence: '' });
-      try {
-        this.run.begin(created.id, text);
-        await this.host.invoke('assistant.send', { text }, created.id);
-      } catch {
-        // Otto could not start here: the sentence waits in the panel's field for the user to send.
-        this.run.current.set(null);
-        this.drafts.offer(created.id, text);
-      }
+      await this.run.start(text, () => this.model.set({ sentence: '' }));
     } catch (err) {
       this.toasts.error(err);
     } finally {

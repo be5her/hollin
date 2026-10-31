@@ -33,11 +33,15 @@ export async function smokeOttoUi(smoke: Smoke, duplexId: string): Promise<void>
   const run = <T = unknown>(id: string, input: unknown = {}) => smoke.run<T>(id, input, { projectId: duplexId });
   const panel = `${tab} [data-testid=assistant-panel]`;
   const status = '[data-testid=status-otto]';
-  const idle = () =>
-    smoke.until(async () => {
-      const state = await run<{ status: string; stopping: boolean }>('assistant.state');
-      return state.status === 'idle' && !state.stopping;
-    });
+  // A wait that times out fails the step it guards rather than letting the section go on mid-run.
+  const idle = async (when = 'before the next message') =>
+    smoke.check(
+      `Otto's chat is idle ${when}`,
+      await smoke.until(async () => {
+        const state = await run<{ status: string; stopping: boolean }>('assistant.state');
+        return state.status === 'idle' && !state.stopping;
+      }),
+    );
   const send = async (text: string) => {
     await idle();
     await smoke.gone(`${panel} [data-testid=assistant-stop]`, 3000);
@@ -101,7 +105,7 @@ export async function smokeOttoUi(smoke: Smoke, duplexId: string): Promise<void>
     const box = (await canvasAttr(smoke, 'aiTagBox'))?.split(',').map(Number);
     const rect = (await smoke.rect(canvas))!;
     const chip = box ? await smoke.canvasPixel(canvas, rect.x + box[0] + 3, rect.y + box[1] + box[3] / 2) : null;
-    smoke.check("the tag is a chip in Otto's ink", !!box && colorDistance(chip, ai) <= 4, { box, chip, ai });
+    smoke.check("the tag is a chip in Otto's ink, 24 px tall", !!box && box[3] === 24 && colorDistance(chip, ai) <= 4, { box, chip, ai });
     smoke.check('the Select tool is on', (await canvasAttr(smoke, 'tool')) === 'select');
     const wallAt = (await view(smoke)).at([5700, 6500]);
     await smoke.clickAt(wallAt.x, wallAt.y);
@@ -112,7 +116,7 @@ export async function smokeOttoUi(smoke: Smoke, duplexId: string): Promise<void>
     smoke.check('Escape clears the selection', await smoke.until(async () => !(await canvasAttr(smoke, 'selection'))));
     smoke.check("Otto's reply is a margin note", (await smoke.waitFor(`${panel} [data-testid=assistant-item][data-kind=assistant]`, 8000, 'Added a 3 000 mm wall')) && (await smoke.js<boolean>(`[...document.querySelectorAll('${panel} [data-testid=assistant-item][data-kind=assistant]')].every((e) => e.classList.contains('border-ai'))`)));
     smoke.check('the status bar is ready again', await statusIs('ready', 'Otto · ready'));
-    await idle();
+    await idle('after the wall it drew');
 
     // Your own edit, then a destructive call Otto waits on.
     await run('plan.wall.add', { levelId: ground, from: [3000, 7500], to: [6000, 7500], thickness: 150 });
@@ -148,6 +152,28 @@ export async function smokeOttoUi(smoke: Smoke, duplexId: string): Promise<void>
     smoke.check('the dashed outline goes with the answer', await smoke.until(async () => (await canvasAttr(smoke, 'aiPending')) === '0'), await canvasAttr(smoke, 'aiPending'));
     await smoke.click(`${tab} [data-testid=right-tab-history]`);
     smoke.check('the waiting row leaves History', await smoke.gone(`${tab} [data-testid=history-waiting]`, 3000));
+    // A row selects what it changed; a double-click undoes down to it, and redo brings it all back.
+    const ottoRow = `${tab} [data-testid=history-item][data-kind=assistant][data-label="Add a 3 m wall"]`;
+    // The panel is built afresh when its tab is picked, and its rows come with `edit.history`: wait for the row before clicking it
+    // (a click sent before it existed found nothing and selected nothing, one run in two).
+    const rowShown = await smoke.waitFor(ottoRow, 5000);
+    const clicked = rowShown && (await smoke.click(ottoRow));
+    const selectedByRow = clicked && (await smoke.until(async () => ((await canvasAttr(smoke, 'selection')) ?? '').split(' ').includes(ottoWall.id)));
+    const ottoEntry = (await run<{ undo: { id: string; label: string }[] }>('edit.history')).undo.find((e) => e.label === 'Add a 3 m wall');
+    smoke.check("clicking Otto's row in History selects the wall it drew", selectedByRow, {
+      rowShown,
+      clicked,
+      selection: await canvasAttr(smoke, 'selection'),
+      wall: ottoWall.id,
+      changed: ottoEntry ? await run('edit.history.changed', { id: ottoEntry.id }) : null,
+      level: await canvasAttr(smoke, 'level'),
+    });
+    const rowRect = await smoke.rect(ottoRow);
+    if (rowRect) await smoke.clickAt(rowRect.x + rowRect.width / 2, rowRect.y + rowRect.height / 2, { clickCount: 2 });
+    smoke.check('double-clicking it undoes down to it: your wall and then its own', (await smoke.until(() => walls() === before)) && (await smoke.until(async () => (await smoke.count(`${tab} [data-testid=history-redo-item]`)) === 2)), { walls: walls(), before });
+    await run('edit.redo');
+    await run('edit.redo');
+    smoke.check('and redo brings both back', await smoke.until(() => walls() === before + 2));
     await smoke.click(`${tab} [data-testid=right-tab-assistant]`);
 
     // A snapshot card carries the picture Otto looked at.
@@ -157,7 +183,7 @@ export async function smokeOttoUi(smoke: Smoke, duplexId: string): Promise<void>
     smoke.check('the snapshot card shows its image', await smoke.until(() => smoke.js<boolean>(`(() => { const img = document.querySelector('${panel} [data-testid=assistant-tool][data-command="view.snapshot"] [data-testid=assistant-snapshot] img'); return !!img && img.complete && img.naturalWidth > 0; })()`), 10_000));
     smoke.check('with the level and the view on its second line', await smoke.waitFor(`${panel} [data-testid=assistant-tool][data-command="view.snapshot"] [data-testid=assistant-tool-meta]`, 3000, `${groundName} · plan`));
     await smoke.waitFor(`${panel} [data-testid=assistant-item][data-kind=assistant]`, 8000, 'I looked at the ground floor');
-    await idle();
+    await idle('after the snapshot');
     await smoke.shots('68-otto-panel');
 
     await run('edit.undo');

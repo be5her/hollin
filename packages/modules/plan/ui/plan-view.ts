@@ -1,6 +1,6 @@
 import { DOCUMENT, Component, DestroyRef, ElementRef, Injector, afterNextRender, afterRenderEffect, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
 import { FormField, form } from '@angular/forms/signals';
-import { DEFAULT_RULE_LIMITS, deriveLevels, type DimensionKind, type GlobalConfig, type ProjectDoc, type Vec2, parseAngle } from '@studio/core';
+import { DEFAULT_RULE_LIMITS, connectorsOnLevel, deriveLevels, type DimensionKind, type GlobalConfig, type ProjectDoc, type Vec2, parseAngle } from '@studio/core';
 import { AppState, AssistantDrafts, Checkbox, ContextMenu, HostBridge, Icon, IconButton, Input, Kbd, LengthInput, OttoEdits, OttoMark, ProjectDocs, ProjectView, RoomSketch, Select, TabsState, Toasts, Units, type ContextMenuItem } from '@studio/ui';
 import { DEFAULT_TOOL_OPTIONS, LIGHT_THEME, Plan2dEditor, drawingScale, readPlanTheme, renderLevelToPng, type Camera, type ShapeOptions, type SnapResult, type StairShape, type TextRequest, type ToolId, type UnderlayMode, type WallOptions } from '@studio/viewport';
 import { ArrowBigUp, Blinds, BrickWall, ChevronDown, ChevronsUp, Circle, CircleDot, DoorOpen, DraftingCompass, Footprints, LandPlot, Lightbulb, Magnet, Maximize, MousePointer2, MoveUpRight, Pentagon, Ruler, SeparatorVertical, Sofa, Square, TrendingUp, Type, ZoomIn, ZoomOut } from 'lucide';
@@ -47,6 +47,8 @@ export class PlanView {
   private readonly view = inject(ProjectView);
   private readonly app = inject(AppState);
   private readonly host = inject(HostBridge);
+  /** The command palette's modifier as the title bar shows it (Ctrl, or ⌘ on a Mac). */
+  protected readonly modKey = this.host.modKey;
   private readonly toasts = inject(Toasts);
   private readonly menu = inject(ContextMenu);
   private readonly planSelection = inject(PlanSelection);
@@ -97,12 +99,16 @@ export class PlanView {
   });
   protected readonly entityCount = signal(0);
   protected readonly connectorCount = signal(0);
-  /** The active level has nothing on it yet: the "Draw the first wall." guide shows over the grid. */
+  /**
+   * The active level has nothing on it yet: the "Draw the first wall." guide shows over the grid. Read from
+   * the document (its entities, and every connector that starts, ends or passes there), not from what the
+   * last frame drew, so a stair panned off-screen does not bring the guide back.
+   */
   protected readonly levelEmpty = computed(() => {
     const doc = this.doc();
     const id = this.activeLevelId();
     if (!doc || !id || !doc.levels[id]) return false;
-    return Object.keys(doc.levelData[id]?.entities ?? {}).length === 0 && this.connectorCount() === 0;
+    return Object.keys(doc.levelData[id]?.entities ?? {}).length === 0 && connectorsOnLevel(doc, id, this.levels()).length === 0;
   });
   /** The sentence the empty level's guide offers to Otto, which the user can change before Enter sends it. */
   protected readonly ottoExample = 'a 5 by 7 m studio with a bathroom in the corner';
@@ -379,29 +385,40 @@ export class PlanView {
     });
   }
 
-  /** Draws the ground floor into a canvas and stores it as the project's thumbnail (the Home card shows it). */
+  /**
+   * Draws the ground floor into a canvas and stores it as the project's thumbnail (the Home card shows it).
+   * Its labels are in the bundled faces, so it waits for them as the snapshot responder does; what it draws is
+   * taken now, since the view may be gone (a tab left) by the time they have loaded.
+   */
   private writeThumbnail(): void {
     clearTimeout(this.thumbnailTimer);
     this.thumbnailDirty = false;
     const projectId = untracked(this.projectId);
     const doc = this.thumbnailDoc;
     if (!doc) return;
-    const png = renderLevelToPng(doc, doc.building.groundLevelId, {
+    const theme = LIGHT_THEME;
+    const options = {
       width: 480,
       height: 360,
-      theme: LIGHT_THEME,
+      theme,
       units: untracked(this.units.settings),
       limits: untracked(this.ruleLimits),
       cache: this.planGeometry.cache,
-      createCanvas: (width, height) => {
+      createCanvas: (width: number, height: number) => {
         const c = this.document.createElement('canvas');
         c.width = width;
         c.height = height;
         return c;
       },
-    });
-    if (!png) return;
-    this.host.invoke('project.thumbnail.set', { id: projectId, png }, null).catch(() => undefined);
+    };
+    void Promise.all([this.document.fonts.load(`12px ${theme.fontSans}`), this.document.fonts.load(`12px ${theme.fontMono}`)])
+      .catch(() => undefined)
+      .then(() => {
+        const png = renderLevelToPng(doc, doc.building.groundLevelId, options);
+        if (png) return this.host.invoke('project.thumbnail.set', { id: projectId, png }, null);
+        return undefined;
+      })
+      .catch(() => undefined);
   }
 
   private mount(): void {

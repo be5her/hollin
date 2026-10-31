@@ -324,8 +324,20 @@ describe('ProjectService', () => {
     await svc.session(a.id)!.flush();
     await vi.waitFor(() => expect(svc.library.get(a.id)?.assistantEditedAt).toMatch(/^\d{4}-/));
     const at = svc.library.get(a.id)!.assistantEditedAt;
-    await svc.library.reindex();
+    // Undoing Otto's entry is the user's act: the save it brings does not move the stamp (a redo is Otto's edit again).
+    const saved = svc.library.get(a.id)!.updatedAt;
+    await new Promise((r) => setTimeout(r, 5));
+    await project.undo();
+    await svc.session(a.id)!.flush();
+    await vi.waitFor(() => expect(svc.library.get(a.id)?.updatedAt).not.toBe(saved));
     expect(svc.library.get(a.id)?.assistantEditedAt).toBe(at);
+    await project.redo();
+    await svc.session(a.id)!.flush();
+    await vi.waitFor(() => expect(svc.library.get(a.id)?.assistantEditedAt).not.toBe(at));
+    await svc.library.reindex();
+    expect(svc.library.get(a.id)?.assistantEditedAt).not.toBe(at);
+    const redone = svc.library.get(a.id)!.assistantEditedAt;
+    expect(svc.library.get(a.id)?.assistantEditedAt).toBe(redone);
     // An index written before the field existed reads as "never".
     await svc.close(a.id);
     await svc.stop();

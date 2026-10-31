@@ -174,7 +174,9 @@ export class DocumentEngine {
       for (const [k, a] of after) if (JSON.stringify(a.value) === JSON.stringify(before.get(k)?.value)) after.delete(k);
       for (const k of [...before.keys()]) if (!after.has(k)) before.delete(k);
       this.undoStack.pop();
-      entry = { ...top, before, after, atMs: now, at: new Date(now).toISOString(), bytes: sizeOf(before) + sizeOf(after), ...whereOf(committed.doc, before, after) };
+      // Where the merged step lies is worked out afresh: the earlier step's level and layer may no longer be the only ones.
+      const { levelId: _levelId, level: _level, layer: _layer, ...rest } = top;
+      entry = { ...rest, before, after, atMs: now, at: new Date(now).toISOString(), bytes: sizeOf(before) + sizeOf(after), ...whereOf(committed.doc, before, after) };
       if (after.size) this.undoStack.push(entry);
       txId = after.size ? entry.id : null;
     } else {
@@ -201,6 +203,24 @@ export class DocumentEngine {
     for (const r of committed.after.values()) this.touchedAt.set(r.id, { seq: this.seqValue, author });
     this.emit({ id: entry.id, label, author, kind: 'do' }, patchOps(committed.before, committed.after));
     return { result, changed: true, txId };
+  }
+
+  /**
+   * What an undo or redo entry added or changed (its entity and connector ids, the removed ones left out) and the level
+   * to show them on: the entry's one level, else the level of the first entity it changed, null for connectors alone.
+   * For selecting a History row's change on the plan; null when no entry has that id.
+   */
+  changed(txId: string): { levelId: string | null; ids: string[] } | null {
+    const entry = this.undoStack.find((e) => e.id === txId) ?? this.redoStack.find((e) => e.id === txId);
+    if (!entry) return null;
+    const ids: string[] = [];
+    let levelId: string | null = entry.levelId ?? null;
+    for (const r of entry.after.values()) {
+      if ((r.c !== 'entity' && r.c !== 'connector') || r.value === undefined) continue;
+      ids.push(r.id);
+      if (!levelId && r.c === 'entity' && r.lv) levelId = r.lv;
+    }
+    return { levelId, ids };
   }
 
   /** Undoes the newest change. With `ifTop`, only when that is the newest change (so an agent never undoes someone else's work). */

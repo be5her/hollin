@@ -165,9 +165,12 @@ function claudeCodeStatus(host: HostApi, refresh = false): Promise<ClaudeCodeSta
     host.emit('assistant.probe', { checking: true });
     const status = probeClaudeCode(configured);
     probe = { path: configured, status };
-    void status.finally(() => {
-      if (probe?.status === status) host.emit('assistant.probe', { checking: false });
-    });
+    // A failed probe is the caller's to see (it awaits `status`); this chain only announces the end, and must not leave a rejection unhandled.
+    void status
+      .finally(() => {
+        if (probe?.status === status) host.emit('assistant.probe', { checking: false });
+      })
+      .catch(() => {});
   }
   return probe.status;
 }

@@ -200,7 +200,8 @@ export class ProjectService implements ProjectsApi {
     });
     const engine = new DocumentEngine(doc, {
       onChange: (next, patch) => {
-        if (patch.tx.author.kind === 'assistant' && patch.tx.kind !== 'meta' && patch.tx.kind !== 'replace') this.assistantUnsaved.add(id);
+        // Only Otto's own edit (or its redo) marks the project: undoing Otto's entry is the user rubbing it out.
+        if (patch.tx.author.kind === 'assistant' && (patch.tx.kind === 'do' || patch.tx.kind === 'redo')) this.assistantUnsaved.add(id);
         session.setDoc(next);
         this.opts.emit('doc.patched', { projectId: id, ...patch });
       },
@@ -488,6 +489,7 @@ export class ProjectService implements ProjectsApi {
       redo: () => this.edits.run(id, async () => engine().redo()),
       history: () => ({ ...engine().entries(), seq: engine().seq, epoch: engine().epoch }),
       lastTouched: (entityId) => engine().lastTouched(entityId),
+      changed: (txId) => engine().changed(txId),
     };
   }
 

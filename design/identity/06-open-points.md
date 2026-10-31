@@ -26,7 +26,7 @@ All six below were resolved on 31 Oct 2026 and are recorded in `00-decisions.md`
 - **The length input's unit suffix** moves the unit out of the input's value: templates and the smoke checks that read the value change together.
 - **History is newest-first**: a call waiting for your yes sits greyed at the top, not the bottom as `00-decisions.md` §5 says.
 - **Renaming `mcpServerName`** breaks users' `mcp__plan-studio__*` allow-lists in their Claude Code / Cursor configs; the release note must say so.
-- **`wordmark.svg` is a hand-drawn serif after Fraunces**; outline the real font before anything ships with it.
+- ~~**`wordmark.svg` is a hand-drawn serif after Fraunces**; outline the real font before anything ships with it.~~ Resolved: the app draws the wordmark as live text in the bundled Fraunces (`00-decisions.md` §6a).
 - **Alegreya Sans has no variable build**: four static WOFF2 files (Regular, Italic, Medium, Bold, ~376 KB); IBM Plex Mono two statics (~92 KB); Fraunces two variable TTFs (~820 KB). About 1.3 MB in all.
 
 ## Where the build starts

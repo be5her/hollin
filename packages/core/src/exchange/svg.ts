@@ -146,10 +146,14 @@ export function drawingToSvg(drawing: PlanDrawing, options: SvgOptions = {}): st
     out.push('<g id="title-block" data-layer="Title block">');
     const d = block.lines.map(([a, b]) => `M${num(a[0])} ${num(height - a[1])}L${num(b[0])} ${num(height - b[1])}`).join('');
     out.push(`<path d="${d}" fill="none" stroke="${PRINT_COLORS.fg}" stroke-width="0.35" stroke-linecap="square"/>`);
-    for (const t of block.texts) {
+    block.texts.forEach((t, i) => {
+      if (t.stop) return;
       const weight = t.bold ? ' font-weight="700"' : '';
-      out.push(`<text x="${num(t.at[0])}" y="${num(height - t.at[1])}" font-size="${num(t.size)}" font-family="${SANS_STACK}"${weight} text-anchor="${t.align === 'right' ? 'end' : 'start'}" fill="${t.color ?? PRINT_COLORS.fg}">${xmlEscape(t.text)}</text>`);
-    }
+      // The wordmark's full stop rides on the name's text, so it follows the name in whatever font the reader draws it with.
+      const next = block.texts[i + 1];
+      const stop = next?.stop ? `<tspan fill="${next.color ?? PRINT_COLORS.fg}">${xmlEscape(next.text)}</tspan>` : '';
+      out.push(`<text x="${num(t.at[0])}" y="${num(height - t.at[1])}" font-size="${num(t.size)}" font-family="${SANS_STACK}"${weight} text-anchor="${t.align === 'right' ? 'end' : 'start'}" fill="${t.color ?? PRINT_COLORS.fg}">${xmlEscape(t.text)}${stop}</text>`);
+    });
     out.push('</g>');
   }
   out.push('</svg>', '');

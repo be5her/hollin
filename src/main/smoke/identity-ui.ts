@@ -16,6 +16,23 @@ const composer = '[data-testid=otto-composer]';
  */
 export async function smokeIdentityUi(smoke: Smoke): Promise<void> {
   const { host } = smoke;
+  smoke.section('identity: the bundled fonts');
+  // `check` alone is true for a family no face is declared for (the system's fonts need no loading), so the
+  // declared faces must also have loaded: in the packaged build that proves `out/renderer/media` loads over file://.
+  const fonts = await smoke.js<{ family: string; check: boolean; loaded: number; failed: number }[]>(`(async () => {
+    await document.fonts.ready;
+    const families = ['Alegreya Sans', 'IBM Plex Mono', 'Fraunces'];
+    await Promise.all(families.map((f) => document.fonts.load('12px "' + f + '"').catch(() => [])));
+    const faces = [...document.fonts];
+    return families.map((family) => ({
+      family,
+      check: document.fonts.check('12px "' + family + '"'),
+      loaded: faces.filter((f) => f.family.replace(/["']/g, '') === family && f.status === 'loaded').length,
+      failed: faces.filter((f) => f.family.replace(/["']/g, '') === family && f.status === 'error').length,
+    }));
+  })()`);
+  smoke.check('Alegreya Sans, IBM Plex Mono and Fraunces load from the bundle', fonts.length === 3 && fonts.every((f) => f.check && f.loaded > 0 && f.failed === 0), fonts);
+
   smoke.section('identity: Home cards');
   await smoke.run<ProjectSummary>('project.create', { name: 'Garden room sketch', open: false });
   await smoke.click('[data-testid=tab][data-type="shell.home"]');
@@ -99,7 +116,7 @@ export async function smokeIdentityUi(smoke: Smoke): Promise<void> {
     await smoke.js(`document.querySelector('${tab} [data-testid=plan-empty-otto]').focus()`);
     await smoke.key('Enter');
     smoke.check("Enter on Otto's line sends the sentence and opens the Otto tab", (await smoke.waitFor(`${tab} [data-testid=assistant-panel] [data-testid=assistant-item][data-kind=user]`, 5000, told)) && (await smoke.waitFor(`${tab} [data-testid=assistant-item][data-kind=assistant]`, 8000, 'shall I put the bathroom')));
-    await smoke.until(async () => (await smoke.run<{ status: string }>('assistant.state', {}, { projectId: studio.id })).status === 'idle');
+    smoke.check("and Otto's chat is idle again before your wall", await smoke.until(async () => (await smoke.run<{ status: string }>('assistant.state', {}, { projectId: studio.id })).status === 'idle'));
     const studioGround = host.projects.session(studio.id)!.doc.building.groundLevelId;
     await smoke.run('plan.wall.add', { levelId: studioGround, from: [0, 0], to: [4000, 0], thickness: 200 }, { projectId: studio.id });
     smoke.check('the guide is gone once the level has a wall', (await smoke.until(async () => Number(await canvasAttr(smoke, 'entities')) > 0)) && (await smoke.gone(`${tab} [data-testid=plan-empty]`)));
@@ -116,12 +133,12 @@ export async function smokeIdentityUi(smoke: Smoke): Promise<void> {
   await smoke.js(`document.querySelector('[data-section=about]').scrollIntoView({ block: 'end' })`);
   smoke.check('About shows the icon and the wordmark', (await smoke.waitFor('[data-testid=settings-about] x-app-mark svg')) && (await smoke.waitFor('[data-testid=settings-about] x-wordmark', 3000, BRANDING.productName)));
   smoke.check('and the description from the branding', (await smoke.text('[data-testid=about-description]')) === BRANDING.description);
-  const credit = await smoke.js<{ text: string; otto: string; color: string; product: string }>(`(() => {
+  const credit = await smoke.js<{ text: string; otto: string; color: string; product: string; style: string }>(`(() => {
     const el = document.querySelector('[data-testid=about-credit]');
     const otto = el.querySelector('.text-ai');
-    return { text: el.textContent.replace(/\\s+/g, ' ').trim(), otto: otto?.textContent?.trim() ?? '', color: otto ? getComputedStyle(otto).color : '', product: getComputedStyle(el.firstElementChild).color };
+    return { text: el.textContent.replace(/\\s+/g, ' ').trim(), otto: otto?.textContent?.trim() ?? '', color: otto ? getComputedStyle(otto).color : '', style: otto ? getComputedStyle(otto).fontStyle : '', product: getComputedStyle(el.firstElementChild).color };
   })()`);
-  smoke.check('the credit line names the product with Otto, in two colours', credit.text === `${BRANDING.productName} with Otto` && credit.otto === 'with Otto' && credit.color !== credit.product, credit);
+  smoke.check('the credit line names the product with Otto, in two colours, "with Otto" in italic', credit.text === `${BRANDING.productName} with Otto` && credit.otto === 'with Otto' && credit.color !== credit.product && credit.style === 'italic', credit);
   smoke.check('then the model and the rule Otto keeps', await smoke.waitFor('[data-testid=about-assistant]', 3000, 'asks before it deletes anything'));
   const version = (await smoke.text('[data-testid=about-version]')) ?? '';
   smoke.check('and the version with the fonts and their licences', version.includes(host.opts.version) && ['Alegreya Sans', 'IBM Plex Mono', 'Fraunces (OFL 1.1)', 'Lucide (ISC)'].every((t) => version.includes(t)), version);
@@ -136,14 +153,43 @@ export async function smokeIdentityUi(smoke: Smoke): Promise<void> {
 
   smoke.section('identity: first launch');
   const all = host.projects.list();
+  const launchFake = new FakeClaude();
+  // The project Otto's line creates, once it has (set inside a wait, so held in an object).
+  const launch: { project?: ProjectSummary } = {};
   for (const p of all) await smoke.run('project.trash', { id: p.id });
   try {
     await smoke.click('[data-testid=tab][data-type="shell.home"]');
     smoke.check('an empty library shows the first-launch guide', await smoke.waitFor('[data-testid=library-first-launch]', 5000, 'Start with a room you know.'));
-    smoke.check('with the wordmark, New project, Import… and Otto\'s line', (await smoke.waitFor('[data-testid=library-first-launch] x-wordmark')) && (await smoke.waitFor('[data-testid=first-launch-new]')) && (await smoke.waitFor('[data-testid=first-launch-import]')) && (await smoke.waitFor('[data-testid=first-launch-otto]', 3000, 'Or start with Otto')));
+    smoke.check('with the wordmark, New project, Import… and Otto\'s line', (await smoke.waitFor('[data-testid=library-first-launch] x-wordmark')) && (await smoke.waitFor('[data-testid=first-launch-new]')) && (await smoke.waitFor('[data-testid=first-launch-import]')) && (await smoke.waitFor('[data-testid=first-launch-otto]', 3000, 'Or tell Otto')));
     smoke.check('and without the filters or the grid', (await smoke.count('[data-testid=library-search]')) === 0 && (await smoke.count('[data-testid=project-grid]')) === 0);
     await smoke.shots('65-first-launch');
+
+    // Otto's line there is the empty project's editable sentence: Enter creates a project and sends it, like Draft it.
+    const before = new Set(host.projects.list().map((p) => p.id));
+    process.env.STUDIO_AI_BASE_URL = await launchFake.start();
+    await smoke.run('ai.key.set', { key: 'sk-ant-smoke-key-0000' });
+    launchFake.script({ text: 'A 4 by 5 m bedroom: shall I put the door on the hall side?' });
+    const input = '[data-testid=library-first-launch] [data-testid=first-launch-otto-input]';
+    smoke.check("first launch's Otto line holds an editable sentence, ready with a key", (await smoke.waitFor('[data-testid=first-launch-otto][data-ready=true]', 5000, 'Or tell Otto:')) && (await smoke.js<string>(`document.querySelector('${input}')?.value ?? ''`)) === 'a 5 by 7 m studio with a bathroom in the corner');
+    const told = 'a 4 by 5 m bedroom, door to the hall';
+    await smoke.fill(input, told);
+    await smoke.js(`document.querySelector('${input}').focus()`);
+    await smoke.key('Enter');
+    smoke.check(
+      'Enter on it creates a project from the sentence and sends it to Otto',
+      (await smoke.until(() => (launch.project = host.projects.list().find((p) => !before.has(p.id) && p.description === told)) !== undefined)) &&
+        (await smoke.waitFor(`${tab} [data-testid=assistant-panel] [data-testid=assistant-item][data-kind=user]`, 5000, told)) &&
+        (await smoke.waitFor(`${tab} [data-testid=assistant-item][data-kind=assistant]`, 8000, 'shall I put the door')),
+      launch.project,
+    );
+    const launched = launch.project;
+    if (launched) smoke.check("and Otto's chat there is idle again", await smoke.until(async () => (await smoke.run<{ status: string }>('assistant.state', {}, { projectId: launched.id })).status === 'idle'));
   } finally {
+    delete process.env.STUDIO_AI_BASE_URL;
+    await launchFake.close();
+    await smoke.run('ai.key.clear');
+    // The project Otto's line made goes to the trash, so later sections see the library they expect.
+    if (launch.project) await smoke.run('project.trash', { id: launch.project.id });
     for (const p of all) await smoke.run('project.restore', { id: p.id });
   }
   smoke.check('the restored projects are back on Home', await smoke.until(async () => (await smoke.count('[data-testid=project-card]')) === host.projects.list().length && host.projects.list().length === all.length));

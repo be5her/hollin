@@ -7,6 +7,8 @@ Every notable change to the app, newest first. The format follows [Keep a Change
 ### Added
 - A first-launch guide, an empty-project guide and a "Start with Otto" card on Home.
 - Otto's recent edits are marked on the plan for a minute, and what it is about to delete is outlined until you answer; "Start with Otto" on Home drafts the ground floor from a sentence; Home cards show Otto's mark when it has worked on the project.
+- History: click a change to select what it changed on the plan, double-click to undo down to it.
+- The first-launch guide's Otto line takes a sentence: Enter starts a project with it and sends it to Otto.
 
 ### Changed
 - The assistant is Otto: its tab, its voice, its edits signed Otto in History and on the status bar; outside MCP agents stay "MCP · <name>".
