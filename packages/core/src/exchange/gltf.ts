@@ -15,16 +15,16 @@ import type { Mesh } from '../solids/mesh';
  * finishes without a material are drawn in the walls' colour.
  */
 export const SOLID_COLORS: Readonly<Record<SolidKind, string>> = {
-  wall: '#e9e6df',
-  slab: '#c9c6bf',
-  column: '#d9d5cc',
-  glass: '#8fb8de',
-  connector: '#d8cfc0',
-  rail: '#5a5e66',
-  car: '#2f6fda',
-  frame: '#e9e6df',
-  leaf: '#e9e6df',
-  finish: '#e9e6df',
+  wall: '#efe6d6',
+  slab: '#cdbea7',
+  column: '#ddd1bd',
+  glass: '#9bb9c7',
+  connector: '#d5c2a3',
+  rail: '#5a4f45',
+  car: '#b9552f',
+  frame: '#efe6d6',
+  leaf: '#efe6d6',
+  finish: '#efe6d6',
 };
 
 /** How see-through the 3D view draws glass without a material. */

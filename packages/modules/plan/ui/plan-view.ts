@@ -385,6 +385,11 @@ export class PlanView {
     const themes = new MutationObserver(() => this.editor.setTheme(readPlanTheme(this.document.documentElement)));
     themes.observe(this.document.documentElement, { attributes: true, attributeFilter: ['class'] });
     this.editor.setTheme(readPlanTheme(this.document.documentElement));
+    // Labels are drawn in the bundled faces, which load on first use: draw again once they have.
+    const theme = readPlanTheme(this.document.documentElement);
+    void Promise.all([this.document.fonts.load(`12px ${theme.fontSans}`), this.document.fonts.load(`12px ${theme.fontMono}`)])
+      .then(() => this.editor.setTheme(readPlanTheme(this.document.documentElement)))
+      .catch(() => undefined);
     this.destroyRef.onDestroy(() => {
       resizes.disconnect();
       themes.disconnect();

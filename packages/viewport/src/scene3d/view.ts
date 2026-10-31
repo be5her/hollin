@@ -61,7 +61,7 @@ const SKY_LIGHT = 2.9;
 const KEY_LIGHT = 1.15;
 /** At night the sky barely lights anything, and the background is dark whatever the theme. */
 const NIGHT_SKY = 0.12;
-const NIGHT_BACKGROUND = '#0b0e14';
+const NIGHT_BACKGROUND = '#0f0d0b';
 /** At most this many of the design's lights are on at once (the nearest to the camera), with no shadows, so software GL keeps up. */
 export const MAX_LIGHTS = 16;
 let areaLightsReady = false;

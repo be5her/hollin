@@ -2,7 +2,7 @@
   <div class="fixed inset-0 z-50 flex items-start justify-center bg-black/40" [class]="pending.kind === 'component' ? 'pt-[6vh]' : 'pt-[18vh]'" (mousedown)="cancel(pending)">
     @if (pending.kind === 'component') {
       <div
-        class="w-[560px] max-w-[92vw] max-h-[88vh] overflow-y-auto rounded-lg border border-edge bg-canvas shadow-xl p-4 outline-none"
+        class="w-[560px] max-w-[92vw] max-h-[88vh] overflow-y-auto rounded-[10px] border border-edge bg-canvas shadow-[var(--shadow-pop)] p-4 outline-none"
         role="dialog"
         aria-modal="true"
         tabindex="-1"
@@ -15,7 +15,7 @@
       </div>
     } @else {
       <div
-        class="w-[440px] max-w-[90vw] rounded-lg border border-edge bg-canvas shadow-xl p-4 outline-none"
+        class="w-[440px] max-w-[90vw] rounded-[10px] border border-edge bg-canvas shadow-[var(--shadow-pop)] p-4 outline-none"
         role="dialog"
         aria-modal="true"
         tabindex="-1"

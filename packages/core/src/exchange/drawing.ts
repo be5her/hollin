@@ -405,7 +405,7 @@ export function planDrawing(doc: ProjectDoc, levelId: string, options: PlanDrawi
     const g = geometry.rooms.get(e.id);
     const gap = h * 0.15;
     if (g?.polygon && g.enclosed) {
-      layer.push(fill([g.polygon, ...g.holes], 'room', g.shared ? 0.04 : 0.1));
+      layer.push(fill([g.polygon, ...g.holes], 'room', g.shared ? 0.06 : 0.18));
       for (const ring of [g.polygon, ...g.holes]) layer.push(polyStroke(ring, true, PEN.fine));
       const name = e.number ? `${e.number} ${e.name}` : e.name;
       layer.push(text(add(g.labelAt, [0, gap]), name, h, { baseline: 'bottom', color: 'fg' }));

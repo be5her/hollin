@@ -2,7 +2,7 @@
   <div class="fixed bottom-8 right-3 z-50 flex flex-col gap-2 w-80">
     @for (t of toasts.toasts(); track t.id) {
       <div
-        class="flex items-start gap-2 rounded-md border bg-canvas shadow-lg px-3 py-2 text-sm"
+        class="flex items-start gap-2 rounded-lg border bg-canvas shadow-[var(--shadow-pop)] px-3 py-2 text-sm"
         [class]="t.kind === 'error' ? 'border-danger/50' : t.kind === 'success' ? 'border-success/50' : 'border-edge'"
       >
         <svg [xIcon]="icons[t.kind]" class="size-4 mt-0.5 shrink-0" [class]="t.kind === 'error' ? 'text-danger' : t.kind === 'success' ? 'text-success' : 'text-muted'"></svg>

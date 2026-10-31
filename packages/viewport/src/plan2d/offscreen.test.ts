@@ -36,7 +36,7 @@ describe('renderLevelToPng', () => {
     const png = renderLevelToPng(doc, ground, { width: 480, height: 360, createCanvas: fakeCanvas(log) });
     expect(png).toBe('iVBORw0KGgo=');
     // The background was painted over the whole canvas, in the theme's paper colour.
-    expect(log.slice(0, 2)).toEqual(['fillStyle #f7f7f5', 'fillRect 0,0,480,360']);
+    expect(log.slice(0, 2)).toEqual(['fillStyle #f6f1e8', 'fillRect 0,0,480,360']);
     expect(renderLevelToPng(doc, 'lvl_0000000000000000', { width: 10, height: 10, createCanvas: fakeCanvas([]) })).toBeNull();
   });
 

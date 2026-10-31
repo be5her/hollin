@@ -23,7 +23,7 @@ import { modules } from '../modules';
         @if (mod.id === active()) {
           <span class="absolute left-0 top-2 bottom-2 w-0.5 rounded-r bg-accent"></span>
         }
-        <svg [xIcon]="mod.icon" strokeWidth="1.75" class="size-[18px]"></svg>
+        <svg [xIcon]="mod.icon" class="size-[18px]"></svg>
       </button>
     }
   `,

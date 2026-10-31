@@ -35,7 +35,7 @@ export function drawIcon(renderer: Renderer2, svg: SVGElement, icon: IconNode): 
 })
 export class Icon {
   readonly xIcon = input.required<IconNode>();
-  readonly strokeWidth = input(2, { transform: numberAttribute });
+  readonly strokeWidth = input(1.6, { transform: numberAttribute });
 
   constructor() {
     const svg = inject<ElementRef<SVGElement>>(ElementRef).nativeElement;

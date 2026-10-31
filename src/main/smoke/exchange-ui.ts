@@ -52,8 +52,8 @@ export async function smokeExchangeUi(smoke: Smoke, duplexId: string): Promise<v
   const clear3d = await read(await run({ path: path.join(out, 'Clear 3d.png'), view: '3d', width: 320, height: 240, transparent: true }));
   const corners = { light: corner(light), dark: corner(dark), clear: corner(clear), clear3d: corner(clear3d), building: corner(buildingBytes) };
   console.log(`PNG corners: ${JSON.stringify(corners)}; light ${light.length} bytes, dark ${dark.length}, transparent ${clear.length}, transparent 3D ${clear3d.length}`);
-  smoke.check('the light plan has the light paper in its corner, opaque', corners.light === '#f7f7f5/255', corners);
-  smoke.check('the dark plan differs and has the dark paper in its corner', !Buffer.from(dark).equals(Buffer.from(light)) && corners.dark === '#17181a/255', corners);
+  smoke.check('the light plan has the light paper in its corner, opaque', corners.light === '#f6f1e8/255', corners);
+  smoke.check('the dark plan differs and has the dark paper in its corner', !Buffer.from(dark).equals(Buffer.from(light)) && corners.dark === '#1d1a17/255', corners);
   smoke.check('a transparent plan has an alpha-0 corner', readPngHeader(clear)?.colorType === 6 && corners.clear?.endsWith('/0') === true, corners);
   smoke.check('and so has a transparent 3D render, where the opaque one has its sky', corners.clear3d?.endsWith('/0') === true && corners.building?.endsWith('/255') === true, corners);
   if (smoke.shotsDir) {
@@ -222,7 +222,7 @@ export async function smokeExchangeDialogs(smoke: Smoke, duplexId: string): Prom
   smoke.check('a dark 320 × 240 PNG is written', await exportTo(pngPath));
   const pngBytes = new Uint8Array(await fs.readFile(pngPath).catch(() => Buffer.alloc(0)));
   const head = readPngHeader(pngBytes);
-  smoke.check('its IHDR says 320 × 240 and its corner is the dark paper', head?.width === 320 && head.height === 240 && corner(pngBytes) === '#17181a/255', { head, corner: corner(pngBytes) });
+  smoke.check('its IHDR says 320 × 240 and its corner is the dark paper', head?.width === 320 && head.height === 240 && corner(pngBytes) === '#1d1a17/255', { head, corner: corner(pngBytes) });
 
   const glbPath = path.join(out, 'Dialog.glb');
   await openExport();

@@ -4,90 +4,172 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /*
- * Semantic colours. A placeholder neutral look until the visual design is decided: change these
- * values (both modes) and every component follows. Keep --titlebar and --titlebar-fg as #rrggbb,
- * because they also colour the native window buttons.
+ * The bundled faces (OFL 1.1, licences beside the files in ./fonts). The build copies them into
+ * out/renderer/media and rewrites these URLs, so they load from the app itself under font-src 'self'.
+ */
+@font-face {
+  font-family: 'Alegreya Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./fonts/AlegreyaSans-Regular.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Alegreya Sans';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./fonts/AlegreyaSans-Italic.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Alegreya Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('./fonts/AlegreyaSans-Medium.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Alegreya Sans';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('./fonts/AlegreyaSans-Bold.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./fonts/IBMPlexMono-Regular.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('./fonts/IBMPlexMono-Medium.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Fraunces';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('./fonts/Fraunces[SOFT,WONK,opsz,wght].ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Fraunces';
+  font-style: italic;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('./fonts/Fraunces-Italic[SOFT,WONK,opsz,wght].ttf') format('truetype');
+}
+
+/*
+ * Semantic colours: a clean sheet on a desk. Warm paper and ink, graphite for the secondary,
+ * one terracotta mark for the accent and the selection; Otto, the assistant, draws in a mulberry
+ * ink (--ai*, --plan-ai) that nothing else uses. Every component reads these, in both modes.
+ * Keep every value #rrggbb: --titlebar and --titlebar-fg also colour the native window buttons
+ * (forwarded only when they are literal hex), and core mirrors --plan-* and --scene-*
+ * (snapshot-theme.test.ts). No nested braces in these two blocks: that test reads each block to
+ * its first closing brace.
  */
 :root {
-  --canvas: #f7f7f5;
-  --surface: #efefec;
-  --elevated: #e5e5e1;
-  --fg: #1d1f22;
-  --muted: #676b72;
-  --edge: #dadad5;
-  --accent: #2f6fda;
-  --accent-hover: #2459b5;
-  --accent-fg: #ffffff;
-  --danger: #d23434;
-  --success: #1f8a4c;
-  --warning: #b7791f;
-  --titlebar: #efefec;
-  --titlebar-fg: #1d1f22;
-  --font-mono: ui-monospace, 'Cascadia Code', 'JetBrains Mono', Consolas, 'Liberation Mono', monospace;
-  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  color-scheme: light;
+  --canvas: #f6f1e8;
+  --surface: #efe8dc;
+  --elevated: #e6ddcd;
+  --fg: #2a2521;
+  --muted: #7b7064;
+  --edge: #dcd2c2;
+  --accent: #b9552f;
+  --accent-hover: #9c4525;
+  --accent-fg: #fbf6ee;
+  --danger: #b5392c;
+  --success: #4f7d3d;
+  --warning: #b8841f;
+  --titlebar: #efe8dc;
+  --titlebar-fg: #2a2521;
+  --ai: #8a3f6f;
+  --ai-hover: #733259;
+  --ai-fg: #fbf6ee;
+  --ai-tint: #f1e3ea;
+  --font-sans: 'Alegreya Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Code', Consolas, monospace;
+  --font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
+  /* The one soft shadow (dialogs, the palette, menus, toasts): ink at 12 %. */
+  --shadow-pop: 0 8px 24px color-mix(in srgb, var(--fg) 12%, transparent);
   /* The plan canvas (read by @studio/viewport; keep as #rrggbb, alpha is applied in code). */
-  --plan-grid: #e9e9e5;
-  --plan-grid-major: #d6d6d1;
-  --plan-wall: #4a4e55;
-  --plan-wall-line: #1d1f22;
-  --plan-room: #2f6fda;
-  --plan-slab: #e2e2dd;
-  --plan-dim: #2f6fda;
-  --plan-underlay: #9a9ca3;
-  --plan-snap: #1f8a4c;
-  --plan-selection: #2f6fda;
-  --plan-warning: #b7791f;
-  --plan-connector: #33363c;
-  --plan-decor: #8a6a45;
+  --plan-grid: #ebe4d7;
+  --plan-grid-major: #dbd1bf;
+  --plan-wall: #3b3531;
+  --plan-wall-line: #231f1c;
+  --plan-room: #8b9a6b;
+  --plan-slab: #e9e1d2;
+  --plan-dim: #3f5390;
+  --plan-underlay: #a89c8c;
+  --plan-snap: #2f8a57;
+  --plan-selection: #b9552f;
+  --plan-warning: #b8841f;
+  --plan-connector: #4b433d;
+  --plan-decor: #8c6b4a;
+  --plan-ai: #8a3f6f;
   /* The 3D view: each kind of solid, and the lines along their edges. */
-  --scene-edge: #3b3e44;
-  --scene-wall: #e9e6df;
-  --scene-slab: #c9c6bf;
-  --scene-column: #d9d5cc;
-  --scene-glass: #8fb8de;
-  --scene-connector: #d8cfc0;
-  --scene-rail: #5a5e66;
-  --scene-car: #2f6fda;
-  --scene-stand-in: #9a9a9a;
+  --scene-edge: #3a332e;
+  --scene-wall: #efe6d6;
+  --scene-slab: #cdbea7;
+  --scene-column: #ddd1bd;
+  --scene-glass: #9bb9c7;
+  --scene-connector: #d5c2a3;
+  --scene-rail: #5a4f45;
+  --scene-car: #b9552f;
+  --scene-stand-in: #a69b8e;
 }
 
 .dark {
-  --canvas: #17181a;
-  --surface: #1e1f22;
-  --elevated: #2a2b2f;
-  --fg: #e8e9eb;
-  --muted: #9a9ca3;
-  --edge: #313338;
-  --accent: #5b9bf8;
-  --accent-hover: #7cb0fa;
-  --accent-fg: #0f1115;
-  --danger: #f27474;
-  --success: #4fcf86;
-  --warning: #f0b94a;
-  --titlebar: #1e1f22;
-  --titlebar-fg: #e8e9eb;
-  --plan-grid: #202225;
-  --plan-grid-major: #2b2d31;
-  --plan-wall: #c9cbd0;
-  --plan-wall-line: #f1f2f4;
-  --plan-room: #5b9bf8;
-  --plan-slab: #222427;
-  --plan-dim: #5b9bf8;
-  --plan-underlay: #676b72;
-  --plan-snap: #4fcf86;
-  --plan-selection: #5b9bf8;
-  --plan-warning: #f0b94a;
-  --plan-connector: #d5d7db;
-  --plan-decor: #d2ab7c;
-  --scene-edge: #121315;
-  --scene-wall: #b9b6ae;
-  --scene-slab: #6d6b66;
-  --scene-column: #a29e95;
-  --scene-glass: #5b8fc4;
-  --scene-connector: #a39a8b;
-  --scene-rail: #d5d7db;
-  --scene-car: #5b9bf8;
-  --scene-stand-in: #5c5b58;
+  color-scheme: dark;
+  --canvas: #1d1a17;
+  --surface: #262220;
+  --elevated: #332d29;
+  --fg: #ebe3d6;
+  --muted: #a2968a;
+  --edge: #3c3531;
+  --accent: #e07c50;
+  --accent-hover: #ea9471;
+  --accent-fg: #1d1a17;
+  --danger: #e8705f;
+  --success: #8fbf6e;
+  --warning: #e2b24a;
+  --titlebar: #262220;
+  --titlebar-fg: #ebe3d6;
+  --ai: #d892bd;
+  --ai-hover: #e3a9cb;
+  --ai-fg: #1d1a17;
+  --ai-tint: #332631;
+  /* A 12 % ink shadow is invisible on the desk: the desk itself at 60 %. */
+  --shadow-pop: 0 8px 24px color-mix(in srgb, var(--canvas) 60%, transparent);
+  --plan-grid: #272320;
+  --plan-grid-major: #352f2b;
+  --plan-wall: #d8cfc2;
+  --plan-wall-line: #f3ece1;
+  --plan-room: #a4b385;
+  --plan-slab: #2a2623;
+  --plan-dim: #91a4e0;
+  --plan-underlay: #7a7066;
+  --plan-snap: #6fcf8a;
+  --plan-selection: #e07c50;
+  --plan-warning: #e2b24a;
+  --plan-connector: #e3dacc;
+  --plan-decor: #d4a97a;
+  --plan-ai: #d892bd;
+  --scene-edge: #141210;
+  --scene-wall: #c4b9a8;
+  --scene-slab: #6f6358;
+  --scene-column: #a89c8c;
+  --scene-glass: #6e93ab;
+  --scene-connector: #a8947a;
+  --scene-rail: #d8cfc2;
+  --scene-car: #e07c50;
+  --scene-stand-in: #5f574f;
 }
 
 @theme inline {
@@ -103,8 +185,13 @@
   --color-danger: var(--danger);
   --color-success: var(--success);
   --color-warning: var(--warning);
+  --color-ai: var(--ai);
+  --color-ai-hover: var(--ai-hover);
+  --color-ai-fg: var(--ai-fg);
+  --color-ai-tint: var(--ai-tint);
   --font-mono: var(--font-mono);
   --font-sans: var(--font-sans);
+  --font-display: var(--font-display);
 }
 
 html,

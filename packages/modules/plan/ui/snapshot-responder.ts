@@ -41,6 +41,11 @@ export class SnapshotResponder {
       const limits = untracked(this.app.config)?.rules ?? DEFAULT_RULE_LIMITS;
       const { width, height, transparent } = request;
       const dark = request.theme === 'dark';
+      // A plan render draws its labels in the bundled faces: have them loaded first.
+      if (request.view !== '3d') {
+        const theme = dark ? DARK_THEME : LIGHT_THEME;
+        await Promise.all([this.document.fonts.load(`12px ${theme.fontSans}`), this.document.fonts.load(`12px ${theme.fontMono}`)]).catch(() => undefined);
+      }
       const png =
         request.view === '3d'
           ? await renderBuildingToPng(doc, { width, height, createCanvas, limits, theme: dark ? DARK_SCENE_THEME : LIGHT_SCENE_THEME, transparent, azimuth: request.azimuth, elevation: request.elevation, mode: request.display, levelId: request.levelId, explode: request.explode, lighting: request.lighting })

@@ -10,7 +10,7 @@ export const TITLE_BAR_HEIGHT = 40;
 
 /** Initial title bar colours, before the renderer reports its theme. Match the defaults in styles.css. */
 function initialColors(): { color: string; symbolColor: string } {
-  return nativeTheme.shouldUseDarkColors ? { color: '#1e1f22', symbolColor: '#e8e9eb' } : { color: '#efefec', symbolColor: '#1d1f22' };
+  return nativeTheme.shouldUseDarkColors ? { color: '#262220', symbolColor: '#ebe3d6' } : { color: '#efe8dc', symbolColor: '#2a2521' };
 }
 
 export function createMainWindow(options: { show?: boolean } = {}): BrowserWindow {

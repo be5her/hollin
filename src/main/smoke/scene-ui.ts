@@ -5,8 +5,8 @@ import { colorDistance, readOrbit, rgbOf, sceneAttr, sceneCanvas, sceneView, typ
 const rect = (x: number, y: number, w: number, h: number) => ({ closed: true, v: [{ p: [x, y] }, { p: [x + w, y] }, { p: [x + w, y + h] }, { p: [x, y + h] }] });
 const line = (a: [number, number], b: [number, number]) => ({ closed: false, v: [{ p: a }, { p: b }] });
 /** The canvas colours from styles.css: what shows where nothing is drawn. */
-const LIGHT_BACKGROUND = rgbOf('#f7f7f5');
-const DARK_BACKGROUND = rgbOf('#17181a');
+const LIGHT_BACKGROUND = rgbOf('#f6f1e8');
+const DARK_BACKGROUND = rgbOf('#1d1a17');
 
 /**
  * The 3D view: a two-storey project drawn through commands shows in the 3D tab; seen from the front,

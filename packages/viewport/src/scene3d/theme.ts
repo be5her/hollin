@@ -16,10 +16,10 @@ export interface SceneTheme {
   standIn: string;
 }
 
-/** The light placeholder palette, used when no document is available (tests, snapshots); its solid colours are core's `SOLID_COLORS`, which the glTF export writes. */
+/** The light palette, the `:root` block of styles.css, used when no document is available (tests, snapshots); its solid colours are core's `SOLID_COLORS`, which the glTF export writes. */
 export const LIGHT_SCENE_THEME: SceneTheme = {
-  background: '#f7f7f5',
-  edge: '#3b3e44',
+  background: '#f6f1e8',
+  edge: '#3a332e',
   wall: SOLID_COLORS.wall,
   slab: SOLID_COLORS.slab,
   column: SOLID_COLORS.column,
@@ -27,21 +27,21 @@ export const LIGHT_SCENE_THEME: SceneTheme = {
   connector: SOLID_COLORS.connector,
   rail: SOLID_COLORS.rail,
   car: SOLID_COLORS.car,
-  standIn: '#9a9a9a',
+  standIn: '#a69b8e',
 };
 
 /** The dark palette, the `.dark` block of styles.css (`packages/modules/plan/snapshot-theme.test.ts` keeps them equal): renders asked for in dark (`export.image`) without the window's theme. */
 export const DARK_SCENE_THEME: SceneTheme = {
-  background: '#17181a',
-  edge: '#121315',
-  wall: '#b9b6ae',
-  slab: '#6d6b66',
-  column: '#a29e95',
-  glass: '#5b8fc4',
-  connector: '#a39a8b',
-  rail: '#d5d7db',
-  car: '#5b9bf8',
-  standIn: '#5c5b58',
+  background: '#1d1a17',
+  edge: '#141210',
+  wall: '#c4b9a8',
+  slab: '#6f6358',
+  column: '#a89c8c',
+  glass: '#6e93ab',
+  connector: '#a8947a',
+  rail: '#d8cfc2',
+  car: '#e07c50',
+  standIn: '#5f574f',
 };
 
 /** The CSS variable each scene colour is read from. */

@@ -1,6 +1,6 @@
 @if (open()) {
   <div class="fixed inset-0 z-40 bg-black/40 flex items-start justify-center pt-[12vh]" (mousedown)="close()">
-    <div class="w-[580px] max-w-[92vw] rounded-lg border border-edge bg-canvas shadow-2xl overflow-hidden" (mousedown)="$event.stopPropagation()" data-testid="palette">
+    <div class="w-[580px] max-w-[92vw] rounded-[10px] border border-edge bg-canvas shadow-[var(--shadow-pop)] overflow-hidden" (mousedown)="$event.stopPropagation()" data-testid="palette">
       @if (pending(); as p) {
         <form class="p-4 flex flex-col gap-3" (submit)="submit($event)" data-testid="palette-form" [attr.data-command]="p.command.id">
           <div>

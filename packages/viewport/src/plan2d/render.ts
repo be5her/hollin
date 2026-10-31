@@ -619,7 +619,7 @@ function drawEntity(ctx: CanvasRenderingContext2D, item: SceneItem, frame: Rende
     case 'room': {
       const g = frame.geometry?.rooms.get(e.id);
       if (g?.polygon && g.enclosed) {
-        ctx.fillStyle = withAlpha(theme.room, g.shared ? 0.04 : 0.1);
+        ctx.fillStyle = withAlpha(theme.room, g.shared ? 0.06 : 0.18);
         ctx.strokeStyle = withAlpha(theme.room, 0.6);
         ctx.lineWidth = px(frame, 1);
         ctx.beginPath();

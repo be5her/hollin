@@ -4,6 +4,9 @@ Every notable change to the app, newest first. The format follows [Keep a Change
 
 ## [Unreleased]
 
+### Changed
+- The look: a paper and ink palette with a terracotta accent, Alegreya Sans, IBM Plex Mono and Fraunces bundled, lighter icons; the plan, the 3D view and the exports' renders follow.
+
 ## [0.1.0] - 2026-10-28
 
 The first release.

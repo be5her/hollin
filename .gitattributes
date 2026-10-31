@@ -5,3 +5,5 @@
 *.icns binary
 *.glb binary
 *.psp binary
+*.woff2 binary
+*.ttf binary
