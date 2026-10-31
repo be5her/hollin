@@ -1,7 +1,8 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import { inflateSync } from 'node:zlib';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
-import { inspectGlb, readDxfEntities, readGlbChunks, readGlbTriangles, rectPath, xmlEscape, type OpenProject } from '@studio/core';
+import { BRANDING, inspectGlb, readDxfEntities, readGlbChunks, readGlbTriangles, rectPath, xmlEscape, type OpenProject } from '@studio/core';
 import type { Smoke } from './harness';
 
 const text = (result: unknown) => JSON.parse((result as { content: { text: string }[] }).content[0].text) as Record<string, unknown>;
@@ -41,9 +42,9 @@ export async function smokeExchange(smoke: Smoke, duplexId: string): Promise<voi
   let svgOk = svg.files.length === 2;
   for (const [i, f] of svg.files.entries()) {
     const content = await fs.readFile(f.path, 'utf8');
-    svgOk &&= content.includes('<svg ') && content.includes('width="420mm"') && content.includes(`>${xmlEscape(names[i])}</text>`) && content.includes('data-layer="Walls"') && content.includes('>Duplex</text>');
+    svgOk &&= content.includes('<svg ') && content.includes('width="420mm"') && content.includes(`>${xmlEscape(names[i])}</text>`) && content.includes('data-layer="Walls"') && content.includes('>Duplex</text>') && content.includes(`>${xmlEscape(BRANDING.productName)}</text>`) && content.includes('fill="#b9552f">.</text>');
   }
-  smoke.check('SVG writes an A3 sheet per level with its name, its layers and the title block', svgOk, svg);
+  smoke.check('SVG writes an A3 sheet per level with its name, its layers and the title block (the product name, a terracotta full stop, the project and the level)', svgOk, svg);
   smoke.check('and fits a standard scale', svg.levels.every((l) => [20, 25, 50, 100, 200, 250, 500, 1000].includes(l.scale)), svg.levels);
 
   const pdfPath = path.join(out, 'Duplex.pdf');
@@ -52,6 +53,9 @@ export async function smokeExchange(smoke: Smoke, duplexId: string): Promise<voi
   const pdfText = bytes.toString('latin1');
   smoke.check('PDF writes one file with a page per level', pdf.files.length === 1 && pdf.files[0].bytes === bytes.length && pdfText.startsWith('%PDF-1.4') && pdfText.trimEnd().endsWith('%%EOF') && /\/Count 2 /.test(pdfText) && pdfText.match(/\/Type \/Page /g)?.length === 2, pdf);
   smoke.check('its content streams are compressed', pdfText.match(/\/Filter \/FlateDecode/g)?.length === 2);
+  // The content streams are deflated: the title block's texts are read after inflating them.
+  const streams = [...bytes.toString('latin1').matchAll(/stream\n([\s\S]*?)\nendstream/g)].map((m) => inflateSync(Buffer.from(m[1], 'latin1')).toString('latin1'));
+  smoke.check('the PDF title block holds the product name, the full stop in terracotta, the project and the level', streams.length === 2 && streams.every((c, i) => c.includes(`(${BRANDING.productName}) Tj`) && c.includes('0.725 0.333 0.184 rg') && c.includes('(Duplex) Tj') && c.includes(`(${names[i]}) Tj`)), streams.map((c) => c.slice(c.indexOf('% Title block'), c.indexOf('% Title block') + 400)));
   const announced = smoke.eventsSince(from, 'exchange.exported').filter((e) => e.projectId === duplexId);
   smoke.check('every export is announced with its files', announced.map((e) => `${e.format}:${e.files.length}`).join() === 'dxf:2,svg:2,pdf:1', announced);
   smoke.check('levels that fit their sheet say so', [...svg.levels, ...dxf.levels].every((l) => l.fits === true), { svg: svg.levels, dxf: dxf.levels });

@@ -1,4 +1,5 @@
 import type { Box, Vec2 } from '../geometry/vec';
+import { BRANDING } from '../branding';
 import type { DrawingSegment } from './drawing';
 
 /*
@@ -99,15 +100,27 @@ export interface TitleBlockText {
   /** Font size, paper mm. */
   size: number;
   align: 'left' | 'right';
+  /** Helvetica Bold (the wordmark) instead of Helvetica. */
+  bold?: boolean;
+  /** Ink, when not the sheet's `fg`. */
+  color?: string;
 }
 
-/** The title block's frame (lines) and texts in paper mm, y up, in the bottom-right corner of a `width` × `height` sheet. */
+/** The one colour of the title block: the full stop of the wordmark. */
+export const TITLE_BLOCK_ACCENT = '#b9552f';
+/** The wordmark's size: a cap height of 3.2 mm in Helvetica, mm. */
+const WORDMARK_SIZE = 3.2 / 0.72;
+
+/**
+ * The title block's frame (lines) and texts in paper mm, y up, in the bottom-right corner of a `width` × `height` sheet:
+ * three rows of 8 mm, the wordmark (the product's name and a terracotta full stop) and the project on top, the level, then the scale and the date.
+ */
 export function titleBlock(width: number, info: TitleBlockInfo): { lines: [Vec2, Vec2][]; texts: TitleBlockText[] } {
   const x1 = width - PAGE_MARGIN;
   const x0 = x1 - TITLE_BLOCK.width;
   const y0 = PAGE_MARGIN;
   const y1 = y0 + TITLE_BLOCK.height;
-  const ym = y0 + 8;
+  const ym = y1 - 8;
   const lines: [Vec2, Vec2][] = [
     [[x0, y0], [x1, y0]],
     [[x1, y0], [x1, y1]],
@@ -116,9 +129,15 @@ export function titleBlock(width: number, info: TitleBlockInfo): { lines: [Vec2,
     [[x0, ym], [x1, ym]],
   ];
   const room = TITLE_BLOCK.width - 6;
+  const name = BRANDING.productName;
+  const nameWidth = textWidthEm(winAnsi(name), false, true) * WORDMARK_SIZE;
+  const stopWidth = textWidthEm(winAnsi('.'), false, true) * WORDMARK_SIZE;
+  const wordmark = nameWidth + stopWidth;
   const texts: TitleBlockText[] = [
-    { at: [x0 + 3, y1 - 6.5], ...fitText(info.title, 4, room), align: 'left' },
-    { at: [x0 + 3, y1 - 12.5], ...fitText(info.levelName, 3, room), align: 'left' },
+    { at: [x0 + 3, y1 - 6], text: name, size: WORDMARK_SIZE, align: 'left', bold: true },
+    { at: [x0 + 3 + nameWidth, y1 - 6], text: '.', size: WORDMARK_SIZE, align: 'left', bold: true, color: TITLE_BLOCK_ACCENT },
+    { at: [x1 - 3, y1 - 6], ...fitText(info.title, 4, Math.max(room - wordmark - 4, 10)), align: 'right' },
+    { at: [x0 + 3, y1 - 13], ...fitText(info.levelName, 3, room), align: 'left' },
     { at: [x0 + 3, y0 + 2.8], text: `Scale 1:${formatScale(info.scale)}`, size: 2.8, align: 'left' },
     { at: [x1 - 3, y0 + 2.8], text: info.date ?? today(), size: 2.8, align: 'right' },
   ];
@@ -181,14 +200,19 @@ export function winAnsi(text: string): number[] {
 const HELVETICA_ASCII = [
   278, 278, 355, 556, 556, 889, 667, 191, 333, 333, 389, 584, 278, 333, 278, 278, 556, 556, 556, 556, 556, 556, 556, 556, 556, 556, 278, 278, 584, 584, 584, 556, 1015, 667, 667, 722, 722, 667, 611, 778, 722, 278, 500, 667, 556, 833, 722, 778, 667, 778, 722, 667, 611, 722, 667, 944, 667, 667, 611, 278, 278, 278, 469, 556, 333, 556, 556, 500, 556, 556, 278, 556, 556, 222, 222, 500, 222, 833, 556, 556, 556, 556, 333, 500, 278, 556, 500, 722, 500, 500, 500, 334, 260, 334, 584,
 ];
+/** Helvetica Bold's advance widths (per 1000 em) for WinAnsi codes 32–126, from the standard AFM. */
+const HELVETICA_BOLD_ASCII = [
+  278, 333, 474, 556, 556, 889, 722, 238, 333, 333, 389, 584, 278, 333, 278, 278, 556, 556, 556, 556, 556, 556, 556, 556, 556, 556, 333, 333, 584, 584, 584, 611, 975, 722, 722, 722, 722, 667, 611, 778, 722, 278, 556, 722, 611, 833, 722, 778, 667, 778, 722, 667, 611, 722, 667, 944, 667, 667, 611, 333, 278, 333, 584, 556, 333, 556, 611, 556, 611, 556, 333, 611, 611, 278, 278, 556, 278, 889, 611, 611, 611, 611, 389, 556, 333, 611, 556, 778, 556, 556, 500, 389, 280, 389, 584,
+];
 /** A few common codes above 127; the rest count as 556. */
 const HELVETICA_HIGH: Record<number, number> = { 0xb0: 400, 0xb2: 333, 0xb3: 333, 0xb9: 333, 0xd7: 584, 0xb5: 556, 0x96: 556, 0x97: 1000, 0x91: 222, 0x92: 222, 0x93: 333, 0x94: 333, 0x85: 1000, 0x80: 556 };
 
-/** The width of WinAnsi bytes in Helvetica (or Courier), in em. */
-export function textWidthEm(bytes: readonly number[], mono = false): number {
+/** The width of WinAnsi bytes in Helvetica (Helvetica Bold, or Courier), in em. */
+export function textWidthEm(bytes: readonly number[], mono = false, bold = false): number {
   if (mono) return bytes.length * 0.6;
+  const ascii = bold ? HELVETICA_BOLD_ASCII : HELVETICA_ASCII;
   let w = 0;
-  for (const b of bytes) w += b >= 32 && b <= 126 ? HELVETICA_ASCII[b - 32] : (HELVETICA_HIGH[b] ?? 556);
+  for (const b of bytes) w += b >= 32 && b <= 126 ? ascii[b - 32] : (HELVETICA_HIGH[b] ?? 556);
   return w / 1000;
 }
 

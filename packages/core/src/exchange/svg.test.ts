@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Vec2 } from '../geometry/vec';
 import { drawingBounds, planDrawing, type DrawingLayer, type PlanDrawing } from './drawing';
 import { drawingHouse } from './house.fixture';
+import { BRANDING } from '../branding';
 import { PAGE_MARGIN, TITLE_BLOCK, paperSize } from './paper';
 import { drawingToSvg, svgLayout, xmlEscape } from './svg';
 
@@ -52,6 +53,31 @@ describe('drawingToSvg', () => {
     // The bounds' corners land on the margin: the drawing's extent is the viewBox less the margins.
     const layout = svgLayout(drawing, { scale: 50 });
     expect(layout.paperCenter[0]).toBeCloseTo(w / 2, 6);
+  });
+
+  it('draws the title block bottom-right: a frame, a rule and the wordmark, project, level, scale and date', () => {
+    const svg = drawingToSvg(drawing, { page: 'A3', orientation: 'landscape', scale: 50, title: 'Kitchen extension', date: '2026-10-31' });
+    const block = svg.slice(svg.indexOf('<g id="title-block"'), svg.indexOf('</svg>'));
+    // A3 landscape 420 x 297: the frame spans x 320..410, y (down) 263..287, the rule 8 mm below the top.
+    expect(block).toContain('M320 287L410 287M410 287L410 263M410 263L320 263M320 263L320 287M320 271L410 271');
+    expect(block).toContain('stroke-width="0.35"');
+    const texts = [...block.matchAll(/<text x="([\d.]+)" y="([\d.]+)" font-size="([\d.]+)" font-family="[^"]*"(?: font-weight="(\d+)")? text-anchor="(\w+)" fill="(#\w+)">([^<]*)<\/text>/g)].map((m) => ({ x: Number(m[1]), y: Number(m[2]), size: Number(m[3]), weight: m[4], anchor: m[5], fill: m[6], text: m[7] }));
+    expect(texts.map((t) => t.text)).toEqual([BRANDING.productName, '.', 'Kitchen extension', xmlEscape(drawing.levelName), 'Scale 1:50', '2026-10-31']);
+    expect(texts[0]).toMatchObject({ x: 323, y: 269, weight: '700', anchor: 'start', fill: '#231f1c' });
+    expect(texts[1]).toMatchObject({ y: 269, weight: '700', fill: '#b9552f' });
+    expect(texts[2]).toMatchObject({ x: 407, y: 269, size: 4, anchor: 'end' });
+    expect(texts[3]).toMatchObject({ x: 323, y: 276, size: 3 });
+    expect(texts[4]).toMatchObject({ x: 323, y: 284.2, size: 2.8 });
+    expect(texts[5]).toMatchObject({ x: 407, y: 284.2, anchor: 'end' });
+    expect(block).toContain('font-family="\'Alegreya Sans\', Helvetica, Arial, sans-serif"');
+  });
+
+  it("prints in the paper palette's inks on a white sheet", () => {
+    const svg = drawingToSvg(drawing, { title: 'House' });
+    expect(svg).toContain('fill="#ffffff"/>');
+    expect(svg).toContain('stroke="#231f1c"');
+    expect(svg).toContain('fill="#3b3531"');
+    expect(svg).not.toMatch(/#1f5fbf|#000000/);
   });
 
   it('takes a paper size and orientation, and fits the scale', () => {

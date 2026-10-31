@@ -17,7 +17,7 @@ export interface DxfOptions {
 }
 
 /** AutoCAD colour index per colour role (7 is black on white, white on black). */
-export const DXF_COLORS: Record<DrawingColor, number> = { fg: 7, wallLine: 7, connector: 7, wall: 8, muted: 8, slab: 9, room: 5, dim: 4, decor: 32, warning: 40 };
+export const DXF_COLORS: Record<DrawingColor, number> = { fg: 7, wallLine: 7, connector: 7, wall: 8, muted: 8, slab: 9, room: 75, dim: 165, decor: 35, warning: 42 };
 
 /** The lineweights DXF allows, in hundredths of a millimetre. */
 const LINEWEIGHTS = [0, 5, 9, 13, 15, 18, 20, 25, 30, 35, 40, 50, 53, 60, 70, 80, 90, 100, 106, 120, 140, 158, 200, 211];

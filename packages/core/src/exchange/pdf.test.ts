@@ -2,6 +2,7 @@ import { deflateSync, inflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import { drawingBounds, planDrawing, type DrawingLayer, type PlanDrawing } from './drawing';
 import { drawingHouse } from './house.fixture';
+import { BRANDING } from '../branding';
 import { textWidthEm, winAnsi } from './paper';
 import { arcToBeziers, drawingToPdf, pdfLayouts, pdfTextString } from './pdf';
 
@@ -159,6 +160,28 @@ describe('drawingToPdf', () => {
     expect(content).toContain('(Empty) Tj');
     expect(content).toContain('(Scale 1:100) Tj');
     expect(content).not.toMatch(/NaN|Infinity/);
+  });
+
+  it('writes the title block: a Helvetica Bold wordmark with a terracotta full stop, project, level, scale and date', () => {
+    const one = [{ drawing: drawingOf([], 'Ground floor'), title: 'Kitchen extension' }];
+    const p = parse(drawingToPdf(one, { date: '2026-10-31' }));
+    p.offsets.forEach((o, i) => expect(p.text.slice(o, o + `${i + 1} 0 obj`.length)).toBe(`${i + 1} 0 obj`));
+    expect(p.objects.get(6)).toMatch(/\/F3 7 0 R/);
+    expect(p.objects.get(7)).toContain('/BaseFont /Helvetica-Bold');
+    const content = pageContents(p)[0];
+    const block = content.slice(content.indexOf('% Title block'));
+    const PT = 72 / 25.4;
+    const f = (v: number) => String(Math.round(v * 1000) / 1000);
+    expect(block).toContain(`/F3 ${f((3.2 / 0.72) * PT)} Tf 0.137 0.122 0.11 rg`);
+    expect(block).toContain(`(${BRANDING.productName}) Tj`);
+    expect(block).toMatch(/BT \/F3 [\d.]+ Tf 0\.725 0\.333 0\.184 rg 1 0 0 1 [\d.]+ [\d.]+ Tm \(\.\) Tj ET/);
+    for (const t of ['Kitchen extension', 'Ground floor', 'Scale 1:100', '2026-10-31']) expect(block).toContain(`(${t}) Tj`);
+    // The rule lies 8 mm under the top of the frame (y 26 mm).
+    expect(block).toContain(`${f(320 * PT)} ${f(26 * PT)} m ${f(410 * PT)} ${f(26 * PT)} l S`);
+    // Deflated, the file holds the same text and still validates.
+    const packed = parse(drawingToPdf(one, { date: '2026-10-31', deflate: (b) => deflateSync(b) }));
+    packed.offsets.forEach((o, i) => expect(packed.text.slice(o, o + `${i + 1} 0 obj`.length)).toBe(`${i + 1} 0 obj`));
+    expect(pageContents(packed, true)[0]).toBe(content);
   });
 
   it('says when a drawing does not fit the sheet at a fixed scale', () => {

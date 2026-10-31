@@ -115,19 +115,19 @@ function pageContent(drawing: PlanDrawing, layout: PageLayout, title: string | u
     ops.push(...(tint ? ['q', `/${gs(f.opacity)} gs`] : []), `${rgb(PRINT_COLORS[f.color])} rg`, ...path, 'f*', ...(tint ? ['Q'] : []));
   };
 
-  const textAt = (at: Vec2, value: string, sizeMm: number, rotationDeg: number, align: 'left' | 'center' | 'right', drop: number, hex: string, mono: boolean) => {
+  const textAt = (at: Vec2, value: string, sizeMm: number, rotationDeg: number, align: 'left' | 'center' | 'right', drop: number, hex: string, mono: boolean, bold = false) => {
     const bytes = winAnsi(value);
     if (!bytes.length) return;
     const r = (rotationDeg * Math.PI) / 180;
     const cos = Math.cos(r);
     const sin = Math.sin(r);
-    const width = textWidthEm(bytes, mono) * sizeMm;
+    const width = textWidthEm(bytes, mono, bold) * sizeMm;
     const shift = align === 'left' ? 0 : align === 'right' ? width : width / 2;
     const dropMm = drop * sizeMm;
     // Back along the text by the alignment, down from the anchor to the baseline.
     const x = at[0] - shift * cos + dropMm * sin;
     const y = at[1] - shift * sin - dropMm * cos;
-    ops.push(`BT /${mono ? 'F2' : 'F1'} ${n(sizeMm * PT)} Tf ${rgb(hex)} rg ${n(cos)} ${n(sin)} ${n(-sin)} ${n(cos)} ${n(x * PT)} ${n(y * PT)} Tm ${pdfString(bytes)} Tj ET`);
+    ops.push(`BT /${mono ? 'F2' : bold ? 'F3' : 'F1'} ${n(sizeMm * PT)} Tf ${rgb(hex)} rg ${n(cos)} ${n(sin)} ${n(-sin)} ${n(cos)} ${n(x * PT)} ${n(y * PT)} Tm ${pdfString(bytes)} Tj ET`);
   };
 
   const text = (t: DrawingText, layer: DrawingLayer) => {
@@ -151,7 +151,7 @@ function pageContent(drawing: PlanDrawing, layout: PageLayout, title: string | u
     const block = titleBlock(layout.width, { title, levelName: drawing.levelName, scale: layout.scale, date });
     ops.push('% Title block', `${rgb(PRINT_COLORS.fg)} RG ${n(0.35 * PT)} w [] 0 d 0 J`);
     for (const [a, b] of block.lines) ops.push(`${n(a[0] * PT)} ${n(a[1] * PT)} m ${n(b[0] * PT)} ${n(b[1] * PT)} l S`);
-    for (const t of block.texts) textAt(t.at, t.text, t.size, 0, t.align, 0, PRINT_COLORS.fg, false);
+    for (const t of block.texts) textAt(t.at, t.text, t.size, 0, t.align, 0, t.color ?? PRINT_COLORS.fg, false, t.bold);
   }
   return ops.join('\n') + '\n';
 }
@@ -181,8 +181,8 @@ export function drawingToPdf(pages: readonly PdfPage[], options: PdfOptions = {}
     return options.deflate ? { data: options.deflate(raw), filter: ' /Filter /FlateDecode' } : { data: raw, filter: '' };
   });
 
-  // Object numbers: 1 catalog, 2 pages, 3 Helvetica, 4 Courier, 5 info, 6 resources, then the ExtGStates, then a page and its content per page.
-  const firstGs = 7;
+  // Object numbers: 1 catalog, 2 pages, 3 Helvetica, 4 Courier, 5 info, 6 resources, 7 Helvetica Bold, then the ExtGStates, then a page and its content per page.
+  const firstGs = 8;
   const firstPage = firstGs + alphas.size;
   const pageObj = (i: number) => firstPage + 2 * i;
   const objects: (Uint8Array | string)[][] = [];
@@ -193,7 +193,8 @@ export function drawingToPdf(pages: readonly PdfPage[], options: PdfOptions = {}
   objects.push([`<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>`]);
   objects.push([`<< /Title ${pdfTextString(titleText)} /Producer ${pdfTextString(BRANDING.productName)} /CreationDate (${pdfDate(new Date())}) >>`]);
   const gsEntries = [...alphas.entries()].map(([, name], i) => `/${name} ${firstGs + i} 0 R`).join(' ');
-  objects.push([`<< /ProcSet [/PDF /Text] /Font << /F1 3 0 R /F2 4 0 R >>${gsEntries ? ` /ExtGState << ${gsEntries} >>` : ''} >>`]);
+  objects.push([`<< /ProcSet [/PDF /Text] /Font << /F1 3 0 R /F2 4 0 R /F3 7 0 R >>${gsEntries ? ` /ExtGState << ${gsEntries} >>` : ''} >>`]);
+  objects.push([`<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>`]);
   for (const [alpha] of alphas) objects.push([`<< /Type /ExtGState /ca ${alpha} /CA ${alpha} >>`]);
   pages.forEach((_, i) => {
     const { width, height } = layouts[i];

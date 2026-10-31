@@ -19,7 +19,7 @@ export interface SvgOptions {
   scale?: number | 'fit';
   /** The project's name: adds a title block (project, level, scale, date) and names the document. */
   title?: string;
-  /** The date in the title block; today by default. */
+  /** The date in the title block (YYYY-MM-DD); today by default. */
   date?: string;
 }
 
@@ -33,6 +33,9 @@ export function xmlEscape(value: string): string {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&apos;');
 }
+
+const SANS_STACK = "'Alegreya Sans', Helvetica, Arial, sans-serif";
+const MONO_STACK = "'IBM Plex Mono', ui-monospace, Consolas, monospace";
 
 const num = (v: number): string => {
   if (!Number.isFinite(v)) return '0';
@@ -110,7 +113,7 @@ export function drawingToSvg(drawing: PlanDrawing, options: SvgOptions = {}): st
     const y = height - (p[1] - drop * Math.cos(r));
     const anchor = t.align === 'left' ? 'start' : t.align === 'right' ? 'end' : 'middle';
     const rotate = Math.abs(t.rotation) > 1e-9 ? ` transform="rotate(${num(-t.rotation)} ${num(x)} ${num(y)})"` : '';
-    const family = t.mono ? 'ui-monospace, Consolas, monospace' : 'Helvetica, Arial, sans-serif';
+    const family = t.mono ? MONO_STACK : SANS_STACK;
     return `<text x="${num(x)}" y="${num(y)}" font-size="${num(size)}" font-family="${family}" text-anchor="${anchor}" fill="${color(t.color, layer)}"${rotate}>${xmlEscape(t.text)}</text>`;
   };
 
@@ -144,7 +147,8 @@ export function drawingToSvg(drawing: PlanDrawing, options: SvgOptions = {}): st
     const d = block.lines.map(([a, b]) => `M${num(a[0])} ${num(height - a[1])}L${num(b[0])} ${num(height - b[1])}`).join('');
     out.push(`<path d="${d}" fill="none" stroke="${PRINT_COLORS.fg}" stroke-width="0.35" stroke-linecap="square"/>`);
     for (const t of block.texts) {
-      out.push(`<text x="${num(t.at[0])}" y="${num(height - t.at[1])}" font-size="${num(t.size)}" font-family="Helvetica, Arial, sans-serif" text-anchor="${t.align === 'right' ? 'end' : 'start'}" fill="${PRINT_COLORS.fg}">${xmlEscape(t.text)}</text>`);
+      const weight = t.bold ? ' font-weight="700"' : '';
+      out.push(`<text x="${num(t.at[0])}" y="${num(height - t.at[1])}" font-size="${num(t.size)}" font-family="${SANS_STACK}"${weight} text-anchor="${t.align === 'right' ? 'end' : 'start'}" fill="${t.color ?? PRINT_COLORS.fg}">${xmlEscape(t.text)}</text>`);
     }
     out.push('</g>');
   }
