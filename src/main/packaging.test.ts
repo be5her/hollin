@@ -27,19 +27,19 @@ afterEach(() => {
 });
 
 describe('electron-builder.cjs', () => {
-  it('a local build has no feed, and on Linux makes the AppImage only (the deb needs a homepage)', () => {
+  it("a local build has no feed; package.json's homepage lets the deb build everywhere", () => {
     const config = loadConfig(undefined);
     expect(config.publish).toBeNull();
     expect(config.extraMetadata).toBeUndefined();
-    expect(config.linux.target).toEqual(['AppImage']);
+    expect(config.linux.target).toEqual(['AppImage', 'deb']);
   });
-  it('a workflow build has the feed, the homepage from the repository, and the deb', () => {
+  it('a workflow build has the feed; the homepage stays package.json\'s, so no extraMetadata is needed', () => {
     const config = loadConfig('someone/some-repo');
     expect(config.publish).toMatchObject({ provider: 'github', owner: 'someone', repo: 'some-repo' });
-    expect(config.extraMetadata?.homepage).toBe('https://github.com/someone/some-repo');
+    expect(config.extraMetadata).toBeUndefined();
     expect(config.linux.target).toEqual(['AppImage', 'deb']);
   });
   it('treats an empty GITHUB_REPOSITORY as none', () => {
-    expect(loadConfig(' ').linux.target).toEqual(['AppImage']);
+    expect(loadConfig(' ').publish).toBeNull();
   });
 });

@@ -35,8 +35,8 @@ module.exports = {
   npmRebuild: false,
   fileAssociations: [{ ext: branding.packageExtension, name: `${branding.productName} project`, role: 'Editor' }],
   publish,
-  // The deb needs a homepage (electron-builder's FpmTarget refuses to build without one); package.json
-  // names no repository, so the release workflow's repository is it (see `homepage` above).
+  // The deb needs a homepage (electron-builder's FpmTarget refuses to build without one): package.json's,
+  // else the release workflow's repository (see `homepage` above).
   ...(publish && !pkg.homepage ? { extraMetadata: { homepage } } : {}),
   // One `latest*.yml` per platform, never alpha/beta copies (GitHub releases have one channel anyway).
   // The targets below that electron-updater can install write it: NSIS (`latest.yml`), the macOS zip,

@@ -2,7 +2,7 @@
 
 A release is a version tag. Pushing `vX.Y.Z` runs `.github/workflows/release.yml`, which checks the version, builds the installers on Windows, macOS and Linux, and uploads them with the update feed to a **draft** GitHub Release. Nothing is public until you publish the draft; once you do, installed copies of the app find the new version in Settings > Updates.
 
-Everything below assumes the repository is on GitHub (it is local until the owner decides otherwise; see `CLAUDE.md`). The workflow names no owner or repository: electron-builder takes them from `GITHUB_REPOSITORY`, which GitHub sets in every workflow run, and a build made anywhere else has no update feed (`electron-builder.cjs`).
+The repository is `be5her/hollin` on GitHub. The workflow names no owner or repository: electron-builder takes them from `GITHUB_REPOSITORY`, which GitHub sets in every workflow run, and a build made anywhere else has no update feed (`electron-builder.cjs`).
 
 ## Cutting a release
 

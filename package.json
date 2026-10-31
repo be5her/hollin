@@ -4,11 +4,18 @@
   "version": "0.1.0",
   "description": "Design buildings, floor plans, interiors and decor, with AI built in.",
   "private": true,
+  "license": "MIT",
   "main": "./out/main/index.js",
   "author": {
     "name": "Besher Karam",
     "email": "besher.karam.1998@gmail.com"
   },
+  "homepage": "https://github.com/be5her/hollin",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/be5her/hollin.git"
+  },
+  "bugs": "https://github.com/be5her/hollin/issues",
   "workspaces": [
     "packages/*",
     "src/renderer"

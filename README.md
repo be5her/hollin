@@ -1,8 +1,12 @@
 # Hollin
 
-A desktop studio for engineers, architects and interior designers: buildings with any number of floors, walls and rooms of any shape, interiors and decor, with an AI assistant built in and every feature open to AI agents over MCP. The product names live in [`branding.json`](branding.json).
+A desktop studio for planning your own place: buildings with any number of floors, walls and rooms of any shape, interiors and decor, drawn in exact millimetres, with Otto, an AI assistant that draws beside you and asks before it deletes, and every feature open to AI agents over MCP. Made for homeowners and hobbyists; precise enough for the professionals among them. The product names live in [`branding.json`](branding.json).
 
-Windows, macOS and Linux, built with Electron and Angular.
+Windows, macOS and Linux, built with Electron and Angular. Open source under the [MIT licence](LICENSE).
+
+## Getting it
+
+Installers come from the [releases page](https://github.com/be5her/hollin/releases) once the first release is published (none yet; `docs/release.md` says how one is cut). Until then, run it from the source: Node 24, `npm install`, `npm run dev`.
 
 ## Status
 
@@ -100,3 +104,11 @@ The **assistant** (`packages/modules/assistant`) is a chat per project in the pr
 | three (+ `@types/three`) | The 3D view's WebGL rendering (`packages/viewport/src/scene3d`); its own `GLTFLoader` and `RectAreaLightUniformsLib` addons load imported models and light area panels (Milestone 8 added no dependency; nor did Milestone 9: the DXF, SVG, PDF and GLB writers, the DXF reader and the PNG header reader are hand-written in core, and the PDF's streams are compressed with node's `zlib`). Pinned exactly to `0.186.1`: three has no semver, any release may change the API. |
 | clipper2-ts | Polygon unions, differences and offsets (a TypeScript port of Clipper2): joined walls, opening cuts, room detection, the automatic slab; and its triangulation for the 3D solids' caps. Pinned exactly to `2.0.1-18`: its releases are numbered `2.0.1-N`, which semver ranks below the old plain `2.0.1`. |
 | vitest, typescript | Tests and type checking (TypeScript 6.0 pinned for the Angular compiler, 7 elsewhere). |
+
+## Contributing
+
+One branch and one pull request per change, against `main`, following [the pull request template](.github/pull_request_template.md): what changed, how it was verified (`npm run typecheck`, `npm test`, the whole `npm run smoke`), screenshots for UI changes. [CLAUDE.md](CLAUDE.md) holds the conventions and the gotchas; every module's README says what it stores and which of its tools agents may call.
+
+## License
+
+[MIT](LICENSE). The Hollin name, Otto and the logo are not part of the license: use the code freely, but call a fork something else.
