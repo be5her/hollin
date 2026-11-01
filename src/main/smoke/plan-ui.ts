@@ -115,7 +115,8 @@ export async function smokePlanUi(smoke: Smoke, towerId: string): Promise<void> 
   smoke.check('undoing it clears the canvas again', await smoke.until(async () => (await attr(smoke, 'entities')) === '4'));
 
   smoke.section('drawing walls');
-  // The empty Gallery level, at the default camera (10 px per metre around the origin).
+  // The empty Gallery level, at the default camera (0.1 px per mm, 100 px per metre, around the origin): the 6 × 4 m
+  // rectangle below needs a canvas of at least 600 × 400 px, which the 1440 × 900 smoke window gives.
   await smoke.fill(`${tab} [data-testid=plan-level]`, gallery);
   await smoke.until(async () => (await attr(smoke, 'level')) === gallery);
   await smoke.click(`${tab} [data-testid=plan-zoom-fit]`);
