@@ -188,6 +188,8 @@ export async function smokeAssistantClaudeCode(smoke: Smoke, duplexId: string): 
     await openSettings();
     // Typed and committed with Enter, as a user does; the field saves on Enter or blur, never while typing.
     // `smoke.click` is a DOM click, which does not focus an input: focus it so Enter reaches it.
+    // The Model field appears once the probe has answered, which can take many seconds on a busy machine (30 s budget).
+    smoke.check('the Model field is shown once the probe answered', await smoke.waitFor('[data-testid=settings-claude-code-model]', 30_000));
     await smoke.js(`document.querySelector('[data-testid=settings-claude-code-model]').focus()`);
     await smoke.fill('[data-testid=settings-claude-code-model]', 'opus');
     await smoke.key('Return');
