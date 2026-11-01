@@ -59,6 +59,8 @@ const SECTIONS = {
   updates: z.object({
     /** Look for a new version 10 s after the app starts, at most once a day (packaged builds with an update feed only). Nothing downloads without the user. */
     check: z.boolean(),
+    /** Offer beta versions (GitHub pre-releases) too, not only stable ones. Off, a beta already installed stays until a newer stable version comes. */
+    beta: z.boolean(),
   }),
   library: z.object({
     /** Where the project library lives. Empty means the default folder in the app's data folder. */
@@ -139,7 +141,7 @@ const DEFAULTS: GlobalConfig = {
   units: { system: 'metric', metricUnit: 'mm', imperialStyle: 'ft-in', precision: 0, fraction: 16 },
   mcp: { enabled: true, port: BRANDING.defaultMcpPort, allowMutations: false },
   ai: { model: DEFAULT_AI_MODEL, provider: 'api', claudeCodePath: '', claudeCodeModel: '', claudeCodeEffort: '' },
-  updates: { check: true },
+  updates: { check: true, beta: false },
   library: { path: '' },
   session: { openProjects: [], activeProjectId: null },
   editor: {

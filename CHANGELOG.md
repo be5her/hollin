@@ -4,7 +4,12 @@ Every notable change to the app, newest first. The format follows [Keep a Change
 
 ## [Unreleased]
 
+## [0.2.0-beta.1] - 2026-11-01
+
+The first beta: a preview of 0.2.0. Turn on Settings > Updates > *Get beta versions* to be offered the next betas as they come out.
+
 ### Added
+- Beta versions: *Get beta versions* in Settings > Updates offers pre-releases too. Off (the default), only stable versions are offered, and a beta you have stays until a newer stable version comes.
 - A first-launch guide, an empty-project guide and a "Start with Otto" card on Home.
 - Otto's recent edits are marked on the plan for a minute, and what it is about to delete is outlined until you answer; "Start with Otto" on Home drafts the ground floor from a sentence; Home cards show Otto's mark when it has worked on the project.
 - History: click a change to select what it changed on the plan, double-click to undo down to it.

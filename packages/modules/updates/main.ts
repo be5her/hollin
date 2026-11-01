@@ -30,11 +30,11 @@ export const updatesModule = defineModule({
     defineCommand({
       id: 'app.update.check',
       title: 'Check for updates',
-      description: 'Asks the update feed for a newer version and returns the outcome. Never downloads.',
+      description: 'Asks the update feed for a newer version (stable only, or betas too when the beta setting is on) and returns the outcome. Never downloads.',
       scope: 'global',
       hidden: true,
       input: z.object({}),
-      handler: async (_input, ctx) => (ctx.host.updater ? ctx.host.updater.check() : NO_UPDATER),
+      handler: async (_input, ctx) => (ctx.host.updater ? ctx.host.updater.check({ beta: ctx.host.config.get().updates.beta }) : NO_UPDATER),
     }),
     defineCommand({
       id: 'app.update.download',

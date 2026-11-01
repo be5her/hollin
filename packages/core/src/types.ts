@@ -213,8 +213,11 @@ export interface UpdateState {
 /** The host's updater. Nothing downloads or installs unless asked. */
 export interface UpdaterApi {
   status(): UpdateState;
-  /** Asks the feed for a newer version; resolves with the outcome (never rejects: an error is `state: 'error'`). */
-  check(options?: { scheduled?: boolean }): Promise<UpdateState>;
+  /**
+   * Asks the feed for a newer version; resolves with the outcome (never rejects: an error is `state: 'error'`).
+   * `beta` (`config.updates.beta`) offers pre-releases too; without it only stable versions are offered.
+   */
+  check(options?: { scheduled?: boolean; beta?: boolean }): Promise<UpdateState>;
   /** Starts downloading the version found and returns at once (`downloading`); CONFLICT when there is none. */
   download(): UpdateState;
   /** Stops the app the way quitting does, then installs the downloaded version and restarts; CONFLICT when none is ready. */

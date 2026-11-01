@@ -43,6 +43,7 @@ export async function smokeUpdates(smoke: Smoke): Promise<void> {
   await smoke.expectError('and download', 'app.update.download', {}, 'MUTATION_BLOCKED', { caller: 'mcp' });
 
   smoke.check('the startup check is on by default', host.config.get().updates.check === true);
+  smoke.check('beta versions are off by default', host.config.get().updates.beta === false);
   smoke.check('a fresh data folder has never checked', (await smoke.run<UpdateState>('app.update.status')).state === 'idle');
   smoke.check('app.info says this build can update', (await smoke.run<{ updates: boolean }>('app.info')).updates === true);
   await smoke.expectError('nothing to download before a check', 'app.update.download', {}, 'CONFLICT');
@@ -60,6 +61,16 @@ export async function smokeUpdates(smoke: Smoke): Promise<void> {
   u.script({ outcome: 'error', message: 'net::ERR_INTERNET_DISCONNECTED' });
   const failed = await smoke.run<UpdateState>('app.update.check');
   smoke.check('a failed check is state error with the message, not a failed command', failed.state === 'error' && failed.message === 'net::ERR_INTERNET_DISCONNECTED' && failed.checkedAt === latest.checkedAt, failed);
+
+  // The beta setting reaches the updater with each check: off, the feed is asked for stable versions only.
+  u.script({ outcome: 'available', version: '0.2.0-beta.2' });
+  await smoke.run('config.update', { patch: { updates: { beta: true } } });
+  const beta = await smoke.run<UpdateState>('app.update.check');
+  smoke.check('with beta versions on, a check asks for betas and finds 0.2.0-beta.2', beta.state === 'available' && beta.version === '0.2.0-beta.2' && u.checks.at(-1)?.beta === true, { beta, last: u.checks.at(-1) });
+  await smoke.run('config.update', { patch: { updates: { beta: false } } });
+  u.script({ outcome: 'up-to-date' });
+  await smoke.run<UpdateState>('app.update.check');
+  smoke.check('with them off, a check asks for stable versions only', u.checks.at(-1)?.beta === false, u.checks.at(-1));
 
   from = smoke.events.length;
   u.script({ outcome: 'available', version: '1.2.3', notes: 'Faster exports.\n- The PDF title block fits long names.' });

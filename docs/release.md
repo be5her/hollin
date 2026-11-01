@@ -13,12 +13,21 @@ The repository is `be5her/hollin` on GitHub. The workflow names no owner or repo
 5. **Tag and push the tag** from the merged `main`: `git tag v0.2.0` then `git push origin v0.2.0`.
 6. **Watch the run** (Actions > Release). The first job checks the version and the changelog and runs the typecheck and the unit tests, with read access only; a small second job (write access, nothing installed) creates the draft release with the changelog section as its notes, and stops the run if a release for the tag is already published; then one job per platform builds and uploads, and the Linux one checks that the AppImage carries no `package-type` (the deb's, which electron-builder writes into the folder the AppImage is packed from, in parallel). Every checkout keeps no credentials (`persist-credentials: false`), and only the packaging step gets the token. The smoke test is not run again here: CI runs it on every push to `main`.
 7. **Review the draft** (Releases): it should hold
-   - Windows: `Plan-Studio-0.2.0-setup.exe`, its `.blockmap`, and `latest.yml`;
+   - Windows: `Hollin-0.2.0-setup.exe`, its `.blockmap`, and `latest.yml`;
    - macOS: a `.dmg` and a `.zip` for x64 and for arm64, their `.blockmap`s, and `latest-mac.yml`;
-   - Linux: `Plan-Studio-0.2.0-x86_64.AppImage`, `Plan-Studio-0.2.0-amd64.deb`, and `latest-linux.yml`.
+   - Linux: `Hollin-0.2.0-x86_64.AppImage`, `Hollin-0.2.0-amd64.deb`, and `latest-linux.yml`.
 
    (GitHub turns the spaces of the product name into dashes.) Download one or two and try them.
-8. **Publish the draft.** From then on the release is public and the update feed points at it: electron-updater reads the latest published (not draft, not pre-release) release of the repository and its `latest*.yml`.
+8. **Publish the draft.** From then on the release is public and the update feed points at it: electron-updater reads the latest published (not draft, not pre-release) release of the repository and its `latest*.yml`. For a beta, leave *Set as a pre-release* ticked (see below).
+
+## Beta versions
+
+A beta is a release whose version has a pre-release part: `0.2.0-beta.1`, `0.2.0-beta.2`, and so on, before `0.2.0` itself. It is cut exactly like a release (the changelog section is `## [0.2.0-beta.1] - YYYY-MM-DD`, the tag `v0.2.0-beta.1`); the workflow sees the `-` in the tag and creates the draft as a **pre-release**, which it stays when published.
+
+- **Who gets it:** apps with *Get beta versions* on in Settings > Updates (`config.updates.beta`, off by default). The app then sets electron-updater's `allowPrerelease`, so the GitHub provider reads the repository's releases feed and offers the newest published release, beta or stable. With it off the app asks for the latest *stable* release only, so a beta is never offered to someone who did not ask for one.
+- **Leaving the beta:** turning the switch off never downgrades. A beta installed stays until a stable version newer than it is out: `0.2.0` replaces `0.2.0-beta.3`, `0.1.0` does not.
+- **Testers** download the beta's installer from its release page, then turn the switch on to be offered the next betas (it is off in every new install, a beta's included).
+- Use `beta` (or `alpha`) as the pre-release name: electron-updater skips releases on any other channel name. Each platform's feed file is still `latest*.yml` (`generateUpdatesFilesForAllChannels` is off); on GitHub the release it sits in is what makes it a beta.
 
 If a build fails, fix it on `main`, delete the draft release and the tag (`git push --delete origin v0.2.0`, `git tag -d v0.2.0`), and tag again. A run by hand (Actions > Release > Run workflow) builds the installers on all three systems and keeps them as workflow artifacts without creating or touching a release: a way to try the packaging before tagging. Its builds carry the repository's feed, so an installed one updates like a release would.
 
@@ -60,7 +69,7 @@ Nothing to sign: AppImage and deb are distributed as they are.
 ## What works unsigned
 
 - **Windows:** the installer runs, but SmartScreen shows *Windows protected your PC* for an unknown publisher; *More info* > *Run anyway* installs it. In-app updates work unsigned (there is no signature to compare).
-- **macOS:** Gatekeeper refuses to open an app from the internet that is not signed and notarized (*cannot be opened because Apple cannot check it for malicious software*). On macOS 14 and earlier, right-click (or Control-click) the app > *Open* > *Open*; on macOS 15 and later, try to open it once, then System Settings > Privacy & Security > *Open Anyway*. An unsigned Apple silicon build may be reported as *damaged*; then `xattr -dr com.apple.quarantine "/Applications/Plan Studio.app"` clears the download flag. **In-app updates do not work unsigned on macOS:** Squirrel.Mac installs only into a signed app, so such a build reports updates as unavailable and has to be updated by downloading the new dmg.
+- **macOS:** Gatekeeper refuses to open an app from the internet that is not signed and notarized (*cannot be opened because Apple cannot check it for malicious software*). On macOS 14 and earlier, right-click (or Control-click) the app > *Open* > *Open*; on macOS 15 and later, try to open it once, then System Settings > Privacy & Security > *Open Anyway*. An unsigned Apple silicon build may be reported as *damaged*; then `xattr -dr com.apple.quarantine "/Applications/Hollin.app"` clears the download flag. **In-app updates do not work unsigned on macOS:** Squirrel.Mac installs only into a signed app, so such a build reports updates as unavailable and has to be updated by downloading the new dmg.
 - **Linux:** everything works: the AppImage updates itself in place, and an installed deb downloads the new `.deb` and installs it with `pkexec` (asking for the password).
 
 ## Trying an update locally
@@ -76,7 +85,7 @@ electron-updater's own development mode reads a `dev-app-update.yml` from the ap
    updaterCacheDirName: plan-studio-updater
    ```
 
-2. Run `npm run dev` (its own data folder, `Plan Studio Dev`) and open Settings > Updates: it shows `Not checked yet` instead of `Updates are not available in this build: this is a development run`. The startup check never runs in development; press **Check for updates**.
+2. Run `npm run dev` (its own data folder, `Hollin Dev`) and open Settings > Updates: it shows `Not checked yet` instead of `Updates are not available in this build: this is a development run`. The startup check never runs in development; press **Check for updates**.
 3. It should show `Version X.Y.Z is available` with the release's notes; **Download** shows the progress, then `Ready to install version X.Y.Z`.
 4. **Restart and install** runs the real installer: on Windows that installs the release (as if from its setup), not the development copy. Stop at step 3 unless that is what you want.
 
