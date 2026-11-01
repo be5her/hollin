@@ -80,8 +80,13 @@ class ElectronUpdater extends UpdaterBase {
     return this.instance;
   }
 
-  protected async find(): Promise<CheckOutcome> {
-    const result = await this.updater().checkForUpdates();
+  protected async find({ beta }: { beta: boolean }): Promise<CheckOutcome> {
+    const updater = this.updater();
+    // Set on every check, from the setting: electron-updater would otherwise turn it on by itself in a
+    // beta build (a version with a pre-release part). With it, the GitHub provider reads the releases feed
+    // and takes the newest published release, pre-release or not; without it, the latest stable one.
+    updater.allowPrerelease = beta;
+    const result = await updater.checkForUpdates();
     if (!result) throw new Error('The updater is not active in this build.');
     if (!result.isUpdateAvailable) return null;
     return { version: result.updateInfo.version, notes: plainNotes(result.updateInfo.releaseNotes) };

@@ -28,8 +28,8 @@ export class SmokeUpdater extends UpdaterBase {
   private held: (() => void) | null = null;
   /** How many times an install went through. */
   installs = 0;
-  /** How many checks reached the (scripted) feed, and whether the last was the startup one. */
-  checks: { scheduled: boolean }[] = [];
+  /** The checks that reached the (scripted) feed: whether each was the startup one, and whether it asked for betas too. */
+  checks: { scheduled: boolean; beta: boolean }[] = [];
 
   script(plan: UpdateScript): void {
     this.plan = plan;
@@ -58,8 +58,8 @@ export class SmokeUpdater extends UpdaterBase {
     this.restart({ state: 'idle' });
   }
 
-  override check(options: { scheduled?: boolean } = {}) {
-    if (this.status().state !== 'unsupported') this.checks.push({ scheduled: options.scheduled === true });
+  override check(options: { scheduled?: boolean; beta?: boolean } = {}) {
+    if (this.status().state !== 'unsupported') this.checks.push({ scheduled: options.scheduled === true, beta: options.beta === true });
     return super.check(options);
   }
 

@@ -92,7 +92,10 @@ class TestUpdater extends UpdaterBase {
   found: CheckOutcome = null;
   fail: string | null = null;
   installed = 0;
-  protected async find() {
+  /** What each find was asked: betas too or not. */
+  asked: boolean[] = [];
+  protected async find({ beta }: { beta: boolean }) {
+    this.asked.push(beta);
     if (this.fail) throw new Error(`${this.fail}\n    at stack`);
     return this.found;
   }
@@ -122,9 +125,9 @@ class HeldUpdater extends TestUpdater {
   unsupported(reason: string | null): void {
     this.setUnsupported(reason);
   }
-  protected override async find() {
+  protected override async find(options: { beta: boolean }) {
     if (this.holdFind) await this.wait();
-    return super.find();
+    return super.find(options);
   }
   protected override async fetch(progress: (p: number) => void) {
     if (this.holdFetch) await this.wait();
@@ -222,6 +225,14 @@ describe('UpdaterBase', () => {
     expect((await u.check()).state).toBe('ready');
     await u.install();
     expect(u.installed).toBe(1);
+  });
+
+  it('asks the feed for betas only when the check says so', async () => {
+    const u = new TestUpdater(undefined, null);
+    await u.check();
+    await u.check({ beta: true });
+    await u.check({ scheduled: true, beta: false });
+    expect(u.asked).toEqual([false, true, false]);
   });
 
   it('turns failures into state error, never a throw', async () => {

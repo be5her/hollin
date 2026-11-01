@@ -69,13 +69,17 @@ jobs:
       # The three build jobs upload in parallel, and each would create the release if it found none; so the
       # draft is created once, here, with the changelog section as its notes, and electron-builder finds it.
       # A release for the tag that is already published stops the run: the builds would upload into it.
+      # A tag with a pre-release part (v0.2.0-beta.1) makes a pre-release: only apps with Get beta versions
+      # on are offered it (electron-updater reads the latest stable release otherwise).
       - name: Create the draft release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           found=$(gh api "repos/$GITHUB_REPOSITORY/releases" --paginate --jq '.[] | select(.tag_name == env.TAG) | "\(.id) \(.draft)"')
+          prerelease=()
+          case "$TAG" in *-*) prerelease=(--prerelease) ;; esac
           if [ -z "$found" ]; then
-            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft --verify-tag --title "${TAG#v}" --notes-file "$RUNNER_TEMP/notes.md"
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft "${prerelease[@]}" --verify-tag --title "${TAG#v}" --notes-file "$RUNNER_TEMP/notes.md"
           elif printf '%s\n' "$found" | grep -q ' false$'; then
             echo "::error::A published release for $TAG exists already (id and draft: $found). Tag a new version instead."
             exit 1

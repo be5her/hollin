@@ -79,8 +79,8 @@ export abstract class UpdaterBase implements Updater {
     this.current = unsupported ? { state: 'unsupported', message: unsupported } : { state: 'idle', ...(checkedAt ? { checkedAt } : {}) };
   }
 
-  /** Asks the feed; resolves with the newer version or null. */
-  protected abstract find(): Promise<CheckOutcome>;
+  /** Asks the feed; resolves with the newer version or null. `beta`: pre-releases count too. */
+  protected abstract find(options: { beta: boolean }): Promise<CheckOutcome>;
   /** Downloads the version `find` returned, reporting percent done. */
   protected abstract fetch(progress: (percent: number) => void): Promise<void>;
   /** Installs the downloaded version (and quits). */
@@ -121,7 +121,7 @@ export abstract class UpdaterBase implements Updater {
     else if (this.current.state === 'unsupported') this.restart({ state: 'idle', ...(this.checkedAt ? { checkedAt: this.checkedAt } : {}) });
   }
 
-  async check(options: { scheduled?: boolean } = {}): Promise<UpdateState> {
+  async check(options: { scheduled?: boolean; beta?: boolean } = {}): Promise<UpdateState> {
     const { state } = this.current;
     // Nothing to do without a feed; a check or download under way is left alone, and a downloaded update is kept.
     if (state === 'unsupported' || state === 'checking' || state === 'downloading' || state === 'ready') return this.status();
@@ -130,7 +130,7 @@ export abstract class UpdaterBase implements Updater {
     this.set({ state: 'checking', scheduled, ...(previous ? { checkedAt: previous } : {}) });
     const generation = this.generation;
     try {
-      const found = await this.find();
+      const found = await this.find({ beta: options.beta === true });
       if (generation !== this.generation) return this.status();
       const checkedAt = new Date().toISOString();
       if (this.stampFile) void this.writes.run('stamp', () => writeJsonAtomic(this.stampFile!, { checkedAt })).catch((err: Error) => console.warn(`[updater] could not keep the check time: ${err.message}`));

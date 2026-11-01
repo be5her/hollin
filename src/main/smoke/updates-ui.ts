@@ -124,6 +124,25 @@ export async function smokeUpdatesUi(smoke: Smoke): Promise<void> {
   await smoke.click('[data-testid=updates-auto]');
   smoke.check('and on again', await smoke.until(() => host.config.get().updates.check === true));
 
+  // The beta switch stores the setting, and a check's answer from the other channel is asked again.
+  smoke.check('the beta switch shows the stored setting (off), with its note', (await smoke.js<boolean>(`document.querySelector('[data-testid=updates-beta]')?.checked === false`)) && (await smoke.count('[data-testid=updates-beta-note]')) === 1);
+  u.script({ outcome: 'up-to-date' });
+  await smoke.click('[data-testid=updates-check]');
+  smoke.check('a stable-only check finds nothing newer', (await smoke.waitFor(status, 3000, 'You have the latest version')) && u.checks.at(-1)?.beta === false, u.checks.at(-1));
+  u.script({ outcome: 'available', version: '0.2.0-beta.2' });
+  let checks = u.checks.length;
+  await smoke.click('[data-testid=updates-beta]');
+  smoke.check('turning beta versions on stores it', await smoke.until(() => host.config.get().updates.beta === true));
+  smoke.check('and checks again for betas, finding 0.2.0-beta.2', (await smoke.waitFor(status, 3000, 'Version 0.2.0-beta.2 is available')) && u.checks.length === checks + 1 && u.checks.at(-1)?.beta === true, u.checks.slice(checks));
+  await dismissToasts(smoke);
+  await showSection();
+  await smoke.shots('74-settings-updates-beta');
+  u.script({ outcome: 'up-to-date' });
+  checks = u.checks.length;
+  await smoke.click('[data-testid=updates-beta]');
+  smoke.check('turning them off stores it and checks again for stable versions', (await smoke.until(() => host.config.get().updates.beta === false)) && (await smoke.waitFor(status, 3000, 'You have the latest version')) && u.checks.at(-1)?.beta === false && u.checks.length === checks + 1, u.checks.slice(checks));
+  u.reset();
+
   await smoke.key('K', ['control']);
   await smoke.waitFor('[data-testid=palette-input]');
   await smoke.typeText('update');

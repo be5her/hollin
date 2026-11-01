@@ -165,7 +165,7 @@ async function main(): Promise<void> {
       scheduleChecks({
         due: () => Boolean(host) && startupCheckDue(host!.config.get().updates.check, updater.checkedAt),
         stopping: () => stopped !== null,
-        check: () => void updater.check({ scheduled: true }),
+        check: () => void updater.check({ scheduled: true, beta: host!.config.get().updates.beta }),
       });
     });
   }

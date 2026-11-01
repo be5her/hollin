@@ -30,7 +30,8 @@ export function updateLine(s: UpdateState | undefined, at: (iso: string) => stri
 
 /**
  * Settings > Updates: where the update stands, Check / Download / Restart and install (each enabled
- * only when it can act), the release notes as plain text, and whether to check when the app starts.
+ * only when it can act), the release notes as plain text, whether to check when the app starts, and
+ * whether to get beta versions.
  */
 @Component({
   selector: 'x-updates-settings',
@@ -48,6 +49,8 @@ export function updateLine(s: UpdateState | undefined, at: (iso: string) => stri
       <div class="text-xs whitespace-pre-line bg-surface border border-edge rounded-md px-2.5 py-2 max-h-48 overflow-auto" data-testid="updates-notes">{{ text }}</div>
     }
     <label class="flex items-center gap-2 text-sm mt-4"><input xCheckbox type="checkbox" [formField]="auto.check" data-testid="updates-auto" />Check for updates when the app starts</label>
+    <label class="flex items-center gap-2 text-sm mt-2"><input xCheckbox type="checkbox" [formField]="auto.beta" data-testid="updates-beta" />Get beta versions</label>
+    <p class="text-xs text-muted mt-1 ml-6" data-testid="updates-beta-note">Betas are previews of the next version, out before it is finished. Turned off, a beta you have stays until a newer stable version comes.</p>
   `,
 })
 export class UpdatesSettings {
@@ -75,8 +78,8 @@ export class UpdatesSettings {
     return s && (s.state === 'available' || s.state === 'downloading' || s.state === 'ready') ? (s.notes ?? '') : '';
   });
 
-  /** The startup check switch, following the stored config. */
-  private readonly draft = linkedSignal(() => ({ check: this.app.config()?.updates.check ?? true }));
+  /** The startup check and beta switches, following the stored config. */
+  private readonly draft = linkedSignal(() => ({ check: this.app.config()?.updates.check ?? true, beta: this.app.config()?.updates.beta ?? false }));
   protected readonly auto = form(this.draft);
 
   constructor() {
@@ -91,20 +94,28 @@ export class UpdatesSettings {
       (err: unknown) => this.toasts.error(err),
     );
     effect(() => {
-      const check = this.draft().check;
+      const { check, beta } = this.draft();
       const config = untracked(this.app.config);
-      if (!config || check === config.updates.check) return;
-      untracked(() => void this.save(check));
+      if (!config || (check === config.updates.check && beta === config.updates.beta)) return;
+      untracked(() => void this.save({ check, beta }, beta !== config.updates.beta));
     });
   }
 
-  private async save(check: boolean): Promise<void> {
+  /**
+   * Stores the switches. A changed beta switch makes the last check's answer stale (a beta found, or
+   * "the latest" of the other channel), so a found or up-to-date state is checked again.
+   */
+  private async save(updates: { check: boolean; beta: boolean }, channelChanged: boolean): Promise<void> {
     try {
-      await this.host.invoke('config.update', { patch: { updates: { check } } }, null);
+      await this.host.invoke('config.update', { patch: { updates } }, null);
     } catch (err) {
       this.toasts.error(err);
-      this.draft.set({ check: untracked(this.app.config)?.updates.check ?? true });
+      const stored = untracked(this.app.config)?.updates;
+      this.draft.set({ check: stored?.check ?? true, beta: stored?.beta ?? false });
+      return;
     }
+    const s = untracked(this.state)?.state;
+    if (channelChanged && (s === 'available' || s === 'up-to-date')) await this.check();
   }
 
   protected async check(): Promise<void> {
