@@ -46,6 +46,10 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      # The smoke drives a 1440 x 900 window and refuses a smaller one; the runner's screen is 1024 x 768,
+      # which would clamp the window and move every computed click.
+      - name: Set the display to 1920 x 1080
+        run: Set-DisplayResolution -Width 1920 -Height 1080 -Force
       - run: npm run smoke
         env:
           SMOKE_SHOTS: smoke-shots

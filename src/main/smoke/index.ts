@@ -38,6 +38,9 @@ import { smokeUpdatesUi } from './updates-ui';
  * through MCP and through the UI, against a temporary data folder and a private MCP port.
  * `SMOKE_SHOTS=<dir>` also saves screenshots. Returns the process exit code.
  */
+/** The smallest content size the UI checks were written for: createMainWindow asks for 1440 x 900, which a 1920 x 1080 screen gives as 1440 x 778 (the OS keeps the frame and the taskbar's room). */
+const SMOKE_WINDOW: readonly [number, number] = [1400, 760];
+
 export async function runSmoke(host: Host, openWindow: () => BrowserWindow): Promise<number> {
   const shots = process.env.SMOKE_SHOTS ? path.resolve(process.env.SMOKE_SHOTS) : undefined;
   const smoke = new Smoke(host, shots);
@@ -61,7 +64,14 @@ export async function runSmoke(host: Host, openWindow: () => BrowserWindow): Pro
     await smokeExchangeDecor(smoke, decorId);
 
     smoke.section('renderer');
-    await smoke.openWindow(openWindow);
+    const win = await smoke.openWindow(openWindow);
+    // Every computed click assumes the 1440 x 900 window createMainWindow asks for; a smaller screen clamps it and
+    // moves the clicks (CI's runner once had a 1024 x 768 screen, and the first wall click landed on a slider).
+    const [width, height] = win.getContentSize();
+    const [minWidth, minHeight] = SMOKE_WINDOW;
+    if (width < minWidth || height < minHeight) {
+      throw new Error(`the smoke window is ${width} x ${height}, smaller than the ${minWidth} x ${minHeight} the checks assume: the screen is too small (CI sets its display to 1920 x 1080 first)`);
+    }
     await smokeShell(smoke);
     await smokeUpdatesUi(smoke);
     await smokeLibraryUi(smoke, houseId);
