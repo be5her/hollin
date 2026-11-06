@@ -1,8 +1,9 @@
 import { NgTemplateOutlet } from '@angular/common';
 import { Component, ElementRef, afterRenderEffect, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
-import { BRANDING, type AssistantEvent, type AssistantStatus, type ChatSnapshot, type ToolItem } from '@studio/core';
+import { BRANDING, MAX_CHAT_IMAGES, type AssistantEvent, type AssistantStatus, type ChatImageInput, type ChatSnapshot, type ToolItem } from '@studio/core';
 import { AppState, AssistantDrafts, Button, HostBridge, Icon, Kbd, OTTO_RULE, OttoMark, Spinner, TabsState, Toasts, injectHostEvent, invokeResource, ottoModelLabel } from '@studio/ui';
-import { ArrowDown, Camera, Check, CircleAlert, Eraser, KeyRound, Plug, RefreshCw, Send, Settings2, ShieldAlert, Square, X } from 'lucide';
+import { ArrowDown, Camera, Check, CircleAlert, Eraser, ImageOff, KeyRound, Plug, RefreshCw, Send, Settings2, ShieldAlert, Square, X } from 'lucide';
+import { imageFiles, prepareImage, type PreparedImage } from './pasted-images';
 
 /** Why the chat cannot run yet, as the setup state the panel shows instead. */
 type EmptyReason = 'key' | 'not-found' | 'not-logged-in';
@@ -46,24 +47,34 @@ export class AssistantPanel {
   private readonly composer = viewChild<ElementRef<HTMLTextAreaElement>>('composer');
   private readonly confirmCard = viewChild<ElementRef<HTMLElement>>('confirmCard');
 
-  protected readonly icons = { ArrowDown, Camera, Check, CircleAlert, Eraser, KeyRound, Plug, RefreshCw, Send, Settings2, ShieldAlert, Square, X };
+  protected readonly icons = { ArrowDown, Camera, Check, CircleAlert, Eraser, ImageOff, KeyRound, Plug, RefreshCw, Send, Settings2, ShieldAlert, Square, X };
+  protected readonly maxImages = MAX_CHAT_IMAGES;
   protected readonly examples = EXAMPLES;
   protected readonly rule = OTTO_RULE;
   protected readonly productName = BRANDING.productName;
   protected readonly status = invokeResource<AssistantStatus>('assistant.status', () => ({}), { projectId: () => null, refreshOnEvents: ['secrets.changed', 'config.changed', 'mcp.status'] });
   protected readonly chat = signal<ChatSnapshot | null>(null);
   protected readonly draft = signal('');
+  /** Images pasted or dropped into the composer, ready to go with the next message. */
+  protected readonly attachments = signal<readonly PreparedImage[]>([]);
+  /** How many pasted images are still being read or shrunk. */
+  protected readonly preparing = signal(0);
+  protected readonly preparingSlots = computed(() => Array.from({ length: this.preparing() }, (_, i) => i));
+  /** A file is dragged over the composer. */
+  protected readonly dropping = signal(false);
   protected readonly sending = signal(false);
   protected readonly checking = signal(false);
   protected readonly enabling = signal(false);
   /** Cards whose long text is shown in full. */
   protected readonly expanded = signal<ReadonlySet<string>>(new Set());
-  /** Snapshot images, as data URLs, by tool item id. */
+  /** Snapshot images by tool item id, and the images of your messages by their image id, as data URLs. */
   protected readonly images = signal<Record<string, string>>({});
   /** The list is scrolled up while new content arrived: the "New from Otto" pill shows. */
   protected readonly unseen = signal(false);
   private atBottom = true;
   private readonly loadingImages = new Set<string>();
+  /** Images main no longer keeps (the chat was restored from the view state, which never stores their data). */
+  protected readonly missingImages = signal<ReadonlySet<string>>(new Set());
 
   protected readonly running = computed(() => this.chat() !== null && this.chat()?.status !== 'idle');
   protected readonly stopping = computed(() => this.chat()?.stopping === true);
@@ -125,13 +136,16 @@ export class AssistantPanel {
     return null;
   });
   protected readonly placeholder = computed(() => (this.chat()?.status === 'waiting' ? 'Otto is waiting for your answer above' : this.stopping() ? 'Stopping the last run…' : 'Ask Otto…'));
-  protected readonly canSend = computed(() => this.draft().trim().length > 0 && !this.running() && !this.stopping() && !this.sending());
+  protected readonly canSend = computed(() => (this.draft().trim().length > 0 || this.attachments().length > 0) && this.preparing() === 0 && !this.running() && !this.stopping() && !this.sending());
   protected readonly canClear = computed(() => !this.running() && !this.stopping() && Boolean(this.chat()?.items?.length || this.chat()?.sessionId));
   /** The last error was a refused key: Settings is the fix, not sending again. */
   protected readonly keyRefused = computed(() => /refused the key/.test(this.chat()?.error ?? ''));
-  private readonly lastUserText = computed(() => {
+  private readonly lastUser = computed(() => {
     const items = this.chat()?.items ?? [];
-    for (let i = items.length - 1; i >= 0; i--) if (items[i].kind === 'user') return (items[i] as { text: string }).text;
+    for (let i = items.length - 1; i >= 0; i--) {
+      const item = items[i];
+      if (item.kind === 'user') return item;
+    }
     return null;
   });
 
@@ -152,18 +166,19 @@ export class AssistantPanel {
       if (projectId !== untracked(this.projectId)) return;
       this.apply(event);
     });
-    // Snapshot images are fetched once per card.
+    // Snapshot images and the images of your messages are fetched once each; one main no longer keeps (a reopened chat) shows as gone.
     effect(() => {
       const items = this.chat()?.items ?? [];
       const have = untracked(this.images);
-      for (const item of items) {
-        if (item.kind !== 'tool' || !item.image || have[item.id] || this.loadingImages.has(item.id)) continue;
-        this.loadingImages.add(item.id);
+      const ids = items.flatMap((item) => (item.kind === 'tool' && item.image ? [item.id] : item.kind === 'user' ? (item.images ?? []).map((image) => image.id) : []));
+      for (const id of ids) {
+        if (have[id] || this.loadingImages.has(id) || untracked(this.missingImages).has(id)) continue;
+        this.loadingImages.add(id);
         void this.host
-          .invoke<{ mimeType: string; data: string }>('assistant.image', { id: item.id }, untracked(this.projectId))
-          .then((image) => this.images.update((all) => ({ ...all, [item.id]: `data:${image.mimeType};base64,${image.data}` })))
-          .catch(() => {})
-          .finally(() => this.loadingImages.delete(item.id));
+          .invoke<{ mimeType: string; data: string }>('assistant.image', { id }, untracked(this.projectId))
+          .then((image) => this.images.update((all) => ({ ...all, [id]: `data:${image.mimeType};base64,${image.data}` })))
+          .catch(() => this.missingImages.update((set) => new Set(set).add(id)))
+          .finally(() => this.loadingImages.delete(id));
       }
     });
     // Follow new content while the list is near the bottom; otherwise offer the pill.
@@ -267,12 +282,13 @@ export class AssistantPanel {
     }
   }
 
-  protected async send(text = this.draft().trim()): Promise<void> {
-    if (!text || this.running() || this.stopping() || this.sending()) return;
+  protected async send(text = this.draft().trim(), images: readonly ChatImageInput[] = this.attachments()): Promise<void> {
+    if ((!text && !images.length) || this.preparing() > 0 || this.running() || this.stopping() || this.sending()) return;
     this.sending.set(true);
     try {
-      await this.host.invoke('assistant.send', { text }, this.projectId());
+      await this.host.invoke('assistant.send', { text, ...(images.length ? { images: images.map(({ mimeType, data }) => ({ mimeType, data })) } : {}) }, this.projectId());
       this.draft.set('');
+      this.attachments.set([]);
       this.toBottom();
       const el = this.composer()?.nativeElement;
       if (el) {
@@ -286,10 +302,66 @@ export class AssistantPanel {
     }
   }
 
-  /** Sends the last message again after a failed run (the API history was trimmed back, so the resend is clean). */
+  /** Sends the last message again after a failed run (the API history was trimmed back, so the resend is clean), with the images it carried that are still kept. */
   protected sendAgain(): void {
-    const text = this.lastUserText();
-    if (text) void this.send(text);
+    const last = this.lastUser();
+    if (!last) return;
+    const shown = this.images();
+    const images = (last.images ?? []).flatMap((image) => {
+      const url = shown[image.id];
+      return url ? [{ mimeType: image.mimeType as ChatImageInput['mimeType'], data: url.slice(url.indexOf(',') + 1) }] : [];
+    });
+    if (last.text || images.length) void this.send(last.text, images);
+  }
+
+  /** A paste with images in it attaches them; its text, if it has any, still lands in the field. */
+  protected onPaste(event: ClipboardEvent): void {
+    const files = imageFiles(event.clipboardData);
+    if (!files.length) return;
+    if (!event.clipboardData?.types.includes('text/plain')) event.preventDefault();
+    void this.attach(files);
+  }
+
+  protected onDragOver(event: DragEvent): void {
+    if (!event.dataTransfer || !Array.from(event.dataTransfer.items).some((item) => item.kind === 'file' && item.type.startsWith('image/'))) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'copy';
+    this.dropping.set(true);
+  }
+
+  protected onDrop(event: DragEvent): void {
+    this.dropping.set(false);
+    const files = imageFiles(event.dataTransfer);
+    if (!files.length) return;
+    event.preventDefault();
+    void this.attach(files);
+  }
+
+  /** Reads and shrinks the images, up to the limit per message; the rest are refused with a toast. */
+  private async attach(files: File[]): Promise<void> {
+    if (this.running() || this.stopping()) return;
+    const room = MAX_CHAT_IMAGES - this.attachments().length - this.preparing();
+    if (files.length > room) this.toasts.notify(`Otto takes up to ${MAX_CHAT_IMAGES} images per message.`, 'error');
+    const taken = files.slice(0, Math.max(0, room));
+    this.preparing.update((n) => n + taken.length);
+    await Promise.all(
+      taken.map(async (file) => {
+        try {
+          const image = await prepareImage(file);
+          this.attachments.update((list) => [...list, image]);
+        } catch (err) {
+          this.toasts.error(err);
+        } finally {
+          this.preparing.update((n) => n - 1);
+        }
+      }),
+    );
+    this.composer()?.nativeElement.focus();
+  }
+
+  protected removeAttachment(id: string): void {
+    this.attachments.update((list) => list.filter((image) => image.id !== id));
+    this.composer()?.nativeElement.focus();
   }
 
   protected async stop(): Promise<void> {
@@ -304,6 +376,7 @@ export class AssistantPanel {
     try {
       await this.host.invoke('assistant.clear', {}, this.projectId());
       this.images.set({});
+      this.missingImages.set(new Set());
     } catch (err) {
       this.toasts.error(err);
     }

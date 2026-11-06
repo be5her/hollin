@@ -6,8 +6,31 @@ import type { CommandMeta } from './types';
  * to the window. Pure types, shared by the assistant module's Node side and its panel.
  */
 
+/** The image types the model reads (the Claude API's base64 image sources). */
+export const CHAT_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'] as const;
+export type ChatImageType = (typeof CHAT_IMAGE_TYPES)[number];
+/** How many images one message may carry. */
+export const MAX_CHAT_IMAGES = 6;
+/** The largest image the API takes, decoded (5 MB); the panel shrinks a pasted image well below it. */
+export const MAX_CHAT_IMAGE_BYTES = 5 * 1024 * 1024;
+/** The panel scales a pasted image down to this long edge (px): the size the model sees at full detail without spending more tokens. */
+export const CHAT_IMAGE_EDGE = 1568;
+
+/** An image as `assistant.send` takes it: base64, without a `data:` prefix. */
+export interface ChatImageInput {
+  mimeType: ChatImageType;
+  data: string;
+}
+
+/** An image attached to a user message: its data is fetched with `assistant.image` by `id`, never carried by the chat. */
+export interface ChatImageRef {
+  id: string;
+  mimeType: string;
+}
+
 export type TranscriptItem =
-  | { kind: 'user'; id: string; text: string; at: string }
+  /** A message from the user; `images` are the pictures pasted into it, sent to the model before the text. */
+  | { kind: 'user'; id: string; text: string; at: string; images?: ChatImageRef[] }
   /** A reply, streamed: `text` grows with `assistant.event` text deltas. */
   | { kind: 'assistant'; id: string; text: string; at: string }
   /** A tool call: the command it ran, what it was given, and how it ended. */

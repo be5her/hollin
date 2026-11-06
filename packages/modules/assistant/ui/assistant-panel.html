@@ -51,7 +51,22 @@
       @for (item of chat()?.items ?? []; track item.id) {
         @switch (item.kind) {
           @case ('user') {
-            <div class="self-end max-w-[85%] rounded-lg rounded-br-[2px] bg-elevated px-3 py-[7px] whitespace-pre-wrap break-words" data-testid="assistant-item" data-kind="user">{{ item.text }}</div>
+            <div class="self-end max-w-[85%] rounded-lg rounded-br-[2px] bg-elevated px-3 py-[7px] whitespace-pre-wrap break-words" data-testid="assistant-item" data-kind="user" [attr.data-images]="item.images?.length ?? 0">
+              @if (item.images?.length) {
+                <div class="flex flex-wrap justify-end gap-1.5" [class.mb-1.5]="item.text">
+                  @for (image of item.images; track image.id; let i = $index) {
+                    @if (images()[image.id]; as src) {
+                      <button type="button" class="block overflow-hidden rounded-md border border-edge bg-canvas focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50" [attr.aria-expanded]="expanded().has(image.id)" (click)="toggle(image.id)" data-testid="assistant-user-image">
+                        <img [src]="src" [alt]="'Your image ' + (i + 1)" class="block object-contain" [class]="expanded().has(image.id) ? 'max-h-[420px] max-w-full' : 'max-h-24 max-w-[180px]'" />
+                      </button>
+                    } @else if (missingImages().has(image.id)) {
+                      <span class="inline-flex items-center gap-1.5 h-8 px-2 rounded-md border border-edge bg-canvas text-[11px] italic text-muted" data-testid="assistant-user-image-gone"><svg [xIcon]="icons.ImageOff" class="size-3.5"></svg>Image not kept</span>
+                    } @else {
+                      <span class="block size-16 rounded-md border border-edge bg-canvas"></span>
+                    }
+                  }
+                </div>
+              }{{ item.text }}</div>
           }
           @case ('assistant') {
             <div class="border-l-2 border-ai pl-3 whitespace-pre-wrap break-words" data-testid="assistant-item" data-kind="assistant">{{ item.text }}@if (streamingId() === item.id) {<span class="otto-caret" aria-hidden="true"></span>}</div>
@@ -162,7 +177,35 @@
     </div>
   }
 
-  <form class="flex flex-col gap-1.5 shrink-0 px-3 pt-2.5 pb-2 border-t border-edge" (submit)="$event.preventDefault(); send()">
+  <form
+    class="flex flex-col gap-1.5 shrink-0 px-3 pt-2.5 pb-2 border-t border-edge"
+    [class.bg-elevated]="dropping()"
+    (submit)="$event.preventDefault(); send()"
+    (dragover)="onDragOver($event)"
+    (dragleave)="dropping.set(false)"
+    (drop)="onDrop($event)"
+  >
+    @if (attachments().length || preparing()) {
+      <div class="flex flex-wrap items-center gap-1.5" role="list" aria-label="Images to send" data-testid="assistant-attachments">
+        @for (image of attachments(); track image.id; let i = $index) {
+          <div class="relative" role="listitem" data-testid="assistant-attachment" [attr.data-mime]="image.mimeType" [attr.data-size]="image.width + 'x' + image.height">
+            <img [src]="image.url" [alt]="'Image ' + (i + 1) + ' to send'" class="block h-12 max-w-24 rounded-md border border-edge bg-canvas object-cover" />
+            <button
+              type="button"
+              class="absolute -top-1.5 -right-1.5 flex size-[18px] items-center justify-center rounded-full border border-edge bg-surface text-muted hover:text-fg focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+              [attr.aria-label]="'Remove image ' + (i + 1)"
+              (click)="removeAttachment(image.id)"
+              data-testid="assistant-attachment-remove"
+            >
+              <svg [xIcon]="icons.X" class="size-3"></svg>
+            </button>
+          </div>
+        }
+        @for (slot of preparingSlots(); track slot) {
+          <span class="flex h-12 w-16 items-center justify-center rounded-md border border-edge bg-canvas" aria-label="Reading the image"><svg xSpinner class="size-4 text-muted"></svg></span>
+        }
+      </div>
+    }
     <div class="flex items-end gap-2">
       <textarea
         #composer
@@ -172,6 +215,7 @@
         [value]="draft()"
         (input)="draft.set($any($event.target).value)"
         (keydown)="onKeydown($event)"
+        (paste)="onPaste($event)"
         [disabled]="running() || stopping()"
         aria-label="Message to Otto"
         data-testid="assistant-input"

@@ -14,7 +14,8 @@
  *                           (the file is rewritten, so a queue outlives a process); a turn is
  *                           { text?, tools?: [{ name, input }], error? }.
  *   FAKE_CLAUDE_LOG         a JSONL file this script appends to: what it was started with, every
- *                           message it got and every MCP call it made.
+ *                           message it got (its text, its image blocks and the order of its blocks)
+ *                           and every MCP call it made.
  *   FAKE_CLAUDE_LOGGED_OUT  when set, `auth status` says not logged in.
  * No dependencies: it runs under Node or under the app's executable as Node.
  */
@@ -185,7 +186,9 @@ rl.on('line', (line) => {
   if (msg.type !== 'user') return;
   const content = msg.message && msg.message.content;
   const text = typeof content === 'string' ? content : (content || []).filter((b) => b.type === 'text').map((b) => b.text).join('');
-  log({ type: 'message', text });
+  const images = Array.isArray(content) ? content.filter((b) => b.type === 'image').map((b) => ({ sourceType: b.source && b.source.type, mediaType: b.source && b.source.media_type, data: b.source && b.source.data })) : [];
+  const order = Array.isArray(content) ? content.map((b) => b.type) : ['text'];
+  log({ type: 'message', text, images, order });
   // The real binary marks the echo of a stdin turn with `isReplay: true` (2.1.283).
   if (flags['replay-user-messages']) out({ ...msg, isReplay: true });
   chain = chain.then(() => answer(text)).catch((err) => {

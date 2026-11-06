@@ -2,7 +2,7 @@ import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createInterface } from 'node:readline';
-import { StudioError, newId, type ClaudeCodeStatus, type ErrorPayload } from '@studio/core';
+import { StudioError, newId, type ChatImageInput, type ClaudeCodeStatus, type ErrorPayload } from '@studio/core';
 import type { LoopEvents, ToolOutcome } from './loop';
 
 /*
@@ -181,7 +181,7 @@ interface Block {
   tool_use_id?: string;
   content?: unknown;
   is_error?: boolean;
-  source?: { media_type?: string; data?: string };
+  source?: { type?: string; media_type?: string; data?: string };
 }
 
 /** What a logged-out Claude Code says (checked against 2.1.283: "Failed to authenticate: OAuth session expired and could not be refreshed"). */
@@ -192,6 +192,13 @@ const CONTEXT_OPEN = '<app-context>';
 const CONTEXT_CLOSE = '</app-context>';
 const withContext = (context: string, text: string): string => `${CONTEXT_OPEN}\nThe project changed since you were last told about it; this is how it stands now.\n${context}\n${CONTEXT_CLOSE}\n\n${text}`;
 const withoutContext = (text: string): string => (text.startsWith(CONTEXT_OPEN) && text.includes(CONTEXT_CLOSE) ? text.slice(text.indexOf(CONTEXT_CLOSE) + CONTEXT_CLOSE.length).replace(/^\s+/, '') : text);
+
+/** A stream-json user turn's content: the images as base64 image blocks (the Messages API's shape, which Claude Code passes on), then the text. */
+export function userBlocks(text: string, images: ChatImageInput[]): Block[] {
+  const blocks: Block[] = images.map((image) => ({ type: 'image', source: { type: 'base64', media_type: image.mimeType, data: image.data } }));
+  if (text || !blocks.length) blocks.push({ type: 'text', text });
+  return blocks;
+}
 
 /**
  * Whether a failure says the resumed session could not be found. What the real binary prints for a
@@ -276,8 +283,8 @@ export class ClaudeCodeProvider {
     return this.proc && this.stopped ? this.exited : Promise.resolve();
   }
 
-  /** One user turn: starts the process if needed (resuming the stored session), writes the message, returns when Claude Code reports the turn's result. */
-  async send(text: string, events: ClaudeCodeEvents, signal: AbortSignal): Promise<void> {
+  /** One user turn: starts the process if needed (resuming the stored session), writes the message (its images as image blocks before the text), returns when Claude Code reports the turn's result. */
+  async send(text: string, images: ChatImageInput[], events: ClaudeCodeEvents, signal: AbortSignal): Promise<void> {
     this.events = events;
     const onAbort = () => this.stop();
     signal.addEventListener('abort', onAbort);
@@ -289,7 +296,7 @@ export class ClaudeCodeProvider {
         // A process Stop killed may not have reported its exit yet: wait for it rather than write to it.
         if (this.proc && this.stopped) await this.exited;
         if (!this.proc) this.start(resume);
-        const end = await this.turnOn(text);
+        const end = await this.turnOn(text, images);
         if (end === 'resume-failed' && attempt === 0 && resume) {
           events.session(null);
           events.note(newId('msg'), 'The earlier Claude Code session could not be resumed; starting a new one.');
@@ -379,14 +386,14 @@ export class ClaudeCodeProvider {
     });
   }
 
-  private turnOn(text: string): Promise<TurnEnd> {
+  private turnOn(text: string, images: ChatImageInput[]): Promise<TurnEnd> {
     // The levels (or the name, or the units) changed since this process was told them: the message carries the new state, so the process and its prompt cache are kept.
     const context = this.opts.liveContext();
     const sent = context === this.context ? text : withContext(context, text);
     this.context = context;
     return new Promise<TurnEnd>((resolve, reject) => {
       this.turn = { text, resolve, reject };
-      const line = JSON.stringify({ type: 'user', message: { role: 'user', content: [{ type: 'text', text: sent }] } });
+      const line = JSON.stringify({ type: 'user', message: { role: 'user', content: userBlocks(sent, images) } });
       this.proc!.stdin!.write(`${line}\n`, (err) => {
         if (err) this.fail(`Could not write to Claude Code: ${err.message}`);
       });
