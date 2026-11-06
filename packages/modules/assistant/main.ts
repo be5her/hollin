@@ -5,8 +5,11 @@ import path from 'node:path';
 import Anthropic from '@anthropic-ai/sdk';
 import {
   BRANDING,
+  CHAT_IMAGE_TYPES,
   DESIGN_GUIDELINES,
+  MAX_CHAT_IMAGES,
   StudioError,
+  checkChatImage,
   defineCommand,
   defineModule,
   deriveLevels,
@@ -17,6 +20,7 @@ import {
   type AssistantCaller,
   type AssistantEvent,
   type AssistantStatus,
+  type ChatImageInput,
   type ChatSnapshot,
   type ClaudeCodeStatus,
   type CommandMeta,
@@ -50,7 +54,8 @@ const UI_KEY = 'assistant';
 
 interface ChatProvider {
   readonly kind: 'api' | 'claude-code';
-  send(text: string, events: ClaudeCodeEvents, signal: AbortSignal): Promise<void>;
+  /** One user turn: the text, and the images pasted into it (checked, sent before the text). */
+  send(text: string, images: ChatImageInput[], events: ClaudeCodeEvents, signal: AbortSignal): Promise<void>;
   stop(): void;
   dispose(): void;
 }
@@ -70,7 +75,7 @@ interface Chat {
   restored: boolean;
   /** Stop was pressed and the run, or the Claude Code process it ran in, has not ended yet. */
   stopping: boolean;
-  /** Images tool calls returned (snapshots), by tool item id, for the cards; in memory only, gone with the chat. */
+  /** Images tool calls returned (snapshots), by tool item id, and images the user pasted, by their own id: in memory only, gone with the chat. */
   images: Map<string, { mimeType: string; data: string }>;
 }
 
@@ -323,6 +328,23 @@ function summarize(meta: CommandMeta, input: unknown, outcome: ToolOutcome): str
 
 // ---------- providers ----------
 
+/** A user turn as the API takes it: the images first (the model reads them best before the question), then the text; plain text when there are none. */
+export function userContent(text: string, images: ChatImageInput[]): Anthropic.MessageParam['content'] {
+  if (!images.length) return text;
+  const blocks: Anthropic.ContentBlockParam[] = images.map((image) => ({ type: 'image', source: { type: 'base64', media_type: image.mimeType, data: image.data } }));
+  if (text) blocks.push({ type: 'text', text });
+  return blocks;
+}
+
+/** The images of `assistant.send`, checked: base64 of a type the model reads (the type taken from the data itself), at most 5 MB each. */
+function checkedImages(images: ChatImageInput[] | undefined): ChatImageInput[] {
+  return (images ?? []).map((image, i) => {
+    const check = checkChatImage(image.data);
+    if (!check.ok) throw new StudioError('INVALID_INPUT', `Image ${i + 1} ${check.reason}.`);
+    return { mimeType: check.mimeType, data: image.data };
+  });
+}
+
 /** The Claude API with the user's key: the loop in `loop.ts` over a conversation kept per chat. */
 class ApiProvider implements ChatProvider {
   readonly kind = 'api' as const;
@@ -331,14 +353,14 @@ class ApiProvider implements ChatProvider {
 
   constructor(private readonly host: HostApi, private readonly chat: Chat) {}
 
-  async send(text: string, events: LoopEvents, signal: AbortSignal): Promise<void> {
+  async send(text: string, images: ChatImageInput[], events: LoopEvents, signal: AbortSignal): Promise<void> {
     const key = this.host.secrets.get(ANTHROPIC_KEY);
     if (!key) throw new StudioError('UNAVAILABLE', 'Add a Claude API key in Settings to use the assistant.');
     const model = this.host.config.get().ai.model;
     const client = new Anthropic({ apiKey: key, baseURL: process.env[BASE_URL_ENV] || undefined, maxRetries: 1 });
     const { tools, byName } = toolsFor(this.host);
     const before = this.messages.length;
-    this.messages.push({ role: 'user', content: text });
+    this.messages.push({ role: 'user', content: userContent(text, images) });
     try {
       await runLoop(
         {
@@ -482,13 +504,19 @@ function historyItem(item: HistoryItem, byName: Map<string, CommandMeta>): Trans
   };
 }
 
-async function run(host: HostApi, chat: Chat, text: string): Promise<void> {
+async function run(host: HostApi, chat: Chat, text: string, images: ChatImageInput[]): Promise<void> {
   const provider = providerFor(host, chat);
   const controller = new AbortController();
   chat.run = { controller };
   chat.status = 'running';
   chat.error = null;
-  const userItem: TranscriptItem = { kind: 'user', id: newId('msg'), text, at: now() };
+  // The pasted images are kept like snapshots, by their own id, for the bubble: the chat carries only their ids and types.
+  const refs = images.map((image) => {
+    const id = newId('img');
+    chat.images.set(id, image);
+    return { id, mimeType: image.mimeType };
+  });
+  const userItem: TranscriptItem = { kind: 'user', id: newId('msg'), text, at: now(), ...(refs.length ? { images: refs } : {}) };
   chat.items.push(userItem);
   changed(host, chat);
 
@@ -552,7 +580,7 @@ async function run(host: HostApi, chat: Chat, text: string): Promise<void> {
     authFailure: () => markLoggedIn(false),
   };
   try {
-    await provider.send(text, events, controller.signal);
+    await provider.send(text, images, events, controller.signal);
   } catch (err) {
     if (!controller.signal.aborted) {
       chat.error = describeApiError(err);
@@ -638,15 +666,23 @@ export const assistantModule = defineModule({
     defineCommand({
       id: 'assistant.send',
       title: 'Send a message to the assistant',
-      description: 'Starts a run of the assistant with this message; the reply streams as assistant.event events. Refused while a run is going, when no key is set, or when Claude Code or the MCP server it needs is not available.',
+      description: `Starts a run of the assistant with this message and up to ${MAX_CHAT_IMAGES} images pasted into it (base64 PNG, JPEG, GIF or WebP, at most 5 MB each; the model gets them before the text); the reply streams as assistant.event events. A message needs text or an image. Refused while a run is going, when no key is set, or when Claude Code or the MCP server it needs is not available.`,
       scope: 'project',
       hidden: true,
-      input: projectScoped(z.object({ text: z.string().trim().min(1).max(20_000) })),
-      handler: async ({ text }, ctx) => {
+      input: projectScoped(
+        z
+          .object({
+            text: z.string().trim().max(20_000),
+            images: z.array(z.object({ mimeType: z.enum(CHAT_IMAGE_TYPES), data: z.string().min(1) })).max(MAX_CHAT_IMAGES).optional(),
+          })
+          .refine((m) => m.text.length > 0 || (m.images?.length ?? 0) > 0, { message: 'A message needs text or an image.' }),
+      ),
+      handler: async ({ text, images }, ctx) => {
         const chat = chatFor(ctx.project!);
         if (chat.run) throw new StudioError('CONFLICT', 'The assistant is still working on the last message.');
+        const checked = checkedImages(images);
         await readiness(ctx.host);
-        void run(ctx.host, chat, text);
+        void run(ctx.host, chat, text, checked);
         return { started: true };
       },
     }),
@@ -688,8 +724,8 @@ export const assistantModule = defineModule({
     }),
     defineCommand({
       id: 'assistant.image',
-      title: 'Image of an assistant tool call',
-      description: 'The image a tool call in the chat returned (a snapshot), as { mimeType, data } in base64, while the project stays open.',
+      title: 'Image in the assistant chat',
+      description: 'An image in the chat, as { mimeType, data } in base64, while the project stays open: the one a tool call returned (a snapshot, by the card id) or one the user pasted into a message (by its image id).',
       scope: 'project',
       hidden: true,
       readOnly: true,

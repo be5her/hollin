@@ -19,6 +19,8 @@ import { ANTHROPIC_KEY } from '../settings/main';
  */
 
 const fake = new FakeClaude();
+/** A real 1 × 1 PNG, as a pasted image. */
+const PNG_1PX = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 
 const calls: { id: string; input: unknown; caller: string; agent?: string; project?: string }[] = [];
 
@@ -159,6 +161,54 @@ describe('assistant', () => {
     expect(await run('assistant.image', { id: card.id })).toEqual({ mimeType: 'image/png', data: 'iVBORw0KGgo=' });
     await run('assistant.clear');
     await expect(run('assistant.image', { id: card.id })).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+
+  it('sends pasted images to the model as image blocks before the text, and keeps them for the bubble only', async () => {
+    const { run, host, idle } = setup();
+    await assistantModule.onStart!(host);
+    await host.secrets.set(ANTHROPIC_KEY, 'sk-test-key');
+    fake.script({ text: 'That is a 1 px plan.' }, { text: 'Still the same picture.' });
+    // The clipboard said JPEG; the data is a PNG, and the model is told what it really is.
+    await run('assistant.send', { text: 'What is this?', images: [{ mimeType: 'image/jpeg', data: PNG_1PX }, { mimeType: 'image/png', data: PNG_1PX }] });
+    const final = await idle();
+    expect(final.error).toBeNull();
+    expect(fake.requests[0].body.messages[0]).toEqual({
+      role: 'user',
+      content: [
+        { type: 'image', source: { type: 'base64', media_type: 'image/png', data: PNG_1PX } },
+        { type: 'image', source: { type: 'base64', media_type: 'image/png', data: PNG_1PX } },
+        { type: 'text', text: 'What is this?' },
+      ],
+    });
+    const user = final.items[0] as Extract<ChatSnapshot['items'][number], { kind: 'user' }>;
+    expect(user.images).toEqual([
+      { id: expect.stringMatching(/^img_/), mimeType: 'image/png' },
+      { id: expect.stringMatching(/^img_/), mimeType: 'image/png' },
+    ]);
+    expect(JSON.stringify(final)).not.toContain(PNG_1PX);
+    expect(await run('assistant.image', { id: user.images![0].id })).toEqual({ mimeType: 'image/png', data: PNG_1PX });
+
+    // An image alone is a message; the next turn keeps the earlier images in the history.
+    await run('assistant.send', { text: '', images: [{ mimeType: 'image/png', data: PNG_1PX }] });
+    await idle();
+    const second = fake.requests[1].body.messages;
+    expect(second).toHaveLength(3);
+    expect(second[0].content).toHaveLength(3);
+    expect(second[2].content).toEqual([{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: PNG_1PX } }]);
+    await run('assistant.clear');
+    await expect(run('assistant.image', { id: user.images![0].id })).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+
+  it('refuses an empty message, an image the model cannot read, and too many images, before anything is sent', async () => {
+    const { run, host } = setup();
+    await assistantModule.onStart!(host);
+    await host.secrets.set(ANTHROPIC_KEY, 'sk-test-key');
+    await expect(run('assistant.send', { text: '  ' })).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+    await expect(run('assistant.send', { text: 'look', images: [{ mimeType: 'image/png', data: Buffer.from('<svg/>').toString('base64') }] })).rejects.toMatchObject({ code: 'INVALID_INPUT', message: expect.stringContaining('Image 1 is not a PNG') });
+    await expect(run('assistant.send', { text: 'look', images: [{ mimeType: 'image/png', data: `data:image/png;base64,${PNG_1PX}` }] })).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+    await expect(run('assistant.send', { text: 'look', images: Array.from({ length: 7 }, () => ({ mimeType: 'image/png', data: PNG_1PX })) })).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+    expect(fake.requests).toHaveLength(0);
+    expect((await run<ChatSnapshot>('assistant.state')).items).toEqual([]);
   });
 
   it('pauses a mutating call until the user answers: declined, then allowed', async () => {
@@ -305,7 +355,7 @@ function freePort(): Promise<number> {
 
 type FakeTurn = { text?: string; tools?: { name: string; input?: unknown }[]; error?: string };
 type FakeScript = { sessionId?: string; expectResume?: string; failResume?: boolean; crashResume?: string; replay?: unknown[]; messages: FakeTurn[][] };
-type LogEntry = { type: string; pid: number; resume?: string | null; model?: string | null; effort?: string | null; mcpUrl?: string; systemPrompt?: string; allowedTools?: string; disallowedTools?: string; tools?: string; strict?: boolean; name?: string; text?: string; isError?: boolean; result?: { type: string; text?: string }[] };
+type LogEntry = { type: string; pid: number; images?: { sourceType?: string; mediaType?: string; data?: string }[]; order?: string[]; resume?: string | null; model?: string | null; effort?: string | null; mcpUrl?: string; systemPrompt?: string; allowedTools?: string; disallowedTools?: string; tools?: string; strict?: boolean; name?: string; text?: string; isError?: boolean; result?: { type: string; text?: string }[] };
 
 const alive = (pid: number): boolean => {
   try {
@@ -507,6 +557,25 @@ describe('assistant with Claude Code', { timeout: 30_000 }, () => {
     await t.run('assistant.clear');
     expect(t.ui).toEqual({});
     expect((await t.state()).sessionId).toBeNull();
+  });
+
+  it('passes pasted images to Claude Code as base64 image blocks before the text, and stores only their ids', async () => {
+    const t = await setupClaudeCode();
+    writeScript({ sessionId: 'sess-img', messages: [[{ text: 'A 1 px plan.' }], [{ text: 'Same one.' }]] });
+    await t.run('assistant.send', { text: 'What is this?', images: [{ mimeType: 'image/webp', data: PNG_1PX }] });
+    const final = await t.idle();
+    expect(final.error).toBeNull();
+    const message = readLog().find((e) => e.type === 'message')!;
+    expect(message).toMatchObject({ text: 'What is this?', order: ['image', 'text'], images: [{ sourceType: 'base64', mediaType: 'image/png', data: PNG_1PX }] });
+    const user = final.items[0] as Extract<ChatSnapshot['items'][number], { kind: 'user' }>;
+    expect(user).toMatchObject({ kind: 'user', text: 'What is this?', images: [{ id: expect.stringMatching(/^img_/), mimeType: 'image/png' }] });
+    // The stored transcript names the image; its data stays in memory.
+    expect(JSON.stringify(t.ui)).not.toContain(PNG_1PX);
+    expect((t.ui['assistant'] as { items: { images?: unknown }[] }).items[0].images).toEqual(user.images);
+    // An image alone is a message too: the text block is left out.
+    await t.run('assistant.send', { text: '', images: [{ mimeType: 'image/png', data: PNG_1PX }] });
+    await t.idle();
+    expect(readLog().filter((e) => e.type === 'message')[1]).toMatchObject({ text: '', order: ['image'] });
   });
 
   it('keeps the stored session when a resumed process fails without saying the session is gone', async () => {

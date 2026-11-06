@@ -97,6 +97,56 @@ export async function smokeAssistantUi(smoke: Smoke, duplexId: string): Promise<
     smoke.check('the chat is idle again', await smoke.gone(`${panel} [data-testid=assistant-stop]`, 3000));
     await smoke.shots('29-assistant-chat');
 
+    // Pasted images: a 3200 × 1800 screenshot and a small PNG pasted into the composer (a real paste event,
+    // never the system clipboard), one removed again, the big one shrunk to the 1568 px long edge, and the
+    // image reaching the model as a base64 image block before the text.
+    fake.reset();
+    fake.script({ text: 'That is a plan with a red room.' });
+    await smoke.gone(`${panel} [data-testid=assistant-stop]`, 3000);
+    const paste = (width: number, height: number, fill: string) =>
+      smoke.js<boolean>(`(async () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = ${width};
+        canvas.height = ${height};
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#f4efe6';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '${fill}';
+        ctx.fillRect(canvas.width / 4, canvas.height / 4, canvas.width / 2, canvas.height / 2);
+        const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+        const data = new DataTransfer();
+        data.items.add(new File([blob], 'screenshot.png', { type: 'image/png' }));
+        const input = document.querySelector(${JSON.stringify(`${panel} [data-testid=assistant-input]`)});
+        input.focus();
+        return !input.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
+      })()`);
+    const attachments = `${panel} [data-testid=assistant-attachment]`;
+    smoke.check('pasting an image takes it instead of pasting text', await paste(3200, 1800, '#c0392b'));
+    smoke.check('the pasted image shows above the message field, shrunk to a 1568 px long edge', (await smoke.waitFor(`${attachments}[data-size="1568x882"][data-mime="image/png"]`, 5000)), await smoke.js(`[...document.querySelectorAll('${attachments}')].map((el) => el.dataset.size)`));
+    await paste(40, 40, '#2e86c1');
+    smoke.check('a second paste adds a second image', await smoke.until(async () => (await smoke.count(attachments)) === 2));
+    smoke.check('Send is enabled by images alone', await smoke.js<boolean>(`!document.querySelector('${panel} [data-testid=assistant-send]').disabled`));
+    await smoke.shots('75-assistant-pasted-image');
+    await smoke.click(`${panel} [data-testid=assistant-attachment]:nth-child(2) [data-testid=assistant-attachment-remove]`);
+    smoke.check('an image can be removed before sending', await smoke.until(async () => (await smoke.count(attachments)) === 1));
+    await smoke.fill(`${panel} [data-testid=assistant-input]`, 'What is in this screenshot?');
+    await smoke.click(`${panel} [data-testid=assistant-send]`);
+    // The chat still holds the earlier turns: the new message is the request's last.
+    const pasted = (await fake.received(1)) ? fake.requests[0].body.messages.at(-1) : undefined;
+    const blocks = Array.isArray(pasted?.content) ? pasted.content : [];
+    const imageBlock = blocks[0] as { type: string; source?: { type: string; media_type: string; data: string } } | undefined;
+    smoke.check(
+      'the model gets the pasted image as a base64 PNG before the text',
+      blocks.length === 2 && imageBlock?.type === 'image' && imageBlock.source?.type === 'base64' && imageBlock.source.media_type === 'image/png' && (imageBlock.source.data.length ?? 0) > 1000 && blocks[1].type === 'text' && blocks[1].text === 'What is in this screenshot?',
+      blocks.map((b) => b.type),
+    );
+    const size = imageBlock?.source ? Buffer.from(imageBlock.source.data, 'base64') : undefined;
+    smoke.check('at the shrunk size', size !== undefined && size.readUInt32BE(16) === 1568 && size.readUInt32BE(20) === 882, size && [size.readUInt32BE(16), size.readUInt32BE(20)]);
+    smoke.check('your message shows the image, and the composer is empty again', (await smoke.waitFor(`${panel} [data-testid=assistant-item][data-kind=user][data-images="1"] [data-testid=assistant-user-image] img`, 5000)) && (await smoke.count(attachments)) === 0);
+    smoke.check('the reply about it streams in', await smoke.waitFor(`${panel} [data-testid=assistant-item][data-kind=assistant]`, 8000, 'red room'));
+    await smoke.gone(`${panel} [data-testid=assistant-stop]`, 3000);
+    await smoke.shots('76-assistant-image-message');
+
 
     await smoke.click(`${panel} [data-testid=assistant-clear]`);
     smoke.check('Clear forgets the conversation', (await smoke.waitFor(`${panel} [data-testid=assistant-intro]`, 3000)) && (await smoke.count(`${panel} [data-testid=assistant-item]`)) === 0);

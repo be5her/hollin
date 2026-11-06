@@ -4,6 +4,9 @@ Every notable change to the app, newest first. The format follows [Keep a Change
 
 ## [Unreleased]
 
+### Added
+- Paste an image into Otto's message field (a screenshot, a photo of a sketch, a floor plan you found) or drop one on it: Otto sees it with your message. Up to 6 per message; large ones are shrunk to 1568 px on the long edge before they are sent. Works with the Claude API and with your Claude Code.
+
 ## [0.2.0-beta.1] - 2026-11-01
 
 The first beta: a preview of 0.2.0. Turn on Settings > Updates > *Get beta versions* to be offered the next betas as they come out.

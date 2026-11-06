@@ -5,7 +5,10 @@ import fakeClaudeSource from '@studio/modules/assistant/fake-claude.cjs?raw';
 import type { Smoke } from './harness';
 import { openProjectTab, tab } from './plan-canvas';
 
-type LogEntry = { type: string; pid: number; resume?: string | null; model?: string | null; effort?: string | null; mcpUrl?: string; name?: string; isError?: boolean; result?: { type: string; text?: string }[] };
+/** A real 1 × 1 PNG, as an image pasted into the chat. */
+const PNG_1PX = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+
+type LogEntry = { type: string; pid: number; text?: string; order?: string[]; images?: { sourceType?: string; mediaType?: string; data?: string }[]; resume?: string | null; model?: string | null; effort?: string | null; mcpUrl?: string; name?: string; isError?: boolean; result?: { type: string; text?: string }[] };
 
 const alive = (pid: number): boolean => {
   try {
@@ -152,6 +155,19 @@ export async function smokeAssistantClaudeCode(smoke: Smoke, duplexId: string): 
     await smoke.waitFor(`${panel} [data-testid=assistant-item][data-kind=assistant]`, 5000, 'Wiped.');
     smoke.check('one process served every message so far', starts().length === 1);
 
+    // A pasted image reaches Claude Code as a base64 image block before the text, on the same process.
+    writeScript({ messages: [[{ text: 'A one-pixel picture.' }]] });
+    await smoke.until(async () => (await run<{ status: string }>('assistant.state')).status === 'idle', 30_000);
+    await run('assistant.send', { text: 'What is this?', images: [{ mimeType: 'image/png', data: PNG_1PX }] });
+    smoke.check('the pasted image is answered', await smoke.waitFor(`${panel} [data-testid=assistant-item][data-kind=assistant]`, 30_000, 'A one-pixel picture.'));
+    const withImage = readLog().filter((e) => e.type === 'message').at(-1);
+    smoke.check(
+      'Claude Code got the image as a base64 block before the text',
+      withImage?.text === 'What is this?' && withImage.order?.join() === 'image,text' && withImage.images?.[0]?.sourceType === 'base64' && withImage.images[0].mediaType === 'image/png' && withImage.images[0].data === PNG_1PX && starts().length === 1,
+      withImage && { order: withImage.order, images: withImage.images?.length },
+    );
+    smoke.check('and the message shows the image', await smoke.waitFor(`${panel} [data-testid=assistant-item][data-kind=user][data-images="1"] [data-testid=assistant-user-image]`, 5000));
+
     // Stop kills the process; the next message starts one that resumes the session, with the earlier messages replayed.
     writeScript({ messages: [[{ tools: [{ name: 'smoke_destroy' }] }]] });
     await send('Wipe once more');
@@ -178,6 +194,7 @@ export async function smokeAssistantClaudeCode(smoke: Smoke, duplexId: string): 
     smoke.check('closing the project kills the process', await smoke.until(() => !alive(starts()[1].pid), 30_000));
     await openAssistant();
     smoke.check('the reopened chat shows the earlier messages again', (await smoke.waitFor(`${panel} [data-testid=assistant-item][data-kind=assistant]`, 5000, 'Back on the same session.')) && (await smoke.count(`${panel} [data-testid=assistant-item][data-kind=user]`)) >= 4);
+    smoke.check('an image pasted before the reopen is named, its data not kept', await smoke.waitFor(`${panel} [data-testid=assistant-item][data-kind=user][data-images="1"] [data-testid=assistant-user-image-gone]`, 5000, 'Image not kept'));
     writeScript({ expectResume: 'smoke-sess-1', replay: [{ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: 'Replayed twice if this shows' }] } }], messages: [[{ text: 'Still here.' }]] });
     await send('Still there?');
     smoke.check('and its first message resumes it', (await smoke.waitFor(`${panel} [data-testid=assistant-item][data-kind=assistant]`, 30_000, 'Still here.')) && starts().length === 3 && starts()[2].resume === 'smoke-sess-1');
