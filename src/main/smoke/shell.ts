@@ -47,9 +47,12 @@ export async function smokeShell(smoke: Smoke): Promise<void> {
   smoke.check('ready-to-copy client snippets name the URL', ((await smoke.text('[data-testid=snippet-claude-code]')) ?? '').includes(`/mcp`));
   smoke.check('recent agent calls are listed with the agent', await smoke.waitFor('[data-testid=settings-mcp-calls]', 3000, 'MCP · smoke-'));
   await smoke.click('[data-testid=settings-mcp-mutations]');
-  smoke.check('the mutations switch is stored', await smoke.until(() => host.config.get().mcp.allowMutations === true));
+  const mutationsShown = () => smoke.js<boolean>(`document.querySelector('[data-testid=settings-mcp-mutations]').checked`);
+  // The switch must show the stored value before it is clicked again: a second click while the first save's config.changed is on its way
+  // was undone by it, and mutations stayed on for every later section (an agent's export once went through in CI).
+  smoke.check('the mutations switch is stored', (await smoke.until(() => host.config.get().mcp.allowMutations === true)) && (await smoke.until(mutationsShown)));
   await smoke.click('[data-testid=settings-mcp-mutations]');
-  await smoke.until(() => host.config.get().mcp.allowMutations === false);
+  smoke.check('and switched off again', (await smoke.until(() => host.config.get().mcp.allowMutations === false)) && (await smoke.until(async () => !(await mutationsShown()))), host.config.get().mcp.allowMutations);
 
   await smoke.fill('[data-testid=settings-key-input]', 'sk-ant-ui-test-key-000000');
   // Save key stays on one line beside the field (it once wrapped onto two): its text one line high.

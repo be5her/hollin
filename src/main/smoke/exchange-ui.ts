@@ -80,6 +80,8 @@ export async function smokeExchangeUi(smoke: Smoke, duplexId: string): Promise<v
   await smoke.expectError('a PNG of an unknown level is refused', 'export.image', { path: path.join(out, 'x.png'), levelId: 'lvl_0000000000000000' }, 'NOT_FOUND', { projectId: duplexId });
   await smoke.expectError('a size past 4096 is refused', 'export.image', { path: path.join(out, 'x.png'), width: 5000 }, 'INVALID_INPUT', { projectId: duplexId });
 
+  // This section checks the refusal itself, so it sets the switch it depends on rather than trusting what earlier sections left.
+  await smoke.run('config.update', { patch: { mcp: { allowMutations: false } } });
   const status = await smoke.run<{ url: string }>('mcp.status');
   const agent = new Client({ name: 'smoke-renderer', version: '1.0' });
   await agent.connect(new StreamableHTTPClientTransport(new URL(`${status.url}?project=${duplexId}`)));
