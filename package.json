@@ -1,7 +1,7 @@
 {
   "name": "plan-studio",
   "productName": "Hollin",
-  "version": "0.2.0-beta.1",
+  "version": "0.2.0",
   "description": "Design buildings, floor plans, interiors and decor, with AI built in.",
   "private": true,
   "license": "MIT",
