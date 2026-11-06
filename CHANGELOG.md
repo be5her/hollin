@@ -4,8 +4,25 @@ Every notable change to the app, newest first. The format follows [Keep a Change
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-07
+
+The first stable version: everything in 0.2.0-beta.1, and Otto now reads images you paste into the chat.
+
 ### Added
 - Paste an image into Otto's message field (a screenshot, a photo of a sketch, a floor plan you found) or drop one on it: Otto sees it with your message. Up to 6 per message; large ones are shrunk to 1568 px on the long edge before they are sent. Works with the Claude API and with your Claude Code.
+- Beta versions: *Get beta versions* in Settings > Updates offers pre-releases too. Off (the default), only stable versions are offered, and a beta you have stays until a newer stable version comes.
+- A first-launch guide, an empty-project guide and a "Start with Otto" card on Home.
+- Otto's recent edits are marked on the plan for a minute, and what it is about to delete is outlined until you answer; "Start with Otto" on Home drafts the ground floor from a sentence; Home cards show Otto's mark when it has worked on the project.
+- History: click a change to select what it changed on the plan, double-click to undo down to it.
+- The first-launch guide's Otto line takes a sentence: Enter starts a project with it and sends it to Otto.
+
+### Changed
+- The app is **Hollin**. The window, the installer, the title block of exported sheets and the About page carry the name. Three things follow it: the data folder is now `Hollin` (a library left under the old `Plan Studio` folder is not picked up by itself; move its contents, or point Settings > Library at it), project packages use the `.hollin` extension (a `.psp` package written before is the same format: rename it to `.hollin` to import it), and the MCP server is named `hollin`, so a `mcp__plan-studio__*` entry in a Claude Code, Claude Desktop, Cursor or VS Code allow-list must become `mcp__hollin__*`.
+- The assistant is Otto: its tab, its voice, its edits signed Otto in History and on the status bar; outside MCP agents stay "MCP · <name>".
+- Home cards without a thumbnail show a tinted sheet with the project's initials; About shows the icon, the wordmark and the fonts' licences.
+- The look: a paper and ink palette with a terracotta accent, Alegreya Sans, IBM Plex Mono and Fraunces bundled, lighter icons; the plan, the 3D view and the exports' renders follow.
+- A new app icon: two rooms, yours and the assistant's; the title bar shows the icon and the wordmark.
+- SVG and PDF plans print in the paper palette's inks and carry a title block with the app's name, the project, the level, the scale and the date; DXF layers use matching AutoCAD colour indices.
 
 ## [0.2.0-beta.1] - 2026-11-01
 
