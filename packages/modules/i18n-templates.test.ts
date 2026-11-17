@@ -14,9 +14,7 @@ const ROOT = path.resolve(__dirname, '../..');
 const SCANNED = ['packages/modules', 'packages/ui/src', 'src/renderer/src/app'];
 
 /** Not converted yet: later steps of milestone 12 empty this list. Never add to it. */
-const PENDING = new Set([
-  'packages/modules/assistant/ui/assistant-panel.html',
-]);
+const PENDING = new Set<string>([]);
 
 /**
  * Words that stay as they are in every language (the names, key names, formats); a text or an

@@ -1,5 +1,6 @@
 import type { Message } from '../message';
 import { building } from './building';
+import { assistant } from './assistant';
 import { builtin } from './builtin';
 import { common } from './common';
 import { decor } from './decor';
@@ -37,6 +38,7 @@ export const en = {
   ...errors,
   ...labels,
   ...defaults,
+  ...assistant,
 } as const satisfies Record<string, Message>;
 
 export type MessageKey = keyof typeof en;

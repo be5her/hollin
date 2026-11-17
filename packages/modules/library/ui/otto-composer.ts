@@ -1,19 +1,13 @@
 import { Component, Service, computed, inject, signal, untracked } from '@angular/core';
 import { FormField, disabled, form } from '@angular/forms/signals';
-import { t, type AssistantStatus, type MessageKey, type OpenProject } from '@studio/core';
+import { nameFromSentence as nameFrom, t, type AssistantStatus, type MessageKey, type OpenProject } from '@studio/core';
 import { AssistantDrafts, Button, HostBridge, I18n, OttoMark, ProjectView, Spinner, TabsState, TextArea, Toasts, invokeResource } from '@studio/ui';
 import { Settings2 } from 'lucide';
 import { ProjectsSync } from './projects-sync';
 
-/** A project name from the first words of the sentence: up to the first comma or full stop (Arabic ones too), at most 48 characters. */
+/** A project name from the first words of the sentence, in any script (core's `nameFromSentence`), or the untitled name in the language of the moment. */
 export function nameFromSentence(sentence: string): string {
-  const head = sentence.trim().split(/[,.;:!?\n،؛؟]/)[0]?.trim() ?? '';
-  let name = head;
-  if (name.length > 48) {
-    const cut = name.slice(0, 48);
-    name = cut.slice(0, cut.lastIndexOf(' ') > 20 ? cut.lastIndexOf(' ') : 48).trim();
-  }
-  return name ? name[0].toUpperCase() + name.slice(1) : t('library.untitled');
+  return nameFrom(sentence, t('library.untitled'));
 }
 
 /**

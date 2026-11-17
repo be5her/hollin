@@ -1,4 +1,6 @@
 import type { AiProvider } from './config';
+import type { ErrorPayload } from './errors';
+import type { Phrase } from './i18n';
 import type { CommandMeta } from './types';
 
 /*
@@ -31,8 +33,12 @@ export interface ChatImageRef {
 export type TranscriptItem =
   /** A message from the user; `images` are the pictures pasted into it, sent to the model before the text. */
   | { kind: 'user'; id: string; text: string; at: string; images?: ChatImageRef[] }
-  /** A reply, streamed: `text` grows with `assistant.event` text deltas. */
-  | { kind: 'assistant'; id: string; text: string; at: string }
+  /**
+   * A reply, streamed: `text` grows with `assistant.event` text deltas. A note the app itself wrote (the
+   * length limit, the round limit, a lost session) carries `note`, the same words as a phrase, so the
+   * panel shows it in the interface's language; what the model wrote has none and stays as written.
+   */
+  | { kind: 'assistant'; id: string; text: string; at: string; note?: Phrase }
   /** A tool call: the command it ran, what it was given, and how it ended. */
   | ToolItem;
 
@@ -51,7 +57,10 @@ export interface ToolItem {
   title: string;
   input: unknown;
   status: 'running' | 'ok' | 'error' | 'declined' | 'stopped';
+  /** The English line under the title: a batch's label, or the error's message. */
   summary: string;
+  /** How a failed call failed, with the error's phrase when it has one (`i18n`), so the card shows it in the interface's language. */
+  error?: ErrorPayload;
   at: string;
   level?: string;
   layer?: string;
@@ -77,8 +86,10 @@ export interface ChatSnapshot {
   projectId: string;
   /** `waiting`: a confirmation is pending. */
   status: 'idle' | 'running' | 'waiting';
-  /** Why the last run ended early, if it did. */
+  /** Why the last run ended early, if it did, in English (what the English interface shows). */
   error: string | null;
+  /** The same for the interface's language: a phrase that says it whole, or a lead with the provider's own English words as `detail`. */
+  errorText: ChatErrorText | null;
   items: TranscriptItem[];
   confirm: PendingConfirmation | null;
   /** The model the chat runs against (`config.ai.model`), or the Claude Code label. */
@@ -88,6 +99,15 @@ export interface ChatSnapshot {
   sessionId: string | null;
   /** Stop was pressed and the run (with Claude Code, its process) has not ended yet: the next message waits for it. */
   stopping: boolean;
+}
+
+/**
+ * A failed run as people read it: `phrase` translated; when `detail` is set, the phrase is only a lead
+ * and `detail` (the API's or Claude Code's own words, in English) is shown under it, left to right.
+ */
+export interface ChatErrorText {
+  phrase: Phrase;
+  detail?: string;
 }
 
 /** What `assistant.event` carries: the whole chat after a structural change, or one text delta while a reply streams. */
@@ -103,7 +123,10 @@ export interface ClaudeCodeStatus {
   version?: string;
   /** Null until known: `claude auth status` could not say. */
   loggedIn: boolean | null;
+  /** What went wrong finding or asking it, in English. */
   error?: string;
+  /** The same as a phrase, for the panel and Settings to show in the interface's language. */
+  errorText?: Phrase;
 }
 
 /** What `assistant.status` returns: enough for the panel's empty states and the Settings section. */

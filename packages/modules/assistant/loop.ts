@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { agentPayload, isImageResult, splitImageResult, type ErrorPayload } from '@studio/core';
+import { StudioError, agentPayload, isImageResult, isMessageKey, splitImageResult, translate, type ChatErrorText, type ErrorPayload, type MessageKey, type Phrase } from '@studio/core';
 
 /*
  * The agent loop: one user turn, as many model rounds as the model needs. Each round streams a
@@ -22,8 +22,8 @@ export interface LoopEvents {
   toolStart(id: string, name: string, input: unknown): void;
   /** A tool call ended. */
   toolEnd(id: string, outcome: ToolOutcome): void;
-  /** A note from the loop itself, shown as an assistant item (e.g. the round cap). */
-  note(id: string, text: string): void;
+  /** A note from the loop itself, shown as an assistant item (e.g. the round cap): a phrase, so the panel shows it in the interface's language. */
+  note(id: string, note: Phrase): void;
 }
 
 export interface LoopOptions {
@@ -70,14 +70,14 @@ export async function runLoop(options: LoopOptions, messages: Anthropic.MessageP
 
     const calls = message.content.filter((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use');
     if (message.stop_reason !== 'tool_use' || !calls.length) {
-      if (message.stop_reason === 'max_tokens') events.note(options.newId('msg'), 'The reply was cut short by the length limit.');
+      if (message.stop_reason === 'max_tokens') events.note(options.newId('msg'), { key: 'assistant.note.maxTokens' });
       return;
     }
     // Every tool_use is answered with a tool_result, even when the call never runs: the API refuses a conversation with an unanswered call.
     const notRun = (call: Anthropic.ToolUseBlock, message: string): Anthropic.ToolResultBlockParam => ({ type: 'tool_result', tool_use_id: call.id, content: JSON.stringify({ code: 'UNAVAILABLE', message }), is_error: true });
     if (round >= MAX_TOOL_ROUNDS) {
       messages.push({ role: 'user', content: calls.map((call) => notRun(call, `Not run: the limit of ${MAX_TOOL_ROUNDS} rounds of tool calls was reached.`)) });
-      events.note(options.newId('msg'), `Stopped after ${MAX_TOOL_ROUNDS} rounds of tool calls. Send another message to go on.`);
+      events.note(options.newId('msg'), { key: 'assistant.note.rounds', params: { count: MAX_TOOL_ROUNDS } });
       return;
     }
     const results: Anthropic.ToolResultBlockParam[] = [];
@@ -96,12 +96,43 @@ export async function runLoop(options: LoopOptions, messages: Anthropic.MessageP
   }
 }
 
-/** A short, user-facing reason for an API failure. */
-export function describeApiError(err: unknown): string {
-  if (err instanceof Anthropic.AuthenticationError) return 'The Claude API refused the key. Check it in Settings.';
-  if (err instanceof Anthropic.PermissionDeniedError) return 'The Claude API key is not allowed to use this model.';
-  if (err instanceof Anthropic.RateLimitError) return 'The Claude API is rate-limiting this key. Try again in a moment.';
-  if (err instanceof Anthropic.APIConnectionError) return 'Could not reach the Claude API. Check the connection.';
-  if (err instanceof Anthropic.APIError) return `The Claude API answered ${err.status ?? 'with an error'}: ${err.message}`;
-  return err instanceof Error ? err.message : String(err);
+/** An error a provider throws with the words people read already chosen (`ChatSnapshot.errorText`). */
+export class ChatFailure extends Error {
+  constructor(
+    message: string,
+    readonly text: ChatErrorText,
+  ) {
+    super(message);
+    this.name = 'ChatFailure';
+  }
+}
+
+/** A failure the catalog says whole: its English is the message, its phrase what the interface shows. */
+const whole = (key: MessageKey): { message: string; text: ChatErrorText } => ({ message: translate('en', key), text: { phrase: { key } } });
+
+/**
+ * Why a run failed, short: the English `message` the chat has always shown (the English interface still
+ * does), and the same for the interface's language. The known cases (a refused key, a key without
+ * permission, rate limiting, no connection) are translated whole; no credit, a request too large, an
+ * overloaded API and any other API error are a translated lead over the API's own English words; a
+ * `StudioError` carries its phrase, or its code's lead; anything else gets a general lead.
+ */
+export function describeFailure(err: unknown): { message: string; text: ChatErrorText } {
+  if (err instanceof ChatFailure) return { message: err.message, text: err.text };
+  if (err instanceof Anthropic.AuthenticationError) return whole('assistant.error.keyRefused');
+  if (err instanceof Anthropic.PermissionDeniedError) return whole('assistant.error.permission');
+  if (err instanceof Anthropic.RateLimitError) return whole('assistant.error.rateLimited');
+  if (err instanceof Anthropic.APIConnectionError) return whole('assistant.error.noConnection');
+  if (err instanceof Anthropic.APIError) {
+    const message = `The Claude API answered ${err.status ?? 'with an error'}: ${err.message}`;
+    const status = err.status ?? 0;
+    const key: MessageKey = status === 402 || /credit balance/i.test(err.message) ? 'assistant.error.billing' : status === 413 ? 'assistant.error.tooLarge' : status >= 500 ? 'assistant.error.overloaded' : 'assistant.error.api';
+    return { message, text: { phrase: { key }, detail: message } };
+  }
+  if (err instanceof StudioError) {
+    const lead = `errors.code.${err.code}`;
+    return { message: err.message, text: err.i18n ? { phrase: err.i18n } : { phrase: { key: isMessageKey(lead) ? lead : 'assistant.error.failed' }, detail: err.message } };
+  }
+  const message = err instanceof Error ? err.message : String(err);
+  return { message, text: { phrase: { key: 'assistant.error.failed' }, detail: message } };
 }

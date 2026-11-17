@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { ar } from './ar';
 import { en, type MessageKey } from './en';
-import { commandTitle, currentLanguage, foldForSearch, hasRtl, intlLocale, isMessageKey, languageDirection, resolveLanguage, setLanguage, t, textDirection, toLatinDigits, translate } from './index';
+import { SENTENCE_NAME_MAX, chatBlocks, ltrIslands, commandTitle, currentLanguage, foldForSearch, nameFromSentence, hasRtl, intlLocale, isMessageKey, languageDirection, resolveLanguage, setLanguage, t, textDirection, toLatinDigits, translate } from './index';
 import type { Message } from './message';
 
 const placeholders = (text: string) => [...text.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
@@ -119,5 +119,83 @@ describe('text helpers', () => {
     // Isolates and marks around a name in a translated title do not stand between it and a search.
     const [fsi, pdi, rlm] = [0x2068, 0x2069, 0x200f].map((c) => String.fromCharCode(c));
     expect(foldForSearch(`فتح المشروع: ${fsi}بيت${pdi}${rlm}`)).toBe('فتح المشروع: بيت');
+  });
+});
+
+describe('a project name from a sentence', () => {
+  const untitled = 'Untitled project';
+
+  it('takes the first clause of an English sentence, as it always did', () => {
+    expect(nameFromSentence('A small cabin by the lake, one bedroom and a stove', untitled)).toBe('A small cabin by the lake');
+    expect(nameFromSentence('a 5 by 7 m studio with a bathroom in the corner', untitled)).toBe('A 5 by 7 m studio with a bathroom in the corner');
+    expect(nameFromSentence('   ', untitled)).toBe(untitled);
+    expect(nameFromSentence('. starts with a stop', untitled)).toBe(untitled);
+  });
+
+  it('keeps a decimal number whole', () => {
+    expect(nameFromSentence('a 3.5 m bathroom. Tiles', untitled)).toBe('A 3.5 m bathroom');
+  });
+
+  it('ends an Arabic sentence at its own comma, question mark or full stop', () => {
+    expect(nameFromSentence('بيت صغير على البحر، بغرفتي نوم', untitled)).toBe('بيت صغير على البحر');
+    expect(nameFromSentence('هل يمكنك رسم شقة؟ مع مطبخ', untitled)).toBe('هل يمكنك رسم شقة');
+    expect(nameFromSentence('استوديو بأبعاد 5 في 7 أمتار. مع حمّام', untitled)).toBe('استوديو بأبعاد 5 في 7 أمتار');
+    expect(nameFromSentence('مكتب منزلي؛ ونافذة كبيرة', untitled)).toBe('مكتب منزلي');
+  });
+
+  it('cuts a long Arabic clause at a word, counting code points', () => {
+    const sentence = 'شقة واسعة بثلاث غرف نوم ومطبخ مفتوح على غرفة المعيشة وشرفة تطل على الحديقة الخلفية';
+    const name = nameFromSentence(sentence, untitled);
+    expect([...name].length).toBeLessThanOrEqual(SENTENCE_NAME_MAX);
+    expect(sentence.startsWith(name)).toBe(true);
+    // A whole word: the next character of the sentence is a space.
+    expect(sentence[name.length]).toBe(' ');
+    expect(name).toBe('شقة واسعة بثلاث غرف نوم ومطبخ مفتوح على غرفة');
+  });
+
+  it('never cuts a letter from its diacritics, nor keeps direction marks', () => {
+    const word = 'مُ'.repeat(30);
+    const name = nameFromSentence(word, untitled);
+    expect([...name].length).toBeLessThanOrEqual(SENTENCE_NAME_MAX);
+    expect(/^\p{M}/u.test(name)).toBe(false);
+    expect(/\p{L}$/u.test(name)).toBe(false);
+    expect(name.endsWith('مُ')).toBe(true);
+    expect(nameFromSentence('⁧غرفة⁩ الضيوف', untitled)).toBe('غرفة الضيوف');
+  });
+
+  it('capitalises a first letter outside the basic plane whole', () => {
+    expect(nameFromSentence('𝑎 tiny hut', untitled).startsWith('𝑎')).toBe(true);
+    expect(nameFromSentence('élan house', untitled)).toBe('Élan house');
+  });
+});
+
+describe('chat blocks', () => {
+  it('give every line of a reply its own block, and mark paragraph ends', () => {
+    const reply = 'أضفت غرفة المعيشة بعرض 3600 mm.\n\nThe Sofa 3 seats fits.\n- الباب\n- النافذة\n\n\n';
+    expect(chatBlocks(reply).map(({ text, gap }) => ({ text, gap }))).toEqual([
+      { text: 'أضفت غرفة المعيشة بعرض 3600 mm.', gap: true },
+      { text: 'The Sofa 3 seats fits.', gap: false },
+      { text: '- الباب', gap: false },
+      { text: '- النافذة', gap: true },
+    ]);
+  });
+
+  it('keep a line as written and take no text as no block', () => {
+    expect(chatBlocks('  indented  ')).toEqual([{ text: '  indented  ', parts: [{ text: '  indented  ', ltr: false }], gap: false }]);
+    expect(chatBlocks('')).toEqual([]);
+    expect(chatBlocks('a\r\nb').map((b) => b.text)).toEqual(['a', 'b']);
+  });
+
+  it('make measurements, sizes and ranges left-to-right islands, and leave bare numbers alone', () => {
+    const islands = (line: string) => ltrIslands(line).filter((p) => p.ltr).map((p) => p.text);
+    expect(islands('أضفت جدارًا بطول 3600 mm وعمق 3 000 mm.')).toEqual(['3600 mm', '3 000 mm']);
+    expect(islands('غرفة 4 × 5 m، والقائمة بين 600–650 mm، والزاوية 45° والمساحة 12.5 m²')).toEqual(['4 × 5 m', '600–650 mm', '45°', '12.5 m²']);
+    expect(islands('في الطابق 2 ثلاث غرف و 3,5 نوافذ')).toEqual([]);
+    expect(islands('The Sofa 3 seats is 2 meters long and 5mm thick')).toEqual(['5mm']);
+    expect(islands('٣٦٠٠ mm')).toEqual(['٣٦٠٠ mm']);
+    // Joined, the parts are the line: copying the text is unchanged.
+    const line = 'بعرض 3000 mm وعمق 3000 mm.';
+    expect(ltrIslands(line).map((p) => p.text).join('')).toBe(line);
+    expect(ltrIslands('')).toEqual([]);
   });
 });

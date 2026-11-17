@@ -6,20 +6,23 @@ import Anthropic from '@anthropic-ai/sdk';
 import {
   BRANDING,
   CHAT_IMAGE_TYPES,
-  DESIGN_GUIDELINES,
+  ENGLISH_PHRASE,
   MAX_CHAT_IMAGES,
   StudioError,
   checkChatImage,
+  currentLanguage,
   defineCommand,
   defineModule,
   deriveLevels,
   isImageResult,
   newId,
+  phraseText,
   toErrorPayload,
   toolNameFor,
   type AssistantCaller,
   type AssistantEvent,
   type AssistantStatus,
+  type ChatErrorText,
   type ChatImageInput,
   type ChatSnapshot,
   type ClaudeCodeStatus,
@@ -27,14 +30,16 @@ import {
   type HostApi,
   type MutationRequest,
   type PendingConfirmation,
+  type Phrase,
   type ProjectApi,
   type ToolItem,
   type TranscriptItem,
 } from '@studio/core';
 import { z } from 'zod';
 import { ANTHROPIC_KEY } from '../settings/main';
-import { ClaudeCodeProvider, MCP_OFF_MESSAGE, probeClaudeCode, type ClaudeCodeEvents, type HistoryItem } from './claude-code';
-import { describeApiError, runLoop, type LoopEvents, type ToolOutcome } from './loop';
+import { ClaudeCodeProvider, MCP_OFF, probeClaudeCode, type ClaudeCodeEvents, type HistoryItem } from './claude-code';
+import { STABLE_PROMPT, languagePrompt } from './prompt';
+import { describeFailure, runLoop, type LoopEvents, type ToolOutcome } from './loop';
 
 /**
  * The in-app assistant: a chat per open project, run in main, with the command registry as its tools.
@@ -66,6 +71,7 @@ interface Chat {
   items: TranscriptItem[];
   status: ChatSnapshot['status'];
   error: string | null;
+  errorText: ChatErrorText | null;
   run: { controller: AbortController } | null;
   confirm: (PendingConfirmation & { resolve: (allow: boolean) => void }) | null;
   provider: ChatProvider | null;
@@ -89,12 +95,16 @@ let probe: { path: string; status: Promise<ClaudeCodeStatus> } | null = null;
 
 const now = () => new Date().toISOString();
 
+/** A note the app writes into the chat: its English text as Otto's paragraph, and the phrase the panel translates. */
+const noteItem = (id: string, note: Phrase): TranscriptItem => ({ kind: 'assistant', id, text: phraseText(note, ENGLISH_PHRASE), at: now(), note });
+
 function snapshot(chat: Chat, host: HostApi): ChatSnapshot {
   const ai = host.config.get().ai;
   return {
     projectId: chat.projectId,
     status: chat.status,
     error: chat.error,
+    errorText: chat.errorText,
     items: chat.items,
     confirm: chat.confirm ? { id: chat.confirm.id, command: chat.confirm.command, input: chat.confirm.input } : null,
     model: ai.model,
@@ -113,7 +123,7 @@ const changed = (host: HostApi, chat: Chat) => emit(host, chat, { type: 'changed
 function chatFor(project: ProjectApi): Chat {
   let chat = chats.get(project.id);
   if (!chat) {
-    chat = { projectId: project.id, project, items: [], status: 'idle', error: null, run: null, confirm: null, provider: null, sessionId: null, restored: false, stopping: false, images: new Map() };
+    chat = { projectId: project.id, project, items: [], status: 'idle', error: null, errorText: null, run: null, confirm: null, provider: null, sessionId: null, restored: false, stopping: false, images: new Map() };
     chats.set(project.id, chat);
   }
   chat.project = project;
@@ -199,13 +209,13 @@ async function status(host: HostApi, refresh = false): Promise<AssistantStatus> 
 async function readiness(host: HostApi): Promise<void> {
   const ai = host.config.get().ai;
   if (ai.provider === 'api') {
-    if (!host.secrets.has(ANTHROPIC_KEY)) throw new StudioError('UNAVAILABLE', 'Add a Claude API key in Settings to use the assistant.');
+    if (!host.secrets.has(ANTHROPIC_KEY)) throw new StudioError('UNAVAILABLE', { key: 'assistant.error.noKey' });
     return;
   }
-  if (!host.mcpStatus().running) throw new StudioError('UNAVAILABLE', MCP_OFF_MESSAGE);
+  if (!host.mcpStatus().running) throw new StudioError('UNAVAILABLE', MCP_OFF);
   const cc = await claudeCodeStatus(host);
-  if (!cc.found) throw new StudioError('UNAVAILABLE', `Claude Code not found: ${cc.error ?? cc.path}`);
-  if (cc.loggedIn === false) throw new StudioError('UNAVAILABLE', 'Claude Code is not logged in: run `claude` in a terminal and log in.');
+  if (!cc.found) throw new StudioError('UNAVAILABLE', { key: 'assistant.error.notFound', params: { detail: cc.errorText ?? cc.error ?? cc.path } });
+  if (cc.loggedIn === false) throw new StudioError('UNAVAILABLE', { key: 'assistant.error.notLoggedIn' });
   lastVersion = cc.version;
 }
 
@@ -228,30 +238,17 @@ function toolsFor(host: HostApi): { tools: Anthropic.Tool[]; byName: Map<string,
   return { tools, byName };
 }
 
-const STABLE_PROMPT = [
-  `You are Otto, the assistant built into ${BRANDING.productName}, a desktop app for planning buildings, floor plans, interiors and decor. The people you work with are homeowners and hobbyists planning their own place, not professionals. They see the plan change as you work: you are the second author on their sheet, and they keep every decision that loses something.`,
-  'Your tools are the app\'s own commands. Read before you change (plan_describe, building_get), make changes with the editing tools (several steps as one plan_apply batch), and look at the result (view_snapshot, rules_check). Give every plan_apply a short verb-phrase label, such as "Add a 3 m wall and a door": it names the step in the undo history, the card in the chat and the status bar. Every edit you make is one undo step, signed Otto in the history, and the user can take it back with Ctrl+Z. Tool inputs and outputs are always millimetres.',
-  [
-    'How you write:',
-    '- Lead with what happened: the result first ("Added a 3 000 mm wall between the kitchen and the hall"), then one sentence of how or why, then at most one question.',
-    '- Every length carries its unit: millimetres for what you measured or drew (3 000 mm), metres only when echoing the user ("the 3 m wall you asked for"); areas in m² with one decimal. Never "about" for something you can measure.',
-    '- Names, not ids: the kitchen, the north wall, the stair to the upper floor. Use an id only when two things have no other name.',
-    '- Say the choice you made ("200 mm thick like the others", "the door opens into the bedroom") instead of asking for every detail, and offer the flip in a few words.',
-    '- One question at a time, with the alternatives inside it, and only when the answer changes the drawing.',
-    '- Do not guess what you have not read: read the plan or take a snapshot first and say that you looked ("I looked at the ground floor in 3D from the hall side"). When you still cannot tell, say what you need from the user.',
-    '- Ask before deleting: a call that deletes or overwrites anything pauses until the user allows it in the chat. Before it, say what goes with it ("takes its 900 mm door with it"); never argue for the delete.',
-    '- Errors name the fact and the way out: what did not land, what the plan is now, what you or the user can do. Apologise at most once and never blame the app.',
-    '- "I" for you, "you" for the user; never "we" or "let\'s".',
-    '- Plain text: no headings, tables or bold, no list longer than three items, no exclamation marks. Never "I\'d be happy to", "Great question", "Certainly" or "Absolutely".',
-    '- Past tense for what is done, present for what is running. No promises about later turns.',
-  ].join('\n'),
-  DESIGN_GUIDELINES,
-].join('\n\n');
+
 
 function livePrompt(host: HostApi, project: ProjectApi): string {
   const levels = deriveLevels(project.doc).map((l) => `- ${l.name} (id ${l.id}): elevation ${l.elevation} mm, height ${l.height} mm${l.isGround ? ', the ground level' : ''}`);
   const units = host.config.get().units;
-  return [`The open project is "${project.name}" (id ${project.id}). Its levels, bottom to top:`, ...levels, `The user's display units are ${units.system}; tool inputs and outputs are always millimetres.`].join('\n');
+  return [
+    `The open project is "${project.name}" (id ${project.id}). Its levels, bottom to top:`,
+    ...levels,
+    `The user's display units are ${units.system}; tool inputs and outputs are always millimetres.`,
+    languagePrompt(currentLanguage()),
+  ].join('\n');
 }
 
 function systemPrompt(host: HostApi, project: ProjectApi): Anthropic.TextBlockParam[] {
@@ -355,7 +352,7 @@ class ApiProvider implements ChatProvider {
 
   async send(text: string, images: ChatImageInput[], events: LoopEvents, signal: AbortSignal): Promise<void> {
     const key = this.host.secrets.get(ANTHROPIC_KEY);
-    if (!key) throw new StudioError('UNAVAILABLE', 'Add a Claude API key in Settings to use the assistant.');
+    if (!key) throw new StudioError('UNAVAILABLE', { key: 'assistant.error.noKey' });
     const model = this.host.config.get().ai.model;
     const client = new Anthropic({ apiKey: key, baseURL: process.env[BASE_URL_ENV] || undefined, maxRetries: 1 });
     const { tools, byName } = toolsFor(this.host);
@@ -499,6 +496,7 @@ function historyItem(item: HistoryItem, byName: Map<string, CommandMeta>): Trans
     input: item.input,
     status: !outcome ? 'ok' : outcome.ok ? 'ok' : outcome.error.code === 'MUTATION_DECLINED' ? 'declined' : 'error',
     summary: meta && outcome ? summarize(meta, item.input, outcome) : '',
+    ...(outcome && !outcome.ok ? { error: outcome.error } : {}),
     at: now(),
     ...(meta?.readOnly ? { readOnly: true } : {}),
   };
@@ -510,6 +508,7 @@ async function run(host: HostApi, chat: Chat, text: string, images: ChatImageInp
   chat.run = { controller };
   chat.status = 'running';
   chat.error = null;
+  chat.errorText = null;
   // The pasted images are kept like snapshots, by their own id, for the bubble: the chat carries only their ids and types.
   const refs = images.map((image) => {
     const id = newId('img');
@@ -554,6 +553,7 @@ async function run(host: HostApi, chat: Chat, text: string, images: ChatImageInp
       const meta = byName.get(item.name);
       item.status = outcome.ok ? 'ok' : outcome.error.code === 'MUTATION_DECLINED' ? 'declined' : 'error';
       item.summary = meta ? summarize(meta, item.input, outcome) : outcome.ok ? '' : outcome.error.message;
+      if (!outcome.ok) item.error = outcome.error;
       try {
         describeOutcome(chat, item, outcome, topBefore.get(id));
       } catch (err) {
@@ -561,8 +561,8 @@ async function run(host: HostApi, chat: Chat, text: string, images: ChatImageInp
       }
       changed(host, chat);
     },
-    note: (id, text) => {
-      chat.items.push({ kind: 'assistant', id, text, at: now() });
+    note: (id, note) => {
+      chat.items.push(noteItem(id, note));
       changed(host, chat);
     },
     session: (id) => {
@@ -583,7 +583,9 @@ async function run(host: HostApi, chat: Chat, text: string, images: ChatImageInp
     await provider.send(text, images, events, controller.signal);
   } catch (err) {
     if (!controller.signal.aborted) {
-      chat.error = describeApiError(err);
+      const failure = describeFailure(err);
+      chat.error = failure.message;
+      chat.errorText = failure.text;
       if (!(err instanceof Anthropic.APIError) && !(err instanceof StudioError)) console.error('[assistant] run failed', err);
     }
   } finally {
@@ -592,6 +594,7 @@ async function run(host: HostApi, chat: Chat, text: string, images: ChatImageInp
       if (item.status !== 'running') continue;
       item.status = controller.signal.aborted ? 'stopped' : 'error';
       item.summary = controller.signal.aborted ? 'Stopped.' : 'The run ended before the call did.';
+      if (!controller.signal.aborted) item.error = { code: 'INTERNAL', message: item.summary, i18n: { key: 'assistant.error.callEnded' } };
     }
     chat.run = null;
     chat.status = 'idle';
@@ -619,7 +622,7 @@ export const assistantModule = defineModule({
         const provider = chat.provider;
         if (!(provider instanceof ClaudeCodeProvider) || !provider.alive || (mcp.running && provider.url === mcp.url)) continue;
         provider.stop();
-        chat.items.push({ kind: 'assistant', id: newId('msg'), text: mcp.running ? 'The MCP server moved; the next message starts Claude Code again.' : 'The MCP server was turned off; Claude Code was stopped.', at: now() });
+        chat.items.push(noteItem(newId('msg'), { key: mcp.running ? 'assistant.note.mcpMoved' : 'assistant.note.mcpStopped' }));
         changed(host, chat);
       }
     });
@@ -679,7 +682,7 @@ export const assistantModule = defineModule({
       ),
       handler: async ({ text, images }, ctx) => {
         const chat = chatFor(ctx.project!);
-        if (chat.run) throw new StudioError('CONFLICT', 'The assistant is still working on the last message.');
+        if (chat.run) throw new StudioError('CONFLICT', { key: 'assistant.error.busy' });
         const checked = checkedImages(images);
         await readiness(ctx.host);
         void run(ctx.host, chat, text, checked);
@@ -709,11 +712,12 @@ export const assistantModule = defineModule({
       input: z.object({}),
       handler: async (_input, ctx) => {
         const chat = chatFor(ctx.project!);
-        if (chat.run) throw new StudioError('CONFLICT', 'Stop the assistant first.');
+        if (chat.run) throw new StudioError('CONFLICT', { key: 'assistant.error.stopFirst' });
         dropProvider(chat);
         chat.items = [];
         chat.images.clear();
         chat.error = null;
+        chat.errorText = null;
         chat.sessionId = null;
         chat.restored = false;
         // Whichever provider runs now: a stored Claude Code chat goes too.
@@ -732,7 +736,7 @@ export const assistantModule = defineModule({
       input: z.object({ id: z.string() }),
       handler: async ({ id }, ctx) => {
         const image = chats.get(ctx.project!.id)?.images.get(id);
-        if (!image) throw new StudioError('NOT_FOUND', 'That image is no longer kept.');
+        if (!image) throw new StudioError('NOT_FOUND', { key: 'assistant.error.imageGone' });
         return image;
       },
     }),
@@ -745,7 +749,7 @@ export const assistantModule = defineModule({
       input: z.object({ id: z.string(), allow: z.boolean() }),
       handler: async ({ id, allow }, ctx) => {
         const chat = chats.get(ctx.project!.id);
-        if (!chat?.confirm || chat.confirm.id !== id) throw new StudioError('NOT_FOUND', 'That confirmation is no longer pending.');
+        if (!chat?.confirm || chat.confirm.id !== id) throw new StudioError('NOT_FOUND', { key: 'assistant.error.confirmGone' });
         chat.confirm.resolve(allow);
         return { answered: true };
       },

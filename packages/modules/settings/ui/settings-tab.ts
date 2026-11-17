@@ -120,11 +120,13 @@ export class SettingsTab implements TabComponent {
     const cc = this.assistant.value()?.claudeCode;
     if (!cc) return '';
     const t = this.t;
-    if (!cc.found) return t('settings.claudeCode.notFound', { detail: cc.error ?? cc.path });
+    // What went wrong, in the interface's language when main sent its phrase.
+    const problem = cc.errorText ? this.i18n.phrase(cc.errorText, mmText) : cc.error;
+    if (!cc.found) return t('settings.claudeCode.notFound', { detail: problem ?? cc.path });
     const version = cc.version ? `Claude Code ${cc.version}` : 'Claude Code';
     if (cc.loggedIn === false) return t('settings.claudeCode.notLoggedIn', { version });
     if (cc.loggedIn) return t('settings.claudeCode.loggedIn', { version });
-    return cc.error ? t('settings.claudeCode.failed', { version, error: cc.error }) : version;
+    return problem ? t('settings.claudeCode.failed', { version, error: problem }) : version;
   });
   /** About's credit: the model and who provides it, as the assistant is set up now. */
   protected readonly assistantCredit = computed(() => {

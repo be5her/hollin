@@ -12,9 +12,12 @@
  *                           session's error, `crashResume` (a message) dies with that message instead;
  *                           each stdin message consumes the next entry
  *                           (the file is rewritten, so a queue outlives a process); a turn is
- *                           { text?, tools?: [{ name, input }], error? }.
- *   FAKE_CLAUDE_LOG         a JSONL file this script appends to: what it was started with, every
- *                           message it got (its text, its image blocks and the order of its blocks)
+ *                           { text?, tools?: [{ name, input }], error? }; a text may be in any
+ *                           language (the file is UTF-8) and streams word by word.
+ *   FAKE_CLAUDE_LOG         a JSONL file this script appends to: what it was started with (the
+ *                           appended system prompt with its live context and language instruction),
+ *                           every message it got (its text, with any <app-context> the app put in front,
+ *                           its image blocks and the order of its blocks)
  *                           and every MCP call it made.
  *   FAKE_CLAUDE_LOGGED_OUT  when set, `auth status` says not logged in.
  * No dependencies: it runs under Node or under the app's executable as Node.

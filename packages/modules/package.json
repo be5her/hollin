@@ -8,6 +8,7 @@
     "./main": "./main.ts",
     "./ui": "./ui.ts",
     "./assistant/fake-api": "./assistant/fake-api.ts",
+    "./assistant/prompt": "./assistant/prompt.ts",
     "./assistant/fake-claude.cjs": "./assistant/fake-claude.cjs"
   },
   "dependencies": {

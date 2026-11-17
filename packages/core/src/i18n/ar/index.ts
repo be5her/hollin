@@ -1,6 +1,7 @@
 import type { MessageKey } from '../en';
 import type { Message } from '../message';
 import { building } from './building';
+import { assistant } from './assistant';
 import { builtin } from './builtin';
 import { common } from './common';
 import { decor } from './decor';
@@ -35,4 +36,5 @@ export const ar: Record<MessageKey, Message> = {
   ...errors,
   ...labels,
   ...defaults,
+  ...assistant,
 };

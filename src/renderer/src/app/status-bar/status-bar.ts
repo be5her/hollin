@@ -33,7 +33,7 @@ import { ShellActions } from '../shell-actions';
     @if (otto(); as o) {
       <button type="button" class="flex items-center gap-1 hover:text-fg max-w-72" [title]="o.text" [attr.aria-label]="o.text" aria-live="polite" data-testid="status-otto" [attr.data-state]="o.state" (click)="openOtto()">
         <span class="size-1.5 rounded-full shrink-0" [class]="(o.tone === 'ai' ? 'bg-ai' : o.tone === 'danger' ? 'bg-danger' : 'bg-muted') + (o.pulse ? ' otto-pulse' : '')" aria-hidden="true" data-testid="status-otto-dot"></span>
-        <span class="truncate" dir="auto">{{ o.text }}</span>
+        <span class="truncate">{{ o.text }}</span>
       </button>
     }
     <button type="button" class="flex items-center gap-1 hover:text-fg" [title]="mcp()?.error ?? t('shell.status.mcp')" data-testid="status-mcp" (click)="shell.openSettings('mcp')">
