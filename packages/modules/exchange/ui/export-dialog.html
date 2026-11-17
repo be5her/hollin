@@ -110,14 +110,14 @@
           @if (custom()) {
             <div>
               <label xLabel for="export-width">{{ t('exchange.export.width') }}</label>
-              <input xInput id="export-width" type="number" step="1" dir="ltr" class="font-mono" [formField]="f.width" [class.!border-danger]="f.width().invalid()" data-testid="export-width" />
+              <input xInput id="export-width" type="text" inputmode="decimal" dir="ltr" class="font-mono" [formField]="f.width" [class.!border-danger]="f.width().invalid()" data-testid="export-width" />
               @if (f.width().errors()[0]; as error) {
                 <p class="mt-0.5 text-[11px] text-danger">{{ label(error.message ?? '') }}</p>
               }
             </div>
             <div>
               <label xLabel for="export-height">{{ t('exchange.export.height') }}</label>
-              <input xInput id="export-height" type="number" step="1" dir="ltr" class="font-mono" [formField]="f.height" [class.!border-danger]="f.height().invalid()" data-testid="export-height" />
+              <input xInput id="export-height" type="text" inputmode="decimal" dir="ltr" class="font-mono" [formField]="f.height" [class.!border-danger]="f.height().invalid()" data-testid="export-height" />
               @if (f.height().errors()[0]; as error) {
                 <p class="mt-0.5 text-[11px] text-danger">{{ label(error.message ?? '') }}</p>
               }

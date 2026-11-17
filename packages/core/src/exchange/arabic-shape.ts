@@ -45,6 +45,33 @@ export function presentationBase(codePoint: number): string {
   return BASE_OF.get(codePoint) ?? String.fromCodePoint(codePoint);
 }
 
+/**
+ * Joining types of the Arabic block's letters (U+0620 to U+06FF) from Unicode's ArabicShaping.txt, as ranges
+ * [first, last, type]; marks and format controls are transparent by their category, everything else here
+ * does not join. A letter without presentation forms still joins its neighbours by its type, so a rare
+ * letter (U+063B, U+06AD, U+06C6 ...) does not break the shape of the letters beside it.
+ */
+const JOINING_RANGES: readonly (readonly [number, number, 'R' | 'D' | 'U'])[] = [
+  [0x0620, 0x0620, 'D'], [0x0621, 0x0621, 'U'], [0x0622, 0x0625, 'R'], [0x0626, 0x0626, 'D'], [0x0627, 0x0627, 'R'],
+  [0x0628, 0x0628, 'D'], [0x0629, 0x0629, 'R'], [0x062a, 0x062e, 'D'], [0x062f, 0x0632, 'R'], [0x0633, 0x063f, 'D'],
+  [0x0641, 0x0647, 'D'], [0x0648, 0x0648, 'R'], [0x0649, 0x064a, 'D'], [0x066e, 0x066f, 'D'], [0x0671, 0x0673, 'R'],
+  [0x0674, 0x0674, 'U'], [0x0675, 0x0677, 'R'], [0x0678, 0x0687, 'D'], [0x0688, 0x0699, 'R'], [0x069a, 0x06bf, 'D'],
+  [0x06c0, 0x06c0, 'R'], [0x06c1, 0x06c2, 'D'], [0x06c3, 0x06cb, 'R'], [0x06cc, 0x06cc, 'D'], [0x06cd, 0x06cd, 'R'],
+  [0x06ce, 0x06ce, 'D'], [0x06cf, 0x06cf, 'R'], [0x06d0, 0x06d1, 'D'], [0x06d2, 0x06d3, 'R'], [0x06d5, 0x06d5, 'R'],
+  [0x06ee, 0x06ef, 'R'], [0x06fa, 0x06fc, 'D'], [0x06ff, 0x06ff, 'D'],
+];
+const JOINING = new Map<number, 'R' | 'D' | 'U'>();
+for (const [first, last, type] of JOINING_RANGES) for (let c = first; c <= last; c++) JOINING.set(c, type);
+/** Format characters of the Arabic block that ArabicShaping marks as not joining (the number signs, the end of ayah). */
+const NON_JOINING_FORMAT = new Set([0x0600, 0x0601, 0x0602, 0x0603, 0x0604, 0x0605, 0x06dd]);
+
+/** A string from code points, in chunks: a spread of a long text's code points overflows the stack. */
+function fromCodePoints(cps: readonly number[]): string {
+  let out = '';
+  for (let i = 0; i < cps.length; i += 4096) out += String.fromCodePoint(...cps.slice(i, i + 4096));
+  return out;
+}
+
 /** A combining mark (tashkeel among them): drawn on the letter before it, transparent to joining. */
 const MARK = /^[\p{Mn}\p{Me}]$/u;
 /** The bidi controls, which never print: marks, embeddings, overrides and isolates. */
@@ -59,10 +86,12 @@ type Joining = 'U' | 'R' | 'D' | 'C' | 'T';
 
 /** A character's joining type: dual (D), right (R), join-causing (C: tatweel, ZWJ), transparent (T: marks and format controls) or none (U). */
 export function joiningType(codePoint: number): Joining {
+  const known = JOINING.get(codePoint);
+  if (known) return known;
   const forms = FORMS_OF.get(codePoint);
   if (forms) return forms.length === 4 ? 'D' : forms.length === 2 ? 'R' : 'U';
   if (codePoint === 0x0640 || codePoint === 0x200d) return 'C';
-  if (codePoint === 0x200c) return 'U';
+  if (codePoint === 0x200c || NON_JOINING_FORMAT.has(codePoint)) return 'U';
   const ch = String.fromCodePoint(codePoint);
   if (MARK.test(ch) || /^\p{Cf}$/u.test(ch)) return 'T';
   return 'U';
@@ -101,11 +130,16 @@ export function shapeArabic(text: string): string {
       continue;
     }
     const joinsAfter = type === 'D' && nextJoins;
-    const forms = FORMS_OF.get(cps[i])!;
+    const forms = FORMS_OF.get(cps[i]);
+    // A letter the presentation forms lack is written as it is; it still joined its neighbours above.
+    if (!forms) {
+      out.push(cps[i]);
+      continue;
+    }
     const form = joinsBefore && joinsAfter ? 3 : joinsBefore ? 1 : joinsAfter ? 2 : 0;
     out.push(forms[form] ?? forms[joinsBefore ? 1 : 0] ?? cps[i]);
   }
-  return String.fromCodePoint(...out);
+  return fromCodePoints(out);
 }
 
 // ---------- bidi ----------
@@ -269,16 +303,22 @@ export function visualOrder(text: string, direction?: 'ltr' | 'rtl'): string {
   // L1: trailing white space at the paragraph's level.
   for (let i = placed.length - 1; i >= 0 && bidiClass(placed[i].cp) === 'WS'; i--) placed[i].level = base === 'rtl' ? 1 : 0;
   // L2: reverse every run at or above each level, from the highest down to the lowest odd one.
-  const levels = placed.map((p) => p.level);
-  const max = Math.max(0, ...levels);
-  const lowestOdd = Math.min(...levels, max) | 1;
+  let max = 0;
+  let min = Infinity;
+  for (const p of placed) {
+    if (p.level > max) max = p.level;
+    if (p.level < min) min = p.level;
+  }
+  const lowestOdd = Math.min(min, max) | 1;
+  const reverse = (from: number, to: number) => {
+    for (let a = from, b = to - 1; a < b; a++, b--) [placed[a], placed[b]] = [placed[b], placed[a]];
+  };
   for (let k = max; k >= lowestOdd; k--) {
     for (let i = 0; i < placed.length; i++) {
       if (placed[i].level < k) continue;
       let j = i;
       while (j < placed.length && placed[j].level >= k) j++;
-      const run = placed.slice(i, j).reverse();
-      placed.splice(i, j - i, ...run);
+      reverse(i, j);
       i = j - 1;
     }
   }
@@ -288,13 +328,13 @@ export function visualOrder(text: string, direction?: 'ltr' | 'rtl'): string {
     let j = i;
     while (j < placed.length && placed[j].level === placed[i].level && MARK.test(String.fromCodePoint(placed[j].cp))) j++;
     if (j < placed.length && placed[j].level === placed[i].level) {
-      const marks = placed.slice(i, j).reverse();
-      placed.splice(i, j - i + 1, placed[j], ...marks);
+      // The letter first, then its marks in their logical order: the run [i, j] reversed.
+      reverse(i, j + 1);
     }
     i = j;
   }
   // L4: mirrored brackets in right-to-left runs.
-  return String.fromCodePoint(...placed.filter((p) => !p.silent).map((p) => (p.level % 2 ? (MIRROR.get(p.cp) ?? p.cp) : p.cp)));
+  return fromCodePoints(placed.filter((p) => !p.silent).map((p) => (p.level % 2 ? (MIRROR.get(p.cp) ?? p.cp) : p.cp)));
 }
 
 /** A line as a left-to-right writer draws it: shaped (`shapeArabic`), then in visual order (`visualOrder`). */

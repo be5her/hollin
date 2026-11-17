@@ -445,6 +445,30 @@ export async function smokeArabicProjectWalk(smoke: Smoke, projectId: string, pr
     await wait(100);
     await lookArabic(smoke, `${n++}-export-${format}-arabic`, `the export dialog: ${format}`);
   }
+  // A number field takes Arabic-Indic digits typed on an Arabic keyboard (a type="number" field dropped them).
+  await smoke.fill('[data-testid=export-size]', 'custom');
+  await smoke.waitFor('[data-testid=export-width]', 2000);
+  const typeInto = async (selector: string, text: string) => {
+    await smoke.fill(selector, '');
+    await smoke.js(`document.querySelector('${selector}').focus()`);
+    await wait(150);
+    await smoke.typeText(text);
+    await smoke.until(async () => (await smoke.js<string>(`document.querySelector('${selector}').value`)) === text, 2000);
+  };
+  const confirmDisabled = () => smoke.js<boolean>(`document.querySelector('[data-testid=export-confirm]').disabled`);
+  await typeInto('[data-testid=export-width]', '٢٠');
+  smoke.check(
+    'a width typed in Arabic-Indic digits reaches the field, and ٢٠ is refused in Arabic',
+    (await smoke.js<string>(`document.querySelector('[data-testid=export-width]').value`)) === '٢٠' && (await smoke.until(confirmDisabled, 2000)) && (await smoke.waitFor('[data-testid=export-dialog]', 2000, 'لا يقل عن')),
+    await smoke.js(`document.querySelector('[data-testid=export-width]').value`),
+  );
+  await typeInto('[data-testid=export-width]', '٣٢٠');
+  await typeInto('[data-testid=export-height]', '٢٤٠');
+  smoke.check(
+    'and ٣٢٠ × ٢٤٠ is a size the dialog takes',
+    (await smoke.js<string>(`document.querySelector('[data-testid=export-height]').value`)) === '٢٤٠' && (await smoke.until(async () => !(await confirmDisabled()), 2000)),
+    await smoke.js(`[document.querySelector('[data-testid=export-width]').value, document.querySelector('[data-testid=export-height]').value]`),
+  );
   await cancelDialog(smoke);
 
   smoke.section('arabic walk: the palette with a form');

@@ -42,11 +42,12 @@ export function languageDirection(language: Language): TextDirection {
 }
 
 /**
- * The locale to hand `Intl` for dates and relative times. Arabic keeps Western digits (`nu-latn`), as
- * the lengths, the coordinates and every number typed into the app do.
+ * The locale to hand `Intl` for dates and relative times. English is undefined: the operating system's own
+ * locale, as before the app spoke Arabic (an en-GB user sees `14:05:03` and day-month dates). Arabic keeps
+ * Western digits (`nu-latn`), as the lengths, the coordinates and every number typed into the app do.
  */
-export function intlLocale(language: Language): string {
-  return language === 'ar' ? 'ar-u-nu-latn' : 'en';
+export function intlLocale(language: Language): string | undefined {
+  return language === 'ar' ? 'ar-u-nu-latn' : undefined;
 }
 
 const pluralRules = new Map<Language, Intl.PluralRules>();
@@ -116,4 +117,9 @@ export function nounOf(type: string): string {
 }
 
 /** English with lengths in millimetres as core writes them: the text agents read of a `Phrase` (a warning's `message`). */
-export const ENGLISH_PHRASE: PhraseFormat = { translate: (key, params) => translate('en', key, params), length: mmText };
+export const ENGLISH_PHRASE: PhraseFormat = {
+  translate: (key, params) => translate('en', key, params),
+  length: mmText,
+  // A range is a pair of limits from the settings, written as they are set (`600.25–650 mm`), as agents always read them.
+  range: (from, to) => `${from}–${to} mm`,
+};

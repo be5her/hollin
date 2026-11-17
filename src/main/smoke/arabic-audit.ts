@@ -1,31 +1,35 @@
 import type { Smoke } from './harness';
 
 /**
- * Latin words an Arabic screen may show: the names that stay Latin, key names, unit symbols, file formats,
+ * Latin words an Arabic screen may show anywhere: the names that stay Latin, unit symbols, file formats,
  * the font and library credits About lists, the model and provider names, and words of a few fixed
  * examples. Anything else in Latin letters on an Arabic screen is English left behind. User data (project,
  * level, layer and model names, tags, chat messages, paths, ids) is not checked: it sits in an element with
- * `dir="auto"` or `dir="ltr"` (or `.bidi-ltr`, `code`, `kbd`, `bdi`), which is where `docs/i18n.md` puts it.
+ * `dir="auto"` or `dir="ltr"` (or `.bidi-ltr`, `code`, `kbd`, `bdi`, `[data-user-text]` in an SVG), which is
+ * where `docs/i18n.md` puts it. Key names are not on this list: they pass only inside a `kbd`, a
+ * left-to-right island or between isolates (`Home`, `End`, `Delete`, `Space` are English words too).
  */
 export const LATIN_ALLOWED = [
   // Names.
   'Hollin', 'Otto', 'Claude', 'Code', 'API', 'MCP', 'Anthropic', 'Opus', 'Sonnet', 'Haiku', 'Fable',
-  // Keys.
-  'Ctrl', 'Cmd', 'Shift', 'Alt', 'Option', 'Enter', 'Esc', 'Escape', 'Tab', 'Home', 'End', 'Space', 'Delete', 'Del', 'Backspace', 'PageUp', 'PageDown', 'Up', 'Down', 'F2',
   // Units and symbols.
   'mm', 'cm', 'm', 'ft', 'in', 'lm', 'px', 'K',
   // Formats and things named by their format.
   'PDF', 'SVG', 'DXF', 'PNG', 'GLB', 'glTF', 'JSON', 'ZIP', 'AutoCAD', 'CAD',
   // A4, A3 … paper sizes and the like are letter-and-digit codes (allowed below).
   // About's credits and runtime.
-  'Alegreya', 'Sans', 'IBM', 'Plex', 'Mono', 'Fraunces', 'Arabic', 'Markazi', 'Text', 'Lucide', 'three.js', 'Electron', 'Chromium', 'OFL', 'MIT', 'ISC', 'win32', 'darwin', 'linux',
+  'Alegreya', 'Sans', 'IBM', 'Plex', 'Mono', 'Fraunces', 'Arabic', 'Markazi', 'Lucide', 'three.js', 'Electron', 'Chromium', 'OFL', 'MIT', 'ISC', 'win32', 'darwin', 'linux',
   // The MCP clients Settings gives snippets for, their transport, and the icon set Lucide derives from.
-  'Desktop', 'Cursor', 'VS', 'Streamable', 'HTTP', 'Feather',
-  // Paper sizes that have no Arabic name (Arabic software writes them so).
-  'Letter', 'Tabloid', 'Legal',
+  'Cursor', 'VS', 'Streamable', 'HTTP', 'Feather',
   // Notation: the coordinate entry's relative offsets (`@dx,dy`), the key field's prefix.
   'dx', 'dy', 'sk-ant',
 ];
+
+/** Names of two words whose second is an English word too: allowed only whole. */
+export const LATIN_PHRASES = ['Claude Desktop', 'Markazi Text'];
+
+/** Paper sizes with no Arabic name (Arabic software writes them so): allowed only in the export dialog's sheet select. */
+const PAPER_NAMES = ['Letter', 'Tabloid', 'Legal'];
 
 export interface AuditFinding {
   kind: 'english' | 'reversed' | 'not-isolated';
@@ -40,7 +44,7 @@ export interface AuditFinding {
  * text (`mm 3600`, `K Ctrl`), and for plain strings (options, attributes) that hold Arabic and a measurement
  * without isolating it.
  */
-function auditPage(allowed: string[]): AuditFinding[] {
+function auditPage(allowed: string[], phrases: string[], paperNames: string[]): AuditFinding[] {
   const allow = new Set(allowed);
   const findings: AuditFinding[] = [];
   const seen = new Set<string>();
@@ -51,23 +55,31 @@ function auditPage(allowed: string[]): AuditFinding[] {
     findings.push(f);
   };
   // Where people's own text, ids, paths, versions and other left-to-right islands live.
-  const USER = '[dir=auto], [dir=ltr], .bidi-ltr, code, kbd, bdi, pre, svg, canvas, script, style, noscript, x-wordmark, [data-testid=toast-detail]';
+  // An SVG's text is checked (the section's words), except what people wrote in it (`data-user-text`); text marked as another language (`lang="en"`: the wordmark, a language's own name) is not Arabic interface text.
+  const USER = '[dir=auto], [dir=ltr], .bidi-ltr, code, kbd, bdi, pre, [data-user-text], [lang]:not([lang|=ar]), canvas, script, style, noscript, x-wordmark, [data-testid=toast-detail]';
   const ARABIC = /[\u0600-\u06ff]/;
   const MEASURE = /\d[\d.,]*(?:\u00a0|\s)?(?:mm|cm|m²|m|ft|in|lm|°|%)(?![A-Za-z])/g;
   const describe = (el: Element) => {
     const id = el.closest('[data-testid]')?.getAttribute('data-testid');
     return `${el.tagName.toLowerCase()}${id ? `@${id}` : ''}`;
   };
-  const visible = (el: Element) => {
+  // `shown`: laid out and not hidden. Text must also be opaque; a control revealed on hover (opacity 0 until then) has its `title` and `aria-label` checked all the same.
+  const visible = (el: Element, shown = false) => {
     if (!(el instanceof HTMLElement) && !(el instanceof SVGElement)) return false;
     if (el.getClientRects().length === 0) return false;
     const style = getComputedStyle(el);
-    return style.visibility !== 'hidden' && style.display !== 'none' && Number(style.opacity) > 0.01;
+    return style.visibility !== 'hidden' && style.display !== 'none' && (shown || Number(style.opacity) > 0.01);
   };
-  // Words people typed on this page (user text and input values) may come back in a tooltip.
-  const userWords = new Set<string>();
-  for (const el of document.querySelectorAll(USER)) for (const w of (el.textContent ?? '').match(/[A-Za-z][\w'’.-]*/g) ?? []) userWords.add(w);
-  for (const el of document.querySelectorAll('input, textarea')) for (const w of ((el as HTMLInputElement).value ?? '').match(/[A-Za-z][\w'’.-]*/g) ?? []) userWords.add(w);
+  // Words people wrote may come back in a tooltip or a label: only in the element that holds them (its own user text or value).
+  const userWordsOf = (el: Element) => {
+    const words = new Set<string>();
+    const take = (text: string) => {
+      for (const w of text.match(/[A-Za-z][\w'’.-]*/g) ?? []) words.add(w);
+    };
+    for (const u of [el.closest(USER), ...el.querySelectorAll(USER)]) if (u) take(u.textContent ?? '');
+    if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) take(el.value ?? '');
+    return words;
+  };
   // A word: Latin letters, digits and the joiners of names (three.js, sk-ant-), but not `+`, which joins keys (Ctrl+Z).
   const WORD = /[A-Za-z][\w'’.-]*/g;
   const fine = (word: string) => {
@@ -89,7 +101,9 @@ function auditPage(allowed: string[]): AuditFinding[] {
   const english = (text: string, where: string, extra = new Set<string>()) => {
     // A value that never got its text is a bug in any language, island or not.
     if (/\b(undefined|null|NaN)\b|\[object /.test(text)) add({ kind: 'english', where, text: `undefined ← ${text.trim().slice(0, 120)}` });
-    const words = outsideIsolates(text).match(WORD) ?? [];
+    let outside = outsideIsolates(text);
+    for (const phrase of phrases) outside = outside.split(phrase).join(' ');
+    const words = outside.match(WORD) ?? [];
     const bad = words.filter((w) => !fine(w) && !extra.has(w.replace(/[.,:;!?)…-]+$/, '')));
     if (bad.length) add({ kind: 'english', where, text: `${bad.join(' ')} ← ${text.trim().slice(0, 120)}` });
   };
@@ -139,7 +153,8 @@ function auditPage(allowed: string[]): AuditFinding[] {
   }
   // Attributes a person hears or sees on hover, and native options.
   for (const el of document.querySelectorAll('[title], [aria-label], [placeholder], [alt]')) {
-    if (!visible(el)) continue;
+    if (!visible(el, true)) continue;
+    const userWords = userWordsOf(el);
     for (const name of ['title', 'aria-label', 'placeholder', 'alt']) {
       const value = el.getAttribute(name);
       if (!value) continue;
@@ -151,7 +166,8 @@ function auditPage(allowed: string[]): AuditFinding[] {
     const select = option.closest('select');
     if (!select || !visible(select)) continue;
     // An option is user text when its select reads by its own text (a level's name) or is a left-to-right field.
-    if (!select.closest('[dir=ltr], .bidi-ltr') && select.getAttribute('dir') !== 'auto') english(option.textContent ?? '', `${describe(select)} option`, userWords);
+    const papers = select.getAttribute('data-testid') === 'export-page' ? new Set(paperNames) : new Set<string>();
+    if (!select.closest('[dir=ltr], .bidi-ltr') && select.getAttribute('dir') !== 'auto' && !option.closest(USER)) english(option.textContent ?? '', `${describe(select)} option`, papers);
     plain(option.textContent ?? '', `${describe(select)} option`);
   }
   return findings;
@@ -162,7 +178,7 @@ function auditPage(allowed: string[]): AuditFinding[] {
  * no measurement unisolated in a plain string. A real check, run at every screen the Arabic walk looks at.
  */
 export async function auditArabic(smoke: Smoke, where: string): Promise<AuditFinding[]> {
-  const findings = await smoke.js<AuditFinding[]>(`(${auditPage.toString()})(${JSON.stringify(LATIN_ALLOWED)})`);
+  const findings = await smoke.js<AuditFinding[]>(`(${auditPage.toString()})(${JSON.stringify(LATIN_ALLOWED)}, ${JSON.stringify(LATIN_PHRASES)}, ${JSON.stringify(PAPER_NAMES)})`);
   smoke.check(`${where}: Arabic throughout, no English left, nothing reversed`, findings.length === 0, findings);
   return findings;
 }

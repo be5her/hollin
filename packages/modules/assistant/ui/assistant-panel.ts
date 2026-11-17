@@ -1,7 +1,7 @@
 import { NgTemplateOutlet } from '@angular/common';
 import { Component, ElementRef, afterRenderEffect, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
 import { BRANDING, MAX_CHAT_IMAGES, chatBlocks, errorText, mmText, type AssistantEvent, type AssistantStatus, type ChatBlock, type ChatImageInput, type ChatSnapshot, type CommandMeta, type MessageKey, type ToolItem } from '@studio/core';
-import { AppState, AssistantDrafts, Button, HostBridge, I18n, Icon, Kbd, OTTO_RULE, OttoMark, Spinner, TabsState, Toasts, injectHostEvent, invokeResource, ottoModelLabel } from '@studio/ui';
+import { AppState, AssistantDrafts, Button, composing, HostBridge, I18n, Icon, Kbd, OTTO_RULE, OttoMark, Spinner, TabsState, Toasts, injectHostEvent, invokeResource, ottoModelLabel } from '@studio/ui';
 import { ArrowDown, Camera, Check, CircleAlert, Eraser, ImageOff, KeyRound, Plug, RefreshCw, Send, Settings2, ShieldAlert, Square, X } from 'lucide';
 import { imageFiles, prepareImage, type PreparedImage } from './pasted-images';
 
@@ -26,8 +26,11 @@ const EXAMPLES: readonly MessageKey[] = ['assistant.example.first', 'assistant.e
  * In every language: the chrome follows the interface (logical sides: the reply's rule on the inline
  * start, your bubble at the inline end); every message is split into its lines (`chatBlocks`), each
  * with `dir="auto"`, so an Arabic paragraph, an English one and a list each read and align by their own
- * first letter; command ids, targets, JSON and model names are left-to-right islands; notes, errors
- * and every card's words are shown in the language of the moment, what the model wrote as it wrote it.
+ * first letter, a blank line being an empty line of its own; command ids, targets, JSON and model names
+ * are left-to-right islands; notes, errors and every card's words are shown in the language of the
+ * moment, what the model wrote as it wrote it. The header's model line is one line cut at its end left
+ * to right, as it always was; right to left the model name is cut (with a tooltip) and the longer Arabic
+ * rule never is; both read the same whenever everything fits.
  */
 @Component({
   selector: 'x-assistant-panel',
@@ -125,13 +128,21 @@ export class AssistantPanel {
     if (cc?.errorText) return this.i18n.phrase(cc.errorText, mmText);
     return cc?.error ?? this.t('assistant.claudeCode.notOnPath');
   });
+  /** The last lines made for each item, with the text they were made from: a streamed chunk splits only the reply it extends. */
+  private readonly blockCache = new Map<string, { text: string; blocks: ChatBlock[] }>();
   /** Every message's lines, by item id: a note in the language of the moment, everything else as written. */
   protected readonly blocks = computed(() => {
     const out: Record<string, ChatBlock[]> = {};
+    const seen = new Set<string>();
     for (const item of this.chat()?.items ?? []) {
-      if (item.kind === 'user') out[item.id] = chatBlocks(item.text);
-      else if (item.kind === 'assistant') out[item.id] = chatBlocks(item.note ? this.i18n.phrase(item.note, mmText) : item.text);
+      if (item.kind !== 'user' && item.kind !== 'assistant') continue;
+      const text = item.kind === 'assistant' && item.note ? this.i18n.phrase(item.note, mmText) : item.text;
+      let cached = this.blockCache.get(item.id);
+      if (cached?.text !== text) this.blockCache.set(item.id, (cached = { text, blocks: chatBlocks(text) }));
+      out[item.id] = cached.blocks;
+      seen.add(item.id);
     }
+    for (const id of this.blockCache.keys()) if (!seen.has(id)) this.blockCache.delete(id);
     return out;
   });
   /** Why the last run failed, in the language of the moment: the English as it always read, or its translation (with the provider's own English words under a lead). */
@@ -301,7 +312,7 @@ export class AssistantPanel {
 
   protected onKeydown(event: KeyboardEvent): void {
     // Enter while an input method composes (an Arabic or any other IME) confirms the composition: it never sends.
-    if (event.key === 'Enter' && !event.shiftKey && !event.isComposing && event.keyCode !== 229) {
+    if (event.key === 'Enter' && !event.shiftKey && !composing(event)) {
       event.preventDefault();
       void this.send();
     }

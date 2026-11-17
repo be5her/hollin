@@ -1,6 +1,6 @@
 import { Component, computed, inject, input, linkedSignal } from '@angular/core';
-import { FormField, form, hidden, max, min, required } from '@angular/forms/signals';
-import { PAPER_SIZES, type MessageKey, type PaperSize } from '@studio/core';
+import { FormField, form, hidden, required, validate } from '@angular/forms/signals';
+import { PAPER_SIZES, parseNumber, type MessageKey, type PaperSize } from '@studio/core';
 import { Button, Checkbox, I18n, Input, Label, Select, type DialogComponent, type Translate } from '@studio/ui';
 
 export type ExportFormat = 'pdf' | 'svg' | 'dxf' | 'glb' | 'png';
@@ -105,14 +105,23 @@ export class ExportDialog implements DialogComponent<ExportDialogData, ExportCho
   protected readonly sizes = SIZES;
   protected readonly pages = PAPER_SIZES;
 
-  protected readonly model = linkedSignal(() => ({ ...this.data().initial }));
+  /** The choice as the form edits it: the pixel sizes as typed (text fields, so Arabic-Indic digits arrive). */
+  protected readonly model = linkedSignal(() => {
+    const initial = this.data().initial;
+    return { ...initial, width: String(initial.width), height: String(initial.height) };
+  });
   protected readonly f = form(this.model, (p) => {
     // The pixel sizes count only for a PNG of a custom size.
     for (const side of [p.width, p.height]) {
       hidden(side, ({ valueOf }) => valueOf(p.size) !== 'custom' || valueOf(p.format) !== 'png');
       required(side, { message: 'exchange.export.sizeRequired' });
-      min(side, 64, { message: 'exchange.export.sizeMin' });
-      max(side, 4096, { message: 'exchange.export.sizeMax' });
+      validate(side, ({ value }) => {
+        if (!value().trim()) return null;
+        const n = parseNumber(value());
+        if (!Number.isFinite(n)) return { kind: 'number', message: 'exchange.export.sizeRequired' };
+        if (n < 64) return { kind: 'min', message: 'exchange.export.sizeMin' };
+        return n > 4096 ? { kind: 'max', message: 'exchange.export.sizeMax' } : null;
+      });
     }
   });
 
@@ -136,7 +145,8 @@ export class ExportDialog implements DialogComponent<ExportDialogData, ExportCho
   protected submit(event: Event): void {
     event.preventDefault();
     if (!this.f().valid()) return;
-    this.close()(this.model());
+    const m = this.model();
+    this.close()({ ...m, width: parseNumber(m.width), height: parseNumber(m.height) });
   }
 
   protected cancel(): void {

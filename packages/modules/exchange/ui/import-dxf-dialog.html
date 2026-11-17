@@ -8,7 +8,7 @@
 
     <label class="text-xs font-medium text-muted" for="import-dxf-scale">{{ t('exchange.import.scale') }}</label>
     <div class="flex items-center gap-2">
-      <input xInput id="import-dxf-scale" type="number" step="any" dir="ltr" class="!w-28 font-mono" [formField]="f.scale" [class.!border-danger]="f.scale().invalid()" data-testid="import-dxf-scale" />
+      <input xInput id="import-dxf-scale" type="text" inputmode="decimal" dir="ltr" class="!w-28 font-mono" [formField]="f.scale" [class.!border-danger]="f.scale().invalid()" data-testid="import-dxf-scale" />
       <span class="text-xs text-muted">{{ t('exchange.import.scaleUnit') }}</span>
     </div>
     @if (f.scale().errors()[0]; as error) {
@@ -70,11 +70,11 @@
     </div>
     <div>
       <label xLabel for="import-dxf-x">{{ t('exchange.import.originX') }}</label>
-      <input xInput id="import-dxf-x" type="number" step="any" dir="ltr" class="font-mono" [formField]="f.originX" data-testid="import-dxf-origin-x" />
+      <input xInput id="import-dxf-x" type="text" inputmode="decimal" dir="ltr" class="font-mono" [formField]="f.originX" data-testid="import-dxf-origin-x" />
     </div>
     <div>
       <label xLabel for="import-dxf-y">{{ t('exchange.import.originY') }}</label>
-      <input xInput id="import-dxf-y" type="number" step="any" dir="ltr" class="font-mono" [formField]="f.originY" data-testid="import-dxf-origin-y" />
+      <input xInput id="import-dxf-y" type="text" inputmode="decimal" dir="ltr" class="font-mono" [formField]="f.originY" data-testid="import-dxf-origin-y" />
     </div>
     <div class="col-span-2">
       <label xLabel for="import-dxf-prefix">{{ t('exchange.import.prefix') }}</label>

@@ -44,7 +44,7 @@
     <div class="flex items-center gap-5 flex-wrap">
       <label class="flex items-center gap-2 text-sm"><input xCheckbox type="checkbox" [formField]="settings.mcpEnabled" data-testid="settings-mcp-enabled" />{{ t('settings.mcp.enabled') }}</label>
       <label class="flex items-center gap-2 text-sm"
-        >{{ t('settings.mcp.port') }}<input xInput type="number" dir="ltr" class="w-24" [formField]="settings.port" (blur)="savePort()" (keydown.enter)="savePort()" data-testid="settings-mcp-port"
+        >{{ t('settings.mcp.port') }}<input xInput type="text" inputmode="numeric" dir="ltr" class="w-24" [formField]="settings.port" (blur)="savePort()" (keydown.enter)="savePort()" data-testid="settings-mcp-port"
       /></label>
       <span class="text-xs" [class]="mcp()?.running ? 'text-success' : 'text-danger'" data-testid="settings-mcp-state">{{
         mcp()?.running ? t('settings.mcp.running') : mcpError() || t('settings.mcp.stopped')
@@ -173,7 +173,7 @@
       <div class="min-w-0">
         <x-wordmark size="40" />
         <p class="mt-2.5 text-[14px] leading-5 text-muted max-w-[60ch]" data-testid="about-description">{{ t('common.appDescription') }}</p>
-        <p class="heading-dialog mt-3.5" data-testid="about-credit"><span class="text-fg">{{ productName }}</span><span class="text-ai italic"> {{ t('settings.about.withOtto') }}</span></p>
+        <p class="heading-dialog mt-3.5" data-testid="about-credit"><span class="text-fg" lang="en">{{ productName }}</span><span class="text-ai italic"> {{ t('settings.about.withOtto') }}</span></p>
         <p class="mt-1 text-[13px] text-muted" data-testid="about-assistant">
           @if (assistantCredit(); as credit) {
             <span class="font-mono text-[12px] bidi-ltr">{{ credit.model }}</span> · <bdi [dir]="direction()" data-testid="about-provider">{{ credit.provider }}</bdi> ·

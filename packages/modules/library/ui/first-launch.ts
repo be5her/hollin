@@ -1,7 +1,7 @@
 import { Component, computed, inject, linkedSignal, untracked } from '@angular/core';
 import { FormField, form } from '@angular/forms/signals';
 import type { AssistantStatus } from '@studio/core';
-import { Button, I18n, OttoMark, RoomSketch, TabsState, Toasts, Wordmark, invokeResource } from '@studio/ui';
+import { Button, I18n, OttoMark, composing, RoomSketch, TabsState, Toasts, Wordmark, invokeResource } from '@studio/ui';
 import { Plus, Upload } from 'lucide';
 import { LibraryActions } from './library-actions';
 import { OttoDraftRun, ottoCanWork } from './otto-composer';
@@ -39,7 +39,7 @@ import { OttoDraftRun, ottoCanWork } from './otto-composer';
         [formField]="ottoForm.sentence"
         [attr.aria-label]="t('library.first.ottoInput')"
         [title]="ready() ? t('library.first.ottoReady') : t('library.first.ottoSetup')"
-        (keydown.enter)="tellOtto(); $event.preventDefault()"
+        (keydown.enter)="ottoEnter($event)"
         data-testid="first-launch-otto-input"
       />
     </label>
@@ -61,6 +61,13 @@ export class FirstLaunch {
   private readonly ottoDraft = linkedSignal(() => ({ sentence: this.t('library.first.sentence') }));
   protected readonly ottoForm = form(this.ottoDraft);
   private busy = false;
+
+  /** Enter sends the sentence, except while an input method composes (it confirms the composition then). */
+  protected ottoEnter(event: Event): void {
+    if (composing(event as KeyboardEvent)) return;
+    event.preventDefault();
+    void this.tellOtto();
+  }
 
   protected async tellOtto(): Promise<void> {
     const text = untracked(this.ottoDraft).sentence.trim();

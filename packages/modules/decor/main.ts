@@ -315,7 +315,7 @@ export const decorModule = defineModule({
             const light = addEntityOps(tx.doc, {
               levelId: input.levelId,
               layerId: added.ops[0].t === 'ins' ? (added.ops[0].v as { layerId: string }).layerId : undefined,
-              entity: { type: 'light', kind: 'point', name: `${input.name ?? model.name} light`, at: [entity.at[0] + bx * Math.cos(r) - by * Math.sin(r), entity.at[1] + bx * Math.sin(r) + by * Math.cos(r), entity.at[2] + bz], intensity: model.lumens ?? 800, color: '#ffe9c4' },
+              entity: { type: 'light', kind: 'point', name: t('defaults.lampLight', { name: input.name ?? catalogName(input.ref, model.name) }), at: [entity.at[0] + bx * Math.cos(r) - by * Math.sin(r), entity.at[1] + bx * Math.sin(r) + by * Math.cos(r), entity.at[2] + bz], intensity: model.lumens ?? 800, color: '#ffe9c4' },
             });
             ops.push(...light.ops);
             lightId = light.id;

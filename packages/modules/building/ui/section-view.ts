@@ -54,7 +54,7 @@ function anchor(side: 'left' | 'right' | 'middle', dir: TextDirection): 'start' 
             <rect [attr.x]="inset ? bodyX + bodyW / 2 : bodyX" [attr.y]="floor" [attr.width]="inset ? bodyW / 2 : bodyW" [attr.height]="Math.max(2, slab(level))" class="fill-muted/45" />
             <!-- Names start at the left of each level, so a mezzanine drawn in the right half never covers its host's name. -->
             @let nameDir = dir(level.name);
-            <text [attr.x]="(inset ? bodyX + bodyW / 2 : bodyX) + 18" [attr.y]="(top + floor) / 2 + 5" [attr.direction]="nameDir" [attr.text-anchor]="anchor('left', nameDir)" class="fill-fg text-[15px] font-medium">{{ level.name }}</text>
+            <text [attr.x]="(inset ? bodyX + bodyW / 2 : bodyX) + 18" [attr.y]="(top + floor) / 2 + 5" [attr.direction]="nameDir" [attr.text-anchor]="anchor('left', nameDir)" class="fill-fg text-[15px] font-medium" data-user-text>{{ level.name }}</text>
             <text [attr.x]="labelsX - 12" [attr.y]="floor + 5" direction="ltr" text-anchor="end" class="text-[13px] font-mono" [attr.class]="level.elevation < 0 ? 'fill-warning text-[13px] font-mono' : 'fill-muted text-[13px] font-mono'">{{ units.length(level.elevation) }}</text>
             <line [attr.x1]="labelsX - 6" [attr.x2]="bodyX" [attr.y1]="floor" [attr.y2]="floor" class="stroke-muted/50" stroke-width="1" />
           </g>
@@ -72,7 +72,7 @@ function anchor(side: 'left' | 'right' | 'middle', dir: TextDirection): 'start' 
             } @else {
               <line [attr.x1]="x - (c.kind === 'ladder' ? 0 : 10)" [attr.x2]="x + (c.kind === 'ladder' ? 0 : 10)" [attr.y1]="y(c.bottom)" [attr.y2]="y(c.top)" class="stroke-accent" stroke-width="3" stroke-linecap="round" />
             }
-            <text [attr.x]="x" [attr.y]="y(c.top) - 8" [attr.direction]="dir(c.label)" text-anchor="middle" class="fill-muted text-[12px]">{{ c.label }}</text>
+            <text [attr.x]="x" [attr.y]="y(c.top) - 8" [attr.direction]="dir(c.label)" text-anchor="middle" class="fill-muted text-[12px]" [attr.data-user-text]="c.named ? '' : null">{{ c.label }}</text>
           </g>
         }
       </svg>
@@ -136,10 +136,10 @@ export class SectionView {
       if (c.kind === 'elevator') {
         const stops = c.stops.map((s) => at(s.levelId));
         const top = Math.max(...stops) + 2400;
-        return { id: c.id, kind: c.kind, label: name(c), bottom: Math.min(...stops), top, stops, risers: 0 };
+        return { id: c.id, kind: c.kind, label: name(c), named: c.name !== undefined, bottom: Math.min(...stops), top, stops, risers: 0 };
       }
       const risers = c.kind === 'stair' ? (deriveConnector(c, levels, limits) as { risers: number }).risers : 0;
-      return { id: c.id, kind: c.kind, label: name(c), bottom: at(c.bottom.levelId, c.bottom.offset), top: at(c.top.levelId, c.top.offset), stops: [] as number[], risers };
+      return { id: c.id, kind: c.kind, label: name(c), named: c.name !== undefined, bottom: at(c.bottom.levelId, c.bottom.offset), top: at(c.top.levelId, c.top.offset), stops: [] as number[], risers };
     });
   });
   protected readonly laneStep = computed(() => Math.min(70, (LANES_W - 48) / Math.max(1, this.connectors().length - 1)));

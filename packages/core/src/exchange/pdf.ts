@@ -398,8 +398,14 @@ export function drawingToPdf(pages: readonly PdfPage[], options: PdfOptions = {}
     used: new Map(),
     font: () => {
       if (loaded.font) return loaded.font;
-      if (!options.arabicFont) throw new StudioError('UNAVAILABLE', { key: 'errors.exchange.noArabicFont', params: { file: options.arabicFontName ?? 'IBMPlexSansArabic-Regular.ttf' } });
-      return (loaded.font = readTrueType(options.arabicFont));
+      const unreadable = () => new StudioError('UNAVAILABLE', { key: 'errors.exchange.noArabicFont', params: { file: options.arabicFontName ?? 'IBMPlexSansArabic-Regular.ttf' } });
+      if (!options.arabicFont) throw unreadable();
+      try {
+        return (loaded.font = readTrueType(options.arabicFont));
+      } catch {
+        // A damaged or truncated file is the same as none: the text cannot be written.
+        throw unreadable();
+      }
     },
   };
   const streams = pages.map((pg, i) => {

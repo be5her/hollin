@@ -52,6 +52,7 @@ export function readTrueType(bytes: Uint8Array): TrueTypeFont {
   if (version === 0x4f54544f) throw new Error('A CFF-flavoured OpenType font (OTTO) cannot be embedded as TrueType.');
   if (version !== 0x00010000 && version !== 0x74727565) throw new Error('Not a TrueType font.');
   const count = r.u16(4);
+  if (12 + count * 16 > bytes.length) throw new Error('The font\'s table directory runs past the end of the file.');
   const tables = new Map<string, { offset: number; length: number }>();
   for (let i = 0; i < count; i++) {
     const at = 12 + i * 16;
@@ -66,6 +67,10 @@ export function readTrueType(bytes: Uint8Array): TrueTypeFont {
     return t.offset;
   };
   for (const tag of ['head', 'hhea', 'hmtx', 'maxp', 'cmap', 'loca', 'glyf']) need(tag);
+  // The fixed parts read below must be inside their tables.
+  for (const [tag, min] of [['head', 54], ['hhea', 36], ['maxp', 6], ['cmap', 4]] as const) {
+    if (tables.get(tag)!.length < min) throw new Error(`The font's ${tag} table is too short.`);
+  }
 
   const head = need('head');
   const unitsPerEm = r.u16(head + 18);
@@ -101,7 +106,7 @@ export function readTrueType(bytes: Uint8Array): TrueTypeFont {
     return indexToLocFormat === 0 ? [r.u16(loca + 2 * glyph) * 2, r.u16(loca + 2 * glyph + 2) * 2] : [r.u32(loca + 4 * glyph), r.u32(loca + 4 * glyph + 4)];
   };
 
-  const cmap = readCmap(r, need('cmap'));
+  const cmap = readCmap(r, tables.get('cmap')!);
 
   return {
     bytes,
@@ -129,15 +134,26 @@ export function readTrueType(bytes: Uint8Array): TrueTypeFont {
   };
 }
 
-/** The best Unicode subtable: format 12 (full repertoire) before format 4 (the basic plane), Windows before Unicode platform. */
-function readCmap(r: Reader, cmap: number): Map<number, number> {
+/**
+ * The best Unicode subtable: format 12 (full repertoire) before format 4 (the basic plane), Windows before Unicode platform.
+ * Everything read is bounded by the table's length, and the groups and segments must ascend without overlapping (as the
+ * format requires), so a damaged or hostile table fails at once instead of mapping millions of code points.
+ */
+function readCmap(r: Reader, table: { offset: number; length: number }): Map<number, number> {
+  const cmap = table.offset;
+  const tableEnd = cmap + table.length;
+  const inside = (at: number, size: number) => {
+    if (at < cmap || at + size > tableEnd) throw new Error('The font\'s cmap table runs past its end.');
+  };
   const count = r.u16(cmap + 2);
+  inside(cmap + 4, count * 8);
   const candidates: { rank: number; offset: number }[] = [];
   for (let i = 0; i < count; i++) {
     const at = cmap + 4 + i * 8;
     const platform = r.u16(at);
     const encoding = r.u16(at + 2);
     const offset = cmap + r.u32(at + 4);
+    if (offset + 2 > tableEnd) continue;
     const format = r.u16(offset);
     const unicode = platform === 0 || (platform === 3 && (encoding === 1 || encoding === 10));
     if (!unicode || (format !== 4 && format !== 12)) continue;
@@ -149,31 +165,42 @@ function readCmap(r: Reader, cmap: number): Map<number, number> {
   const map = new Map<number, number>();
   const at = best.offset;
   if (r.u16(at) === 12) {
+    inside(at, 16);
     const groups = r.u32(at + 12);
+    inside(at + 16, groups * 12);
+    let next = 0;
     for (let g = 0; g < groups; g++) {
       const p = at + 16 + g * 12;
       const start = r.u32(p);
       const end = r.u32(p + 4);
       const glyph = r.u32(p + 8);
-      for (let c = start; c <= end && c <= 0x10ffff; c++) if (glyph + (c - start)) map.set(c, glyph + (c - start));
+      if (start < next || end < start || end > 0x10ffff) throw new Error('The font\'s cmap groups overlap or are out of order.');
+      next = end + 1;
+      for (let c = start; c <= end; c++) if (glyph + (c - start)) map.set(c, glyph + (c - start));
     }
     return map;
   }
+  inside(at, 14);
   const segX2 = r.u16(at + 6);
   const ends = at + 14;
   const starts = ends + segX2 + 2;
   const deltas = starts + segX2;
   const ranges = deltas + segX2;
+  inside(ends, segX2 * 4 + 2);
+  let next = 0;
   for (let s = 0; s < segX2 / 2; s++) {
     const end = r.u16(ends + 2 * s);
     const start = r.u16(starts + 2 * s);
     const delta = r.i16(deltas + 2 * s);
     const rangeOffset = r.u16(ranges + 2 * s);
+    if (start < next || end < start) throw new Error('The font\'s cmap segments overlap or are out of order.');
+    next = end + 1;
     for (let c = start; c <= end && c !== 0xffff; c++) {
       let glyph: number;
       if (rangeOffset === 0) glyph = (c + delta) & 0xffff;
       else {
         const p = ranges + 2 * s + rangeOffset + 2 * (c - start);
+        inside(p, 2);
         glyph = r.u16(p);
         if (glyph) glyph = (glyph + delta) & 0xffff;
       }

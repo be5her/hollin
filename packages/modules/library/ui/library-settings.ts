@@ -1,5 +1,5 @@
 import { Component, inject, signal } from '@angular/core';
-import type { LibraryInfo } from '@studio/core';
+import { mmText, type LibraryInfo, type Phrase } from '@studio/core';
 import { Button, Dialogs, HostBridge, I18n, Icon, Toasts, invokeResource } from '@studio/ui';
 import { FolderInput, RefreshCw, TriangleAlert } from 'lucide';
 
@@ -17,7 +17,7 @@ import { FolderInput, RefreshCw, TriangleAlert } from 'lucide';
       </div>
       <p class="text-[11px] text-muted mt-1" data-testid="library-count">{{ t('library.settings.count', { count: lib.projects, trashed: lib.trashed }) }}@if (lib.isDefault) {<span> · {{ t('library.settings.default') }}</span>}</p>
       @if (lib.warning) {
-        <p class="flex items-start gap-1.5 text-xs text-warning mt-2"><svg [xIcon]="icons.TriangleAlert" class="size-3.5 shrink-0 mt-px"></svg>{{ lib.warning }}</p>
+        <p class="flex items-start gap-1.5 text-xs text-warning mt-2" data-testid="library-warning"><svg [xIcon]="icons.TriangleAlert" class="size-3.5 shrink-0 mt-px"></svg>{{ warningText(lib) }}</p>
       }
     }
   `,
@@ -28,15 +28,21 @@ export class LibrarySettings {
   private readonly toasts = inject(Toasts);
 
   protected readonly icons = { FolderInput, RefreshCw, TriangleAlert };
-  protected readonly t = inject(I18n).t;
+  private readonly i18n = inject(I18n);
+  protected readonly t = this.i18n.t;
   protected readonly info = invokeResource<LibraryInfo>('library.info', () => ({}), { projectId: null, refreshOnEvents: ['library.changed'] });
   protected readonly busy = signal(false);
+
+  /** A location warning in the interface's language (its English text when it carries no phrase). */
+  protected warningText(w: { warning: string | null; warningText?: Phrase | null }): string {
+    return w.warningText ? this.i18n.phrase(w.warningText, mmText) : (w.warning ?? '');
+  }
 
   protected async move(): Promise<void> {
     try {
       const { path } = await this.host.invoke<{ path: string | null }>('app.pickFolder', { title: this.t('library.settings.pick') }, null);
       if (!path) return;
-      const check = await this.host.invoke<{ empty: boolean; hasLibrary: boolean; warning: string | null }>('library.checkFolder', { path }, null);
+      const check = await this.host.invoke<{ empty: boolean; hasLibrary: boolean; warning: string | null; warningText: Phrase | null }>('library.checkFolder', { path }, null);
       let mode: 'move' | 'adopt' = 'move';
       if (check.hasLibrary) {
         const ok = await this.dialogs.confirm({ title: this.t('library.settings.adoptTitle'), message: this.t('library.settings.adoptMessage'), confirmLabel: this.t('library.settings.adoptConfirm') });
@@ -48,7 +54,7 @@ export class LibrarySettings {
       } else {
         const ok = await this.dialogs.confirm({
           title: this.t('library.settings.moveTitle'),
-          message: `${check.warning ? `${check.warning} ` : ''}${this.t('library.settings.moveMessage')}`,
+          message: `${check.warning ? `${this.warningText(check)} ` : ''}${this.t('library.settings.moveMessage')}`,
           confirmLabel: this.t('library.settings.moveConfirm'),
         });
         if (!ok) return;

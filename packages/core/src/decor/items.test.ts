@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { addEntityOps } from '../doc/builders';
 import { newProjectDoc } from '../doc/defaults';
 import { Transaction } from '../doc/ops';
@@ -7,7 +7,11 @@ import { describeDesign } from '../describe/describe';
 import { defaultConfig } from '../config';
 import { polygonArea } from '../geometry/polygon';
 import { transformEntity } from '../geometry/transform';
-import { footprintArea, itemFootprint, itemMatrix, itemModel, itemSize, type Item } from './items';
+import { buildingToGlb } from '../exchange/gltf';
+import { setLanguage } from '../i18n';
+import { footprintArea, itemFootprint, itemMatrix, itemModel, itemSize, modelName, type Item } from './items';
+
+afterEach(() => setLanguage('en'));
 
 const file = `${'c'.repeat(64)}.glb`;
 const asset: Asset = { id: file, kind: 'model', name: 'Crate', category: 'imported', size: [1000, 600, 400], min: [200, -100, 50] };
@@ -82,5 +86,26 @@ describe('items', () => {
     expect(level.rooms[0].furniture[0].footprint).toBeGreaterThan(1_500_000);
     expect(level.rooms[0].lights).toEqual([{ id: expect.any(String), kind: 'point', at: [2500, 2000, 2400], lumens: 800, color: '#ffffff' }]);
     expect(level.outside.furniture.map((f) => f.name)).toEqual(['Tree']);
+  });
+
+  it('names a lost model in English for agents and in the interface language where it is drawn', () => {
+    setLanguage('ar');
+    let doc = newProjectDoc({ name: 'Flat' });
+    const ground = doc.building.groundLevelId;
+    const tx = new Transaction(doc);
+    tx.apply(addEntityOps(doc, { levelId: ground, entity: { type: 'item', asset: 'builtin:gone', at: [1000, 1000, 0] } }).ops);
+    doc = tx.commit()!.doc;
+    const model = itemModel('builtin:gone', {});
+    expect(model.name).toBe('Missing model');
+    // plan.describe and the glTF export are read by agents: English whatever the interface is.
+    expect(describeDesign(doc, defaultConfig().rules).levels[0].outside.furniture.map((f) => f.name)).toEqual(['Missing model']);
+    const glb = buildingToGlb(doc, { limits: defaultConfig().rules });
+    expect(glb.skipped).toHaveLength(1);
+    expect(glb.skipped[0]).toMatch(/^Missing model \(itm_\w+\): builtin:gone is not registered in the project$/);
+    // The canvas, Properties and the drawings show it translated, a built-in by its Arabic name.
+    expect(modelName('builtin:gone', model)).toBe('نموذج مفقود');
+    expect(modelName('builtin:gone', model, 'en')).toBe('Missing model');
+    expect(modelName('builtin:sofa-3', itemModel('builtin:sofa-3', {}))).not.toBe('Sofa, 3 seats');
+    expect(modelName(`asset:${file}`, itemModel(`asset:${file}`, assets))).toBe('Crate');
   });
 });

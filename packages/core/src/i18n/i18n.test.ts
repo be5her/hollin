@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { ar } from './ar';
 import { en, type MessageKey } from './en';
-import { SENTENCE_NAME_MAX, chatBlocks, ltrIslands, commandTitle, currentLanguage, foldForSearch, nameFromSentence, hasRtl, intlLocale, isMessageKey, languageDirection, resolveLanguage, setLanguage, t, textDirection, toLatinDigits, translate } from './index';
+import { SENTENCE_NAME_MAX, chatBlocks, ltrIslands, commandTitle, currentLanguage, foldForSearch, nameFromSentence, hasRtl, parseNumber, intlLocale, isMessageKey, languageDirection, resolveLanguage, setLanguage, t, textDirection, toLatinDigits, translate } from './index';
 import type { Message } from './message';
 import { DXF_UNIT_NAMES } from '../exchange/dxf-import';
 
@@ -51,6 +51,13 @@ describe('translate', () => {
   it('fills placeholders and leaves unknown ones alone', () => {
     expect(translate('en', 'common.ok')).toBe('OK');
     expect(translate('ar', 'common.cancel')).toBe('إلغاء');
+    // A placeholder given is filled, in both languages.
+    expect(translate('en', 'common.effort', { effort: 'high' })).toBe('high effort');
+    expect(translate('ar', 'common.effort', { effort: 'مرتفع' })).toBe('جهد مرتفع');
+    // One not given stays as it is written, and a parameter the message does not name changes nothing.
+    expect(translate('en', 'common.effort')).toBe('{effort} effort');
+    expect(translate('en', 'common.effort', { other: 'x' })).toBe('{effort} effort');
+    expect(translate('en', 'common.ok', { effort: 'high' })).toBe('OK');
   });
 
   it('follows the process language through t', () => {
@@ -70,7 +77,7 @@ describe('translate', () => {
     const counts = [0, 1, 2, 3, 11, 100];
     const say = (key: MessageKey) => counts.map((count) => translate('ar', key, { count }));
     expect(say('plan.count.wall')).toEqual(['0 جدار', 'جدار واحد', 'جداران', '3 جدران', '11 جدارًا', '100 جدار']);
-    expect(say('plan.count.room')).toEqual(['0 غرفة', 'غرفة واحدة', 'غرفتان', '3 غرف', '11 غرفةً', '100 غرفة']);
+    expect(say('plan.count.room')).toEqual(['0 غرفة', 'غرفة واحدة', 'غرفتان', '3 غرف', '11 غرفة', '100 غرفة']);
     expect(say('library.card.levels')).toEqual(['0 طابق', 'طابق واحد', 'طابقان', '3 طوابق', '11 طابقًا', '100 طابق']);
     // After «عُثر على», so two projects are in the genitive.
     expect(say('library.settings.foundProjects')).toEqual(['0 مشروع', 'مشروع واحد', 'مشروعين', '3 مشاريع', '11 مشروعًا', '100 مشروع']);
@@ -128,6 +135,10 @@ describe('languages', () => {
     expect(languageDirection('ar')).toBe('rtl');
     expect(languageDirection('en')).toBe('ltr');
     expect(new Intl.NumberFormat(intlLocale('ar')).format(1234.5)).toMatch(/^[0-9.,]+$/);
+    // English dates and times take the operating system's format, as they did before Arabic.
+    expect(intlLocale('en')).toBeUndefined();
+    const at = new Date(2026, 10, 17, 14, 5, 3);
+    expect(at.toLocaleTimeString(intlLocale('en'))).toBe(at.toLocaleTimeString());
   });
 });
 
@@ -144,12 +155,36 @@ describe('text helpers', () => {
     expect(hasRtl('Bedroom غرفة')).toBe(true);
   });
 
+  it('take × and ÷ and Arabic-Indic and Persian digits as neutral', () => {
+    expect(textDirection('4 × 5 غرفة')).toBe('rtl');
+    expect(textDirection('10 ÷ 2 غرف')).toBe('rtl');
+    expect(textDirection('× Room')).toBe('ltr');
+    expect(textDirection('٣٦٠٠ mm')).toBe('ltr');
+    expect(textDirection('۳٫۵ m')).toBe('ltr');
+    expect(textDirection('٪٥٠ Room')).toBe('ltr');
+    expect(textDirection('٣٦٠٠')).toBe('ltr');
+    expect(textDirection('٣٦٠٠', 'rtl')).toBe('rtl');
+    expect(textDirection('٣ غرف')).toBe('rtl');
+    // Still Arabic script for the PDF writer, which must shape and embed it.
+    expect(hasRtl('٣٦٠٠')).toBe(true);
+  });
+
   it('turn Arabic and Persian digits and separators into what the parsers read', () => {
     expect(toLatinDigits('٣٦٠٠')).toBe('3600');
     expect(toLatinDigits('۳٫۵')).toBe('3.5');
     expect(toLatinDigits('١٬٢٥٠٫٥ mm')).toBe('1250.5 mm');
     expect(toLatinDigits('١٠٠،٢٠٠')).toBe('100,200');
     expect(toLatinDigits('3600 mm')).toBe('3600 mm');
+  });
+
+  it('read a number typed in either digits', () => {
+    expect(parseNumber('٣٢٠')).toBe(320);
+    expect(parseNumber(' 25.4 ')).toBe(25.4);
+    expect(parseNumber('٢٥٫٤')).toBe(25.4);
+    expect(parseNumber('-١٠')).toBe(-10);
+    expect(parseNumber('')).toBeNaN();
+    expect(parseNumber('  ')).toBeNaN();
+    expect(parseNumber('12px')).toBeNaN();
   });
 
   it('fold Arabic for searching', () => {
@@ -212,19 +247,27 @@ describe('a project name from a sentence', () => {
 });
 
 describe('chat blocks', () => {
-  it('give every line of a reply its own block, and mark paragraph ends', () => {
+  it('give every line of a reply its own block, a blank line too, and drop the blank lines at the end', () => {
     const reply = 'أضفت غرفة المعيشة بعرض 3600 mm.\n\nThe Sofa 3 seats fits.\n- الباب\n- النافذة\n\n\n';
-    expect(chatBlocks(reply).map(({ text, gap }) => ({ text, gap }))).toEqual([
-      { text: 'أضفت غرفة المعيشة بعرض 3600 mm.', gap: true },
-      { text: 'The Sofa 3 seats fits.', gap: false },
-      { text: '- الباب', gap: false },
-      { text: '- النافذة', gap: true },
+    expect(chatBlocks(reply).map(({ text, blank }) => ({ text, blank }))).toEqual([
+      { text: 'أضفت غرفة المعيشة بعرض 3600 mm.', blank: false },
+      { text: '', blank: true },
+      { text: 'The Sofa 3 seats fits.', blank: false },
+      { text: '- الباب', blank: false },
+      { text: '- النافذة', blank: false },
     ]);
+    // Two blank lines are two lines, as a pre-wrap block showed them; a blank line before the text stays.
+    expect(chatBlocks('\nOne\n\n\nTwo').map((b) => (b.blank ? '' : b.text))).toEqual(['', 'One', '', '', 'Two']);
+    // A line of spaces is a blank line.
+    expect(chatBlocks('One\n   \nTwo').map((b) => b.blank)).toEqual([false, true, false]);
+    // Joined with newlines, the blocks are the text as written (without its trailing blank lines).
+    expect(chatBlocks('One\n\nTwo\n').map((b) => b.text).join('\n')).toBe('One\n\nTwo');
   });
 
   it('keep a line as written and take no text as no block', () => {
-    expect(chatBlocks('  indented  ')).toEqual([{ text: '  indented  ', parts: [{ text: '  indented  ', ltr: false }], gap: false }]);
+    expect(chatBlocks('  indented  ')).toEqual([{ text: '  indented  ', parts: [{ text: '  indented  ', ltr: false }], blank: false }]);
     expect(chatBlocks('')).toEqual([]);
+    expect(chatBlocks('\n\n')).toEqual([]);
     expect(chatBlocks('a\r\nb').map((b) => b.text)).toEqual(['a', 'b']);
   });
 
@@ -235,6 +278,12 @@ describe('chat blocks', () => {
     expect(islands('في الطابق 2 ثلاث غرف و 3,5 نوافذ')).toEqual([]);
     expect(islands('The Sofa 3 seats is 2 meters long and 5mm thick')).toEqual(['5mm']);
     expect(islands('٣٦٠٠ mm')).toEqual(['٣٦٠٠ mm']);
+    // Three-digit numbers with plain spaces between them stay separate numbers, unless a unit follows the whole run.
+    expect(islands('الغرف 101 102 103 في الطابق الأول')).toEqual([]);
+    expect(islands('اتصل على 050 123 456')).toEqual([]);
+    expect(islands('بطول 12 000 mm')).toEqual(['12 000 mm']);
+    // A no-break or thin space groups thousands without a unit.
+    expect(islands('المساحة 3 000 والعدد 1 250')).toEqual(['3 000', '1 250']);
     // Joined, the parts are the line: copying the text is unchanged.
     const line = 'بعرض 3000 mm وعمق 3000 mm.';
     expect(ltrIslands(line).map((p) => p.text).join('')).toBe(line);

@@ -3,10 +3,18 @@
  * reads, digits typed on an Arabic keyboard, and a folded form for searching.
  */
 
-/** Hebrew, Arabic, Syriac, Thaana, N'Ko and the Arabic presentation forms: the strong right-to-left letters. */
-const RTL_LETTER = /[֐-ࣿיִ-﷿ﹰ-ﻼ]/;
-/** A strong left-to-right letter (Latin, Greek, Cyrillic and the rest of the letters outside the right-to-left blocks). */
-const LTR_LETTER = /[A-Za-zÀ-ʯͰ-֏ऀ-῿Ⰰ-퟿]/;
+/** Hebrew, Arabic, Syriac, Thaana, N'Ko and the Arabic presentation forms: any character of the right-to-left blocks. */
+const RTL_SCRIPT = /[֐-ࣿיִ-﷿ﹰ-ﻼ]/;
+/**
+ * A strong right-to-left letter: the right-to-left blocks without the Arabic-Indic and Persian digits and the Arabic
+ * percent sign and separators (U+0660–U+066C, U+06F0–U+06F9), which are numbers, neutral as Western digits are.
+ */
+const RTL_LETTER = /[֐-ٟ٭-ۯۺ-ࣿיִ-﷿ﹰ-ﻼ]/;
+/**
+ * A strong left-to-right letter (Latin, Greek, Cyrillic and the rest of the letters outside the right-to-left blocks),
+ * without × and ÷ (U+00D7, U+00F7), which sit among the Latin letters but are signs.
+ */
+const LTR_LETTER = /[A-Za-zÀ-ÖØ-öø-ʯͰ-֏ऀ-῿Ⰰ-퟿]/;
 
 /**
  * The direction a text reads in, by its first strong letter, like `dir="auto"` in HTML: for canvas
@@ -23,7 +31,7 @@ export function textDirection(text: string, fallback: 'ltr' | 'rtl' = 'ltr'): 'l
 
 /** True when the text holds any right-to-left letter: it then needs shaping and reordering wherever the platform does not do them (the PDF writer). */
 export function hasRtl(text: string): boolean {
-  return RTL_LETTER.test(text);
+  return RTL_SCRIPT.test(text);
 }
 
 /**
@@ -41,6 +49,16 @@ export function toLatinDigits(text: string): string {
     if (code === 0x066c) return '';
     return ',';
   });
+}
+
+/**
+ * A number typed into a text field (a field of `type="text"`, since a `type="number"` field drops
+ * Arabic-Indic digits before the page sees them): its digits through `toLatinDigits`, spaces around
+ * it ignored. NaN for an empty field or anything else that is not a number.
+ */
+export function parseNumber(text: string): number {
+  const latin = toLatinDigits(String(text)).trim();
+  return latin === '' ? NaN : Number(latin);
 }
 
 /**
@@ -109,27 +127,34 @@ export interface TextPart {
   ltr: boolean;
 }
 
-/** One line of a chat message as the panel shows it: its own direction (`dir="auto"`), its islands, and whether blank lines came after it. */
+/** One line of a chat message as the panel shows it: its own direction (`dir="auto"`) and its islands, or a blank line. */
 export interface ChatBlock {
   text: string;
   /** The line in pieces: `ltr` ones are shown as left-to-right islands. Joined, they are `text`. */
   parts: TextPart[];
-  /** One or more blank lines follow it: a paragraph ends here. */
-  gap: boolean;
+  /** A blank line (empty or only spaces): shown as an empty line of one line's height, and copied as one. */
+  blank: boolean;
 }
 
 /** A digit, Western or Arabic-Indic. */
 const D = '[0-9\u0660-\u0669\u06f0-\u06f9]';
-/** A number: digits with decimal and thousands separators, thousands also grouped by a (no-break or thin) space. */
-const NUMBER = `${D}(?:[.,\u066b\u066c]?${D})*(?:[ \u00a0\u202f]${D}{3}(?!${D}))*`;
+/** A number: digits with decimal and thousands separators, thousands also grouped by a space matching `sep`. */
+const grouped = (sep: string) => `${D}(?:[.,\u066b\u066c]?${D})*(?:${sep}${D}{3}(?!${D}))*`;
+/** A number whose groups are joined only by a no-break or thin space: `101 102 103` with plain spaces is three numbers. */
+const NUMBER = grouped('[\u00a0\u202f]');
+/** A number whose groups may be joined by a plain space too (`3 000`): one number only when a unit follows the whole run. */
+const SPACED_NUMBER = grouped('[ \u00a0\u202f]');
 /** A unit symbol after a number, not the start of a longer word. */
 const UNIT = '(?:mm|cm|km|m²|m³|m2|m|ft|in|lm|°|%|″|′|"|\')(?![\\p{L}\\p{N}])';
 /**
  * A measurement, a size or a range written in a sentence: `3600 mm`, `3 000 mm`, `4 × 5 m`, `600–650 mm`,
  * `12.5 m²`, `45°`. Inside Arabic text the bidi algorithm reads digits after an Arabic letter as Arabic
- * numbers, which puts a Latin unit before them (`mm 3600`) and turns a range around (`650–600`).
+ * numbers, which puts a Latin unit before them (`mm 3600`) and turns a range around (`650–600`). Digit
+ * groups with plain spaces between them are one number only before a unit (`3 000 mm`); otherwise
+ * (`101 102 103`, a phone number) they stay separate numbers.
  */
-const MEASURE = new RegExp(`${NUMBER}(?:[ \u00a0\u202f]?[×x–-][ \u00a0\u202f]?${NUMBER})*(?:[ \u00a0\u202f]?${UNIT})?`, 'gu');
+const run = (n: string) => `${n}(?:[ \u00a0\u202f]?[×x–-][ \u00a0\u202f]?${n})*`;
+const MEASURE = new RegExp(`${run(SPACED_NUMBER)}[ \u00a0\u202f]?${UNIT}|${run(NUMBER)}(?:[ \u00a0\u202f]?${UNIT})?`, 'gu');
 
 /**
  * A line split around its measurements, sizes and ranges, which are left-to-right islands (the
@@ -165,14 +190,12 @@ export function isolateMeasurements(text: string): string {
  * A chat message split into its lines, so each takes its direction from its own first strong letter: a
  * reply with an Arabic paragraph, an English one and a list reads right line by line, where one element
  * would give the whole text the direction of its first letter. Each line's measurements are islands
- * (`ltrIslands`). Blank lines are not blocks; they mark the line before them as a paragraph's end. A
- * message without text has no blocks.
+ * (`ltrIslands`). A blank line is a block of its own (`blank`), so the text looks and copies as written,
+ * as one `pre-wrap` element showed it; blank lines at the end (a reply still streaming, a trailing
+ * newline) are dropped, so the last block always has text. A message without text has no blocks.
  */
 export function chatBlocks(text: string): ChatBlock[] {
-  const blocks: ChatBlock[] = [];
-  for (const line of text.replace(/\r\n?/g, '\n').split('\n')) {
-    if (line.trim()) blocks.push({ text: line, parts: ltrIslands(line), gap: false });
-    else if (blocks.length) blocks[blocks.length - 1].gap = true;
-  }
-  return blocks;
+  const lines = text.replace(/\r\n?/g, '\n').split('\n');
+  while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
+  return lines.map((line) => (line.trim() ? { text: line, parts: ltrIslands(line), blank: false } : { text: '', parts: [], blank: true }));
 }

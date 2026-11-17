@@ -115,13 +115,15 @@ export class ProjectService implements ProjectsApi {
 
   info(): LibraryInfo {
     const all = this.library.list({});
+    const synced = syncedFolderWarning(this.library.root);
     return {
       path: this.library.root,
       isDefault: path.resolve(this.library.root) === path.resolve(this.opts.defaultLibraryRoot),
       projects: all.length,
       trashed: this.library.list({ trashed: true }).length,
       lockedBy: this.library.lockedBy,
-      warning: syncedFolderWarning(this.library.root),
+      warning: synced?.message ?? null,
+      warningText: synced?.text ?? null,
     };
   }
 
@@ -457,7 +459,7 @@ export class ProjectService implements ProjectsApi {
         this.snapshotted.add(id);
         // English keeps the system's date format, as it always had; another language writes the date its own way (Western digits).
         const language = currentLanguage();
-        const when = new Intl.DateTimeFormat(language === 'en' ? undefined : intlLocale(language), { dateStyle: 'medium', timeStyle: 'short' }).format(new Date());
+        const when = new Intl.DateTimeFormat(intlLocale(language), { dateStyle: 'medium', timeStyle: 'short' }).format(new Date());
         await this.library.createSnapshot(id, engine.doc, { name: t('defaults.snapshot.beforeEditing', { when }), kind: 'auto', createdBy: 'App' }).catch((err: Error) => console.warn(`[projects] could not take the session snapshot of ${id}: ${err.message}`));
       }
       return engine.transact(label, author, fn, options);

@@ -188,7 +188,8 @@ export const libraryModule = defineModule({
       handler: async ({ path }) => {
         const entries = await fs.readdir(path).catch(() => null);
         const hasLibrary = Boolean(await fs.stat(nodePath.join(path, 'library.json')).catch(() => null));
-        return { exists: entries !== null, empty: !entries || entries.length === 0, hasLibrary, warning: syncedFolderWarning(path) };
+        const synced = syncedFolderWarning(path);
+        return { exists: entries !== null, empty: !entries || entries.length === 0, hasLibrary, warning: synced?.message ?? null, warningText: synced?.text ?? null };
       },
     }),
     defineCommand({

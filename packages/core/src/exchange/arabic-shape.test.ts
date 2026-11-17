@@ -49,6 +49,29 @@ describe('shapeArabic', () => {
     // Persian letters through Presentation Forms-A.
     expect(hex(shapeArabic('پل'))).toBe(hex(cps(0xfb58, 0xfede)));
   });
+
+  it('joins letters without presentation forms by their Unicode joining type', () => {
+    // Keheh with two dots (U+063B) and ng (U+06AD) are dual-joining: the beh before takes its initial form, the one after its final.
+    expect(hex(shapeArabic(cps(0x0628, 0x063b, 0x0628)))).toBe(hex(cps(0xfe91, 0x063b, 0xfe90)));
+    expect(hex(shapeArabic(cps(0x0628, 0x06ad, 0x0628)))).toBe(hex(cps(0xfe91, 0x06ad, 0xfe90)));
+    // Kashmiri yeh (U+0620) and dotless beh (U+066E) too.
+    expect(hex(shapeArabic(cps(0x0628, 0x0620, 0x0628)))).toBe(hex(cps(0xfe91, 0x0620, 0xfe90)));
+    expect(hex(shapeArabic(cps(0x0628, 0x066e)))).toBe(hex(cps(0xfe91, 0x066e)));
+    // Oe (U+06C6) joins on its right only: the beh after it starts again.
+    expect(hex(shapeArabic(cps(0x0628, 0x06c6, 0x0628)))).toBe(hex(cps(0xfe91, 0x06c6, 0xfe8f)));
+    expect([0x063b, 0x063f, 0x066f, 0x06ad, 0x06fa].map(joiningType)).toEqual(['D', 'D', 'D', 'D', 'D']);
+    expect([0x06c6, 0x06c8, 0x06ee, 0x0673].map(joiningType)).toEqual(['R', 'R', 'R', 'R']);
+    // The number signs and the end of ayah are format characters that do not join; a mark is transparent.
+    expect([0x0600, 0x06dd, 0x0674, 0x06d4].map(joiningType)).toEqual(['U', 'U', 'U', 'U']);
+    expect([0x064e, 0x0670, 0x061c].map(joiningType)).toEqual(['T', 'T', 'T']);
+  });
+
+  it('shapes and orders a very long text without overflowing the stack', () => {
+    const long = 'غرفة المعيشة '.repeat(20000);
+    expect(() => arabicVisual(long)).not.toThrow();
+    expect([...shapeArabic(long)].length).toBe([...long].length);
+    expect([...visualOrder(long)].length).toBe([...long].length);
+  });
 });
 
 describe('visualOrder', () => {

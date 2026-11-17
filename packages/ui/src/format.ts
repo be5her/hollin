@@ -47,3 +47,11 @@ export function hueOf(id: string): number {
   for (const ch of id) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
   return hash % 360;
 }
+
+/**
+ * True while an input method composes (Arabic, Japanese, any IME): its Enter confirms the composition and
+ * must never send or submit. Chromium sets `isComposing`, and reports key code 229 for keys the IME takes.
+ */
+export function composing(event: KeyboardEvent): boolean {
+  return event.isComposing || event.keyCode === 229;
+}

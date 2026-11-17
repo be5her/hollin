@@ -19,8 +19,11 @@ function fileSum(bytes: Uint8Array): number {
   return sum;
 }
 
-/** A minimal TrueType file of three empty glyphs whose cmap is a format 12 table mapping U+1F600 and 'A'. */
-function tinyFont(): Uint8Array {
+/**
+ * A minimal TrueType file of three empty glyphs whose cmap is a format 12 table mapping U+1F600 and 'A', or the
+ * `groups` given (start, end, glyph), with `claimed` as their count when it lies.
+ */
+function tinyFont(groups: [number, number, number][] = [[0x41, 0x41, 1], [0x1f600, 0x1f600, 2]], claimed = groups.length): Uint8Array {
   const tables: Record<string, number[]> = {
     head: [...u32(0x00010000), ...u32(0), ...u32(0), ...u32(0x5f0f3cf5), ...u16(0), ...u16(2048), ...new Array(16).fill(0), ...u16(0), ...u16(0), ...u16(100), ...u16(100), ...u16(0), ...u16(8), ...u16(2), ...u16(1), ...u16(0)],
     hhea: [...u32(0x00010000), ...u16(1600), ...u16(-400 & 0xffff), ...new Array(26).fill(0), ...u16(3)],
@@ -28,7 +31,7 @@ function tinyFont(): Uint8Array {
     maxp: [...u32(0x00005000), ...u16(3)],
     loca: [...u32(0), ...u32(0), ...u32(0), ...u32(0)],
     glyf: [],
-    cmap: [...u16(0), ...u16(1), ...u16(3), ...u16(10), ...u32(12), ...u16(12), ...u16(0), ...u32(40), ...u32(0), ...u32(2), ...u32(0x41), ...u32(0x41), ...u32(1), ...u32(0x1f600), ...u32(0x1f600), ...u32(2)],
+    cmap: [...u16(0), ...u16(1), ...u16(3), ...u16(10), ...u32(12), ...u16(12), ...u16(0), ...u32(16 + 12 * groups.length), ...u32(0), ...u32(claimed), ...groups.flatMap(([a, b, g]) => [...u32(a), ...u32(b), ...u32(g)])],
   };
   const tags = Object.keys(tables).sort();
   const out: number[] = [...u32(0x00010000), ...u16(tags.length), ...u16(64), ...u16(2), ...u16(tags.length * 16 - 64)];
@@ -87,6 +90,24 @@ describe('readTrueType', () => {
   it('refuses what is not a TrueType font', () => {
     expect(() => readTrueType(new Uint8Array([0x4f, 0x54, 0x54, 0x4f, 0, 0, 0, 0, 0, 0, 0, 0]))).toThrow(/CFF/);
     expect(() => readTrueType(new TextEncoder().encode('not a font at all'))).toThrow(/TrueType/);
+  });
+
+  it('refuses a truncated file with an error of its own', () => {
+    // The directory says 17 tables; 100 bytes hold five.
+    expect(() => readTrueType(PLEX_ARABIC.slice(0, 100))).toThrow(/table directory/);
+    // The directory is whole; the tables are not.
+    expect(() => readTrueType(PLEX_ARABIC.slice(0, 4096))).toThrow(/runs past the end/);
+  });
+
+  it('bounds a format 12 cmap by its table', () => {
+    // A count that claims more groups than the table holds.
+    expect(() => readTrueType(tinyFont([[0x41, 0x41, 1]], 0x10000000))).toThrow(/cmap table runs past its end/);
+    // Groups that overlap would map the whole of Unicode again and again.
+    const start = performance.now();
+    expect(() => readTrueType(tinyFont([[0, 0x10ffff, 1], [0, 0x10ffff, 1], [0, 0x10ffff, 1]]))).toThrow(/overlap or are out of order/);
+    expect(() => readTrueType(tinyFont([[0x42, 0x41, 1]]))).toThrow(/overlap or are out of order/);
+    expect(() => readTrueType(tinyFont([[0x41, 0x110000, 1]]))).toThrow(/overlap or are out of order/);
+    expect(performance.now() - start).toBeLessThan(2000);
   });
 });
 

@@ -36,9 +36,9 @@ export const rules = {
   'rules.break.walkCrosses': 'خط مسيره يتقاطع مع نفسه.',
   'rules.break.tooSteep': 'ميله \u2066{slope} %\u2069 أشد من الحد الأقصى \u2066{limit} %\u2069.',
   'rules.break.axisCrosses': 'محوره يتقاطع مع نفسه.',
-  'rules.break.stopOffStack': 'يتوقف عند «\u2068{level}\u2069»، وهو ميزانين ليس ضمن تسلسل الطوابق.',
-  'rules.break.stopsSameElevation': 'توقفان من توقفاته على المنسوب نفسه (\u2066{elevation}\u2069).',
-  'rules.break.carTooBig': 'كابينته (\u2066{carW} × {carD}\u2069) لا تتسع داخل بئره (\u2066{shaftW} × {shaftD}\u2069).',
+  'rules.break.stopOffStack': 'يتوقف عند «\u2068{level}\u2069»، وهو ميزانين ليس من الطوابق الرئيسية.',
+  'rules.break.stopsSameElevation': 'وقفتان من وقفاته على المنسوب نفسه (\u2066{elevation}\u2069).',
+  'rules.break.carTooBig': 'كابينته (\u2066{carW} × {carD}\u2069) أكبر من بئره (\u2066{shaftW} × {shaftD}\u2069).',
 
   'rules.misfit.door': 'الباب لا يتّسع له جداره في \u2068{level}\u2069',
   'rules.misfit.window': 'النافذة لا يتّسع لها جدارها في \u2068{level}\u2069',

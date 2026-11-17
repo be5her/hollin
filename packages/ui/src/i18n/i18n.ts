@@ -1,6 +1,7 @@
 import { DOCUMENT, Service, computed, inject, signal } from '@angular/core';
 import {
   catalogName,
+  modelName,
   errorLine,
   categoryName,
   commandTitle,
@@ -51,6 +52,9 @@ export class I18n {
 
   /** A catalog entry's name as people read it: a built-in's in the current language, anything else (an imported model) as it is. */
   readonly catalogName = (ref: string, name: string): string => catalogName(ref, name, this.language());
+
+  /** An item's model by its name in the current language (a built-in's translated, the missing stand-in's too). */
+  readonly modelName = (ref: string, model: { name: string; missing?: true }): string => modelName(ref, model, this.language());
 
   /** A catalog category by its id, in the current language. */
   readonly categoryName = (category: string): string => categoryName(category, this.language());

@@ -1,7 +1,7 @@
 import { NgComponentOutlet, NgTemplateOutlet } from '@angular/common';
 import { Component, ElementRef, afterRenderEffect, computed, effect, inject, input, linkedSignal, signal, untracked } from '@angular/core';
-import { FormField, form, max, min, required } from '@angular/forms/signals';
-import { AI_MODELS, AI_PROVIDERS, BRANDING, CLAUDE_CODE_EFFORTS, CLAUDE_CODE_MODEL_ALIASES, LANGUAGES, clientSnippets, defaultConfig, isMessageKey, mmText, type AiProvider, type ClientSnippet, type LanguagePreference, type AssistantStatus, type ClaudeCodeEffort, type ConfigPatch, type GlobalConfig, type McpCallEntry, type ThemePreference, type UnitSettings } from '@studio/core';
+import { FormField, form, required, validate } from '@angular/forms/signals';
+import { AI_MODELS, AI_PROVIDERS, BRANDING, CLAUDE_CODE_EFFORTS, CLAUDE_CODE_MODEL_ALIASES, LANGUAGES, clientSnippets, defaultConfig, isMessageKey, mmText, parseNumber, type AiProvider, type ClientSnippet, type LanguagePreference, type AssistantStatus, type ClaudeCodeEffort, type ConfigPatch, type GlobalConfig, type McpCallEntry, type ThemePreference, type UnitSettings } from '@studio/core';
 import { AppMark, AppState, Badge, Button, Checkbox, Dialogs, HostBridge, I18n, Icon, Input, Label, OttoMark, SETTINGS_LATE, Select, SettingsSections, Theme, Toasts, Wordmark, agentSignature, effortLabel, invokeResource, ottoModelLabel, providerLabel, type Tab, type TabComponent } from '@studio/ui';
 import { Copy, KeyRound, RefreshCw, Trash2 } from 'lucide';
 import { LicencesDialog } from './licences-dialog';
@@ -12,7 +12,8 @@ interface Draft {
   language: LanguagePreference;
   units: UnitSettings;
   mcpEnabled: boolean;
-  port: number;
+  /** As typed: a text field, so Arabic-Indic digits arrive (`parseNumber`). */
+  port: string;
   allowMutations: boolean;
   model: string;
   provider: AiProvider;
@@ -27,7 +28,7 @@ function toDraft(config: GlobalConfig): Draft {
     language: config.appearance.language,
     units: config.units,
     mcpEnabled: config.mcp.enabled,
-    port: config.mcp.port,
+    port: String(config.mcp.port),
     allowMutations: config.mcp.allowMutations,
     model: config.ai.model,
     provider: config.ai.provider,
@@ -105,8 +106,10 @@ export class SettingsTab implements TabComponent {
   });
   protected readonly settings = form(this.draft, (p) => {
     required(p.port);
-    min(p.port, 1024);
-    max(p.port, 65535);
+    validate(p.port, ({ value }) => {
+      const port = parseNumber(value());
+      return !value().trim() || (Number.isInteger(port) && port >= 1024 && port <= 65535) ? null : { kind: 'port' };
+    });
   });
 
   protected readonly keyDraft = signal({ key: '' });
@@ -139,7 +142,7 @@ export class SettingsTab implements TabComponent {
   protected readonly calls = invokeResource<McpCallEntry[]>('mcp.calls', () => ({}), { projectId: null, refreshOnEvents: ['mcp.call'] });
   protected readonly recentCalls = computed(() => [...(this.calls.value() ?? [])].reverse().slice(0, 8));
   protected readonly info = invokeResource<AppInfo>('app.info', () => ({}), { projectId: null });
-  protected readonly snippets = computed(() => clientSnippets(BRANDING.mcpServerName, this.mcp()?.url ?? `http://127.0.0.1:${this.draft().port}/mcp`));
+  protected readonly snippets = computed(() => clientSnippets(BRANDING.mcpServerName, this.mcp()?.url ?? `http://127.0.0.1:${parseNumber(this.draft().port)}/mcp`));
   protected readonly savingKey = signal(false);
 
   constructor() {
@@ -183,7 +186,7 @@ export class SettingsTab implements TabComponent {
 
   protected savePort(): void {
     const config = untracked(this.config);
-    const port = untracked(this.draft).port;
+    const port = parseNumber(untracked(this.draft).port);
     if (!config || port === config.mcp.port) return;
     if (this.settings.port().invalid()) {
       this.toasts.notify(this.t('settings.mcp.portInvalid'), 'error');

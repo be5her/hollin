@@ -110,10 +110,43 @@ interface Problem {
 
 const hasWords = (text: string) => (text.match(/[A-Za-z]{2,}/g) ?? []).some((word) => !KEEP.has(word));
 
-/** Literal text and labelled attributes in a template (after `stripAngular`): text nodes and `placeholder`, `title`, `aria-label`, `alt`, `label` written as plain attributes. */
-export function wordsIn(template: string): string[] {
-  const markup = stripAngular(template);
+/**
+ * The attributes that hold words for people: the native ones, and the text inputs the shared controls and
+ * dialogs take (`x-empty-state`'s `hint`, the material picker's `noneLabel`, a confirmation's
+ * `confirmLabel` and `description`).
+ */
+const LABELLED = 'placeholder|title|aria-label|alt|label|hint|noneLabel|confirmLabel|description';
+const PLAIN_ATTR = new RegExp(`(?<![\\w.\\-[(])(${LABELLED})="([^"]*)"`, 'g');
+const BOUND_ATTR = new RegExp(`\\[(?:attr\\.)?(${LABELLED})\\]="([^"]*)"`, 'g');
+/** A message key (`area.key`, `plan.props.floor`): what a binding passes to `t()` or `label()`. */
+const KEY = /^[a-z][\w-]*(?:\.[\w-]+)+$/;
+
+/**
+ * The quoted literals in an expression (a binding's value, an interpolation) that are words for people: a
+ * literal with words that starts with a capital or holds a space. Keys, identifiers compared against
+ * (`'api'`, `'rtl'`), class names and kept names pass.
+ */
+export function wordsInExpression(expression: string): string[] {
   const found: string[] = [];
+  for (const m of expression.matchAll(/'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)"/g)) {
+    const literal = m[1] ?? m[2] ?? '';
+    if (KEY.test(literal) || !hasWords(literal)) continue;
+    if (/^[A-Z]/.test(literal.trim()) || /\s/.test(literal.trim())) found.push(literal);
+  }
+  return found;
+}
+
+/**
+ * Literal text and words in a template: text nodes, the labelled attributes (`LABELLED`) written as plain
+ * attributes, quoted words inside a labelled binding (`[title]="'Close'"`, `[attr.aria-label]="'…'"`) and
+ * inside interpolations (`{{ ok ? 'Saved' : 'Saving' }}`).
+ */
+export function wordsIn(template: string): string[] {
+  const found: string[] = [];
+  for (const m of template.replace(/<!--[\s\S]*?-->/g, '').matchAll(/\{\{([\s\S]*?)\}\}/g)) {
+    for (const literal of wordsInExpression(m[1])) found.push(`interpolated "${literal}"`);
+  }
+  const markup = stripAngular(template);
   let i = 0;
   let textStart = 0;
   const flushText = (end: number) => {
@@ -135,8 +168,11 @@ export function wordsIn(template: string): string[] {
       }
       const tag = markup.slice(i, j + 1);
       const name = /^<\/?([\w-]+)/.exec(tag)?.[1]?.toLowerCase();
-      for (const attr of tag.matchAll(/(?<![\w.\-[(])(placeholder|title|aria-label|alt|label)="([^"]*)"/g)) {
+      for (const attr of tag.matchAll(PLAIN_ATTR)) {
         if (hasWords(attr[2])) found.push(`${attr[1]}="${attr[2]}"`);
+      }
+      for (const attr of tag.matchAll(BOUND_ATTR)) {
+        for (const literal of wordsInExpression(attr[2])) found.push(`[${attr[1]}] "${literal}"`);
       }
       i = j + 1;
       // Code and styles hold no words for people.
@@ -198,6 +234,16 @@ describe('the guard itself', () => {
     expect(wordsIn('<p>{{ t(\'a.b\') }}</p><x-a [title]="t(\'a.c\')" [attr.aria-label]="name" data-title="Raw" />')).toEqual([]);
     expect(wordsIn('@for (x of list(); track x.id) {<kbd>Ctrl K</kbd>} @let y = z(); <span>Otto · MCP</span>')).toEqual([]);
     expect(wordsIn('<input placeholder="sk-ant-…" /><textarea placeholder="JSON"></textarea>')).toEqual([]);
+  });
+
+  it('sees quoted words in labelled bindings, interpolations and the controls\' text inputs', () => {
+    expect(wordsIn(`<button [title]="'Close'"></button>`)).toEqual(['[title] "Close"']);
+    expect(wordsIn(`<span [attr.aria-label]="busy ? 'Saving the project' : t('a.b')"></span>`)).toEqual(['[aria-label] "Saving the project"']);
+    expect(wordsIn(`<p>{{ ok ? 'Saved' : 'Saving' }}</p>`)).toEqual(['interpolated "Saved"', 'interpolated "Saving"']);
+    expect(wordsIn('<x-empty-state hint="Nothing here yet" />')).toEqual(['hint="Nothing here yet"']);
+    expect(wordsIn(`<x-picker [noneLabel]="'No material'" />`)).toEqual(['[noneLabel] "No material"']);
+    // Keys, identifiers compared against, kept names and class strings outside labelled bindings pass.
+    expect(wordsIn(`<p [title]="t('plan.props.floor')">{{ kind === 'api' ? t('a.b') : 'Otto' }}</p><x-p [label]="'plan.props.floor'" [class]="on ? 'text-fg font-medium' : ''" />`)).toEqual([]);
   });
 
   it('sees physical classes and lets logical ones and centring pass', () => {

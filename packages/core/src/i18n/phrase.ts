@@ -27,6 +27,8 @@ export type PhraseParam =
 export interface PhraseFormat {
   translate: (key: MessageKey, params?: MessageParams) => string;
   length: (mm: number) => string;
+  /** A range of lengths (mm); `rangeText` of the two lengths when left out. */
+  range?: (from: number, to: number) => string;
   /** A command's title; its English title (the one it was defined with) when left out. */
   command?: (command: { id: string; title: string }) => string;
 }
@@ -50,7 +52,7 @@ export function phraseText(phrase: Phrase, format: PhraseFormat): string {
   for (const [name, value] of Object.entries(phrase.params ?? {})) {
     if (typeof value === 'string' || typeof value === 'number') params[name] = value;
     else if ('mm' in value) params[name] = format.length(value.mm);
-    else if ('mmRange' in value) params[name] = rangeText(format.length(value.mmRange[0]), format.length(value.mmRange[1]));
+    else if ('mmRange' in value) params[name] = format.range ? format.range(value.mmRange[0], value.mmRange[1]) : rangeText(format.length(value.mmRange[0]), format.length(value.mmRange[1]));
     else if ('command' in value) params[name] = format.command ? format.command(value.command) : value.command.title;
     else params[name] = phraseText(value, format);
   }

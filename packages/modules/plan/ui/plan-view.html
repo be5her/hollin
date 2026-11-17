@@ -404,7 +404,7 @@
             [formField]="ottoForm.sentence"
             [attr.aria-label]="t('plan.empty.ottoInput')"
             [title]="t(ottoReady() ? 'plan.empty.ottoReady' : 'plan.empty.ottoSetup')"
-            (keydown.enter)="tellOtto(); $event.preventDefault()"
+            (keydown.enter)="ottoEnter($event)"
             data-testid="plan-empty-otto"
           />
         </label>

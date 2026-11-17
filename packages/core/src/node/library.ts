@@ -6,7 +6,7 @@ import { z } from 'zod';
 import type { ProjectDoc } from '../doc/schema';
 import type { ListQuery, ProjectSummary, SnapshotInfo } from '../projects';
 import { StudioError } from '../errors';
-import { foldForSearch, t } from '../i18n';
+import { foldForSearch, translate, type Phrase } from '../i18n';
 import { isId, newId } from '../ids';
 import { WriteQueue, readJsonFile, renameWithRetry, writeFileAtomic, writeJsonAtomic } from './atomic-write';
 import { Catalog } from './catalog';
@@ -557,12 +557,15 @@ function isAlive(pid: number): boolean {
   }
 }
 
-/** True when a folder is (or is inside) a cloud-synced location, where a library is at risk of conflicts. */
-export function syncedFolderWarning(folder: string): string | null {
+/**
+ * A warning when a folder is (or is inside) a cloud-synced location, where a library is at risk of conflicts:
+ * its English `message` (what agents read in `library.info`) and the phrase the renderer translates.
+ */
+export function syncedFolderWarning(folder: string): { message: string; text: Phrase } | null {
   const lower = path.resolve(folder).toLowerCase();
   const synced = [process.env.OneDrive, process.env.OneDriveConsumer, process.env.OneDriveCommercial].filter(Boolean).map((p) => path.resolve(p!).toLowerCase());
   if (synced.some((p) => lower === p || lower.startsWith(`${p}${path.sep}`)) || /[\\/](onedrive|dropbox|google drive|icloud ?drive|mobile documents)([\\/ -]|$)/i.test(lower)) {
-    return t('library.syncedWarning');
+    return { message: translate('en', 'library.syncedWarning'), text: { key: 'library.syncedWarning' } };
   }
   return null;
 }

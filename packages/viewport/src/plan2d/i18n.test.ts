@@ -17,7 +17,7 @@ describe('the canvas in Arabic', () => {
     const previous = [{ direction: [Math.cos((37 * Math.PI) / 180), Math.sin((37 * Math.PI) / 180)] as Vec2, name: 'previous' }];
     expect(snapPoint(idx, cursor, 100, DEFAULT_SNAP_SETTINGS, { from, relativeTo: previous })?.label).toBe('Perpendicular to previous');
     setLanguage('ar');
-    expect(snapPoint(idx, cursor, 100, DEFAULT_SNAP_SETTINGS, { from, relativeTo: previous })?.label).toBe('عمودي على المقطع السابق');
+    expect(snapPoint(idx, cursor, 100, DEFAULT_SNAP_SETTINGS, { from, relativeTo: previous })?.label).toBe('عمودي على الضلع السابق');
     expect(snapPoint(idx, [480, 520], 100, { ...DEFAULT_SNAP_SETTINGS, grid: true, gridSpacing: 500 })?.label).toBe('الشبكة');
   });
 

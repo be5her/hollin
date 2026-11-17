@@ -8,7 +8,8 @@ import { newProjectDoc } from '../doc/defaults';
 import type { EditContext } from '../doc/engine';
 import { newId } from '../ids';
 import { testHost } from '../test-host';
-import { Library } from './library';
+import { setLanguage } from '../i18n';
+import { Library, syncedFolderWarning } from './library';
 import { unsafeEntryName } from './package';
 import { ProjectService } from './project-service';
 import { readProjectDir, writeProjectDir } from './project-store';
@@ -455,5 +456,19 @@ describe('ProjectService', () => {
     await expect(svc.moveLibrary(path.join(root, 'nothing-here'), 'adopt')).rejects.toMatchObject({ code: 'NOT_FOUND' });
     await svc.stop();
     library = new Library(target);
+  });
+});
+
+describe('syncedFolderWarning', () => {
+  it('warns about a cloud-synced folder in English, with a phrase for the interface', () => {
+    setLanguage('ar');
+    try {
+      const warning = syncedFolderWarning(path.join(os.tmpdir(), 'Dropbox', 'Hollin'));
+      expect(warning?.message).toMatch(/^This folder is synced to the cloud\./);
+      expect(warning?.text).toEqual({ key: 'library.syncedWarning' });
+      expect(syncedFolderWarning(path.join(os.tmpdir(), 'Plans'))).toBeNull();
+    } finally {
+      setLanguage('en');
+    }
   });
 });

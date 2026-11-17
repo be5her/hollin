@@ -8,16 +8,16 @@
         <svg [xIcon]="icons[toast.kind]" class="size-4 mt-0.5 shrink-0" [class]="toast.kind === 'error' ? 'text-danger' : toast.kind === 'success' ? 'text-success' : 'text-muted'"></svg>
         @if (toast.detail; as detail) {
           <span class="flex-1 min-w-0">
-            <span class="block break-words" data-testid="toast-message">{{ toast.message }}</span>
-            <span class="block mt-0.5 text-xs text-muted break-words text-start" dir="ltr" data-testid="toast-detail">{{ detail }}</span>
+            <span class="block [overflow-wrap:anywhere]" data-testid="toast-message">{{ toast.message }}</span>
+            <span class="block mt-0.5 text-xs text-muted [overflow-wrap:anywhere] text-start" dir="ltr" data-testid="toast-detail">{{ detail }}</span>
           </span>
         } @else {
-          <span class="flex-1 break-words" data-testid="toast-message">{{ toast.message }}</span>
+          <span class="flex-1 min-w-0 [overflow-wrap:anywhere]" data-testid="toast-message">{{ toast.message }}</span>
         }
         @if (toast.action; as action) {
           <button type="button" class="shrink-0 text-xs font-medium text-accent hover:text-accent-hover" (click)="toasts.act(toast)" data-testid="toast-action">{{ action.label }}</button>
         }
-        <button type="button" class="text-muted hover:text-fg" (click)="toasts.dismiss(toast.id)" [attr.aria-label]="t('common.dismiss')"><svg [xIcon]="closeIcon" class="size-3.5"></svg></button>
+        <button type="button" class="shrink-0 text-muted hover:text-fg" (click)="toasts.dismiss(toast.id)" [attr.aria-label]="t('common.dismiss')"><svg [xIcon]="closeIcon" class="size-3.5"></svg></button>
       </div>
     }
   </div>

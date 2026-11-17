@@ -1,6 +1,5 @@
 import { DEFAULT_RULE_LIMITS, defaultConfig, type RuleLimits, type UnitSettings } from '../config';
-import { catalogName } from '../decor/catalog';
-import { itemFootprint, itemModel, itemSize } from '../decor/items';
+import { itemFootprint, itemModel, itemSize, modelName } from '../decor/items';
 import { deriveLevels, entitiesOnLevel } from '../doc/derive';
 import type { Entity, EntityOf, ProjectDoc } from '../doc/schema';
 import { regionPolygons } from '../geometry/clip';
@@ -451,7 +450,7 @@ export function planDrawing(doc: ProjectDoc, levelId: string, options: PlanDrawi
     layer.push(lineStroke(sub(tickAt, side), add(tickAt, side), PEN.thin));
     const th = h * 0.7;
     // An unnamed built-in by its name in the language, as the canvas shows it.
-    if (Math.min(w, d) >= th * 4) layer.push(text(at, e.name ?? catalogName(e.asset, model.name), th, { color: 'muted' }));
+    if (Math.min(w, d) >= th * 4) layer.push(text(at, e.name ?? modelName(e.asset, model), th, { color: 'muted' }));
   }
 
   function drawLight(e: EntityOf<'light'>, layer: DrawingPrimitive[] | null): void {

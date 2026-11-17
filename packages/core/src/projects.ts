@@ -1,3 +1,5 @@
+import type { Phrase } from './i18n';
+
 /** A project as the library lists it. */
 export interface ProjectSummary {
   id: string;
@@ -47,8 +49,10 @@ export interface LibraryInfo {
   trashed: number;
   /** Another copy of the app (on this or another computer) was using the library when it was opened. */
   lockedBy: { host: string; pid: number; heartbeatAt: string } | null;
-  /** A warning about the location, e.g. a cloud-synced folder. */
+  /** A warning about the location, e.g. a cloud-synced folder, in English. */
   warning: string | null;
+  /** The same warning as a phrase, which the renderer shows in the interface's language. */
+  warningText: Phrase | null;
 }
 
 /** Names a project URL for the renderer: `library://project/<id>/thumbnail.png?v=<version>`. */

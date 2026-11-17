@@ -284,10 +284,11 @@ body {
 /*
  * Arabic is joined script: letter-spacing pulls its letters apart (the heading utilities and every
  * tracking-* set some), and it has no italics, so nothing is slanted by synthesis. Unlayered and
- * important, so it outranks the utilities and the components' own styles.
+ * important, so it outranks the utilities and the components' own styles. `:lang(ar)` matches every
+ * element whose language is Arabic, inherited from `<html lang>`; a Latin-only mark (the wordmark, the
+ * product name on Home and in About) carries `lang="en"` and keeps its own tracking.
  */
-:lang(ar),
-:lang(ar) * {
+:lang(ar) {
   letter-spacing: normal !important;
   font-synthesis-style: none;
 }

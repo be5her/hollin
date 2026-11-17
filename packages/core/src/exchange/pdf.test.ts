@@ -370,6 +370,18 @@ describe('drawingToPdf', () => {
       expect(error).toMatchObject({ code: 'UNAVAILABLE', i18n: { key: 'errors.exchange.noArabicFont' } });
     });
 
+    it('fails with the same translated error when the face is damaged', () => {
+      for (const damaged of [PLEX_ARABIC.slice(0, 100), PLEX_ARABIC.slice(0, 4096), new TextEncoder().encode('not a font')]) {
+        let error: unknown;
+        try {
+          drawingToPdf([{ drawing: arabic() }], { arabicFont: damaged, arabicFontName: 'Broken.ttf' });
+        } catch (err) {
+          error = err;
+        }
+        expect(error).toMatchObject({ code: 'UNAVAILABLE', i18n: { key: 'errors.exchange.noArabicFont', params: { file: 'Broken.ttf' } } });
+      }
+    });
+
     it('writes a Latin-only document byte for byte as without the face', () => {
       const plain = (options: Parameters<typeof drawingToPdf>[1]) => latin1(drawingToPdf(pages, { date: '2026-10-27', ...options })).replace(/\/CreationDate \(D:\d+Z\)/, '');
       expect(plain({ arabicFont: PLEX_ARABIC })).toBe(plain({}));

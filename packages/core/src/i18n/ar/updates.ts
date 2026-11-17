@@ -5,7 +5,7 @@ import type { Message } from '../message';
 
 export const updates = {
   'updates.title': 'التحديثات',
-  'updates.note': 'تأتي الإصدارات الجديدة من إصدارات التطبيق المنشورة، ولا يُنزَّل شيء أو يُثبَّت حتى تطلب ذلك.',
+  'updates.note': 'تأتي الإصدارات الجديدة من صفحة إصدارات التطبيق، ولا يُنزَّل شيء ولا يُثبَّت حتى تطلب ذلك.',
   'updates.check': 'التحقق من وجود تحديثات',
   'updates.download': 'تنزيل',
   'updates.install': 'إعادة التشغيل والتثبيت',
@@ -22,13 +22,13 @@ export const updates = {
   'updates.state.downloading': 'جارٍ التنزيل \u2066{progress} %\u2069',
   'updates.state.ready': 'الإصدار \u2066{version}\u2069 جاهز للتثبيت، ويُثبَّت أيضًا عند إغلاق التطبيق.',
   'updates.state.error': 'حدث خطأ ما.',
-  'updates.state.unsupported': 'التحديثات غير متاحة في هذا الإصدار من التطبيق: {reason}',
+  'updates.state.unsupported': 'التحديثات غير متاحة في هذه النسخة من التطبيق: {reason}',
   'updates.state.noFeed': 'لا يوجد مصدر للتحديثات',
 
   'updates.reason.development': 'هذه نسخة تطوير',
-  'updates.reason.noFeed': 'ليس لهذا الإصدار مصدر للتحديثات (لا يملكه إلا الإصدار المنشور)',
+  'updates.reason.noFeed': 'ليس لهذه النسخة مصدر للتحديثات (لا يتوفر إلا في النسخ المنشورة)',
   'updates.reason.notInstalled': 'التطبيق لا يعمل من ملف AppImage الخاص به ولا من حزمة مثبّتة',
-  'updates.reason.unsignedMac': 'إصدار macOS هذا غير موقَّع، ولا يثبّت macOS التحديثات إلا في تطبيق موقَّع',
+  'updates.reason.unsignedMac': 'نسخة macOS هذه غير موقَّعة، ولا يثبّت macOS التحديثات إلا في تطبيق موقَّع',
   'updates.error.detail': 'تعذّر التحديث: \u2066{detail}\u2069',
   'updates.error.checkFailed': 'تعذّر التحقق من وجود تحديثات.',
   'updates.error.downloadFailed': 'تعذّر التنزيل.',

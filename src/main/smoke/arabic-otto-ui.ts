@@ -300,7 +300,11 @@ export async function smokeArabicOtto(smoke: Smoke, projectId: string): Promise<
       selection.removeAllRanges();
       return text;
     })()`);
-    smoke.check('copying the reply gives its lines as written', copied.trim().split(/\n+/).join('\n') === REPLY.split('\n').filter((l) => l).join('\n'), copied);
+    smoke.check('copying the reply gives its lines as written, its blank lines too', copied.replace(/\r/g, '').replace(/\n+$/, '') === REPLY, JSON.stringify(copied));
+    const blanks = await smoke.js<number[]>(
+      `[...[...document.querySelectorAll('${panel} [data-testid=assistant-item][data-kind=assistant]')].pop().querySelectorAll('[data-testid=assistant-blank]')].map((b) => b.getBoundingClientRect().height)`,
+    );
+    smoke.check('and each blank line shows as an empty line of one line’s height', blanks.length === 2 && blanks.every((h) => Math.abs(h - 18) < 1), blanks);
 
     smoke.section('arabic: Otto, the edit it made');
     const card = `${panel} [data-testid=assistant-tool][data-command="plan.apply"]`;
@@ -309,7 +313,7 @@ export async function smokeArabicOtto(smoke: Smoke, projectId: string): Promise<
     const commandBox = await smoke.rect(`${card} [data-testid=assistant-tool-command]`);
     smoke.check('its title at the start (right), the command id at the end (left), left to right', !!titleBox && !!commandBox && titleBox.x > commandBox.x && (await direction(`${card} [data-testid=assistant-tool-command]`)) === 'ltr' && (await smoke.text(`${card} [data-testid=assistant-tool-command]`)) === 'plan.apply', { titleBox, commandBox });
     const meta = (await smoke.text(`${card} [data-testid=assistant-tool-meta]`)) ?? '';
-    smoke.check('its second line names the level, the two edits and the undo step in Arabic', meta.includes('الطابق الأرضي') && meta.includes('تعديلان') && meta.includes('خطوة تراجع واحدة، بواسطة Otto'), meta);
+    smoke.check('its second line names the level, the two edits and the undo step in Arabic', meta.includes('الطابق الأرضي') && meta.includes('تعديلان') && meta.includes('خطوة تراجع واحدة، باسم Otto'), meta);
     const rooms = await run<{ name: string; enclosed: boolean; labelAt: [number, number] }[]>('plan.rooms', { levelId: ground });
     const room = rooms.find((r) => r.name === ROOM);
     smoke.check('the room Otto named in Arabic is on the plan, enclosed', room?.enclosed === true, rooms.map((r) => r.name));
@@ -348,7 +352,7 @@ export async function smokeArabicOtto(smoke: Smoke, projectId: string): Promise<
     smoke.check('a gated call waits in a card titled in Arabic', (await smoke.waitFor(`${confirm}[data-command="catalog.remove"]`, 5000)) && (await smoke.text(`${confirm} [data-testid=assistant-confirm-title]`)) === 'إزالة نموذج من الكتالوج', await smoke.text(`${confirm} [data-testid=assistant-confirm-title]`));
     smoke.check(
       'its question and buttons in Arabic, its input left to right',
-      (await smoke.text(`${confirm} [data-testid=assistant-confirm-asks]`)) === 'يستأذن Otto قبل الحذف.' && (await smoke.text(`${panel} [data-testid=assistant-allow]`)) === 'سماح' && (await smoke.text(`${panel} [data-testid=assistant-decline]`)) === 'أبقِه' && (await direction(`${confirm} [data-testid=assistant-tool-summary]`)) === 'ltr',
+      (await smoke.text(`${confirm} [data-testid=assistant-confirm-asks]`)) === 'يستأذن Otto قبل الحذف.' && (await smoke.text(`${panel} [data-testid=assistant-allow]`)) === 'اسمح' && (await smoke.text(`${panel} [data-testid=assistant-decline]`)) === 'أبقِه' && (await direction(`${confirm} [data-testid=assistant-tool-summary]`)) === 'ltr',
     );
     smoke.check('the card names the call in Arabic for screen readers', ((await smoke.js<string>(`document.querySelector('${confirm}').getAttribute('aria-label')`)) ?? '').startsWith('يريد Otto تنفيذ «إزالة نموذج من الكتالوج»'));
     smoke.check('the status bar says Otto waits for your yes', await statusIs('waiting', 'Otto · ينتظر موافقتك'));
@@ -373,7 +377,7 @@ export async function smokeArabicOtto(smoke: Smoke, projectId: string): Promise<
     const overloaded = { error: { status: 529, type: 'overloaded_error', message: 'Overloaded' } };
     fake.script(overloaded, overloaded);
     await send('هل انتهيت؟');
-    smoke.check('the error is said in Arabic', await smoke.waitFor(`${panel} [data-testid=assistant-error-text]`, 15_000, 'Claude مشغول بطلبات كثيرة الآن.'), await smoke.text(`${panel} [data-testid=assistant-error]`));
+    smoke.check('the error is said in Arabic', await smoke.waitFor(`${panel} [data-testid=assistant-error-text]`, 15_000, 'خوادم Claude مشغولة بطلبات كثيرة الآن.'), await smoke.text(`${panel} [data-testid=assistant-error]`));
     smoke.check('with the API\'s own English words under it, left to right', ((await smoke.text(`${panel} [data-testid=assistant-error-detail]`)) ?? '').startsWith('The Claude API answered 529') && (await direction(`${panel} [data-testid=assistant-error-detail]`)) === 'ltr');
     smoke.check('the status bar says Otto could not reach Claude', await statusIs('failed', 'Otto · تعذّر الوصول إلى Claude'));
     smoke.check('and Send again is offered in Arabic', (await smoke.text(`${panel} [data-testid=assistant-retry]`)) === 'إعادة الإرسال');

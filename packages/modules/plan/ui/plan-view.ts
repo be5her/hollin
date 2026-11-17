@@ -1,7 +1,7 @@
 import { DOCUMENT, Component, DestroyRef, ElementRef, Injector, afterNextRender, afterRenderEffect, computed, effect, inject, input, linkedSignal, signal, untracked, viewChild } from '@angular/core';
 import { FormField, form } from '@angular/forms/signals';
 import { DEFAULT_RULE_LIMITS, connectorsOnLevel, deriveLevels, toLatinDigits, type DimensionKind, type GlobalConfig, type ProjectDoc, type Vec2, parseAngle } from '@studio/core';
-import { AppState, AssistantDrafts, Checkbox, ContextMenu, HostBridge, I18n, Icon, IconButton, Input, Kbd, LengthInput, OttoEdits, OttoMark, ProjectDocs, ProjectView, RoomSketch, Select, TabsState, Toasts, Units, type ContextMenuItem } from '@studio/ui';
+import { AppState, AssistantDrafts, Checkbox, ContextMenu, composing, HostBridge, I18n, Icon, IconButton, Input, Kbd, LengthInput, OttoEdits, OttoMark, ProjectDocs, ProjectView, RoomSketch, Select, TabsState, Toasts, Units, type ContextMenuItem } from '@studio/ui';
 import { DEFAULT_TOOL_OPTIONS, LIGHT_THEME, Plan2dEditor, drawingScale, loadPlanFonts, readPlanTheme, renderLevelToPng, type Camera, type ShapeOptions, type SnapResult, type StairShape, type TextRequest, type ToolId, type UnderlayMode, type WallOptions } from '@studio/viewport';
 import { ArrowBigUp, Blinds, BrickWall, ChevronDown, ChevronsUp, Circle, CircleDot, DoorOpen, DraftingCompass, Footprints, LandPlot, Lightbulb, Magnet, Maximize, MousePointer2, MoveUpRight, Pentagon, Ruler, SeparatorVertical, Sofa, Square, TrendingUp, Type, ZoomIn, ZoomOut } from 'lucide';
 import { PlanGeometry } from './plan-geometry';
@@ -616,6 +616,13 @@ export class PlanView {
    * first message and the Otto tab opens. If Otto cannot work yet, Settings opens at the assistant; if
    * a run is going, the sentence waits in the panel's message field instead.
    */
+  /** Enter sends the sentence, except while an input method composes (it confirms the composition then). */
+  protected ottoEnter(event: Event): void {
+    if (composing(event as KeyboardEvent)) return;
+    event.preventDefault();
+    void this.tellOtto();
+  }
+
   protected async tellOtto(): Promise<void> {
     const id = this.projectId();
     const text = untracked(this.ottoDraft).sentence.trim();

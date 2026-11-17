@@ -28,7 +28,7 @@ interface Draft {
     @let e = item();
     @let m = model();
     <div class="text-xs text-muted" data-testid="item-model">
-      {{ t('plan.item.model') }} <span class="text-fg" dir="auto" data-testid="item-model-name">{{ i18n.catalogName(e.asset, m.name) }}</span>
+      {{ t('plan.item.model') }} <span class="text-fg" dir="auto" data-testid="item-model-name">{{ i18n.modelName(e.asset, m) }}</span>
       <span class="block font-mono text-[11px] truncate" dir="ltr" [title]="e.asset">{{ e.asset }}</span>
     </div>
     <div class="grid grid-cols-2 gap-2">

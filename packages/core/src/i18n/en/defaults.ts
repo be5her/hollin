@@ -16,6 +16,8 @@ export const defaults = {
   /** A second layer of a kind on a level: "Interior 2". */
   'defaults.layer.numbered': '{name} {n}',
   'defaults.room': 'Room {n}',
+  /** The light placed with a lamp (`decor.item.place` with `withLight`), named after the lamp. */
+  'defaults.lampLight': '{name} light',
   /** A duplicated level or project. */
   'defaults.copy': '{name} copy',
   'defaults.snapshot.named': 'Snapshot',

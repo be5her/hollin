@@ -1,4 +1,4 @@
-import { catalogName, t, itemFootprint, itemModel, type Vec2 } from '@studio/core';
+import { catalogName, t, itemFootprint, itemModel, modelName, type Vec2 } from '@studio/core';
 import { tracePolygon } from '../draw';
 import { latinKey } from '../keys';
 import { drawScreenText, interfaceDirection, type RenderFrame } from '../render';
@@ -84,7 +84,7 @@ export class ItemTool implements Tool {
     ctx.fill('nonzero');
     ctx.stroke();
     ctx.setLineDash([]);
-    drawScreenText(ctx, frame, { text: t('tools.item.preview', { name: catalogName(o.ref, o.name || model.name), angle: this.rotation }), direction: interfaceDirection(), at: this.cursor, screenPx: 11, color: frame.theme.selection, align: 'center', baseline: 'top', dy: 14, mono: true });
+    drawScreenText(ctx, frame, { text: t('tools.item.preview', { name: o.name ? catalogName(o.ref, o.name) : modelName(o.ref, model), angle: this.rotation }), direction: interfaceDirection(), at: this.cursor, screenPx: 11, color: frame.theme.selection, align: 'center', baseline: 'top', dy: 14, mono: true });
   }
 
   private rotateBy(degrees: number): void {

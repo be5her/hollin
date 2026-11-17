@@ -5,7 +5,7 @@
     @if (emptyReason()) {
       <div class="truncate text-[11px] leading-[14px] text-muted" data-testid="assistant-setup-line">{{ setupLine() }}</div>
     } @else {
-      <div class="flex min-w-0 text-[11px] leading-[14px] text-muted whitespace-nowrap"><span class="min-w-0 truncate font-mono bidi-ltr" [title]="modelLabel()" data-testid="assistant-model">{{ modelLabel() }}</span><span class="shrink-0">&nbsp;· {{ t(rule) }}</span></div>
+      <div class="truncate rtl:flex rtl:min-w-0 text-[11px] leading-[14px] text-muted" data-testid="assistant-model-line"><span class="font-mono bidi-ltr rtl:min-w-0 rtl:truncate" [attr.title]="i18n.direction() === 'rtl' ? modelLabel() : null" data-testid="assistant-model">{{ modelLabel() }}</span><span class="rtl:shrink-0 rtl:whitespace-pre"> · {{ t(rule) }}</span></div>
     }
   </div>
   @if (!emptyReason()) {
@@ -68,14 +68,22 @@
                 </div>
               }
               @for (block of blocks()[item.id] ?? []; track $index) {
-                <div class="whitespace-pre-wrap" dir="auto" [class.mb-2]="block.gap && !$last" data-testid="assistant-block"><ng-container *ngTemplateOutlet="parts; context: { $implicit: block.parts }" /></div>
+                @if (block.blank) {
+                  <div data-testid="assistant-blank"><br /></div>
+                } @else {
+                  <div class="whitespace-pre-wrap" dir="auto" data-testid="assistant-block"><ng-container *ngTemplateOutlet="parts; context: { $implicit: block.parts }" /></div>
+                }
               }
             </div>
           }
           @case ('assistant') {
             <div class="border-s-2 border-ai ps-3 break-words" data-testid="assistant-item" data-kind="assistant" [attr.data-note]="item.note ? item.note.key : null">
               @for (block of blocks()[item.id] ?? []; track $index; let last = $last) {
-                <div class="whitespace-pre-wrap" dir="auto" [class.mb-2]="block.gap && !last" data-testid="assistant-block"><ng-container *ngTemplateOutlet="parts; context: { $implicit: block.parts }" />@if (last && streamingId() === item.id) {<span class="otto-caret" aria-hidden="true" data-testid="assistant-caret"></span>}</div>
+                @if (block.blank) {
+                  <div data-testid="assistant-blank"><br /></div>
+                } @else {
+                  <div class="whitespace-pre-wrap" dir="auto" data-testid="assistant-block"><ng-container *ngTemplateOutlet="parts; context: { $implicit: block.parts }" />@if (last && streamingId() === item.id) {<span class="otto-caret" aria-hidden="true" data-testid="assistant-caret"></span>}</div>
+                }
               } @empty {
                 @if (streamingId() === item.id) {
                   <span class="otto-caret" aria-hidden="true" data-testid="assistant-caret"></span>
