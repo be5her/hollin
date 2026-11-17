@@ -38,16 +38,25 @@ const PLAN_FONT_MONO = "'IBM Plex Mono', 'IBM Plex Sans Arabic', ui-monospace, m
 /** Arabic text for `document.fonts.load`: the Arabic faces only load for text in their `unicode-range`. */
 const ARABIC_SAMPLE = 'مخطط';
 
+/** How long a render waits for the faces at most: on a busy machine a load can take long, and a render must still come. */
+const FONT_WAIT_MS = 3000;
+
 /**
- * Loads the faces a plan render writes in, Latin and Arabic, regular and the tag's 500, so the first frame
- * or a render made now (a thumbnail, a snapshot) is not drawn in the fallback. Never rejects.
+ * Loads the faces a plan render writes in, Latin and Arabic, regular and the tag's 500, so a render made now
+ * (a thumbnail, a snapshot) is not drawn in the fallback, and the plan view can draw again once they are
+ * there. Never rejects, and settles after `FONT_WAIT_MS` at the latest even if a load never does: nothing
+ * may wait on a font for ever. The plan view's first frame never waits for it (it draws at once).
  */
-export function loadPlanFonts(fonts: FontFaceSet, theme: Pick<PlanTheme, 'fontSans' | 'fontMono'>): Promise<void> {
-  const loads = [`12px ${theme.fontSans}`, `500 12px ${theme.fontSans}`, `12px ${theme.fontMono}`].flatMap((font) => [fonts.load(font), fonts.load(font, ARABIC_SAMPLE)]);
-  return Promise.all(loads).then(
-    () => undefined,
-    () => undefined,
-  );
+export function loadPlanFonts(fonts: FontFaceSet, theme: Pick<PlanTheme, 'fontSans' | 'fontMono'>, waitMs = FONT_WAIT_MS): Promise<void> {
+  let loads: Promise<unknown>;
+  try {
+    loads = Promise.all([`12px ${theme.fontSans}`, `500 12px ${theme.fontSans}`, `12px ${theme.fontMono}`].flatMap((font) => [fonts.load(font), fonts.load(font, ARABIC_SAMPLE)]));
+  } catch {
+    return Promise.resolve();
+  }
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<void>((resolve) => (timer = setTimeout(resolve, waitMs)));
+  return Promise.race([loads.then(() => undefined, () => undefined), timeout]).finally(() => clearTimeout(timer));
 }
 
 /** The light palette, the `:root` block of styles.css (`packages/modules/plan/snapshot-theme.test.ts` keeps them equal), used when no document is available (tests, thumbnails). */

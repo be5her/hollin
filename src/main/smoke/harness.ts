@@ -9,6 +9,9 @@ import type { SmokeUpdater } from './updater';
 
 export const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
+/** How long a script in the page may take before `Smoke.js` gives up on it (the slowest, a PDF's fonts and frames, take a few seconds). */
+const JS_TIMEOUT_MS = 30_000;
+
 /** A port nothing listens on right now, so the smoke run never meets an app that is already running. */
 export function freePort(): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -105,6 +108,10 @@ export class Smoke {
     win.webContents.on('console-message', (event) => {
       if (event.level === 'error') this.consoleErrors.push(event.message);
     });
+    // A renderer that crashes or stops answering under load is said so in the log, and a crash fails the run.
+    win.webContents.on('render-process-gone', (_event, details) => this.check(`the renderer is still there (it is gone: ${details.reason}, exit code ${details.exitCode})`, false));
+    win.on('unresponsive', () => console.log('[smoke] the window stopped responding'));
+    win.on('responsive', () => console.log('[smoke] the window responds again'));
     await new Promise<void>((resolve, reject) => {
       win.webContents.once('did-finish-load', () => resolve());
       win.webContents.once('did-fail-load', (_e, code, description) => reject(new Error(`renderer failed to load: ${code} ${description}`)));
@@ -122,8 +129,18 @@ export class Smoke {
     this.win = null;
   }
 
-  js<T = unknown>(code: string): Promise<T> {
-    return this.window.webContents.executeJavaScript(code) as Promise<T>;
+  /**
+   * Runs code in the page and returns its result. A script that never settles (a promise waiting on a frame
+   * the renderer never draws, a renderer that is gone) throws after `timeoutMs` instead of hanging the run:
+   * the run then fails with the script's first line, and the sections after it are not reached.
+   */
+  js<T = unknown>(code: string, timeoutMs = JS_TIMEOUT_MS): Promise<T> {
+    const wc = this.window.webContents;
+    let timer: NodeJS.Timeout | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`smoke.js timed out after ${timeoutMs} ms${wc.isCrashed() ? ' (the renderer is gone)' : ''}: ${code.trim().split('\n')[0].slice(0, 160)}`)), timeoutMs);
+    });
+    return Promise.race([wc.executeJavaScript(code) as Promise<T>, timeout]).finally(() => clearTimeout(timer));
   }
 
   /** True once the selector matches an element (whose text contains `text`, if given). */

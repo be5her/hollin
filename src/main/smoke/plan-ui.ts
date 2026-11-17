@@ -386,8 +386,13 @@ export async function smokePlanUi(smoke: Smoke, towerId: string): Promise<void> 
   const start: [number, number] = [-1500, -1000];
   const s0 = toScreen(rect, cam, start);
   await smoke.clickAt(s0.x, s0.y);
-  // The cursor to the right of the start gives the direction a typed length runs along.
-  await smoke.mouseMove(s0.x + 60, s0.y);
+  // The cursor to the right of the start gives the direction a typed length runs along. A single synthetic move can be
+  // lost under load (the length once ran towards where the pointer had been): move until the footer's cursor shows it there.
+  const cursorX = async () => Number(((await smoke.text(`${tab} [data-testid=plan-cursor]`)) ?? '').split(',')[0].replace(/[^\d.-]/g, '') || NaN);
+  for (let i = 0; i < 12; i++) {
+    await smoke.mouseMove(s0.x + 60 + (i % 2), s0.y);
+    if (await smoke.until(async () => (await cursorX()) > start[0] + 40 / cam.scale, 400)) break;
+  }
   await smoke.key('3');
   smoke.check('a digit opens the input at the cursor', (await smoke.waitFor(`${tab} [data-testid=dynamic-input]`)) && (await smoke.js<string>(`document.querySelector('${tab} [data-testid=dynamic-input]').value`)) === '3');
   await smoke.typeText('000');

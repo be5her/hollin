@@ -1,6 +1,6 @@
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import type { McpCallEntry } from '@studio/core';
-import type { Smoke } from './harness';
+import { freePort, type Smoke } from './harness';
 
 const text = (result: unknown) => JSON.parse((result as { content: { text: string }[] }).content[0].text) as Record<string, unknown>;
 
@@ -87,7 +87,8 @@ export async function smokeMcp(smoke: Smoke): Promise<void> {
   smoke.check('the call log keeps the latest calls with their outcome', calls.some((c) => c.tool === 'smoke.destroy' && c.ok) && calls.some((c) => c.error === 'MUTATION_BLOCKED'), calls.length);
 
   // Moving the server to another port restarts it there.
-  const moved = status.port + 1;
+  // A port nothing listens on: the next one up may be taken by another program on a busy machine (it once was).
+  const moved = await freePort();
   await smoke.run('config.update', { patch: { mcp: { port: moved } } });
   const after = await smoke.run<{ running: boolean; port: number }>('mcp.status');
   const reachable = await fetch(`http://127.0.0.1:${moved}/health`).then((r) => r.ok, () => false);
