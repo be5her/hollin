@@ -4,6 +4,10 @@ Every notable change to the app, newest first. The format follows [Keep a Change
 
 ## [Unreleased]
 
+## [0.3.0-beta.1] - 2026-11-18
+
+A preview of 0.3.0: Hollin in Arabic. Turn on Settings > Updates > *Get beta versions* to be offered this beta and the ones after it.
+
 ### Added
 - Arabic. Settings > Appearance > Language offers English and العربية, or follows the system (the default); the switch is immediate, no restart. In Arabic the whole app reads right to left: the shell, every panel, dialog, menu and toast, the plan's tool hints and the words it draws, the command palette (searched in Arabic or English, with or without the hamza), History, warnings, errors and the update notices. The plan and the 3D view are never mirrored, and lengths, versions and paths keep reading left to right inside Arabic text.
 - Otto converses in Arabic: write to it in Arabic and it answers in Arabic (a conversation can switch between Arabic and English line by line), and it names the rooms, levels, labels and History steps it draws in your language.
