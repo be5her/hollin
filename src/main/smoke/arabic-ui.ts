@@ -1,4 +1,6 @@
+import type { ProjectSummary } from '@studio/core';
 import type { Smoke } from './harness';
+import { tab } from './plan-canvas';
 
 interface Layout {
   dir: string;
@@ -125,6 +127,8 @@ export async function smokeArabicUi(smoke: Smoke): Promise<void> {
     smoke.check('two tabs to reorder right to left', false, before);
   }
 
+  await smokeArabicLibrary(smoke);
+
   smoke.section('arabic: back to English');
   await smoke.click('[data-testid=tab][data-type="settings.main"]');
   await smoke.fill('[data-testid=settings-language]', preference);
@@ -138,4 +142,128 @@ export async function smokeArabicUi(smoke: Smoke): Promise<void> {
     await smoke.click('[data-testid=tab][data-type="settings.main"][aria-selected=true] button');
     await smoke.gone('[data-testid=tab][data-type="settings.main"]');
   }
+}
+
+/** The Arabic name the section gives its project, and a search for it typed without the hamza and with ه for ة. */
+const ARABIC_NAME = 'بيت الأُسرة على البحر';
+const ARABIC_SEARCH = 'الاسره';
+/** The left-to-right isolate around an angle in an Arabic line, and its end. */
+const [LRI, PDI] = [0x2066, 0x2069].map((code) => String.fromCharCode(code));
+
+/** The direction an element (the first match) reads in. */
+const direction = (smoke: Smoke, selector: string) => smoke.js<string | null>(`(() => { const el = document.querySelector(${JSON.stringify(selector)}); return el ? getComputedStyle(el).direction : null; })()`);
+/** Whether an icon (the first match) is drawn mirrored, as `rtl:-scale-x-100` does right to left. */
+const mirrored = (smoke: Smoke, selector: string) => smoke.js<boolean>(`(() => { const svg = document.querySelector(${JSON.stringify(selector)}); return !!svg && getComputedStyle(svg).scale.startsWith('-1'); })()`);
+
+/**
+ * Home, the project tab, the export dialog, History and the library's and the updates' Settings in Arabic
+ * (milestone 12, step 2): a project named in Arabic through Home's New project, found by a search typed
+ * the way people type, opened from its card. The project goes to the trash and its tab closes at the end,
+ * so the sections after this one find the library they expect.
+ */
+async function smokeArabicLibrary(smoke: Smoke): Promise<void> {
+  const { host } = smoke;
+  smoke.section('arabic: Home');
+  await smoke.click('[data-testid=tab][data-type="shell.home"]');
+  smoke.check(
+    'Home speaks Arabic',
+    (await smoke.waitFor('[data-testid=library-heading]', 3000, 'المشاريع')) && (await smoke.waitFor('[data-testid=library-new]', 3000, 'مشروع جديد')) && (await smoke.waitFor('[data-testid=library-trash]', 3000, 'سلة المحذوفات')),
+  );
+  smoke.check("Otto's composer card and the search too", (await smoke.waitFor('[data-testid=otto-composer]', 3000, 'ابدأ مع Otto')) && (await smoke.js<string>(`document.querySelector('[data-testid=library-search]').placeholder`)) === 'ابحث في المشاريع');
+  smoke.check('a card counts its levels in Arabic', await smoke.waitFor('[data-testid=project-card]', 3000, 'طابق'));
+
+  await smoke.click('[data-testid=library-new]');
+  smoke.check('New project asks in Arabic, with an Arabic default name', (await smoke.waitFor('x-dialog-host', 3000, 'مشروع جديد')) && (await smoke.js<string>(`document.querySelector('x-dialog-host form input')?.value ?? ''`)) === 'مشروع بلا عنوان');
+  await smoke.fill('x-dialog-host form input', ARABIC_NAME);
+  await smoke.click('x-dialog-host form button[type=submit]');
+  const opened = (name: string) => smoke.js<boolean>(`document.querySelector('${tab} [data-testid=project-name]')?.value === ${JSON.stringify(name)}`);
+  smoke.check('a project named in Arabic is created and opens', (await smoke.until(() => host.projects.list().some((p) => p.name === ARABIC_NAME))) && (await smoke.until(() => opened(ARABIC_NAME))));
+  const project: ProjectSummary | undefined = host.projects.list().find((p) => p.name === ARABIC_NAME);
+
+  await smoke.click('[data-testid=tab][data-type="shell.home"]');
+  const card = `[data-testid=project-card][data-name="${ARABIC_NAME}"]`;
+  smoke.check('its card is on Home, its name reading right to left', (await smoke.waitFor(card)) && (await direction(smoke, `${card} [data-testid=project-card-name]`)) === 'rtl');
+  await smoke.js(`document.querySelector('[data-testid=library-home]').scrollTop = 0`);
+  await smoke.shots('82-home-arabic');
+
+  const found = () => smoke.js<string[]>(`[...document.querySelectorAll('[data-testid=project-card]')].map((c) => c.dataset.name)`);
+  await smoke.fill('[data-testid=library-search]', ARABIC_SEARCH);
+  smoke.check('a search typed without the hamza and with ه for ة finds it', await smoke.until(async () => (await found()).join('|') === ARABIC_NAME), await found());
+  await smoke.fill('[data-testid=library-search]', 'بيت الاسرة');
+  smoke.check('and so does one with the ة', await smoke.until(async () => (await found()).join('|') === ARABIC_NAME), await found());
+  await smoke.click(card);
+  smoke.check('its card opens it', await smoke.until(() => opened(ARABIC_NAME)));
+  // Home's search is left empty for the sections after this one.
+  await smoke.click('[data-testid=tab][data-type="shell.home"]');
+  await smoke.fill('[data-testid=library-search]', '');
+  await smoke.until(async () => (await smoke.count('[data-testid=otto-composer]')) === 1);
+  await smoke.click(`[data-testid=tab][data-type="project.editor"][data-title="${ARABIC_NAME}"]`);
+  await smoke.until(() => opened(ARABIC_NAME));
+
+  smoke.section('arabic: the project tab');
+  smoke.check("the project's name reads right to left", (await direction(smoke, `${tab} [data-testid=project-name]`)) === 'rtl');
+  smoke.check(
+    'the toolbar speaks Arabic',
+    (await smoke.waitFor(`${tab} [data-testid=project-save]`, 3000, 'حفظ')) && (await smoke.waitFor(`${tab} [data-testid=exchange-export]`, 3000, 'تصدير…')) && (await smoke.waitFor(`${tab} [data-testid=project-trash]`, 3000, 'إلى السلة')),
+  );
+  smoke.check('so do the panel titles', (await smoke.waitFor(`${tab} [data-testid=right-tab-history]`, 3000, 'السجل')) && (await smoke.waitFor(`${tab} [data-testid=right-tab-details]`, 3000, 'المشروع')));
+  smoke.check('undo and redo point the Arabic way', (await mirrored(smoke, `${tab} [data-testid=project-undo] svg`)) && (await mirrored(smoke, `${tab} [data-testid=project-redo] svg`)));
+  smoke.check(
+    'the right column sits at the left',
+    await smoke.js<boolean>(`(() => { const l = document.querySelector('${tab} [data-testid=project-left]').getBoundingClientRect(); const r = document.querySelector('${tab} [data-testid=project-right]').getBoundingClientRect(); return r.x < l.x; })()`),
+  );
+
+  await smoke.click(`${tab} [data-testid=right-tab-history]`);
+  smoke.check(
+    'History speaks Arabic',
+    (await smoke.waitFor(`${tab} [data-testid=history-undo]`, 3000, 'تراجع')) && (await smoke.waitFor(`${tab} [data-testid=history-list]`, 3000, 'لا توجد تغييرات بعد')) && (await mirrored(smoke, `${tab} [data-testid=history-undo] svg`)),
+  );
+  await smoke.shots('83-project-history-arabic');
+
+  await smoke.click(`${tab} [data-testid=right-tab-details]`);
+  smoke.check('the project details speak Arabic', (await smoke.waitFor(`${tab} [data-testid=project-details]`, 3000, 'الوصف')) && (await smoke.waitFor(`${tab} [data-testid=project-details]`, 3000, 'النسخ المحفوظة')));
+  smoke.check('and the description takes either direction', (await smoke.js<string | null>(`document.querySelector('${tab} [data-testid=project-description]')?.getAttribute('dir') ?? null`)) === 'auto');
+  await smoke.shots('84-project-details-arabic');
+
+  await smoke.click(`${tab} [data-testid=exchange-export]`);
+  // The dialog starts from the last export's choices: a PDF of this one-level project names its pages.
+  await smoke.waitFor('[data-testid=export-format-pdf]');
+  await smoke.click('[data-testid=export-format-pdf]');
+  smoke.check(
+    'the export dialog speaks Arabic',
+    (await smoke.waitFor('[data-testid=export-dialog]', 3000, 'تصدير')) && (await smoke.waitFor('[data-testid=export-levels-hint]', 3000, 'صفحة')) && (await smoke.waitFor('[data-testid=export-confirm]', 3000, 'تصدير…')),
+  );
+  await smoke.click('[data-testid=export-format-png]');
+  await smoke.click('[data-testid=export-view-3d]');
+  smoke.check('its 3D line keeps the angles left to right', await smoke.waitFor('[data-testid=export-view3d-hint]', 3000, `${LRI}225°${PDI}`), await smoke.text('[data-testid=export-view3d-hint]'));
+  await smoke.shots('85-export-arabic');
+  await smoke.click('x-dialog-host button', 'إلغاء');
+  smoke.check('and cancels in Arabic', await smoke.gone('[data-testid=export-dialog]'));
+
+  smoke.section('arabic: Settings > Library and Updates');
+  await smoke.click('[data-testid=tab][data-type="settings.main"]');
+  await smoke.waitFor('[data-section=library]');
+  smoke.check(
+    'the Library section speaks Arabic',
+    (await smoke.waitFor('[data-section=library] h2', 3000, 'المكتبة')) && (await smoke.waitFor('[data-testid=library-move]', 3000, 'نقل…')) && (await smoke.waitFor('[data-testid=library-count]', 3000, 'سلة المحذوفات')),
+  );
+  smoke.check('with its path a left-to-right island', (await direction(smoke, '[data-testid=library-path]')) === 'ltr');
+  await smoke.js(`document.querySelector('[data-section=library]').scrollIntoView({ block: 'start' })`);
+  await smoke.shots('86-settings-library-arabic');
+  smoke.check(
+    'the Updates section speaks Arabic',
+    (await smoke.waitFor('[data-section=updates] h2', 3000, 'التحديثات')) && (await smoke.waitFor('[data-testid=updates-check]', 3000, 'التحقق من وجود تحديثات')) && (await smoke.waitFor('[data-testid=updates-beta-note]', 3000, 'الإصدارات التجريبية')),
+  );
+  await smoke.js(`document.querySelector('[data-section=updates]').scrollIntoView({ block: 'start' })`);
+  await smoke.shots('87-settings-updates-arabic');
+
+  // The project leaves: its tab closes and it goes to the trash, so the sections after this one count the library they expect.
+  if (project) {
+    await smoke.run('project.close', { id: project.id });
+    await smoke.run('project.trash', { id: project.id });
+  }
+  smoke.check(
+    "the Arabic project's tab is closed and the project in the trash",
+    await smoke.until(async () => (await smoke.count(`[data-testid=tab][data-type="project.editor"][data-title="${ARABIC_NAME}"]`)) === 0 && !host.projects.list().some((p) => p.name === ARABIC_NAME)),
+  );
 }

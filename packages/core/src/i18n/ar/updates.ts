@@ -1,0 +1,30 @@
+import type { updates as source } from '../en/updates';
+import type { Message } from '../message';
+
+// Versions and dates sit between left-to-right isolates (U+2066 … U+2069): `0.2.0-beta.2` must not reorder.
+
+export const updates = {
+  'updates.title': 'التحديثات',
+  'updates.note': 'تأتي الإصدارات الجديدة من إصدارات التطبيق المنشورة، ولا يُنزَّل شيء أو يُثبَّت حتى تطلب ذلك.',
+  'updates.check': 'التحقق من وجود تحديثات',
+  'updates.download': 'تنزيل',
+  'updates.install': 'إعادة التشغيل والتثبيت',
+  'updates.notes': 'ما الجديد في \u2066{version}\u2069',
+  'updates.auto': 'التحقق من وجود تحديثات عند بدء التطبيق',
+  'updates.beta': 'الحصول على الإصدارات التجريبية',
+  'updates.betaNote': 'الإصدارات التجريبية معاينات للإصدار القادم تصدر قبل اكتماله. عند إيقاف الخيار، يبقى الإصدار التجريبي المثبّت لديك حتى يصدر إصدار مستقر أحدث.',
+
+  'updates.state.lastChecked': 'آخر تحقق: \u2068{at}\u2069',
+  'updates.state.notChecked': 'لم يتم التحقق بعد',
+  'updates.state.checking': 'جارٍ التحقق…',
+  'updates.state.available': 'الإصدار \u2066{version}\u2069 متاح',
+  'updates.state.upToDate': 'لديك أحدث إصدار (آخر تحقق: \u2068{at}\u2069)',
+  'updates.state.downloading': 'جارٍ التنزيل \u2066{progress} %\u2069',
+  'updates.state.ready': 'الإصدار \u2066{version}\u2069 جاهز للتثبيت، ويُثبَّت أيضًا عند إغلاق التطبيق.',
+  'updates.state.error': 'حدث خطأ ما.',
+  'updates.state.unsupported': 'التحديثات غير متاحة في هذا الإصدار من التطبيق: {reason}',
+  'updates.state.noFeed': 'لا يوجد مصدر للتحديثات',
+
+  'updates.toast.ready': 'الإصدار \u2066{version}\u2069 جاهز للتثبيت',
+  'updates.toast.settings': 'الإعدادات',
+} satisfies Record<keyof typeof source, Message>;

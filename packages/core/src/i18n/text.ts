@@ -46,10 +46,13 @@ export function toLatinDigits(text: string): string {
 /**
  * A text folded for matching: lower case, Latin digits, and for Arabic no diacritics or tatweel and
  * one form for the letters people type interchangeably (أ إ آ ٱ as ا, ى as ي, ة as ه, ؤ as و, ئ as ي),
- * so "غرفه" finds "غُرفة". Compare folded text with folded text only.
+ * so "غرفه" finds "غُرفة"; Latin accents and the invisible direction marks and isolates go too
+ * ("cafe" finds "Café"). Compare folded text with folded text only.
  */
 export function foldForSearch(text: string): string {
   return toLatinDigits(text)
+    .replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '')
+    .replace(/[A-Za-z\u00c0-\u024f]+/g, (word) => word.normalize('NFD').replace(/[\u0300-\u036f]/g, ''))
     .toLowerCase()
     .replace(/[ً-ٰٟـ]/g, '')
     .replace(/[أإآٱ]/g, 'ا')

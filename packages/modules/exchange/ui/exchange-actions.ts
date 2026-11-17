@@ -1,19 +1,16 @@
 import { Service, inject, signal, untracked } from '@angular/core';
 import { StudioError, type ProjectDoc } from '@studio/core';
-import { AppState, Dialogs, HostBridge, OpenProjects, ProjectDocs, ProjectView, Toasts } from '@studio/ui';
-import { ExportDialog, FORMATS, type ExportChoice } from './export-dialog';
+import { AppState, Dialogs, HostBridge, I18n, OpenProjects, ProjectDocs, ProjectView, Toasts } from '@studio/ui';
+import { ExportDialog, FORMATS, type ExportChoice, type View3dShown } from './export-dialog';
 import { ImportDxfDialog, type DxfProbe } from './import-dxf-dialog';
 
 type Exported = { files?: { path: string }[]; path?: string; levels?: { name: string; scale: number; fits: boolean }[] };
 type Imported = { levelId: string; counts: { shapes: number; separators: number; labels: number; layers: number }; skipped: Record<string, number> };
 type View3d = { orbit?: { azimuth?: number; elevation?: number }; mode?: string; explode?: number; lighting?: string };
 
-const DXF_FILTER = [{ name: 'DXF drawing', extensions: ['dxf'] }];
-
 /** A name Windows accepts as a file name: the forbidden characters dropped. */
 const fileSafe = (name: string) => name.replace(/[<>:"/\\|?*\x00-\x1f]/g, '').trim() || 'Export';
 const folderOf = (path: string) => path.slice(0, Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))) || path;
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 /**
  * The Export dialog and the DXF import, as the project tab's toolbar, the Layers panel and the palette
@@ -29,6 +26,7 @@ export class ExchangeActions {
   private readonly docs = inject(ProjectDocs);
   private readonly projects = inject(OpenProjects);
   private readonly view = inject(ProjectView);
+  private readonly t = inject(I18n).t;
   /** The last answer of the Export dialog in this session, so a second export starts from it (but for the PNG theme, which follows the app's). */
   private last: ExportChoice | null = null;
   private readonly running = signal<ReadonlySet<string>>(new Set());
@@ -56,8 +54,8 @@ export class ExchangeActions {
     return stored && doc.levels[stored] ? stored : doc.building.groundLevelId;
   }
 
-  /** The 3D view's camera and display as `export.image` takes them, with a line saying so. */
-  private view3d(projectId: string, doc: ProjectDoc): { input: Record<string, unknown>; summary: string } {
+  /** The 3D view's camera and display as `export.image` takes them, and as the dialog says them. */
+  private view3d(projectId: string, doc: ProjectDoc): { input: Record<string, unknown>; shown: View3dShown } {
     const stored = untracked(() => this.view.get<View3d | null>(projectId, 'view3d', null)) ?? {};
     const finite = (v: unknown, fallback: number) => (typeof v === 'number' && Number.isFinite(v) ? v : fallback);
     const azimuth = Math.round(((finite(stored.orbit?.azimuth, 225) % 360) + 360) % 360);
@@ -66,9 +64,7 @@ export class ExchangeActions {
     const explode = Math.min(1, Math.max(0, finite(stored.explode, 0)));
     const lighting = stored.lighting === 'night' ? 'night' : 'day';
     const level = doc.levels[this.activeLevel(projectId, doc)]?.name ?? '';
-    const shown = display === 'all' ? 'every level' : display === 'isolate' ? `${level} alone` : `cut away at ${level}`;
-    const summary = `As the 3D view shows it: from ${azimuth}°, ${elevation}° up, ${shown}${explode ? `, exploded ${Math.round(explode * 100)} %` : ''}, ${lighting === 'night' ? 'at night' : 'by day'}.`;
-    return { input: { azimuth, elevation, display, explode, lighting }, summary };
+    return { input: { azimuth, elevation, display, explode, lighting }, shown: { azimuth, elevation, display, level, explode, lighting } };
   }
 
   async export(projectId: string): Promise<void> {
@@ -93,11 +89,11 @@ export class ExchangeActions {
       transparent: false,
     };
     const initial: ExportChoice = { ...(this.last ?? defaults), theme: untracked(this.app.resolvedTheme) };
-    const choice = await this.dialogs.open(ExportDialog, { projectName, levelName: doc.levels[levelId]?.name ?? '', levelCount: doc.building.stack.length, view3dSummary: view3d.summary, initial });
+    const choice = await this.dialogs.open(ExportDialog, { projectName, levelName: doc.levels[levelId]?.name ?? '', levelCount: doc.building.stack.length, view3d: view3d.shown, initial });
     if (!choice) return;
     this.last = choice;
     const format = FORMATS.find((f) => f.value === choice.format)!;
-    const path = await this.pick('app.pickSavePath', { title: `Export ${format.label}`, defaultPath: `${fileSafe(projectName)}.${format.ext}`, filters: [{ name: format.filter, extensions: [format.ext] }] });
+    const path = await this.pick('app.pickSavePath', { title: this.t('exchange.pick.export', { format: format.label }), defaultPath: `${fileSafe(projectName)}.${format.ext}`, filters: [{ name: this.t(format.filter), extensions: [format.ext] }] });
     if (!path) return;
 
     let id: string;
@@ -121,8 +117,9 @@ export class ExchangeActions {
       if (!result) return;
       const files = result.files?.map((f) => f.path) ?? (result.path ? [result.path] : [path]);
       const cut = result.levels?.filter((l) => !l.fits) ?? [];
-      const notice = cut.length ? `; ${cut.map((l) => l.name).join(', ')} ${cut.length === 1 ? 'does' : 'do'} not fit the sheet at 1:${cut[0].scale}` : '';
-      this.toasts.notify(`Exported ${plural(files.length, 'file')} to ${folderOf(files[0])}${notice}`, 'success', { label: 'Show', run: () => void this.reveal(files[0]) });
+      const notice = cut.length ? this.t('exchange.exported.cut', { count: cut.length, names: cut.map((l) => l.name).join(this.t('common.listSeparator')), scale: cut[0].scale }) : '';
+      const message = this.t('exchange.exported', { files: this.t('exchange.exported.files', { count: files.length }), folder: folderOf(files[0]), notice });
+      this.toasts.notify(message, 'success', { label: this.t('exchange.show'), run: () => void this.reveal(files[0]) });
     } catch (err) {
       this.toasts.error(err);
     } finally {
@@ -141,10 +138,10 @@ export class ExchangeActions {
       const existing = err instanceof StudioError && err.code === 'CONFLICT' ? (err.details as { existing?: string[] } | undefined)?.existing : undefined;
       if (!existing?.length) throw err;
       const replace = await this.dialogs.confirm({
-        title: `Replace ${plural(existing.length, 'file')}?`,
-        message: `A file per level is written next to the name you chose. These are in ${folderOf(existing[0])} already:`,
+        title: this.t('exchange.replace.title', { count: existing.length }),
+        message: this.t('exchange.replace.message', { folder: folderOf(existing[0]) }),
         details: existing.map((p) => p.slice(Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\')) + 1)),
-        confirmLabel: 'Replace',
+        confirmLabel: this.t('exchange.replace.confirm'),
         danger: true,
       });
       return replace ? this.host.invoke<Exported>(id, { ...input, overwrite: true }, projectId) : null;
@@ -155,7 +152,7 @@ export class ExchangeActions {
   async importDxf(projectId: string, levelId?: string): Promise<void> {
     const doc = this.doc(projectId);
     if (!doc) return;
-    const path = await this.pick('app.pickFile', { title: 'Import DXF', filters: DXF_FILTER });
+    const path = await this.pick('app.pickFile', { title: this.t('exchange.pick.importDxf'), filters: [{ name: this.t('exchange.filter.dxf'), extensions: ['dxf'] }] });
     if (!path) return;
     let probe: DxfProbe;
     try {
@@ -179,7 +176,14 @@ export class ExchangeActions {
       const { shapes, separators, labels, layers } = result.counts;
       // Only what the import does not support: `<TYPE> (degenerate)` and `<TYPE> (empty)` made nothing to skip.
       const skipped = Object.entries(result.skipped).reduce((n, [type, v]) => (/ \((degenerate|empty)\)$/.test(type) ? n : n + v), 0);
-      this.toasts.notify(`Imported ${plural(shapes, 'shape')}, ${plural(separators, 'divider')} and ${plural(labels, 'label')} on ${plural(layers, 'layer')}${skipped ? ` (${skipped} skipped)` : ''}`, 'success');
+      const counted = {
+        shapes: this.t('exchange.imported.shapes', { count: shapes }),
+        separators: this.t('exchange.imported.separators', { count: separators }),
+        labels: this.t('exchange.imported.labels', { count: labels }),
+        layers: this.t('exchange.imported.layers', { count: layers }),
+        skipped: skipped ? this.t('exchange.imported.skipped', { count: skipped }) : '',
+      };
+      this.toasts.notify(this.t('exchange.imported', counted), 'success');
     } catch (err) {
       this.toasts.error(err);
     }

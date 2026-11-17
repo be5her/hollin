@@ -114,5 +114,9 @@ describe('text helpers', () => {
     expect(foldForSearch('الأرضي')).toBe(foldForSearch('الارضى'));
     expect(foldForSearch('مـطـبـخ')).toBe('مطبخ');
     expect(foldForSearch('Kitchen ٢')).toBe('kitchen 2');
+    expect(foldForSearch('Café Crème')).toBe('cafe creme');
+    // Isolates and marks around a name in a translated title do not stand between it and a search.
+    const [fsi, pdi, rlm] = [0x2068, 0x2069, 0x200f].map((c) => String.fromCharCode(c));
+    expect(foldForSearch(`فتح المشروع: ${fsi}بيت${pdi}${rlm}`)).toBe('فتح المشروع: بيت');
   });
 });

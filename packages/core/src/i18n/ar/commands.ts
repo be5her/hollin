@@ -24,4 +24,39 @@ export const arCommandTitles: Record<string, string> = {
   'ai.key.status': 'حالة مفتاح API للمساعد',
   'ai.key.set': 'تعيين مفتاح API للمساعد',
   'ai.key.clear': 'إزالة مفتاح API للمساعد',
+
+  // The library module.
+  'library.info': 'موقع المكتبة',
+  'project.list': 'قائمة المشاريع',
+  'project.tags': 'وسوم المشاريع',
+  'project.current': 'المشروع الحالي',
+  'project.create': 'مشروع جديد',
+  'project.open': 'فتح مشروع',
+  'project.close': 'إغلاق المشروع',
+  'project.update': 'إعادة تسمية المشروع',
+  'project.duplicate': 'تكرار المشروع',
+  'project.trash': 'نقل المشروع إلى سلة المحذوفات',
+  'project.restore': 'استعادة المشروع من سلة المحذوفات',
+  'project.delete': 'حذف المشروع نهائيًا',
+  'library.trash.empty': 'إفراغ سلة المحذوفات',
+  'project.export': 'تصدير المشروع',
+  'project.import': 'استيراد مشروع',
+  'library.move': 'نقل المكتبة',
+  'project.save': 'حفظ المشروع الآن',
+  'project.snapshot.list': 'قائمة النسخ المحفوظة',
+  'project.snapshot.create': 'حفظ نسخة',
+  'project.snapshot.restore': 'استعادة نسخة محفوظة',
+  'project.snapshot.delete': 'حذف نسخة محفوظة',
+
+  // The exchange module.
+  'export.plan': 'تصدير رسم المخطط',
+  'export.building': 'تصدير المبنى بصيغة glTF',
+  'export.image': 'تصدير صورة (PNG)',
+  'import.dxf.probe': 'فحص ملف DXF',
+  'import.dxf': 'استيراد DXF',
+
+  // The edit module.
+  'edit.undo': 'تراجع',
+  'edit.redo': 'إعادة',
+  'edit.history': 'سجل التغييرات',
 };

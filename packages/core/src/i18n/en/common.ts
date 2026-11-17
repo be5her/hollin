@@ -11,6 +11,10 @@ export const common = {
   'common.copied': 'Copied',
   'common.copyFailed': 'Could not copy to the clipboard',
   'common.justNow': 'just now',
+  /** Between the items of a list written out in a sentence. */
+  'common.listSeparator': ', ',
+  /** The palette group of the project actions (the library's and the exchange's). */
+  'common.group.projects': 'Projects',
   /** The product's one-line description; English is the one in branding.json. */
   'common.appDescription': BRANDING.description,
   'common.lengthInvalid': `Not a length (try 3200, 3.2m or 10' 6")`,

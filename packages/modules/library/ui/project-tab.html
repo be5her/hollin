@@ -5,48 +5,61 @@
       [formField]="nameForm.name"
       (blur)="saveName()"
       (keydown.enter)="$any($event.target).blur()"
-      aria-label="Project name"
+      dir="auto"
+      [attr.aria-label]="t('library.tab.name')"
       data-testid="project-name"
     />
     <span class="text-xs text-muted truncate" data-testid="project-save-state" [attr.data-state]="p.save.state">
       @switch (p.save.state) {
         @case ('saved') {
-          Saved {{ ago(p.save.savedAt) }}
+          {{ t('library.tab.saved', { ago: ago(p.save.savedAt) }) }}
         }
         @case ('failed') {
-          <span class="text-danger">Not saved: {{ p.save.error }}</span>
+          <span class="text-danger">{{ t('library.tab.notSaved', { error: p.save.error }) }}</span>
         }
         @default {
-          Saving…
+          {{ t('library.tab.saving') }}
         }
       }
     </span>
     <div class="flex-1"></div>
     <div class="flex items-center gap-0.5">
-      <button xIconButton [label]="docState()?.history?.undo ? 'Undo ' + docState()!.history.undo!.label + ' (Ctrl+Z)' : 'Nothing to undo'" [disabled]="!docState()?.history?.undo" (click)="undo()" data-testid="project-undo">
-        <svg [xIcon]="icons.Undo2" class="size-4"></svg>
+      <button
+        xIconButton
+        [label]="docState()?.history?.undo ? t('library.tab.undo', { label: docState()!.history.undo!.label }) : t('library.tab.nothingToUndo')"
+        [disabled]="!docState()?.history?.undo"
+        (click)="undo()"
+        data-testid="project-undo"
+      >
+        <svg [xIcon]="icons.Undo2" class="size-4 rtl:-scale-x-100"></svg>
       </button>
-      <button xIconButton [label]="docState()?.history?.redo ? 'Redo ' + docState()!.history.redo!.label + ' (Ctrl+Shift+Z)' : 'Nothing to redo'" [disabled]="!docState()?.history?.redo" (click)="redo()" data-testid="project-redo">
-        <svg [xIcon]="icons.Redo2" class="size-4"></svg>
+      <button
+        xIconButton
+        [label]="docState()?.history?.redo ? t('library.tab.redo', { label: docState()!.history.redo!.label }) : t('library.tab.nothingToRedo')"
+        [disabled]="!docState()?.history?.redo"
+        (click)="redo()"
+        data-testid="project-redo"
+      >
+        <svg [xIcon]="icons.Redo2" class="size-4 rtl:-scale-x-100"></svg>
       </button>
     </div>
     <div class="w-px h-5 bg-edge"></div>
-    <button xButton size="sm" variant="ghost" [icon]="icons.Save" (click)="saveNow()" data-testid="project-save">Save</button>
-    <button xButton size="sm" variant="ghost" [icon]="icons.Download" (click)="actions.exportProject(p)" data-testid="project-export">Export project…</button>
-    <button xButton size="sm" variant="ghost" [icon]="icons.Copy" (click)="actions.duplicate(p)">Duplicate</button>
-    <button xButton size="sm" variant="danger" [icon]="icons.Trash2" (click)="actions.trash(p)" data-testid="project-trash">Trash</button>
+    <button xButton size="sm" variant="ghost" [icon]="icons.Save" (click)="saveNow()" data-testid="project-save">{{ t('library.save') }}</button>
+    <button xButton size="sm" variant="ghost" [icon]="icons.Download" (click)="actions.exportProject(p)" data-testid="project-export">{{ t('library.tab.exportProject') }}</button>
+    <button xButton size="sm" variant="ghost" [icon]="icons.Copy" (click)="actions.duplicate(p)" data-testid="project-duplicate">{{ t('library.tab.duplicate') }}</button>
+    <button xButton size="sm" variant="danger" [icon]="icons.Trash2" (click)="actions.trash(p)" data-testid="project-trash">{{ t('library.tab.trash') }}</button>
   </div>
 
   @if (docState(); as state) {
     <div class="flex flex-1 min-h-0">
-      <aside class="w-72 shrink-0 border-r border-edge bg-surface overflow-y-auto" data-testid="project-left">
+      <aside class="w-72 shrink-0 border-e border-edge bg-surface overflow-y-auto" data-testid="project-left">
         @for (panel of left(); track panel.id) {
           <ng-container *ngComponentOutlet="panel.component; inputs: { projectId: p.id }" />
         }
       </aside>
       <main class="flex-1 min-w-0 min-h-0 flex flex-col" data-testid="project-center">
         @if (centers().length > 1) {
-          <div class="flex items-center gap-0.5 px-2 border-b border-edge bg-surface shrink-0" role="tablist" aria-label="Main view">
+          <div class="flex items-center gap-0.5 px-2 border-b border-edge bg-surface shrink-0" role="tablist" [attr.aria-label]="t('library.tab.mainView')">
             @for (panel of centers(); track panel.id) {
               <button
                 type="button"
@@ -57,17 +70,27 @@
                 [attr.data-testid]="'center-tab-' + panel.id"
                 (click)="chooseCenter(panel.id)"
               >
-                {{ panel.title }}
+                {{ label(panel.title) }}
               </button>
             }
             <div class="flex-1"></div>
-            <button xButton size="sm" variant="ghost" [icon]="icons.FileOutput" [loading]="exchange.exporting(p.id)" [attr.aria-busy]="exchange.exporting(p.id) || null" (click)="exchange.export(p.id)" title="Export the plan as PDF, SVG or DXF, the building as glTF, or an image" data-testid="exchange-export">{{ exchange.exporting(p.id) ? 'Exporting…' : 'Export…' }}</button>
-            <button xButton size="sm" variant="ghost" [icon]="icons.FileInput" (click)="exchange.importDxf(p.id)" title="Import a DXF drawing onto a level, to trace over" data-testid="exchange-import-dxf">Import DXF…</button>
+            <button
+              xButton
+              size="sm"
+              variant="ghost"
+              [icon]="icons.FileOutput"
+              [loading]="exchange.exporting(p.id)"
+              [attr.aria-busy]="exchange.exporting(p.id) || null"
+              (click)="exchange.export(p.id)"
+              [title]="t('exchange.toolbar.exportHint')"
+              data-testid="exchange-export"
+            >{{ exchange.exporting(p.id) ? t('exchange.toolbar.exporting') : t('exchange.toolbar.export') }}</button>
+            <button xButton size="sm" variant="ghost" [icon]="icons.FileInput" (click)="exchange.importDxf(p.id)" [title]="t('exchange.toolbar.importHint')" data-testid="exchange-import-dxf">{{ t('exchange.action.importDxf') }}</button>
             <div class="w-px h-4 bg-edge mx-1"></div>
             <button
               xIconButton
               size="sm"
-              [label]="primary() === center() ? 'Side by side: choose another view to see it next to the ' + (primary()?.title ?? '').toLowerCase() : 'Side by side with the ' + (primary()?.title ?? '').toLowerCase()"
+              [label]="t(primary() === center() ? 'library.tab.sideBySideOff' : 'library.tab.sideBySide', { view: label(primary()!.title).toLowerCase() })"
               [disabled]="primary() === center()"
               [class.bg-elevated]="split()"
               [class.text-fg]="split()"
@@ -82,7 +105,7 @@
         @if (center(); as panel) {
           @if (sideBySide(); as first) {
             <div class="flex flex-1 min-h-0" data-testid="center-side-by-side">
-              <div class="flex-1 min-w-0 flex flex-col border-r border-edge">
+              <div class="flex-1 min-w-0 flex flex-col border-e border-edge">
                 <ng-container *ngComponentOutlet="first.component; inputs: { projectId: p.id }" />
               </div>
               <div class="flex-1 min-w-0 flex flex-col">
@@ -94,7 +117,7 @@
           }
         }
       </main>
-      <aside class="w-80 shrink-0 border-l border-edge bg-surface flex flex-col min-h-0" data-testid="project-right">
+      <aside class="w-80 shrink-0 border-s border-edge bg-surface flex flex-col min-h-0" data-testid="project-right">
         <div class="flex flex-wrap items-center gap-x-0.5 px-2 border-b border-edge shrink-0" role="tablist">
           @for (panel of right(); track panel.id) {
             <button
@@ -109,7 +132,7 @@
               @if (panel.mark === 'otto') {
                 <x-otto-mark size="16" [attr.data-testid]="'right-mark-' + panel.id" />
               }
-              {{ panel.title }}
+              {{ label(panel.title) }}
               @if (panel.badge) {
                 @let count = panel.badge(p.id)();
                 @if (count) {
@@ -127,10 +150,10 @@
       </aside>
     </div>
   } @else if (loadError(); as error) {
-    <x-empty-state title="The project could not be loaded" [hint]="error" />
+    <x-empty-state [title]="t('library.tab.loadFailed')" [hint]="error" />
   } @else {
-    <x-empty-state title="Opening project…" />
+    <x-empty-state [title]="t('library.tab.opening')" />
   }
 } @else {
-  <x-empty-state title="Opening project…" />
+  <x-empty-state [title]="t('library.tab.opening')" />
 }

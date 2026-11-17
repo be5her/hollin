@@ -11,6 +11,8 @@ export const common = {
   'common.copied': 'تم النسخ',
   'common.copyFailed': 'تعذّر النسخ إلى الحافظة',
   'common.justNow': 'الآن',
+  'common.listSeparator': '، ',
+  'common.group.projects': 'المشاريع',
   'common.appDescription': 'صمّم المباني والمخططات والمساحات الداخلية والديكور، مع ذكاء اصطناعي مدمج.',
   'common.lengthInvalid': `ليس طولًا صالحًا (جرّب 3200 أو 3.2m أو 10' 6")`,
   'common.angleInvalid': 'ليست زاوية صالحة (جرّب 45 أو 30°)',

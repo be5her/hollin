@@ -22,15 +22,6 @@ const PENDING = new Set([
   'packages/modules/building/ui/scene-view.html',
   'packages/modules/building/ui/section-view.ts',
   'packages/modules/decor/ui/catalog-panel.ts',
-  'packages/modules/edit/ui/history-panel.ts',
-  'packages/modules/exchange/ui/export-dialog.html',
-  'packages/modules/exchange/ui/import-dxf-dialog.html',
-  'packages/modules/library/ui/first-launch.ts',
-  'packages/modules/library/ui/library-home.html',
-  'packages/modules/library/ui/library-settings.ts',
-  'packages/modules/library/ui/otto-composer.ts',
-  'packages/modules/library/ui/project-details-panel.ts',
-  'packages/modules/library/ui/project-tab.html',
   'packages/modules/plan/ui/connector-properties.html',
   'packages/modules/plan/ui/item-properties.ts',
   'packages/modules/plan/ui/light-properties.ts',
@@ -38,7 +29,6 @@ const PENDING = new Set([
   'packages/modules/plan/ui/plan-view.html',
   'packages/modules/plan/ui/properties-panel.html',
   'packages/modules/rules/ui/warnings-panel.ts',
-  'packages/modules/updates/ui/updates-settings.ts',
 ]);
 
 /**

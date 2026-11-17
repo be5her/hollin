@@ -9,7 +9,7 @@ import { ExchangeActions } from './exchange-actions';
  */
 export const exchangeUI = defineModuleUI({
   id: 'exchange',
-  title: 'Export and import',
+  title: 'exchange.title',
   icon: ArrowLeftRight,
   order: 45,
   availability: 'project',
@@ -19,8 +19,8 @@ export const exchangeUI = defineModuleUI({
     const exchange = inject(ExchangeActions);
     const project = () => untracked(app.activeProjectId);
     return [
-      { id: 'exchange.export', title: 'Export drawing, model or image…', group: 'Projects', keywords: ['pdf', 'svg', 'dxf', 'gltf', 'glb', 'png', 'render', 'print'], run: () => exchange.export(project()!), when: () => project() !== null },
-      { id: 'exchange.importDxf', title: 'Import DXF…', group: 'Projects', keywords: ['cad', 'autocad', 'underlay', 'trace'], run: () => exchange.importDxf(project()!), when: () => project() !== null },
+      { id: 'exchange.export', title: 'exchange.action.export', group: 'common.group.projects', keywords: ['pdf', 'svg', 'dxf', 'gltf', 'glb', 'png', 'render', 'print'], run: () => exchange.export(project()!), when: () => project() !== null },
+      { id: 'exchange.importDxf', title: 'exchange.action.importDxf', group: 'common.group.projects', keywords: ['cad', 'autocad', 'underlay', 'trace'], run: () => exchange.importDxf(project()!), when: () => project() !== null },
     ];
   },
 });

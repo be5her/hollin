@@ -11,7 +11,7 @@ import { PROJECT_TAB, ProjectsSync } from './projects-sync';
 /** The project library: the Home screen, a tab per open project, and their palette entries. */
 export const libraryUI = defineModuleUI({
   id: 'library',
-  title: 'Projects',
+  title: 'library.title',
   icon: FolderOpen,
   order: 0,
   availability: 'always',
@@ -19,14 +19,14 @@ export const libraryUI = defineModuleUI({
   tabs: { [PROJECT_TAB]: ProjectTab },
   setup: () => {
     inject(ProjectsSync).start();
-    inject(SettingsSections).register({ id: 'library', title: 'Library', order: 15, component: LibrarySettings });
-    inject(ProjectPanels).register({ id: 'details', title: 'Project', side: 'right', order: 20, component: ProjectDetailsPanel });
+    inject(SettingsSections).register({ id: 'library', title: 'library.settings.title', order: 15, component: LibrarySettings });
+    inject(ProjectPanels).register({ id: 'details', title: 'library.panel.details', side: 'right', order: 20, component: ProjectDetailsPanel });
   },
   actions: (): UIAction[] => {
     const actions = inject(LibraryActions);
     return [
-      { id: 'project.new', title: 'New project', group: 'Projects', shortcut: 'Ctrl+N', keywords: ['create'], run: () => actions.create() },
-      { id: 'project.importFile', title: 'Import project…', group: 'Projects', keywords: ['open file', 'package'], run: () => actions.importProject() },
+      { id: 'project.new', title: 'library.action.new', group: 'common.group.projects', shortcut: 'Ctrl+N', keywords: ['create'], run: () => actions.create() },
+      { id: 'project.importFile', title: 'library.action.import', group: 'common.group.projects', keywords: ['open file', 'package'], run: () => actions.importProject() },
     ];
   },
 });

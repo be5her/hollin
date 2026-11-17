@@ -51,6 +51,13 @@ describe('Library', () => {
       { tag: 'pool', count: 1 },
     ]);
     expect(changes).toEqual(['created', 'created', 'created']);
+    // Arabic is found whatever the hamza, the diacritics or the letter forms people type.
+    await library.create(newProjectDoc({ name: 'منزل الأُسرة', description: 'شقّة على البحر', tags: ['سكنيّ'], now: '2026-04-01T00:00:00.000Z' }));
+    expect(library.list({ query: 'الاسره' }).map((p) => p.name)).toEqual(['منزل الأُسرة']);
+    expect(library.list({ query: 'شقه' }).map((p) => p.name)).toEqual(['منزل الأُسرة']);
+    expect(library.list({ query: 'منزل' }).map((p) => p.name)).toEqual(['منزل الأُسرة']);
+    expect(library.list({ tags: ['سكني'] }).map((p) => p.name)).toEqual(['منزل الأُسرة']);
+    expect(library.list({ query: 'الأسرى' })).toEqual([]);
   });
 
   it('rebuilds a missing or broken index from the folders, and drops projects that are gone', async () => {

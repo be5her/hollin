@@ -6,6 +6,7 @@ import { z } from 'zod';
 import type { ProjectDoc } from '../doc/schema';
 import type { ListQuery, ProjectSummary, SnapshotInfo } from '../projects';
 import { StudioError } from '../errors';
+import { foldForSearch, t } from '../i18n';
 import { isId, newId } from '../ids';
 import { WriteQueue, readJsonFile, renameWithRetry, writeFileAtomic, writeJsonAtomic } from './atomic-write';
 import { Catalog } from './catalog';
@@ -50,7 +51,11 @@ export interface LockHolder {
   heartbeatAt: string;
 }
 
-const fold = (text: string) => text.normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase();
+/**
+ * Text folded for the project search and the tag filter: accents and Arabic marks dropped (NFKD, which also
+ * takes the hamza off أ إ آ ؤ ئ), then `foldForSearch` (ى as ي, ة as ه, Latin digits, no tatweel).
+ */
+const fold = (text: string): string => foldForSearch(text.normalize('NFKD').replace(/\p{M}/gu, ''));
 
 /**
  * The project library: one folder the app owns.
@@ -557,7 +562,7 @@ export function syncedFolderWarning(folder: string): string | null {
   const lower = path.resolve(folder).toLowerCase();
   const synced = [process.env.OneDrive, process.env.OneDriveConsumer, process.env.OneDriveCommercial].filter(Boolean).map((p) => path.resolve(p!).toLowerCase());
   if (synced.some((p) => lower === p || lower.startsWith(`${p}${path.sep}`)) || /[\\/](onedrive|dropbox|google drive|icloud ?drive|mobile documents)([\\/ -]|$)/i.test(lower)) {
-    return 'This folder is synced to the cloud. Sync services can hold files while the app writes them and can create conflicting copies when two computers use the library at once. Use the library from one computer at a time.';
+    return t('library.syncedWarning');
   }
   return null;
 }

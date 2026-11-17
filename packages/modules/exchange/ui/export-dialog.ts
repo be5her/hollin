@@ -1,7 +1,7 @@
-import { Component, computed, input, linkedSignal } from '@angular/core';
+import { Component, computed, inject, input, linkedSignal } from '@angular/core';
 import { FormField, form, hidden, max, min, required } from '@angular/forms/signals';
-import { PAPER_SIZES, type PaperSize } from '@studio/core';
-import { Button, Checkbox, Input, Label, Select, type DialogComponent } from '@studio/ui';
+import { PAPER_SIZES, type MessageKey, type PaperSize } from '@studio/core';
+import { Button, Checkbox, I18n, Input, Label, Select, type DialogComponent, type Translate } from '@studio/ui';
 
 export type ExportFormat = 'pdf' | 'svg' | 'dxf' | 'glb' | 'png';
 
@@ -25,37 +25,61 @@ export interface ExportChoice {
   transparent: boolean;
 }
 
+/** How the 3D view shows the building, as a 3D image takes it: the line under the view choice says it. */
+export interface View3dShown {
+  azimuth: number;
+  elevation: number;
+  display: 'all' | 'isolate' | 'cutaway';
+  /** The level on screen, which `isolate` and `cutaway` are about. */
+  level: string;
+  explode: number;
+  lighting: 'day' | 'night';
+}
+
 export interface ExportDialogData {
   projectName: string;
   /** The level on screen, for "current level only" and a plan image. */
   levelName: string;
   levelCount: number;
   /** How a 3D image will be seen (the 3D view's camera and display), shown under the view choice. */
-  view3dSummary: string;
+  view3d: View3dShown;
   initial: ExportChoice;
 }
 
-export const FORMATS: { value: ExportFormat; label: string; hint: string; ext: string; filter: string }[] = [
-  { value: 'pdf', label: 'PDF', hint: 'Plan drawing to print', ext: 'pdf', filter: 'PDF document' },
-  { value: 'svg', label: 'SVG', hint: 'Plan drawing, vector', ext: 'svg', filter: 'SVG drawing' },
-  { value: 'dxf', label: 'DXF', hint: 'Plan for CAD', ext: 'dxf', filter: 'DXF drawing' },
-  { value: 'glb', label: 'glTF', hint: 'Building in 3D', ext: 'glb', filter: 'glTF binary model' },
-  { value: 'png', label: 'PNG', hint: 'Image of the plan or 3D', ext: 'png', filter: 'PNG image' },
+/** "As the 3D view shows it: from 225°, 30° up, every level, by day." */
+export function view3dSummary(v: View3dShown, t: Translate): string {
+  const shown = v.display === 'all' ? t('exchange.view3d.all') : t(v.display === 'isolate' ? 'exchange.view3d.isolate' : 'exchange.view3d.cutaway', { level: v.level });
+  const exploded = v.explode ? t('exchange.view3d.exploded', { percent: Math.round(v.explode * 100) }) : '';
+  return t('exchange.view3d.summary', { azimuth: v.azimuth, elevation: v.elevation, shown, exploded, lighting: t(v.lighting === 'night' ? 'exchange.view3d.night' : 'exchange.view3d.day') });
+}
+
+/** The formats by their own names (PDF, glTF), with what each makes and the native picker's filter as message keys. */
+export const FORMATS: { value: ExportFormat; label: string; hint: MessageKey; ext: string; filter: MessageKey }[] = [
+  { value: 'pdf', label: 'PDF', hint: 'exchange.format.pdf', ext: 'pdf', filter: 'exchange.filter.pdf' },
+  { value: 'svg', label: 'SVG', hint: 'exchange.format.svg', ext: 'svg', filter: 'exchange.filter.svg' },
+  { value: 'dxf', label: 'DXF', hint: 'exchange.format.dxf', ext: 'dxf', filter: 'exchange.filter.dxf' },
+  { value: 'glb', label: 'glTF', hint: 'exchange.format.glb', ext: 'glb', filter: 'exchange.filter.glb' },
+  { value: 'png', label: 'PNG', hint: 'exchange.format.png', ext: 'png', filter: 'exchange.filter.png' },
 ];
 
+/** A label is a message key or a ratio shown as it is. */
 export const SCALES = [
-  { value: 'fit', label: 'Fit to page' },
+  { value: 'fit', label: 'exchange.export.fit' },
   { value: '50', label: '1:50' },
   { value: '100', label: '1:100' },
   { value: '200', label: '1:200' },
   { value: '500', label: '1:500' },
 ];
 
+/** A pixel size between left-to-right isolates (an option has no element for `bidi-ltr`): right to left it would read `1200 × 1600`. */
+const pixels = (width: number, height: number) => `${String.fromCharCode(0x2066)}${width} × ${height}${String.fromCharCode(0x2069)}`;
+
+/** A label is a message key or a pixel size shown as it is. */
 export const SIZES = [
-  { value: '1600x1200', label: '1600 × 1200' },
-  { value: '2560x1920', label: '2560 × 1920' },
-  { value: '3840x2880', label: '3840 × 2880' },
-  { value: 'custom', label: 'Custom' },
+  { value: '1600x1200', label: pixels(1600, 1200) },
+  { value: '2560x1920', label: pixels(2560, 1920) },
+  { value: '3840x2880', label: pixels(3840, 2880) },
+  { value: 'custom', label: 'exchange.export.custom' },
 ];
 
 /**
@@ -71,6 +95,10 @@ export const SIZES = [
 export class ExportDialog implements DialogComponent<ExportDialogData, ExportChoice> {
   readonly data = input.required<ExportDialogData>();
   readonly close = input.required<(value: ExportChoice | null) => void>();
+  private readonly i18n = inject(I18n);
+  protected readonly t = this.i18n.t;
+  /** A message key (a hint, a validation message) or text shown as it is. */
+  protected readonly label = this.i18n.label;
 
   protected readonly formats = FORMATS;
   protected readonly scales = SCALES;
@@ -82,9 +110,9 @@ export class ExportDialog implements DialogComponent<ExportDialogData, ExportCho
     // The pixel sizes count only for a PNG of a custom size.
     for (const side of [p.width, p.height]) {
       hidden(side, ({ valueOf }) => valueOf(p.size) !== 'custom' || valueOf(p.format) !== 'png');
-      required(side, { message: 'Enter a size in pixels' });
-      min(side, 64, { message: 'At least 64 px' });
-      max(side, 4096, { message: 'At most 4096 px' });
+      required(side, { message: 'exchange.export.sizeRequired' });
+      min(side, 64, { message: 'exchange.export.sizeMin' });
+      max(side, 4096, { message: 'exchange.export.sizeMax' });
     }
   });
 
@@ -98,10 +126,11 @@ export class ExportDialog implements DialogComponent<ExportDialogData, ExportCho
   protected readonly levelsHint = computed(() => {
     const { format, levels } = this.model();
     const n = levels === 'all' ? this.data().levelCount : 1;
-    if (format === 'glb') return n === 1 ? 'One model of this level and the stairs starting on it' : 'One model of the whole building';
-    if (format === 'pdf') return n === 1 ? 'One page' : `One file, a page per level (${n})`;
-    return n === 1 ? 'One file' : `A file per level (${n}), named after it`;
+    if (format === 'glb') return this.t(n === 1 ? 'exchange.export.glbOne' : 'exchange.export.glbAll');
+    if (format === 'pdf') return n === 1 ? this.t('exchange.export.pdfOne') : this.t('exchange.export.pdfAll', { count: n });
+    return n === 1 ? this.t('exchange.export.fileOne') : this.t('exchange.export.fileAll', { count: n });
   });
+  protected readonly view3dLine = computed(() => view3dSummary(this.data().view3d, this.t));
   protected readonly invalid = computed(() => !this.f().valid());
 
   protected submit(event: Event): void {
