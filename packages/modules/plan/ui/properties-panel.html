@@ -7,8 +7,8 @@
   }
   <x-connector-properties [projectId]="projectId()" [connector]="c" />
 } @else if (!entities().length) {
-  <x-empty-state title="Nothing selected" hint="Pick a wall, a room or a door to see its numbers here." data-testid="properties-empty">
-    <p class="text-[13px] text-muted"><kbd xKbd>Esc</kbd> clears, <kbd xKbd>V</kbd> is the pointer.</p>
+  <x-empty-state [title]="t('plan.props.nothing')" [hint]="t('plan.props.nothingHint')" data-testid="properties-empty">
+    <p class="text-[13px] text-muted"><kbd xKbd>Esc</kbd> {{ t('plan.props.clears') }} <kbd xKbd>V</kbd> {{ t('plan.props.pointer') }}</p>
   </x-empty-state>
 } @else {
   <div class="px-4 py-3 border-b border-edge">
@@ -16,7 +16,7 @@
       @if (entity(); as e) {
         {{ typeName(e) }}
       } @else {
-        {{ entities().length }} items
+        {{ t('plan.props.items', { count: entities().length }) }}
       }
     </div>
     @if (!entity()) {
@@ -32,98 +32,98 @@
     <section class="px-4 py-3 flex flex-col gap-2.5" data-testid="entity-editor" [attr.data-type]="e.type">
       @if (e.type !== 'room') {
         <label>
-          <span class="block text-xs font-medium text-muted mb-1">Name</span>
-          <input xInput [formField]="f.name" placeholder="—" (blur)="setName()" (keydown.enter)="$any($event.target).blur()" data-testid="prop-name" />
+          <span class="block text-xs font-medium text-muted mb-1">{{ t('plan.props.name') }}</span>
+          <input xInput dir="auto" [formField]="f.name" placeholder="—" (blur)="setName()" (keydown.enter)="$any($event.target).blur()" data-testid="prop-name" />
         </label>
       }
       @switch (e.type) {
         @case ('wall') {
           <div class="grid grid-cols-2 gap-2">
             <label>
-              <span class="block text-xs font-medium text-muted mb-1">Thickness</span>
-              <input xInput xLength #t="xLength" class="font-mono" [formField]="f.thickness" (commit)="setLength('thickness', $event)" data-testid="prop-thickness" />
-              @if (t.invalid()) {
-                <span class="block text-[11px] text-danger mt-0.5">Not a length</span>
+              <span class="block text-xs font-medium text-muted mb-1">{{ t('plan.opt.thickness') }}</span>
+              <input xInput xLength #thickness="xLength" class="font-mono" [formField]="f.thickness" (commit)="setLength('thickness', $event)" data-testid="prop-thickness" />
+              @if (thickness.invalid()) {
+                <span class="block text-[11px] text-danger mt-0.5">{{ t('plan.props.notLength') }}</span>
               }
             </label>
             <label>
-              <span class="block text-xs font-medium text-muted mb-1">Height</span>
-              <input xInput xLength [allowEmpty]="true" class="font-mono" placeholder="level" [formField]="f.height" (commit)="setNullable('height', $event)" data-testid="prop-height" />
+              <span class="block text-xs font-medium text-muted mb-1">{{ t('plan.props.height') }}</span>
+              <input xInput xLength [allowEmpty]="true" class="font-mono placeholder:font-sans" [placeholder]="t('plan.props.levelPlaceholder')" [formField]="f.height" (commit)="setNullable('height', $event)" data-testid="prop-height" />
             </label>
           </div>
           <label>
-            <span class="block text-xs font-medium text-muted mb-1">Body</span>
+            <span class="block text-xs font-medium text-muted mb-1">{{ t('plan.props.body') }}</span>
             <select xSelect class="w-full" [formField]="f.alignment" (change)="set({ alignment: $any($event.target).value })" data-testid="prop-alignment">
-              <option value="center">Centred on the line</option>
-              <option value="left">Left of the line</option>
-              <option value="right">Right of the line</option>
+              <option value="center">{{ t('plan.props.center') }}</option>
+              <option value="left">{{ t('plan.props.left') }}</option>
+              <option value="right">{{ t('plan.props.right') }}</option>
             </select>
           </label>
           @if (entity()) {
-            <div class="text-xs text-muted">Length <span class="font-mono text-fg" data-testid="prop-length">{{ wallLength() }}</span></div>
-            <div class="text-[11px] font-medium text-muted uppercase tracking-wide mt-1">Finishes</div>
-            <label class="flex items-center gap-2"><span class="w-16 shrink-0 text-xs text-muted">Left face</span><x-material-picker class="flex-1 min-w-0" [value]="asWall(e).materials?.left" label="Left face" testId="prop-finish-left" (changed)="setFinish({ side: 'left' }, $event)" /></label>
-            <label class="flex items-center gap-2"><span class="w-16 shrink-0 text-xs text-muted">Right face</span><x-material-picker class="flex-1 min-w-0" [value]="asWall(e).materials?.right" label="Right face" testId="prop-finish-right" (changed)="setFinish({ side: 'right' }, $event)" /></label>
+            <div class="text-xs text-muted">{{ t('plan.props.length') }} <span class="font-mono text-fg bidi-ltr" data-testid="prop-length">{{ wallLength() }}</span></div>
+            <div class="text-[11px] font-medium text-muted uppercase tracking-wide mt-1">{{ t('plan.props.finishes') }}</div>
+            <label class="flex items-center gap-2"><span class="w-16 shrink-0 text-xs text-muted">{{ t('plan.props.leftFace') }}</span><x-material-picker class="flex-1 min-w-0" [value]="asWall(e).materials?.left" [label]="'plan.props.leftFace'" testId="prop-finish-left" (changed)="setFinish({ side: 'left' }, $event)" /></label>
+            <label class="flex items-center gap-2"><span class="w-16 shrink-0 text-xs text-muted">{{ t('plan.props.rightFace') }}</span><x-material-picker class="flex-1 min-w-0" [value]="asWall(e).materials?.right" [label]="'plan.props.rightFace'" testId="prop-finish-right" (changed)="setFinish({ side: 'right' }, $event)" /></label>
           }
         }
         @case ('opening') {
           <label>
-            <span class="block text-xs font-medium text-muted mb-1">Kind</span>
+            <span class="block text-xs font-medium text-muted mb-1">{{ t('plan.props.kind') }}</span>
             <select xSelect class="w-full" [formField]="f.kind" (change)="set({ kind: $any($event.target).value })" data-testid="prop-kind">
-              <option value="door">Door</option>
-              <option value="window">Window</option>
-              <option value="opening">Opening</option>
+              <option value="door">{{ t('plan.props.door') }}</option>
+              <option value="window">{{ t('plan.props.window') }}</option>
+              <option value="opening">{{ t('plan.props.opening') }}</option>
             </select>
           </label>
           <div class="grid grid-cols-2 gap-2">
-            <label><span class="block text-xs font-medium text-muted mb-1">Width</span><input xInput xLength class="font-mono" [formField]="f.width" (commit)="setLength('width', $event)" data-testid="prop-width" /></label>
-            <label><span class="block text-xs font-medium text-muted mb-1">Height</span><input xInput xLength class="font-mono" [formField]="f.height" (commit)="setLength('height', $event)" /></label>
-            <label><span class="block text-xs font-medium text-muted mb-1">Sill</span><input xInput xLength class="font-mono" [formField]="f.sill" (commit)="setLength('sill', $event)" /></label>
-            <label><span class="block text-xs font-medium text-muted mb-1">Along the wall</span><input xInput xLength class="font-mono" [formField]="f.along" (commit)="setLength('along', $event)" data-testid="prop-along" /></label>
+            <label><span class="block text-xs font-medium text-muted mb-1">{{ t('plan.props.width') }}</span><input xInput xLength class="font-mono" [formField]="f.width" (commit)="setLength('width', $event)" data-testid="prop-width" /></label>
+            <label><span class="block text-xs font-medium text-muted mb-1">{{ t('plan.props.height') }}</span><input xInput xLength class="font-mono" [formField]="f.height" (commit)="setLength('height', $event)" /></label>
+            <label><span class="block text-xs font-medium text-muted mb-1">{{ t('plan.props.sill') }}</span><input xInput xLength class="font-mono" [formField]="f.sill" (commit)="setLength('sill', $event)" /></label>
+            <label><span class="block text-xs font-medium text-muted mb-1">{{ t('plan.props.along') }}</span><input xInput xLength class="font-mono" [formField]="f.along" (commit)="setLength('along', $event)" data-testid="prop-along" /></label>
           </div>
           @if (draft().kind === 'door') {
             <div class="grid grid-cols-2 gap-2">
               <label>
-                <span class="block text-xs font-medium text-muted mb-1">Hinge</span>
+                <span class="block text-xs font-medium text-muted mb-1">{{ t('plan.props.hinge') }}</span>
                 <select xSelect class="w-full" [formField]="f.hinge" (change)="setSwing('hinge', $any($event.target).value)" data-testid="prop-hinge">
-                  <option value="start">At the start</option>
-                  <option value="end">At the end</option>
+                  <option value="start">{{ t('plan.props.atStart') }}</option>
+                  <option value="end">{{ t('plan.props.atEnd') }}</option>
                 </select>
               </label>
               <label>
-                <span class="block text-xs font-medium text-muted mb-1">Opens to</span>
+                <span class="block text-xs font-medium text-muted mb-1">{{ t('plan.props.opensTo') }}</span>
                 <select xSelect class="w-full" [formField]="f.side" (change)="setSwing('side', $any($event.target).value)" data-testid="prop-side">
-                  <option value="left">The left</option>
-                  <option value="right">The right</option>
+                  <option value="left">{{ t('plan.props.theLeft') }}</option>
+                  <option value="right">{{ t('plan.props.theRight') }}</option>
                 </select>
               </label>
             </div>
           }
         }
         @case ('room') {
-          <label><span class="block text-xs font-medium text-muted mb-1">Name</span><input xInput [formField]="f.name" (blur)="setName()" (keydown.enter)="$any($event.target).blur()" data-testid="prop-name" /></label>
-          <label><span class="block text-xs font-medium text-muted mb-1">Number</span><input xInput [formField]="f.number" placeholder="—" (blur)="setText('number')" (keydown.enter)="$any($event.target).blur()" /></label>
+          <label><span class="block text-xs font-medium text-muted mb-1">{{ t('plan.props.name') }}</span><input xInput dir="auto" [formField]="f.name" (blur)="setName()" (keydown.enter)="$any($event.target).blur()" data-testid="prop-name" /></label>
+          <label><span class="block text-xs font-medium text-muted mb-1">{{ t('plan.props.number') }}</span><input xInput dir="auto" [formField]="f.number" placeholder="—" (blur)="setText('number')" (keydown.enter)="$any($event.target).blur()" /></label>
           @if (roomInfo(); as info) {
             @if (!info.enclosed) {
-              <div class="text-xs text-warning" data-testid="prop-room-state">Not enclosed: move the seed into a space closed by walls.</div>
+              <div class="text-xs text-warning" data-testid="prop-room-state">{{ t('plan.props.notEnclosed') }}</div>
             } @else if (info.shared) {
-              <div class="text-xs text-warning" data-testid="prop-room-state">Shares its space with another room.</div>
+              <div class="text-xs text-warning" data-testid="prop-room-state">{{ t('plan.props.sharedSpace') }}</div>
             } @else {
-              <div class="text-xs text-muted">Area <span class="font-mono text-fg" data-testid="prop-area">{{ info.area }}</span> · Perimeter <span class="font-mono text-fg">{{ info.perimeter }}</span></div>
+              <div class="text-xs text-muted">{{ t('plan.props.area') }} <span class="font-mono text-fg bidi-ltr" data-testid="prop-area">{{ info.area }}</span> · {{ t('plan.props.perimeter') }} <span class="font-mono text-fg bidi-ltr">{{ info.perimeter }}</span></div>
             }
           }
           @if (entity()) {
-            <div class="text-[11px] font-medium text-muted uppercase tracking-wide mt-1">Finishes</div>
-            <label class="flex items-center gap-2"><span class="w-16 shrink-0 text-xs text-muted">Floor</span><x-material-picker class="flex-1 min-w-0" [value]="$any(e).finish?.floor" label="Floor" testId="prop-finish-floor" (changed)="setFinish({ surface: 'floor' }, $event)" /></label>
-            <label class="flex items-center gap-2"><span class="w-16 shrink-0 text-xs text-muted">Walls</span><x-material-picker class="flex-1 min-w-0" [value]="roomWalls()" label="Walls" testId="prop-finish-walls" (changed)="setFinish({ surface: 'walls' }, $event)" /></label>
-            <label class="flex items-center gap-2"><span class="w-16 shrink-0 text-xs text-muted">Ceiling</span><x-material-picker class="flex-1 min-w-0" [value]="$any(e).finish?.ceiling" label="Ceiling" testId="prop-finish-ceiling" (changed)="setFinish({ surface: 'ceiling' }, $event)" /></label>
+            <div class="text-[11px] font-medium text-muted uppercase tracking-wide mt-1">{{ t('plan.props.finishes') }}</div>
+            <label class="flex items-center gap-2"><span class="w-16 shrink-0 text-xs text-muted">{{ t('plan.props.floor') }}</span><x-material-picker class="flex-1 min-w-0" [value]="$any(e).finish?.floor" [label]="'plan.props.floor'" testId="prop-finish-floor" (changed)="setFinish({ surface: 'floor' }, $event)" /></label>
+            <label class="flex items-center gap-2"><span class="w-16 shrink-0 text-xs text-muted">{{ t('plan.props.walls') }}</span><x-material-picker class="flex-1 min-w-0" [value]="roomWalls()" [label]="'plan.props.walls'" testId="prop-finish-walls" (changed)="setFinish({ surface: 'walls' }, $event)" /></label>
+            <label class="flex items-center gap-2"><span class="w-16 shrink-0 text-xs text-muted">{{ t('plan.props.ceiling') }}</span><x-material-picker class="flex-1 min-w-0" [value]="$any(e).finish?.ceiling" [label]="'plan.props.ceiling'" testId="prop-finish-ceiling" (changed)="setFinish({ surface: 'ceiling' }, $event)" /></label>
           }
         }
         @case ('label') {
-          <label><span class="block text-xs font-medium text-muted mb-1">Text</span><input xInput [formField]="f.text" (blur)="setText('text')" (keydown.enter)="$any($event.target).blur()" data-testid="prop-text" /></label>
+          <label><span class="block text-xs font-medium text-muted mb-1">{{ t('plan.props.text') }}</span><input xInput dir="auto" [formField]="f.text" (blur)="setText('text')" (keydown.enter)="$any($event.target).blur()" data-testid="prop-text" /></label>
           <div class="grid grid-cols-2 gap-2">
-            <label><span class="block text-xs font-medium text-muted mb-1">Text height</span><input xInput xLength class="font-mono" [formField]="f.size" (commit)="setLength('size', $event)" /></label>
-            <label><span class="block text-xs font-medium text-muted mb-1">Rotation</span><input xInput xAngle class="font-mono" [formField]="f.rotation" (commit)="set({ rotation: $event })" /></label>
+            <label><span class="block text-xs font-medium text-muted mb-1">{{ t('plan.props.textHeight') }}</span><input xInput xLength class="font-mono" [formField]="f.size" (commit)="setLength('size', $event)" /></label>
+            <label><span class="block text-xs font-medium text-muted mb-1">{{ t('plan.props.rotation') }}</span><input xInput xAngle class="font-mono" [formField]="f.rotation" (commit)="set({ rotation: $event })" /></label>
           </div>
         }
         @case ('light') {
@@ -139,33 +139,33 @@
         @case ('column') {
           <div class="grid grid-cols-2 gap-2">
             @if (draft().r) {
-              <label><span class="block text-xs font-medium text-muted mb-1">Radius</span><input xInput xLength class="font-mono" [formField]="f.r" (commit)="setColumnSize('r', $event)" /></label>
+              <label><span class="block text-xs font-medium text-muted mb-1">{{ t('plan.props.radius') }}</span><input xInput xLength class="font-mono" [formField]="f.r" (commit)="setColumnSize('r', $event)" /></label>
             } @else {
-              <label><span class="block text-xs font-medium text-muted mb-1">Width</span><input xInput xLength class="font-mono" [formField]="f.w" (commit)="setColumnSize('w', $event)" /></label>
-              <label><span class="block text-xs font-medium text-muted mb-1">Depth</span><input xInput xLength class="font-mono" [formField]="f.d" (commit)="setColumnSize('d', $event)" /></label>
+              <label><span class="block text-xs font-medium text-muted mb-1">{{ t('plan.props.width') }}</span><input xInput xLength class="font-mono" [formField]="f.w" (commit)="setColumnSize('w', $event)" /></label>
+              <label><span class="block text-xs font-medium text-muted mb-1">{{ t('plan.props.depth') }}</span><input xInput xLength class="font-mono" [formField]="f.d" (commit)="setColumnSize('d', $event)" /></label>
             }
-            <label><span class="block text-xs font-medium text-muted mb-1">Rotation</span><input xInput xAngle class="font-mono" [formField]="f.rotation" (commit)="set({ rotation: $event })" /></label>
+            <label><span class="block text-xs font-medium text-muted mb-1">{{ t('plan.props.rotation') }}</span><input xInput xAngle class="font-mono" [formField]="f.rotation" (commit)="set({ rotation: $event })" /></label>
           </div>
         }
         @case ('slab') {
-          <label><span class="block text-xs font-medium text-muted mb-1">Thickness</span><input xInput xLength [allowEmpty]="true" class="font-mono" placeholder="level" [formField]="f.thickness" (commit)="setLength('thickness', $event)" /></label>
+          <label><span class="block text-xs font-medium text-muted mb-1">{{ t('plan.opt.thickness') }}</span><input xInput xLength [allowEmpty]="true" class="font-mono placeholder:font-sans" [placeholder]="t('plan.props.levelPlaceholder')" [formField]="f.thickness" (commit)="setLength('thickness', $event)" /></label>
         }
         @case ('dimension') {
           <div class="grid grid-cols-2 gap-2">
             <label>
-              <span class="block text-xs font-medium text-muted mb-1">Kind</span>
+              <span class="block text-xs font-medium text-muted mb-1">{{ t('plan.props.kind') }}</span>
               <select xSelect class="w-full" [formField]="f.dimKind" (change)="set({ kind: $any($event.target).value })" data-testid="prop-dim-kind">
-                <option value="aligned">Aligned</option>
-                <option value="horizontal">Horizontal</option>
-                <option value="vertical">Vertical</option>
-                <option value="angular">Angle</option>
-                <option value="radius">Radius</option>
+                <option value="aligned">{{ t('plan.props.aligned') }}</option>
+                <option value="horizontal">{{ t('plan.props.horizontal') }}</option>
+                <option value="vertical">{{ t('plan.props.vertical') }}</option>
+                <option value="angular">{{ t('plan.props.angle') }}</option>
+                <option value="radius">{{ t('plan.props.radius') }}</option>
               </select>
             </label>
-            <label><span class="block text-xs font-medium text-muted mb-1">{{ draft().dimKind === 'angular' ? 'Arc radius' : 'Offset' }}</span><input xInput xLength class="font-mono" [formField]="f.offset" (commit)="setNullable('offset', $event)" data-testid="prop-dim-offset" /></label>
+            <label><span class="block text-xs font-medium text-muted mb-1">{{ t(draft().dimKind === 'angular' ? 'plan.props.arcRadius' : 'plan.props.offset') }}</span><input xInput xLength class="font-mono" [formField]="f.offset" (commit)="setNullable('offset', $event)" data-testid="prop-dim-offset" /></label>
           </div>
           @if (dimensionInfo(); as info) {
-            <div class="text-xs text-muted">Reads <span class="font-mono text-fg" data-testid="prop-dim-value">{{ info.text }}</span></div>
+            <div class="text-xs text-muted">{{ t('plan.props.reads') }} <span class="font-mono text-fg bidi-ltr" data-testid="prop-dim-value">{{ info.text }}</span></div>
             <div class="text-[11px] text-muted" data-testid="prop-dim-ties">{{ info.ties }}</div>
           }
         }
@@ -173,39 +173,39 @@
           @if (e.path.closed) {
             <label class="flex items-center gap-2 text-xs">
               <input xCheckbox type="checkbox" [checked]="draft().filled" (change)="set({ filled: $any($event.target).checked })" data-testid="prop-filled" />
-              Filled
+              {{ t('plan.props.filled') }}
             </label>
           }
           @if (outlineInfo(); as info) {
             @if (info.area) {
-              <div class="text-xs text-muted">Area <span class="font-mono text-fg" data-testid="prop-shape-area">{{ info.area }}</span> · Perimeter <span class="font-mono text-fg">{{ info.perimeter }}</span></div>
+              <div class="text-xs text-muted">{{ t('plan.props.area') }} <span class="font-mono text-fg bidi-ltr" data-testid="prop-shape-area">{{ info.area }}</span> · {{ t('plan.props.perimeter') }} <span class="font-mono text-fg bidi-ltr">{{ info.perimeter }}</span></div>
             } @else {
-              <div class="text-xs text-muted">Length <span class="font-mono text-fg" data-testid="prop-shape-length">{{ info.length }}</span></div>
+              <div class="text-xs text-muted">{{ t('plan.props.length') }} <span class="font-mono text-fg bidi-ltr" data-testid="prop-shape-length">{{ info.length }}</span></div>
             }
           }
-          <div class="text-[11px] text-muted">Click a corner on the plan to round or chamfer it; drag the corner's grip to size it.</div>
+          <div class="text-[11px] text-muted">{{ t('plan.props.shapeHint') }}</div>
         }
         @case ('separator') {
           @if (outlineInfo(); as info) {
-            <div class="text-xs text-muted">Length <span class="font-mono text-fg">{{ info.length }}</span></div>
+            <div class="text-xs text-muted">{{ t('plan.props.length') }} <span class="font-mono text-fg bidi-ltr">{{ info.length }}</span></div>
           }
         }
         @case ('fixture') {
-          <label><span class="block text-xs font-medium text-muted mb-1">Rotation</span><input xInput xAngle class="font-mono" [formField]="f.rotation" (commit)="set({ rotation: $event })" /></label>
+          <label><span class="block text-xs font-medium text-muted mb-1">{{ t('plan.props.rotation') }}</span><input xInput xAngle class="font-mono" [formField]="f.rotation" (commit)="set({ rotation: $event })" /></label>
         }
         @case ('point') {
-          <label><span class="block text-xs font-medium text-muted mb-1">Rotation</span><input xInput xAngle class="font-mono" [formField]="f.rotation" (commit)="set({ rotation: $event })" /></label>
+          <label><span class="block text-xs font-medium text-muted mb-1">{{ t('plan.props.rotation') }}</span><input xInput xAngle class="font-mono" [formField]="f.rotation" (commit)="set({ rotation: $event })" /></label>
         }
       }
     </section>
   } @else {
-    <div class="px-4 py-3 text-xs text-muted">Select items of one kind to change them together.</div>
+    <div class="px-4 py-3 text-xs text-muted">{{ t('plan.props.oneKind') }}</div>
   }
 }
 
 <ng-template #vertexEditor>
     <section class="px-4 py-3 border-b border-edge flex flex-col gap-2.5" data-testid="vertex-editor">
-      <div class="text-xs font-medium">Corner {{ vertexRef()!.index + 1 }}</div>
+      <div class="text-xs font-medium">{{ t('plan.vertex.title', { n: vertexRef()!.index + 1 }) }}</div>
       <div class="grid grid-cols-2 gap-2">
         <label>
           <span class="block text-xs font-medium text-muted mb-1">X</span>
@@ -219,22 +219,22 @@
       @if (vertexHasSegment()) {
         <div class="grid grid-cols-2 gap-2">
           <label>
-            <span class="block text-xs font-medium text-muted mb-1">Segment to next</span>
+            <span class="block text-xs font-medium text-muted mb-1">{{ t('plan.vertex.segment') }}</span>
             <select xSelect class="w-full" [formField]="vf.segment" (change)="setSegment()" data-testid="vertex-segment">
-              <option value="line">Straight</option>
-              <option value="arc">Arc</option>
+              <option value="line">{{ t('plan.vertex.straight') }}</option>
+              <option value="arc">{{ t('plan.vertex.arc') }}</option>
             </select>
           </label>
           @if (vertexDraft().segment === 'arc') {
             <label>
-              <span class="block text-xs font-medium text-muted mb-1">Radius</span>
+              <span class="block text-xs font-medium text-muted mb-1">{{ t('plan.props.radius') }}</span>
               <input xInput xLength class="font-mono" [formField]="vf.radius" (commit)="setArcRadius($event)" data-testid="vertex-radius" />
             </label>
             <label>
-              <span class="block text-xs font-medium text-muted mb-1">Turns</span>
+              <span class="block text-xs font-medium text-muted mb-1">{{ t('plan.vertex.turns') }}</span>
               <select xSelect class="w-full" [formField]="vf.direction" (change)="setSegment()">
-                <option value="ccw">Left (counter-clockwise)</option>
-                <option value="cw">Right (clockwise)</option>
+                <option value="ccw">{{ t('plan.vertex.ccw') }}</option>
+                <option value="cw">{{ t('plan.vertex.cw') }}</option>
               </select>
             </label>
           }
@@ -243,25 +243,25 @@
       @if (vertexHasCorner()) {
         <div class="grid grid-cols-2 gap-2">
           <label>
-            <span class="block text-xs font-medium text-muted mb-1">Corner</span>
+            <span class="block text-xs font-medium text-muted mb-1">{{ t('plan.vertex.corner') }}</span>
             <select xSelect class="w-full" [formField]="vf.corner" (change)="setCornerKind($any($event.target).value)" data-testid="vertex-corner">
-              <option value="sharp">Sharp</option>
-              <option value="fillet">Rounded</option>
-              <option value="chamfer">Chamfered</option>
+              <option value="sharp">{{ t('plan.vertex.sharp') }}</option>
+              <option value="fillet">{{ t('plan.vertex.rounded') }}</option>
+              <option value="chamfer">{{ t('plan.vertex.chamfered') }}</option>
             </select>
           </label>
           @if (vertexDraft().corner === 'fillet') {
             <label>
-              <span class="block text-xs font-medium text-muted mb-1">Radius</span>
+              <span class="block text-xs font-medium text-muted mb-1">{{ t('plan.props.radius') }}</span>
               <input xInput xLength class="font-mono" [formField]="vf.cornerRadius" (commit)="setCornerSize('cornerRadius', $event)" data-testid="vertex-fillet" />
             </label>
           } @else if (vertexDraft().corner === 'chamfer') {
             <label>
-              <span class="block text-xs font-medium text-muted mb-1">Before</span>
+              <span class="block text-xs font-medium text-muted mb-1">{{ t('plan.vertex.before') }}</span>
               <input xInput xLength class="font-mono" [formField]="vf.d1" (commit)="setCornerSize('d1', $event)" data-testid="vertex-d1" />
             </label>
             <label>
-              <span class="block text-xs font-medium text-muted mb-1">After</span>
+              <span class="block text-xs font-medium text-muted mb-1">{{ t('plan.vertex.after') }}</span>
               <input xInput xLength class="font-mono" [formField]="vf.d2" (commit)="setCornerSize('d2', $event)" data-testid="vertex-d2" />
             </label>
           }

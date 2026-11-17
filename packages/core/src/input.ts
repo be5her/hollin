@@ -1,5 +1,6 @@
 import type { UnitSettings } from './config';
 import { DEG, add, normalize, scale, type Vec2 } from './geometry/vec';
+import { toLatinDigits } from './i18n/text';
 import { parseAngle, parseLength } from './units';
 
 /**
@@ -10,12 +11,13 @@ import { parseAngle, parseLength } from './units';
 export type Coordinate = { k: 'length'; mm: number } | { k: 'polar'; mm: number; degrees: number } | { k: 'relative'; dx: number; dy: number } | { k: 'absolute'; x: number; y: number };
 
 const splitPair = (text: string): [string, string] | null => {
-  const parts = text.split(/[,;]/);
+  const parts = text.split(/[,;؛]/);
   return parts.length === 2 ? [parts[0], parts[1]] : null;
 };
 
+/** Reads a typed coordinate, or null. Arabic-Indic digits, the Arabic decimal separator, comma (`،`) and semicolon (`؛`) read the same as their Latin forms. */
 export function parseCoordinate(text: string, units: UnitSettings): Coordinate | null {
-  let input = text.trim();
+  let input = toLatinDigits(text).trim();
   if (!input) return null;
   const relative = input.startsWith('@');
   if (relative) input = input.slice(1).trim();

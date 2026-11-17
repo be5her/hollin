@@ -1,4 +1,4 @@
-import { DEG, bulgeThrough, distance, formatAngle, formatLength, resolveCoordinate, stairAxisFrom, sub, type Connector, type ConnectorRecord, type Coordinate, type DerivedLevel, type Path, type Vec2 } from '@studio/core';
+import { t, DEG, bulgeThrough, distance, formatAngle, formatLength, resolveCoordinate, stairAxisFrom, sub, type Connector, type ConnectorRecord, type Coordinate, type DerivedLevel, type Path, type Vec2 } from '@studio/core';
 import type { PlanConnector } from '../connectors';
 import { drawConnectorPreview, drawScreenText, type RenderFrame } from '../render';
 import { referenceFrom, type SnapResult, type TrackReference } from '../snap';
@@ -189,7 +189,7 @@ const normalizeDir = (d: Vec2): Vec2 => {
   return len > 0 ? [d[0] / len, d[1] / len] : [1, 0];
 };
 
-const risersOf = (pc: PlanConnector | null): string => (pc && 'risers' in pc.geometry ? ` · ${pc.geometry.risers} risers` : '');
+const risersOf = (pc: PlanConnector | null): string => (pc && 'risers' in pc.geometry ? t('tools.stair.risers', { count: pc.geometry.risers }) : '');
 
 /**
  * Draws a stair along its walk line: a straight stair from two clicks; an L or a winder from the
@@ -226,15 +226,15 @@ export class StairTool extends AxisTool {
   }
 
   protected hintFor(points: readonly Vec2[], preview: PlanConnector | null): string {
-    if (!connectorLevels(this.host)) return 'The stair needs a level above this one: add one in the Levels panel, or choose the levels in the options';
+    if (!connectorLevels(this.host)) return t('tools.needsLevel.stair');
     const shape = this.host.options().stair.shape;
-    if (!points.length) return shape === 'spiral' ? 'Click the centre of the spiral · V: select' : 'Click the start of the stair · V: select';
+    if (!points.length) return t(shape === 'spiral' ? 'tools.stair.spiralCentre' : 'tools.stair.start');
     const risers = risersOf(preview);
-    if (shape === 'u') return `Click the direction of the first flight${risers} · Escape: cancel`;
-    if (shape === 'spiral') return `Click the first step${risers} · Escape: cancel`;
-    if (shape === 'straight') return `Click the top of the stair${risers} · Escape: cancel`;
-    if (shape === 'curved') return points.length < 2 ? 'Click the top of the stair · Escape: cancel' : `Click a point the arc passes through${risers} · Escape: cancel`;
-    return points.length < 2 ? 'Click the corner · Escape: cancel' : `Click the top of the stair${risers} · Enter: end here · Escape: cancel`;
+    if (shape === 'u') return t('tools.stair.uDirection', { risers });
+    if (shape === 'spiral') return t('tools.stair.spiralStep', { risers });
+    if (shape === 'straight') return t('tools.stair.top', { risers });
+    if (shape === 'curved') return points.length < 2 ? t('tools.stair.topPlain') : t('tools.stair.through', { risers });
+    return points.length < 2 ? t('tools.stair.corner') : t('tools.stair.topOrEnd', { risers });
   }
 }
 
@@ -254,10 +254,10 @@ export class RampTool extends AxisTool {
   }
 
   protected hintFor(points: readonly Vec2[], preview: PlanConnector | null): string {
-    if (!connectorLevels(this.host)) return 'The ramp needs a level above this one: add one in the Levels panel, or choose the levels in the options';
-    if (!points.length) return 'Click the bottom of the ramp · V: select';
-    const slope = preview && 'slope' in preview.geometry ? ` · ${(preview.geometry as { slope: number }).slope.toFixed(1)} %` : '';
-    return `Click the next point${slope} · Enter or double-click: end · Escape: cancel`;
+    if (!connectorLevels(this.host)) return t('tools.needsLevel.ramp');
+    if (!points.length) return t('tools.ramp.start');
+    const slope = preview && 'slope' in preview.geometry ? t('tools.ramp.slope', { slope: (preview.geometry as { slope: number }).slope.toFixed(1) }) : '';
+    return t('tools.ramp.next', { slope });
   }
 }
 
@@ -299,8 +299,8 @@ export class LadderTool implements Tool {
   }
 
   hint(): string {
-    if (!connectorLevels(this.host)) return 'The ladder needs a level above this one: add one in the Levels panel, or choose the levels in the options';
-    return this.at ? 'Click the direction the ladder leans towards · Escape: cancel' : 'Click the foot of the ladder · V: select';
+    if (!connectorLevels(this.host)) return t('tools.needsLevel.ladder');
+    return t(this.at ? 'tools.ladder.direction' : 'tools.ladder.foot');
   }
 
   draw(ctx: CanvasRenderingContext2D, frame: RenderFrame): void {
@@ -357,8 +357,8 @@ export class ElevatorTool implements Tool {
   }
 
   hint(): string {
-    if (!connectorLevels(this.host)) return 'The elevator needs a level above this one: add one in the Levels panel, or choose the levels in the options';
-    return 'Click the centre of the shaft · V: select';
+    if (!connectorLevels(this.host)) return t('tools.needsLevel.elevator');
+    return t('tools.elevator.centre');
   }
 
   draw(ctx: CanvasRenderingContext2D, frame: RenderFrame): void {
@@ -437,11 +437,11 @@ export class EscalatorTool implements Tool {
   }
 
   hint(): string {
-    if (!connectorLevels(this.host)) return 'The escalator needs a level above this one: add one in the Levels panel, or choose the levels in the options';
-    if (!this.at) return 'Click the foot of the escalator · V: select';
+    if (!connectorLevels(this.host)) return t('tools.needsLevel.escalator');
+    if (!this.at) return t('tools.escalator.foot');
     const pc = this.preview();
-    const run = pc && 'run' in pc.geometry ? ` · ${Math.round((pc.geometry as { run: number }).run)} mm long` : '';
-    return `Click the direction it rises towards${run} · Escape: cancel`;
+    const run = pc && 'run' in pc.geometry ? t('tools.escalator.run', { run: Math.round((pc.geometry as { run: number }).run) }) : '';
+    return t('tools.escalator.direction', { run });
   }
 
   draw(ctx: CanvasRenderingContext2D, frame: RenderFrame): void {

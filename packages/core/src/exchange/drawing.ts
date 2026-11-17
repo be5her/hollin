@@ -12,6 +12,7 @@ import { PLAN_GLYPHS, arrowHeadLines, breakLinePoints, walkSegments, walkTangent
 import { polygonCentroid } from '../geometry/polygon';
 import { DEG, add, emptyBox, extendBox, perp, scale, sub, type Box, type Vec2 } from '../geometry/vec';
 import { wallBody } from '../geometry/walls';
+import { t as tr } from '../i18n';
 import { formatArea } from '../units';
 
 /*
@@ -409,7 +410,7 @@ export function planDrawing(doc: ProjectDoc, levelId: string, options: PlanDrawi
       for (const ring of [g.polygon, ...g.holes]) layer.push(polyStroke(ring, true, PEN.fine));
       const name = e.number ? `${e.number} ${e.name}` : e.name;
       layer.push(text(add(g.labelAt, [0, gap]), name, h, { baseline: 'bottom', color: 'fg' }));
-      if (g.shared) layer.push(text(sub(g.labelAt, [0, gap]), 'shares its space', h * 0.8, { baseline: 'top', mono: true, color: 'warning' }));
+      if (g.shared) layer.push(text(sub(g.labelAt, [0, gap]), tr('tools.canvas.shared'), h * 0.8, { baseline: 'top', mono: true, color: 'warning' }));
       else layer.push(text(sub(g.labelAt, [0, gap]), formatArea(g.area, units), h * 0.9, { baseline: 'top', mono: true, color: 'muted' }));
       return;
     }
@@ -421,7 +422,7 @@ export function planDrawing(doc: ProjectDoc, levelId: string, options: PlanDrawi
     else return;
     const color: DrawingColor = g && !g.enclosed ? 'warning' : 'room';
     layer.push(circleStroke(seed, h * 0.4, PEN.thin, { color }));
-    layer.push(text(add(seed, [h * 0.75, 0]), g && !g.enclosed ? `${e.name} · not enclosed` : e.name, h, { align: 'left', color: g && !g.enclosed ? 'warning' : 'fg' }));
+    layer.push(text(add(seed, [h * 0.75, 0]), g && !g.enclosed ? tr('tools.canvas.notEnclosed', { name: e.name }) : e.name, h, { align: 'left', color: g && !g.enclosed ? 'warning' : 'fg' }));
   }
 
   function drawItem(e: EntityOf<'item'>, layer: DrawingPrimitive[] | null): void {
@@ -487,7 +488,7 @@ export function planDrawing(doc: ProjectDoc, levelId: string, options: PlanDrawi
       const dot = way === 'up' ? walk[0].a : walk[walk.length - 1].b;
       layer.push({ ...fill([circleRing(dot, lh * 0.27)], color ?? 'connector', 1), mark: true });
       const n = perp(walkTangent(segs, way === 'up' ? 0 : total));
-      label(way === 'up' ? 'UP' : 'DN', add(dot, scale(n, lh * 1.27)));
+      label(way === 'up' ? tr('tools.canvas.up') : tr('tools.canvas.down'), add(dot, scale(n, lh * 1.27)));
       if (extra) label(extra, sub(dot, scale(n, lh * 1.27)));
     };
     switch (g.kind) {
@@ -503,7 +504,7 @@ export function planDrawing(doc: ProjectDoc, levelId: string, options: PlanDrawi
           const centre = t ? scale(add(t.a, t.b), 0.5) : g.axis[0].a;
           layer.push(polyStroke(breakLinePoints(g.axis, cut, Math.max(1, t ? Math.hypot(t.a[0] - t.b[0], t.a[1] - t.b[1]) : 1000), centre), false, PEN.medium, { color }));
         }
-        if (!faint && g.axis.length) walkArrow(g.axis, g.walkLength, role === 'top' ? 'down' : 'up', cut, `${g.risers} R`);
+        if (!faint && g.axis.length) walkArrow(g.axis, g.walkLength, role === 'top' ? 'down' : 'up', cut, tr('tools.canvas.risers', { count: g.risers }));
         break;
       }
       case 'ramp': {
@@ -525,7 +526,7 @@ export function planDrawing(doc: ProjectDoc, levelId: string, options: PlanDrawi
         const end = add(from, scale(sub(to, from), 0.9));
         layer.push(lineStroke(start, end, PEN.thin, { color }));
         for (const [a, b] of arrowHeadLines(end, role === 'top' ? scale(dir, -1) : dir, lh * 0.9)) layer.push(lineStroke(a, b, PEN.thin, { color }));
-        label(role === 'top' ? 'DN' : 'UP', add(start, scale(perp(dir), lh * 1.1)));
+        label(role === 'top' ? tr('tools.canvas.down') : tr('tools.canvas.up'), add(start, scale(perp(dir), lh * 1.1)));
         break;
       }
       case 'elevator': {

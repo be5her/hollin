@@ -1,100 +1,100 @@
 <div class="flex flex-wrap items-center gap-x-1.5 gap-y-1 px-1.5 py-1 min-h-9 border-b border-edge bg-surface shrink-0 text-xs" data-testid="plan-toolbar">
-  <div class="flex items-center shrink-0" role="toolbar" aria-label="Tools">
-    <button xIconButton size="sm" label="Select (V)" [class.bg-elevated]="tool() === 'select'" [class.text-fg]="tool() === 'select'" [attr.aria-pressed]="tool() === 'select'" (click)="chooseTool('select')" data-testid="tool-select">
+  <div class="flex items-center shrink-0" role="toolbar" [attr.aria-label]="t('plan.toolbar.tools')">
+    <button xIconButton size="sm" [label]="t('plan.tool.select')" [class.bg-elevated]="tool() === 'select'" [class.text-fg]="tool() === 'select'" [attr.aria-pressed]="tool() === 'select'" (click)="chooseTool('select')" data-testid="tool-select">
       <svg [xIcon]="icons.MousePointer2" class="size-3.5"></svg>
     </button>
-    <button xIconButton size="sm" label="Wall (W)" [class.bg-elevated]="tool() === 'wall'" [class.text-fg]="tool() === 'wall'" [attr.aria-pressed]="tool() === 'wall'" (click)="chooseTool('wall')" data-testid="tool-wall">
+    <button xIconButton size="sm" [label]="t('plan.tool.wall')" [class.bg-elevated]="tool() === 'wall'" [class.text-fg]="tool() === 'wall'" [attr.aria-pressed]="tool() === 'wall'" (click)="chooseTool('wall')" data-testid="tool-wall">
       <svg [xIcon]="icons.BrickWall" class="size-3.5"></svg>
     </button>
-    <button xIconButton size="sm" label="Door (D)" [class.bg-elevated]="tool() === 'door'" [class.text-fg]="tool() === 'door'" [attr.aria-pressed]="tool() === 'door'" (click)="chooseTool('door')" data-testid="tool-door">
+    <button xIconButton size="sm" [label]="t('plan.tool.door')" [class.bg-elevated]="tool() === 'door'" [class.text-fg]="tool() === 'door'" [attr.aria-pressed]="tool() === 'door'" (click)="chooseTool('door')" data-testid="tool-door">
       <svg [xIcon]="icons.DoorOpen" class="size-3.5"></svg>
     </button>
-    <button xIconButton size="sm" label="Window (N)" [class.bg-elevated]="tool() === 'window'" [class.text-fg]="tool() === 'window'" [attr.aria-pressed]="tool() === 'window'" (click)="chooseTool('window')" data-testid="tool-window">
+    <button xIconButton size="sm" [label]="t('plan.tool.window')" [class.bg-elevated]="tool() === 'window'" [class.text-fg]="tool() === 'window'" [attr.aria-pressed]="tool() === 'window'" (click)="chooseTool('window')" data-testid="tool-window">
       <svg [xIcon]="icons.Blinds" class="size-3.5"></svg>
     </button>
-    <button xIconButton size="sm" label="Room (R)" [class.bg-elevated]="tool() === 'room'" [class.text-fg]="tool() === 'room'" [attr.aria-pressed]="tool() === 'room'" (click)="chooseTool('room')" data-testid="tool-room">
+    <button xIconButton size="sm" [label]="t('plan.tool.room')" [class.bg-elevated]="tool() === 'room'" [class.text-fg]="tool() === 'room'" [attr.aria-pressed]="tool() === 'room'" (click)="chooseTool('room')" data-testid="tool-room">
       <svg [xIcon]="icons.LandPlot" class="size-3.5"></svg>
     </button>
-    <button xIconButton size="sm" label="Room divider (S)" [class.bg-elevated]="tool() === 'separator'" [class.text-fg]="tool() === 'separator'" [attr.aria-pressed]="tool() === 'separator'" (click)="chooseTool('separator')" data-testid="tool-separator">
+    <button xIconButton size="sm" [label]="t('plan.tool.separator')" [class.bg-elevated]="tool() === 'separator'" [class.text-fg]="tool() === 'separator'" [attr.aria-pressed]="tool() === 'separator'" (click)="chooseTool('separator')" data-testid="tool-separator">
       <svg [xIcon]="icons.SeparatorVertical" class="size-3.5"></svg>
     </button>
     <div class="w-px h-5 bg-edge mx-1"></div>
-    <button xIconButton size="sm" label="Stair (Shift+S)" [class.bg-elevated]="tool() === 'stair'" [class.text-fg]="tool() === 'stair'" [attr.aria-pressed]="tool() === 'stair'" (click)="chooseTool('stair')" data-testid="tool-stair">
+    <button xIconButton size="sm" [label]="t('plan.tool.stair')" [class.bg-elevated]="tool() === 'stair'" [class.text-fg]="tool() === 'stair'" [attr.aria-pressed]="tool() === 'stair'" (click)="chooseTool('stair')" data-testid="tool-stair">
       <svg [xIcon]="icons.Footprints" class="size-3.5"></svg>
     </button>
-    <button xIconButton size="sm" label="Ramp (Shift+R)" [class.bg-elevated]="tool() === 'ramp'" [class.text-fg]="tool() === 'ramp'" [attr.aria-pressed]="tool() === 'ramp'" (click)="chooseTool('ramp')" data-testid="tool-ramp">
+    <button xIconButton size="sm" [label]="t('plan.tool.ramp')" [class.bg-elevated]="tool() === 'ramp'" [class.text-fg]="tool() === 'ramp'" [attr.aria-pressed]="tool() === 'ramp'" (click)="chooseTool('ramp')" data-testid="tool-ramp">
       <svg [xIcon]="icons.TrendingUp" class="size-3.5"></svg>
     </button>
-    <button xIconButton size="sm" label="Ladder (Shift+L)" [class.bg-elevated]="tool() === 'ladder'" [class.text-fg]="tool() === 'ladder'" [attr.aria-pressed]="tool() === 'ladder'" (click)="chooseTool('ladder')" data-testid="tool-ladder">
+    <button xIconButton size="sm" [label]="t('plan.tool.ladder')" [class.bg-elevated]="tool() === 'ladder'" [class.text-fg]="tool() === 'ladder'" [attr.aria-pressed]="tool() === 'ladder'" (click)="chooseTool('ladder')" data-testid="tool-ladder">
       <svg [xIcon]="icons.ChevronsUp" class="size-3.5"></svg>
     </button>
-    <button xIconButton size="sm" label="Escalator (Shift+E)" [class.bg-elevated]="tool() === 'escalator'" [class.text-fg]="tool() === 'escalator'" [attr.aria-pressed]="tool() === 'escalator'" (click)="chooseTool('escalator')" data-testid="tool-escalator">
+    <button xIconButton size="sm" [label]="t('plan.tool.escalator')" [class.bg-elevated]="tool() === 'escalator'" [class.text-fg]="tool() === 'escalator'" [attr.aria-pressed]="tool() === 'escalator'" (click)="chooseTool('escalator')" data-testid="tool-escalator">
       <svg [xIcon]="icons.MoveUpRight" class="size-3.5"></svg>
     </button>
-    <button xIconButton size="sm" label="Elevator (E)" [class.bg-elevated]="tool() === 'elevator'" [class.text-fg]="tool() === 'elevator'" [attr.aria-pressed]="tool() === 'elevator'" (click)="chooseTool('elevator')" data-testid="tool-elevator">
+    <button xIconButton size="sm" [label]="t('plan.tool.elevator')" [class.bg-elevated]="tool() === 'elevator'" [class.text-fg]="tool() === 'elevator'" [attr.aria-pressed]="tool() === 'elevator'" (click)="chooseTool('elevator')" data-testid="tool-elevator">
       <svg [xIcon]="icons.ArrowBigUp" class="size-3.5"></svg>
     </button>
-    <button xIconButton size="sm" label="Column (C)" [class.bg-elevated]="tool() === 'column'" [class.text-fg]="tool() === 'column'" [attr.aria-pressed]="tool() === 'column'" (click)="chooseTool('column')" data-testid="tool-column">
+    <button xIconButton size="sm" [label]="t('plan.tool.column')" [class.bg-elevated]="tool() === 'column'" [class.text-fg]="tool() === 'column'" [attr.aria-pressed]="tool() === 'column'" (click)="chooseTool('column')" data-testid="tool-column">
       <svg [xIcon]="icons.CircleDot" class="size-3.5"></svg>
     </button>
-    <button xIconButton size="sm" label="Furniture (I): place the model picked in the Catalog panel" [class.bg-elevated]="tool() === 'item'" [class.text-fg]="tool() === 'item'" [attr.aria-pressed]="tool() === 'item'" (click)="chooseTool('item')" data-testid="tool-item">
+    <button xIconButton size="sm" [label]="t('plan.tool.item')" [class.bg-elevated]="tool() === 'item'" [class.text-fg]="tool() === 'item'" [attr.aria-pressed]="tool() === 'item'" (click)="chooseTool('item')" data-testid="tool-item">
       <svg [xIcon]="icons.Sofa" class="size-3.5"></svg>
     </button>
-    <button xIconButton size="sm" label="Light (G)" [class.bg-elevated]="tool() === 'light'" [class.text-fg]="tool() === 'light'" [attr.aria-pressed]="tool() === 'light'" (click)="chooseTool('light')" data-testid="tool-light">
+    <button xIconButton size="sm" [label]="t('plan.tool.light')" [class.bg-elevated]="tool() === 'light'" [class.text-fg]="tool() === 'light'" [attr.aria-pressed]="tool() === 'light'" (click)="chooseTool('light')" data-testid="tool-light">
       <svg [xIcon]="icons.Lightbulb" class="size-3.5"></svg>
     </button>
     <div class="w-px h-5 bg-edge mx-1"></div>
-    <button xIconButton size="sm" label="Shape (P)" [class.bg-elevated]="tool() === 'shape'" [class.text-fg]="tool() === 'shape'" [attr.aria-pressed]="tool() === 'shape'" (click)="chooseTool('shape')" data-testid="tool-shape">
+    <button xIconButton size="sm" [label]="t('plan.tool.shape')" [class.bg-elevated]="tool() === 'shape'" [class.text-fg]="tool() === 'shape'" [attr.aria-pressed]="tool() === 'shape'" (click)="chooseTool('shape')" data-testid="tool-shape">
       <svg [xIcon]="icons.Pentagon" class="size-3.5"></svg>
     </button>
-    <button xIconButton size="sm" label="Rectangle (K)" [class.bg-elevated]="tool() === 'rectangle'" [class.text-fg]="tool() === 'rectangle'" [attr.aria-pressed]="tool() === 'rectangle'" (click)="chooseTool('rectangle')" data-testid="tool-rectangle">
+    <button xIconButton size="sm" [label]="t('plan.tool.rectangle')" [class.bg-elevated]="tool() === 'rectangle'" [class.text-fg]="tool() === 'rectangle'" [attr.aria-pressed]="tool() === 'rectangle'" (click)="chooseTool('rectangle')" data-testid="tool-rectangle">
       <svg [xIcon]="icons.Square" class="size-3.5"></svg>
     </button>
-    <button xIconButton size="sm" label="Circle (O)" [class.bg-elevated]="tool() === 'circle'" [class.text-fg]="tool() === 'circle'" [attr.aria-pressed]="tool() === 'circle'" (click)="chooseTool('circle')" data-testid="tool-circle">
+    <button xIconButton size="sm" [label]="t('plan.tool.circle')" [class.bg-elevated]="tool() === 'circle'" [class.text-fg]="tool() === 'circle'" [attr.aria-pressed]="tool() === 'circle'" (click)="chooseTool('circle')" data-testid="tool-circle">
       <svg [xIcon]="icons.Circle" class="size-3.5"></svg>
     </button>
     <div class="w-px h-5 bg-edge mx-1"></div>
-    <button xIconButton size="sm" label="Dimension (L)" [class.bg-elevated]="tool() === 'dimension'" [class.text-fg]="tool() === 'dimension'" [attr.aria-pressed]="tool() === 'dimension'" (click)="chooseTool('dimension')" data-testid="tool-dimension">
+    <button xIconButton size="sm" [label]="t('plan.tool.dimension')" [class.bg-elevated]="tool() === 'dimension'" [class.text-fg]="tool() === 'dimension'" [attr.aria-pressed]="tool() === 'dimension'" (click)="chooseTool('dimension')" data-testid="tool-dimension">
       <svg [xIcon]="icons.Ruler" class="size-3.5"></svg>
     </button>
-    <button xIconButton size="sm" label="Label (T)" [class.bg-elevated]="tool() === 'label'" [class.text-fg]="tool() === 'label'" [attr.aria-pressed]="tool() === 'label'" (click)="chooseTool('label')" data-testid="tool-label">
+    <button xIconButton size="sm" [label]="t('plan.tool.label')" [class.bg-elevated]="tool() === 'label'" [class.text-fg]="tool() === 'label'" [attr.aria-pressed]="tool() === 'label'" (click)="chooseTool('label')" data-testid="tool-label">
       <svg [xIcon]="icons.Type" class="size-3.5"></svg>
     </button>
   </div>
   <div class="w-px h-5 bg-edge"></div>
-  <label class="sr-only" for="plan-level-select">Level</label>
-  <select xSelect id="plan-level-select" class="h-7 text-xs shrink-0 w-44" (change)="chooseLevel($any($event.target).value)" data-testid="plan-level" aria-label="Level">
+  <label class="sr-only" for="plan-level-select">{{ t('plan.level') }}</label>
+  <select xSelect id="plan-level-select" class="h-7 text-xs shrink-0 w-44" (change)="chooseLevel($any($event.target).value)" data-testid="plan-level" [attr.aria-label]="t('plan.level')">
     @for (level of levelsTopDown(); track level.id) {
       <option [value]="level.id" [selected]="level.id === activeLevelId()">{{ level.name }} · {{ units.length(level.elevation) }}</option>
     }
   </select>
-  <select xSelect class="h-7 text-xs shrink-0 w-32" (change)="chooseUnderlay($any($event.target).value)" data-testid="plan-underlay" aria-label="Reference level">
-    <option value="none" [selected]="underlay() === 'none'">No reference</option>
-    <option value="below" [selected]="underlay() === 'below'">Level below</option>
-    <option value="above" [selected]="underlay() === 'above'">Level above</option>
+  <select xSelect class="h-7 text-xs shrink-0 w-32" (change)="chooseUnderlay($any($event.target).value)" data-testid="plan-underlay" [attr.aria-label]="t('plan.reference')">
+    <option value="none" [selected]="underlay() === 'none'">{{ t('plan.reference.none') }}</option>
+    <option value="below" [selected]="underlay() === 'below'">{{ t('plan.reference.below') }}</option>
+    <option value="above" [selected]="underlay() === 'above'">{{ t('plan.reference.above') }}</option>
   </select>
   <div class="w-px h-5 bg-edge"></div>
   @if (editorConfig(); as c) {
     <div class="relative flex items-center">
-      <button xIconButton size="sm" [label]="c.snap ? 'Snapping on (Alt: suspend)' : 'Snapping off'" [class.bg-elevated]="c.snap" [class.text-fg]="c.snap" [attr.aria-pressed]="c.snap" (click)="toggleSnap()" data-testid="snap-toggle">
+      <button xIconButton size="sm" [label]="t(c.snap ? 'plan.snap.on' : 'plan.snap.off')" [class.bg-elevated]="c.snap" [class.text-fg]="c.snap" [attr.aria-pressed]="c.snap" (click)="toggleSnap()" data-testid="snap-toggle">
         <svg [xIcon]="icons.Magnet" class="size-3.5"></svg>
       </button>
       <button xIconButton size="sm" [label]="angleTrackingLabel(c)" [class.bg-elevated]="c.snapAngle" [class.text-fg]="c.snapAngle" [class.opacity-50]="c.snapAngle && !c.snap" [attr.aria-pressed]="c.snapAngle" (click)="toggleAngleTracking()" data-testid="snap-angle-toggle">
         <svg [xIcon]="icons.DraftingCompass" class="size-3.5"></svg>
       </button>
-      <button xIconButton size="sm" label="Snapping and grid…" [attr.aria-expanded]="snapMenuOpen()" (click)="snapMenuOpen.set(!snapMenuOpen())" data-testid="snap-menu-button">
+      <button xIconButton size="sm" [label]="t('plan.snap.menu')" [attr.aria-expanded]="snapMenuOpen()" (click)="snapMenuOpen.set(!snapMenuOpen())" data-testid="snap-menu-button">
         <svg [xIcon]="icons.ChevronDown" class="size-3"></svg>
       </button>
       @if (snapMenuOpen()) {
         <div class="fixed inset-0 z-10" (click)="snapMenuOpen.set(false)"></div>
-        <div class="absolute left-0 top-8 z-20 w-64 rounded-lg border border-edge bg-surface shadow-[var(--shadow-pop)] p-3 flex flex-col gap-2" role="menu" data-testid="snap-menu" (keydown.escape)="snapMenuOpen.set(false)">
-          <div class="text-[11px] font-medium text-muted uppercase tracking-wide">Snap to</div>
-          @for (kind of snapKinds; track kind.key) {
+        <div class="absolute start-0 top-8 z-20 w-64 rounded-lg border border-edge bg-surface shadow-[var(--shadow-pop)] p-3 flex flex-col gap-2" role="menu" data-testid="snap-menu" (keydown.escape)="snapMenuOpen.set(false)">
+          <div class="text-[11px] font-medium text-muted uppercase tracking-wide">{{ t('plan.snap.to') }}</div>
+          @for (kind of snapKinds; track kind) {
             <label class="flex items-center gap-2">
-              <input xCheckbox type="checkbox" [checked]="c[kind.key]" (change)="setEditorFlag(kind.key, $any($event.target).checked)" [attr.data-testid]="'snap-' + kind.key" />
-              {{ kind.label }}
-              @if (kind.key === 'snapAngle') {
-                <select xSelect class="h-6 text-[11px] ml-auto" [value]="c.angleStep" (change)="setAngleStep($any($event.target).value)" aria-label="Angle step" data-testid="snap-angle-step">
+              <input xCheckbox type="checkbox" [checked]="c[kind]" (change)="setEditorFlag(kind, $any($event.target).checked)" [attr.data-testid]="'snap-' + kind" />
+              {{ label('plan.snapKind.' + kind) }}
+              @if (kind === 'snapAngle') {
+                <select xSelect class="h-6 text-[11px] ms-auto" dir="ltr" [value]="c.angleStep" (change)="setAngleStep($any($event.target).value)" [attr.aria-label]="t('plan.snap.angleStep')" data-testid="snap-angle-step">
                   <option value="5">5°</option>
                   <option value="10">10°</option>
                   <option value="15">15°</option>
@@ -104,309 +104,234 @@
               }
             </label>
           }
-          <div class="text-[11px] font-medium text-muted uppercase tracking-wide mt-1">Grid</div>
+          <div class="text-[11px] font-medium text-muted uppercase tracking-wide mt-1">{{ t('plan.grid.title') }}</div>
           <label class="flex items-center gap-2">
             <input xCheckbox type="checkbox" [checked]="c.gridShow" (change)="setEditorFlag('gridShow', $any($event.target).checked)" data-testid="grid-show" />
-            Show the grid
+            {{ t('plan.grid.show') }}
           </label>
-          <label class="flex items-center gap-2">
-            Snap spacing
-            <input xInput xLength class="h-6 w-24 font-mono ml-auto" [formField]="gridForm.spacing" (commit)="setGridSpacing($event)" aria-label="Grid snap spacing" data-testid="grid-spacing" />
+          <label class="flex items-center gap-2 whitespace-nowrap">
+            {{ t('plan.grid.spacing') }}
+            <input xInput xLength class="h-6 w-24 font-mono ms-auto" [formField]="gridForm.spacing" (commit)="setGridSpacing($event)" [attr.aria-label]="t('plan.grid.spacingLabel')" data-testid="grid-spacing" />
           </label>
-          <div class="text-[11px] text-muted">Hold Alt to draw without snapping, Shift to keep to 45° steps.</div>
+          <div class="text-[11px] text-muted">{{ t('plan.snap.help') }}</div>
         </div>
       }
     </div>
   }
   <div class="flex-1"></div>
-  <button xIconButton size="sm" label="Zoom out" (click)="zoom(1 / 1.25)" data-testid="plan-zoom-out"><svg [xIcon]="icons.ZoomOut" class="size-3.5"></svg></button>
-  <span class="tabular-nums text-muted w-14 text-center font-mono" data-testid="plan-zoom">{{ zoomLabel() }}</span>
-  <button xIconButton size="sm" label="Zoom in" (click)="zoom(1.25)" data-testid="plan-zoom-in"><svg [xIcon]="icons.ZoomIn" class="size-3.5"></svg></button>
-  <button xIconButton size="sm" label="Zoom to fit (Home)" (click)="fit()" data-testid="plan-zoom-fit"><svg [xIcon]="icons.Maximize" class="size-3.5"></svg></button>
+  <button xIconButton size="sm" [label]="t('plan.zoom.out')" (click)="zoom(1 / 1.25)" data-testid="plan-zoom-out"><svg [xIcon]="icons.ZoomOut" class="size-3.5"></svg></button>
+  <span class="tabular-nums text-muted w-14 text-center font-mono bidi-ltr" data-testid="plan-zoom">{{ zoomLabel() }}</span>
+  <button xIconButton size="sm" [label]="t('plan.zoom.in')" (click)="zoom(1.25)" data-testid="plan-zoom-in"><svg [xIcon]="icons.ZoomIn" class="size-3.5"></svg></button>
+  <button xIconButton size="sm" [label]="t('plan.zoom.fit')" (click)="fit()" data-testid="plan-zoom-fit"><svg [xIcon]="icons.Maximize" class="size-3.5"></svg></button>
 </div>
 @if (tool() === 'wall') {
-  <div class="flex items-center gap-3 px-3 h-9 border-b border-edge bg-surface shrink-0 text-xs" data-testid="tool-options">
-    <span class="font-medium">Wall</span>
+  <div class="flex items-center gap-3 px-3 h-9 border-b border-edge bg-surface shrink-0 text-xs whitespace-nowrap overflow-hidden" data-testid="tool-options">
+    <span class="font-medium">{{ t('plan.wall.title') }}</span>
     <label class="flex items-center gap-1.5 text-muted">
-      Thickness
-      <input xInput class="h-7 w-24 font-mono" [formField]="wallForm.thickness" (blur)="applyWallOptions()" (keydown.enter)="$any($event.target).blur()" aria-label="Wall thickness" data-testid="wall-thickness" />
+      {{ t('plan.opt.thickness') }}
+      <input xInput class="h-7 w-24 font-mono" dir="ltr" [formField]="wallForm.thickness" (blur)="applyWallOptions()" (keydown.enter)="$any($event.target).blur()" [attr.aria-label]="t('plan.wall.thicknessLabel')" data-testid="wall-thickness" />
     </label>
     <label class="flex items-center gap-1.5 text-muted">
-      Height
-      <input xInput class="h-7 w-24 font-mono" [formField]="wallForm.height" placeholder="level" (blur)="applyWallOptions()" (keydown.enter)="$any($event.target).blur()" aria-label="Wall height" data-testid="wall-height" />
+      {{ t('plan.opt.height') }}
+      <input xInput class="h-7 w-24 font-mono placeholder:font-sans" dir="ltr" [formField]="wallForm.height" [placeholder]="t('plan.wall.heightPlaceholder')" (blur)="applyWallOptions()" (keydown.enter)="$any($event.target).blur()" [attr.aria-label]="t('plan.wall.heightLabel')" data-testid="wall-height" />
     </label>
     <label class="flex items-center gap-1.5 text-muted">
-      Body
-      <select xSelect class="h-7 text-xs" [formField]="wallForm.alignment" (change)="applyWallOptions()" aria-label="Wall alignment" data-testid="wall-alignment">
-        <option value="center">centred on the line</option>
-        <option value="left">left of the line</option>
-        <option value="right">right of the line</option>
+      {{ t('plan.wall.body') }}
+      <select xSelect class="h-7 text-xs" [formField]="wallForm.alignment" (change)="applyWallOptions()" [attr.aria-label]="t('plan.wall.alignmentLabel')" data-testid="wall-alignment">
+        <option value="center">{{ t('plan.wall.center') }}</option>
+        <option value="left">{{ t('plan.wall.left') }}</option>
+        <option value="right">{{ t('plan.wall.right') }}</option>
       </select>
     </label>
     <label class="flex items-center gap-1.5 text-muted">
       <input xCheckbox type="checkbox" [formField]="wallForm.single" (change)="applyWallOptions()" data-testid="wall-single" />
-      Single wall (one entity for the run)
+      {{ t('plan.wall.single') }}
     </label>
   </div>
 }
 @if (tool() === 'door' || tool() === 'window') {
-  <div class="flex items-center gap-3 px-3 h-9 border-b border-edge bg-surface shrink-0 text-xs" data-testid="tool-options">
-    <span class="font-medium">{{ tool() === 'door' ? 'Door' : 'Window' }}</span>
+  <div class="flex items-center gap-3 px-3 h-9 border-b border-edge bg-surface shrink-0 text-xs whitespace-nowrap overflow-hidden" data-testid="tool-options">
+    <span class="font-medium">{{ t(tool() === 'door' ? 'plan.door.title' : 'plan.window.title') }}</span>
     @if (tool() === 'door') {
-      <label class="flex items-center gap-1.5 text-muted">Width <input xInput xLength class="h-7 w-24 font-mono" [formField]="openingForm.doorWidth" (commit)="setOpeningSize('doorWidth', $event)" aria-label="Door width" data-testid="door-width" /></label>
-      <label class="flex items-center gap-1.5 text-muted">Height <input xInput xLength class="h-7 w-24 font-mono" [formField]="openingForm.doorHeight" (commit)="setOpeningSize('doorHeight', $event)" aria-label="Door height" /></label>
-      <span class="text-muted">F: flip side · H: flip hinge</span>
+      <label class="flex items-center gap-1.5 text-muted">{{ t('plan.opt.width') }} <input xInput xLength class="h-7 w-24 font-mono" [formField]="openingForm.doorWidth" (commit)="setOpeningSize('doorWidth', $event)" [attr.aria-label]="t('plan.door.widthLabel')" data-testid="door-width" /></label>
+      <label class="flex items-center gap-1.5 text-muted">{{ t('plan.opt.height') }} <input xInput xLength class="h-7 w-24 font-mono" [formField]="openingForm.doorHeight" (commit)="setOpeningSize('doorHeight', $event)" [attr.aria-label]="t('plan.door.heightLabel')" /></label>
+      <span class="text-muted">{{ t('plan.door.keys') }}</span>
     } @else {
-      <label class="flex items-center gap-1.5 text-muted">Width <input xInput xLength class="h-7 w-24 font-mono" [formField]="openingForm.windowWidth" (commit)="setOpeningSize('windowWidth', $event)" aria-label="Window width" data-testid="window-width" /></label>
-      <label class="flex items-center gap-1.5 text-muted">Height <input xInput xLength class="h-7 w-24 font-mono" [formField]="openingForm.windowHeight" (commit)="setOpeningSize('windowHeight', $event)" aria-label="Window height" /></label>
-      <label class="flex items-center gap-1.5 text-muted">Sill <input xInput xLength class="h-7 w-24 font-mono" [formField]="openingForm.windowSill" (commit)="setOpeningSize('windowSill', $event)" aria-label="Window sill" /></label>
+      <label class="flex items-center gap-1.5 text-muted">{{ t('plan.opt.width') }} <input xInput xLength class="h-7 w-24 font-mono" [formField]="openingForm.windowWidth" (commit)="setOpeningSize('windowWidth', $event)" [attr.aria-label]="t('plan.window.widthLabel')" data-testid="window-width" /></label>
+      <label class="flex items-center gap-1.5 text-muted">{{ t('plan.opt.height') }} <input xInput xLength class="h-7 w-24 font-mono" [formField]="openingForm.windowHeight" (commit)="setOpeningSize('windowHeight', $event)" [attr.aria-label]="t('plan.window.heightLabel')" /></label>
+      <label class="flex items-center gap-1.5 text-muted">{{ t('plan.opt.sill') }} <input xInput xLength class="h-7 w-24 font-mono" [formField]="openingForm.windowSill" (commit)="setOpeningSize('windowSill', $event)" [attr.aria-label]="t('plan.window.sillLabel')" /></label>
     }
   </div>
 }
 @if (isShapeTool()) {
-  <div class="flex items-center gap-3 px-3 h-9 border-b border-edge bg-surface shrink-0 text-xs" data-testid="tool-options">
-    <span class="font-medium">{{ tool() === 'shape' ? 'Shape' : tool() === 'rectangle' ? 'Rectangle' : 'Circle' }}</span>
+  <div class="flex items-center gap-3 px-3 h-9 border-b border-edge bg-surface shrink-0 text-xs whitespace-nowrap overflow-hidden" data-testid="tool-options">
+    <span class="font-medium">{{ t(tool() === 'shape' ? 'plan.shape.title' : tool() === 'rectangle' ? 'plan.rectangle.title' : 'plan.circle.title') }}</span>
     <label class="flex items-center gap-1.5 text-muted">
-      Make
-      <select xSelect class="h-7 text-xs" [value]="shapeKind()" (change)="setShapeKind($any($event.target).value)" aria-label="What the outline becomes" data-testid="shape-kind">
-        <option value="shape">a free shape</option>
-        <option value="room">a room</option>
-        <option value="slab">a slab</option>
-        <option value="void">a void</option>
+      {{ t('plan.shape.make') }}
+      <select xSelect class="h-7 text-xs" [value]="shapeKind()" (change)="setShapeKind($any($event.target).value)" [attr.aria-label]="t('plan.shape.makeLabel')" data-testid="shape-kind">
+        <option value="shape">{{ t('plan.shape.free') }}</option>
+        <option value="room">{{ t('plan.shape.room') }}</option>
+        <option value="slab">{{ t('plan.shape.slab') }}</option>
+        <option value="void">{{ t('plan.shape.void') }}</option>
       </select>
     </label>
     @if (shapeKind() === 'shape') {
       <label class="flex items-center gap-1.5 text-muted">
         <input xCheckbox type="checkbox" [checked]="shapeFilled()" (change)="setShapeFilled($any($event.target).checked)" data-testid="shape-filled" />
-        Filled
+        {{ t('plan.shape.filled') }}
       </label>
     }
     @if (tool() === 'shape') {
-      <span class="text-muted">A: arc · C or the first point: close · Enter: end</span>
+      <span class="text-muted">{{ t('plan.shape.keys') }}</span>
     } @else if (tool() === 'rectangle') {
-      <span class="text-muted">Click two opposite corners, or type @width,height</span>
+      <span class="text-muted">{{ t('plan.rectangle.keys') }}</span>
     } @else {
-      <span class="text-muted">Click the centre, then a point on the circle, or type the radius</span>
+      <span class="text-muted">{{ t('plan.circle.keys') }}</span>
     }
   </div>
 }
 @if (tool() === 'dimension') {
-  <div class="flex items-center gap-3 px-3 h-9 border-b border-edge bg-surface shrink-0 text-xs" data-testid="tool-options">
-    <span class="font-medium">Dimension</span>
+  <div class="flex items-center gap-3 px-3 h-9 border-b border-edge bg-surface shrink-0 text-xs whitespace-nowrap overflow-hidden" data-testid="tool-options">
+    <span class="font-medium">{{ t('plan.dimension.title') }}</span>
     <label class="flex items-center gap-1.5 text-muted">
-      Kind
-      <select xSelect class="h-7 text-xs" [value]="dimensionKind()" (change)="setDimensionKind($any($event.target).value)" aria-label="Dimension kind" data-testid="dimension-kind">
-        <option value="aligned">aligned</option>
-        <option value="horizontal">horizontal</option>
-        <option value="vertical">vertical</option>
-        <option value="angular">angle</option>
-        <option value="radius">radius</option>
+      {{ t('plan.opt.kind') }}
+      <select xSelect class="h-7 text-xs" [value]="dimensionKind()" (change)="setDimensionKind($any($event.target).value)" [attr.aria-label]="t('plan.dimension.kindLabel')" data-testid="dimension-kind">
+        <option value="aligned">{{ t('plan.dimension.aligned') }}</option>
+        <option value="horizontal">{{ t('plan.dimension.horizontal') }}</option>
+        <option value="vertical">{{ t('plan.dimension.vertical') }}</option>
+        <option value="angular">{{ t('plan.dimension.angular') }}</option>
+        <option value="radius">{{ t('plan.dimension.radius') }}</option>
       </select>
     </label>
-    <span class="text-muted">A point on a wall or shape corner ties the dimension to it</span>
+    <span class="text-muted">{{ t('plan.dimension.keys') }}</span>
   </div>
 }
-@if (tool() === 'stair') {
-  <div class="flex items-center gap-3 px-3 h-9 border-b border-edge bg-surface shrink-0 text-xs" data-testid="tool-options">
-    <span class="font-medium">Stair</span>
+@if (isConnectorTool()) {
+  <div class="flex items-center gap-3 px-3 h-9 border-b border-edge bg-surface shrink-0 text-xs whitespace-nowrap overflow-hidden" data-testid="tool-options">
+    <span class="font-medium">{{ label('tools.connector.' + tool()) }}</span>
+    @if (tool() === 'stair') {
+      <label class="flex items-center gap-1.5 text-muted">
+        {{ t('plan.opt.shape') }}
+        <select xSelect class="h-7 text-xs" [value]="stairShape()" (change)="setStairShape($any($event.target).value)" [attr.aria-label]="t('plan.stair.shapeLabel')" data-testid="stair-shape">
+          <option value="straight">{{ t('plan.stair.straight') }}</option>
+          <option value="l">{{ t('plan.stair.l') }}</option>
+          <option value="u">{{ t('plan.stair.u') }}</option>
+          <option value="winder">{{ t('plan.stair.winder') }}</option>
+          <option value="curved">{{ t('plan.stair.curved') }}</option>
+          <option value="spiral">{{ t('plan.stair.spiral') }}</option>
+        </select>
+      </label>
+      <label class="flex items-center gap-1.5 text-muted">{{ t('plan.opt.width') }} <input xInput xLength class="h-7 w-24 font-mono" [formField]="sizeForm.stairWidth" (commit)="setToolSize('stairWidth', $event)" [attr.aria-label]="t('plan.opt.width')" data-testid="stair-width" /></label>
+    } @else if (tool() === 'ramp') {
+      <label class="flex items-center gap-1.5 text-muted">{{ t('plan.opt.width') }} <input xInput xLength class="h-7 w-24 font-mono" [formField]="sizeForm.rampWidth" (commit)="setToolSize('rampWidth', $event)" [attr.aria-label]="t('plan.opt.width')" data-testid="ramp-width" /></label>
+    } @else if (tool() === 'escalator') {
+      <label class="flex items-center gap-1.5 text-muted">{{ t('plan.opt.width') }} <input xInput xLength class="h-7 w-24 font-mono" [formField]="sizeForm.escalatorWidth" (commit)="setToolSize('escalatorWidth', $event)" [attr.aria-label]="t('plan.opt.width')" data-testid="escalator-width" /></label>
+    } @else if (tool() === 'elevator') {
+      <span class="text-muted">{{ t('plan.elevator.shaft') }}</span>
+      <label class="flex items-center gap-1.5 text-muted">{{ t('plan.opt.w') }} <input xInput xLength class="h-7 w-24 font-mono" [formField]="sizeForm.elevatorShaftW" (commit)="setToolSize('elevatorShaftW', $event)" [attr.aria-label]="t('plan.opt.w')" data-testid="elevator-shaft-w" /></label>
+      <label class="flex items-center gap-1.5 text-muted">{{ t('plan.opt.d') }} <input xInput xLength class="h-7 w-24 font-mono" [formField]="sizeForm.elevatorShaftD" (commit)="setToolSize('elevatorShaftD', $event)" [attr.aria-label]="t('plan.opt.d')" data-testid="elevator-shaft-d" /></label>
+      <span class="text-muted">{{ t('plan.elevator.car') }}</span>
+      <label class="flex items-center gap-1.5 text-muted">{{ t('plan.opt.w') }} <input xInput xLength class="h-7 w-24 font-mono" [formField]="sizeForm.elevatorCarW" (commit)="setToolSize('elevatorCarW', $event)" [attr.aria-label]="t('plan.opt.w')" data-testid="elevator-car-w" /></label>
+      <label class="flex items-center gap-1.5 text-muted">{{ t('plan.opt.d') }} <input xInput xLength class="h-7 w-24 font-mono" [formField]="sizeForm.elevatorCarD" (commit)="setToolSize('elevatorCarD', $event)" [attr.aria-label]="t('plan.opt.d')" data-testid="elevator-car-d" /></label>
+    }
     <label class="flex items-center gap-1.5 text-muted">
-      Shape
-      <select xSelect class="h-7 text-xs" [value]="stairShape()" (change)="setStairShape($any($event.target).value)" aria-label="Stair shape" data-testid="stair-shape">
-        <option value="straight">straight</option>
-        <option value="l">L</option>
-        <option value="u">U</option>
-        <option value="winder">winder</option>
-        <option value="curved">curved</option>
-        <option value="spiral">spiral</option>
-      </select>
-    </label>
-    <label class="flex items-center gap-1.5 text-muted">Width <input xInput xLength class="h-7 w-24 font-mono" [formField]="sizeForm.stairWidth" (commit)="setToolSize('stairWidth', $event)" aria-label="Width" data-testid="stair-width" /></label>
-    <label class="flex items-center gap-1.5 text-muted">
-      From
-      <select xSelect class="h-7 text-xs max-w-40" [value]="connectorFromShown()" (change)="setConnectorLevel('from', $any($event.target).value)" aria-label="From level" data-testid="connector-from">
+      {{ t('plan.opt.from') }}
+      <select xSelect class="h-7 text-xs max-w-40" [value]="connectorFromShown()" (change)="setConnectorLevel('from', $any($event.target).value)" [attr.aria-label]="t('plan.opt.fromLevel')" data-testid="connector-from">
         @for (level of levelsTopDown(); track level.id) {
           <option [value]="level.id" [selected]="level.id === connectorFromShown()">{{ level.name }}</option>
         }
       </select>
     </label>
     <label class="flex items-center gap-1.5 text-muted">
-      To
-      <select xSelect class="h-7 text-xs max-w-40" [value]="connectorToShown()" (change)="setConnectorLevel('to', $any($event.target).value)" aria-label="To level" data-testid="connector-to">
+      {{ t('plan.opt.to') }}
+      <select xSelect class="h-7 text-xs max-w-40" [value]="connectorToShown()" (change)="setConnectorLevel('to', $any($event.target).value)" [attr.aria-label]="t('plan.opt.toLevel')" data-testid="connector-to">
         @for (level of levelsTopDown(); track level.id) {
           <option [value]="level.id" [selected]="level.id === connectorToShown()">{{ level.name }}</option>
         }
       </select>
     </label>
-    @if (stairShape() === 'u' || stairShape() === 'spiral') {
+    @if (tool() === 'stair' && (stairShape() === 'u' || stairShape() === 'spiral')) {
       <label class="flex items-center gap-1.5 text-muted">
-        Turn
-        <select xSelect class="h-7 text-xs" [value]="stairTurn()" (change)="setStairTurn($any($event.target).value)" aria-label="Stair turn" data-testid="stair-turn">
-          <option value="left">left</option>
-          <option value="right">right</option>
+        {{ t('plan.stair.turn') }}
+        <select xSelect class="h-7 text-xs" [value]="stairTurn()" (change)="setStairTurn($any($event.target).value)" [attr.aria-label]="t('plan.stair.turnLabel')" data-testid="stair-turn">
+          <option value="left">{{ t('plan.stair.left') }}</option>
+          <option value="right">{{ t('plan.stair.right') }}</option>
         </select>
       </label>
     }
-  </div>
-}
-@if (tool() === 'ramp') {
-  <div class="flex items-center gap-3 px-3 h-9 border-b border-edge bg-surface shrink-0 text-xs" data-testid="tool-options">
-    <span class="font-medium">Ramp</span>
-    <label class="flex items-center gap-1.5 text-muted">Width <input xInput xLength class="h-7 w-24 font-mono" [formField]="sizeForm.rampWidth" (commit)="setToolSize('rampWidth', $event)" aria-label="Width" data-testid="ramp-width" /></label>
-    <label class="flex items-center gap-1.5 text-muted">
-      From
-      <select xSelect class="h-7 text-xs max-w-40" [value]="connectorFromShown()" (change)="setConnectorLevel('from', $any($event.target).value)" aria-label="From level" data-testid="connector-from">
-        @for (level of levelsTopDown(); track level.id) {
-          <option [value]="level.id" [selected]="level.id === connectorFromShown()">{{ level.name }}</option>
-        }
-      </select>
-    </label>
-    <label class="flex items-center gap-1.5 text-muted">
-      To
-      <select xSelect class="h-7 text-xs max-w-40" [value]="connectorToShown()" (change)="setConnectorLevel('to', $any($event.target).value)" aria-label="To level" data-testid="connector-to">
-        @for (level of levelsTopDown(); track level.id) {
-          <option [value]="level.id" [selected]="level.id === connectorToShown()">{{ level.name }}</option>
-        }
-      </select>
-    </label>
-    <span class="text-muted">Click the points of the axis · Enter or double-click: end</span>
-  </div>
-}
-@if (tool() === 'ladder') {
-  <div class="flex items-center gap-3 px-3 h-9 border-b border-edge bg-surface shrink-0 text-xs" data-testid="tool-options">
-    <span class="font-medium">Ladder</span>
-    <label class="flex items-center gap-1.5 text-muted">
-      From
-      <select xSelect class="h-7 text-xs max-w-40" [value]="connectorFromShown()" (change)="setConnectorLevel('from', $any($event.target).value)" aria-label="From level" data-testid="connector-from">
-        @for (level of levelsTopDown(); track level.id) {
-          <option [value]="level.id" [selected]="level.id === connectorFromShown()">{{ level.name }}</option>
-        }
-      </select>
-    </label>
-    <label class="flex items-center gap-1.5 text-muted">
-      To
-      <select xSelect class="h-7 text-xs max-w-40" [value]="connectorToShown()" (change)="setConnectorLevel('to', $any($event.target).value)" aria-label="To level" data-testid="connector-to">
-        @for (level of levelsTopDown(); track level.id) {
-          <option [value]="level.id" [selected]="level.id === connectorToShown()">{{ level.name }}</option>
-        }
-      </select>
-    </label>
-    <span class="text-muted">Click the foot, then the direction it leans towards</span>
-  </div>
-}
-@if (tool() === 'escalator') {
-  <div class="flex items-center gap-3 px-3 h-9 border-b border-edge bg-surface shrink-0 text-xs" data-testid="tool-options">
-    <span class="font-medium">Escalator</span>
-    <label class="flex items-center gap-1.5 text-muted">Width <input xInput xLength class="h-7 w-24 font-mono" [formField]="sizeForm.escalatorWidth" (commit)="setToolSize('escalatorWidth', $event)" aria-label="Width" data-testid="escalator-width" /></label>
-    <label class="flex items-center gap-1.5 text-muted">
-      From
-      <select xSelect class="h-7 text-xs max-w-40" [value]="connectorFromShown()" (change)="setConnectorLevel('from', $any($event.target).value)" aria-label="From level" data-testid="connector-from">
-        @for (level of levelsTopDown(); track level.id) {
-          <option [value]="level.id" [selected]="level.id === connectorFromShown()">{{ level.name }}</option>
-        }
-      </select>
-    </label>
-    <label class="flex items-center gap-1.5 text-muted">
-      To
-      <select xSelect class="h-7 text-xs max-w-40" [value]="connectorToShown()" (change)="setConnectorLevel('to', $any($event.target).value)" aria-label="To level" data-testid="connector-to">
-        @for (level of levelsTopDown(); track level.id) {
-          <option [value]="level.id" [selected]="level.id === connectorToShown()">{{ level.name }}</option>
-        }
-      </select>
-    </label>
-    <span class="text-muted">Click the foot, then its direction</span>
-  </div>
-}
-@if (tool() === 'elevator') {
-  <div class="flex items-center gap-3 px-3 h-9 border-b border-edge bg-surface shrink-0 text-xs" data-testid="tool-options">
-    <span class="font-medium">Elevator</span>
-    <span class="text-muted">Shaft</span>
-    <label class="flex items-center gap-1.5 text-muted">W <input xInput xLength class="h-7 w-24 font-mono" [formField]="sizeForm.elevatorShaftW" (commit)="setToolSize('elevatorShaftW', $event)" aria-label="W" data-testid="elevator-shaft-w" /></label>
-    <label class="flex items-center gap-1.5 text-muted">D <input xInput xLength class="h-7 w-24 font-mono" [formField]="sizeForm.elevatorShaftD" (commit)="setToolSize('elevatorShaftD', $event)" aria-label="D" data-testid="elevator-shaft-d" /></label>
-    <span class="text-muted">Car</span>
-    <label class="flex items-center gap-1.5 text-muted">W <input xInput xLength class="h-7 w-24 font-mono" [formField]="sizeForm.elevatorCarW" (commit)="setToolSize('elevatorCarW', $event)" aria-label="W" data-testid="elevator-car-w" /></label>
-    <label class="flex items-center gap-1.5 text-muted">D <input xInput xLength class="h-7 w-24 font-mono" [formField]="sizeForm.elevatorCarD" (commit)="setToolSize('elevatorCarD', $event)" aria-label="D" data-testid="elevator-car-d" /></label>
-    <label class="flex items-center gap-1.5 text-muted">
-      From
-      <select xSelect class="h-7 text-xs max-w-40" [value]="connectorFromShown()" (change)="setConnectorLevel('from', $any($event.target).value)" aria-label="From level" data-testid="connector-from">
-        @for (level of levelsTopDown(); track level.id) {
-          <option [value]="level.id" [selected]="level.id === connectorFromShown()">{{ level.name }}</option>
-        }
-      </select>
-    </label>
-    <label class="flex items-center gap-1.5 text-muted">
-      To
-      <select xSelect class="h-7 text-xs max-w-40" [value]="connectorToShown()" (change)="setConnectorLevel('to', $any($event.target).value)" aria-label="To level" data-testid="connector-to">
-        @for (level of levelsTopDown(); track level.id) {
-          <option [value]="level.id" [selected]="level.id === connectorToShown()">{{ level.name }}</option>
-        }
-      </select>
-    </label>
+    @if (tool() === 'ramp') {
+      <span class="text-muted">{{ t('plan.ramp.keys') }}</span>
+    } @else if (tool() === 'ladder') {
+      <span class="text-muted">{{ t('plan.ladder.keys') }}</span>
+    } @else if (tool() === 'escalator') {
+      <span class="text-muted">{{ t('plan.escalator.keys') }}</span>
+    }
   </div>
 }
 @if (tool() === 'item') {
-  <div class="flex items-center gap-3 px-3 h-9 border-b border-edge bg-surface shrink-0 text-xs" data-testid="tool-options">
-    <span class="font-medium">Furniture</span>
+  <div class="flex items-center gap-3 px-3 h-9 border-b border-edge bg-surface shrink-0 text-xs whitespace-nowrap overflow-hidden" data-testid="tool-options">
+    <span class="font-medium">{{ t('plan.item.title') }}</span>
     @if (itemArm(); as arm) {
-      <span class="text-fg" data-testid="item-armed">{{ arm.name }}</span>
+      <span class="text-fg" dir="auto" data-testid="item-armed">{{ arm.name }}</span>
       @if (arm.size) {
-        <span class="text-muted font-mono">{{ units.length(arm.size[0]) }} × {{ units.length(arm.size[1]) }} × {{ units.length(arm.size[2]) }}</span>
+        <span class="text-muted font-mono bidi-ltr">{{ units.length(arm.size[0]) }} × {{ units.length(arm.size[1]) }} × {{ units.length(arm.size[2]) }}</span>
       }
       @if (arm.lamp) {
         <label class="flex items-center gap-1.5 text-muted">
           <input xCheckbox type="checkbox" [checked]="itemWithLight()" (change)="setItemWithLight($any($event.target).checked)" data-testid="item-with-light" />
-          With its light
+          {{ t('plan.item.withLight') }}
         </label>
       }
-      <span class="text-muted">R: turn 15° · Shift+wheel</span>
+      <span class="text-muted">{{ t('plan.item.keys') }}</span>
     } @else {
-      <span class="text-muted">Pick a model in the Catalog panel (right).</span>
+      <span class="text-muted">{{ t('plan.item.none') }}</span>
     }
   </div>
 }
 @if (tool() === 'paint') {
-  <div class="flex items-center gap-3 px-3 h-9 border-b border-edge bg-surface shrink-0 text-xs" data-testid="tool-options">
-    <span class="font-medium">Paint</span>
+  <div class="flex items-center gap-3 px-3 h-9 border-b border-edge bg-surface shrink-0 text-xs whitespace-nowrap overflow-hidden" data-testid="tool-options">
+    <span class="font-medium">{{ t('plan.paint.title') }}</span>
     @if (paintArm(); as paint) {
-      <span class="text-fg" data-testid="paint-armed">{{ paint.name }}</span>
-      <span class="text-muted">Click a wall face or a room's floor; in 3D, any wall face, floor or ceiling.</span>
+      <span class="text-fg" dir="auto" data-testid="paint-armed">{{ paint.name }}</span>
+      <span class="text-muted">{{ t('plan.paint.keys') }}</span>
     } @else {
-      <span class="text-muted">Pick a material in the Catalog panel (right).</span>
+      <span class="text-muted">{{ t('plan.paint.none') }}</span>
     }
   </div>
 }
 @if (tool() === 'light') {
-  <div class="flex items-center gap-3 px-3 h-9 border-b border-edge bg-surface shrink-0 text-xs" data-testid="tool-options">
-    <span class="font-medium">Light</span>
-    <select xSelect class="h-7 text-xs" [value]="lightKind()" (change)="setLightKind($any($event.target).value)" aria-label="Kind of light" data-testid="light-tool-kind">
-      <option value="point">Point</option>
-      <option value="spot">Spot (down)</option>
-      <option value="area">Area panel</option>
+  <div class="flex items-center gap-3 px-3 h-9 border-b border-edge bg-surface shrink-0 text-xs whitespace-nowrap overflow-hidden" data-testid="tool-options">
+    <span class="font-medium">{{ t('plan.light.title') }}</span>
+    <select xSelect class="h-7 text-xs" [value]="lightKind()" (change)="setLightKind($any($event.target).value)" [attr.aria-label]="t('plan.light.kindLabel')" data-testid="light-tool-kind">
+      <option value="point">{{ t('plan.light.point') }}</option>
+      <option value="spot">{{ t('plan.light.spot') }}</option>
+      <option value="area">{{ t('plan.light.area') }}</option>
     </select>
-    <label class="flex items-center gap-1.5 text-muted">Height <input xInput xLength class="h-7 w-24 font-mono" [formField]="lightForm.height" (commit)="setLightHeight($event)" aria-label="Height above the floor" data-testid="light-tool-height" /></label>
-    <label class="flex items-center gap-1.5 text-muted">Lumens <input xInput class="h-7 w-20 font-mono" [value]="lightLumens()" (change)="setLightLumens($any($event.target).value)" (keydown.enter)="$any($event.target).blur()" aria-label="Lumens" data-testid="light-tool-lumens" /></label>
+    <label class="flex items-center gap-1.5 text-muted">{{ t('plan.opt.height') }} <input xInput xLength class="h-7 w-24 font-mono" [formField]="lightForm.height" (commit)="setLightHeight($event)" [attr.aria-label]="t('plan.light.heightLabel')" data-testid="light-tool-height" /></label>
+    <label class="flex items-center gap-1.5 text-muted">{{ t('plan.light.lumens') }} <input xInput class="h-7 w-20 font-mono" dir="ltr" [value]="lightLumens()" (change)="setLightLumens($any($event.target).value)" (keydown.enter)="$any($event.target).blur()" [attr.aria-label]="t('plan.light.lumens')" data-testid="light-tool-lumens" /></label>
   </div>
 }
 @if (tool() === 'column') {
-  <div class="flex items-center gap-3 px-3 h-9 border-b border-edge bg-surface shrink-0 text-xs" data-testid="tool-options">
-    <span class="font-medium">Column</span>
+  <div class="flex items-center gap-3 px-3 h-9 border-b border-edge bg-surface shrink-0 text-xs whitespace-nowrap overflow-hidden" data-testid="tool-options">
+    <span class="font-medium">{{ t('plan.column.title') }}</span>
     <label class="flex items-center gap-1.5 text-muted">
-      Shape
-      <select xSelect class="h-7 text-xs" [value]="columnShape()" (change)="setColumnShape($any($event.target).value)" aria-label="Column shape" data-testid="column-shape">
-        <option value="rect">rectangular</option>
-        <option value="circle">round</option>
+      {{ t('plan.opt.shape') }}
+      <select xSelect class="h-7 text-xs" [value]="columnShape()" (change)="setColumnShape($any($event.target).value)" [attr.aria-label]="t('plan.column.shapeLabel')" data-testid="column-shape">
+        <option value="rect">{{ t('plan.column.rect') }}</option>
+        <option value="circle">{{ t('plan.column.circle') }}</option>
       </select>
     </label>
     @if (columnShape() === 'rect') {
-      <label class="flex items-center gap-1.5 text-muted">W <input xInput xLength class="h-7 w-24 font-mono" [formField]="sizeForm.columnW" (commit)="setToolSize('columnW', $event)" aria-label="W" data-testid="column-w" /></label>
-      <label class="flex items-center gap-1.5 text-muted">D <input xInput xLength class="h-7 w-24 font-mono" [formField]="sizeForm.columnD" (commit)="setToolSize('columnD', $event)" aria-label="D" data-testid="column-d" /></label>
-      <label class="flex items-center gap-1.5 text-muted">Rotation <input xInput class="h-7 w-16 font-mono" [value]="columnRotation()" (change)="setColumnRotation($any($event.target).value)" (keydown.enter)="$any($event.target).blur()" aria-label="Column rotation" data-testid="column-rotation" /></label>
+      <label class="flex items-center gap-1.5 text-muted">{{ t('plan.opt.w') }} <input xInput xLength class="h-7 w-24 font-mono" [formField]="sizeForm.columnW" (commit)="setToolSize('columnW', $event)" [attr.aria-label]="t('plan.opt.w')" data-testid="column-w" /></label>
+      <label class="flex items-center gap-1.5 text-muted">{{ t('plan.opt.d') }} <input xInput xLength class="h-7 w-24 font-mono" [formField]="sizeForm.columnD" (commit)="setToolSize('columnD', $event)" [attr.aria-label]="t('plan.opt.d')" data-testid="column-d" /></label>
+      <label class="flex items-center gap-1.5 text-muted">{{ t('plan.opt.rotation') }} <input xInput class="h-7 w-16 font-mono" dir="ltr" [value]="columnRotation()" (change)="setColumnRotation($any($event.target).value)" (keydown.enter)="$any($event.target).blur()" [attr.aria-label]="t('plan.column.rotationLabel')" data-testid="column-rotation" /></label>
     } @else {
-      <label class="flex items-center gap-1.5 text-muted">Radius <input xInput xLength class="h-7 w-24 font-mono" [formField]="sizeForm.columnR" (commit)="setToolSize('columnR', $event)" aria-label="Radius" data-testid="column-r" /></label>
+      <label class="flex items-center gap-1.5 text-muted">{{ t('plan.opt.radius') }} <input xInput xLength class="h-7 w-24 font-mono" [formField]="sizeForm.columnR" (commit)="setToolSize('columnR', $event)" [attr.aria-label]="t('plan.opt.radius')" data-testid="column-r" /></label>
     }
     <label class="flex items-center gap-1.5 text-muted">
-      Up to
-      <select xSelect class="h-7 text-xs max-w-40" [value]="columnSpan() ?? ''" (change)="setColumnSpan($any($event.target).value)" aria-label="The level the column reaches" data-testid="column-span">
-        <option value="">this level only</option>
+      {{ t('plan.column.upTo') }}
+      <select xSelect class="h-7 text-xs max-w-40" [value]="columnSpan() ?? ''" (change)="setColumnSpan($any($event.target).value)" [attr.aria-label]="t('plan.column.spanLabel')" data-testid="column-span">
+        <option value="">{{ t('plan.column.thisLevel') }}</option>
         @for (level of levelsTopDown(); track level.id) {
           <option [value]="level.id" [selected]="level.id === columnSpan()">{{ level.name }}</option>
         }
@@ -415,13 +340,13 @@
   </div>
 }
 @if (tool() === 'label') {
-  <div class="flex items-center gap-3 px-3 h-9 border-b border-edge bg-surface shrink-0 text-xs" data-testid="tool-options">
-    <span class="font-medium">Label</span>
+  <div class="flex items-center gap-3 px-3 h-9 border-b border-edge bg-surface shrink-0 text-xs whitespace-nowrap overflow-hidden" data-testid="tool-options">
+    <span class="font-medium">{{ t('plan.label.title') }}</span>
     <label class="flex items-center gap-1.5 text-muted">
-      Text height
-      <input xInput xLength class="h-7 w-24 font-mono" [formField]="labelForm.size" (commit)="setLabelSize($event)" aria-label="Label text height" data-testid="label-size" />
+      {{ t('plan.label.size') }}
+      <input xInput xLength class="h-7 w-24 font-mono" [formField]="labelForm.size" (commit)="setLabelSize($event)" [attr.aria-label]="t('plan.label.sizeLabel')" data-testid="label-size" />
     </label>
-    <span class="text-muted">Click where the label goes, type its text, Enter</span>
+    <span class="text-muted">{{ t('plan.label.keys') }}</span>
   </div>
 }
 <div #container class="relative flex-1 min-h-0 bg-canvas">
@@ -429,7 +354,8 @@
     #canvas
     class="absolute inset-0 w-full h-full outline-none touch-none"
     tabindex="0"
-    aria-label="Plan of the active level"
+    dir="ltr"
+    [attr.aria-label]="t('plan.canvas')"
     data-testid="plan-canvas"
     [attr.data-camera]="cameraAttr()"
     [attr.data-level]="activeLevelId()"
@@ -455,28 +381,29 @@
     >
       <div class="flex flex-col items-center text-center max-w-[600px]">
         <x-room-sketch class="w-[200px] h-[125px] mb-4" />
-        <h2 class="heading-page text-fg mb-2">Draw the first wall.</h2>
-        <p class="text-[14px] leading-5 text-muted max-w-[54ch]">Press <span class="font-medium text-fg">W</span>, click where a corner is, and type a length from your tape measure. Rooms appear by themselves once the walls close.</p>
+        <h2 class="heading-page text-fg mb-2">{{ t('plan.empty.title') }}</h2>
+        <p class="text-[14px] leading-5 text-muted max-w-[54ch]">{{ t('plan.empty.press') }} <span class="font-medium text-fg">W</span>{{ t('plan.empty.rest') }}</p>
         <div class="flex flex-wrap justify-center gap-x-6 gap-y-2 mt-4 text-[13px] text-muted" data-testid="plan-empty-keys">
-          <span class="inline-flex items-center gap-1.5"><kbd xKbd>W</kbd>Wall</span>
-          <span class="inline-flex items-center gap-1.5"><kbd xKbd>D</kbd>Door</span>
-          <span class="inline-flex items-center gap-1.5"><kbd xKbd>N</kbd>Window</span>
-          <span class="inline-flex items-center gap-1.5"><kbd xKbd>{{ modKey }} K</kbd>Every command</span>
+          <span class="inline-flex items-center gap-1.5"><kbd xKbd>W</kbd>{{ t('plan.empty.wall') }}</span>
+          <span class="inline-flex items-center gap-1.5"><kbd xKbd>D</kbd>{{ t('plan.empty.door') }}</span>
+          <span class="inline-flex items-center gap-1.5"><kbd xKbd>N</kbd>{{ t('plan.empty.window') }}</span>
+          <span class="inline-flex items-center gap-1.5"><kbd xKbd>{{ modKey }} K</kbd>{{ t('plan.empty.commands') }}</span>
         </div>
         <label
-          class="flex items-center gap-2.5 mt-5 rounded-md bg-ai-tint pl-2.5 pr-3.5 py-2 text-[13px] text-fg text-left w-[min(460px,100%)]"
+          class="flex items-center gap-2.5 mt-5 rounded-md bg-ai-tint ps-2.5 pe-3.5 py-2 text-[13px] text-fg text-start w-[min(460px,100%)]"
           [class.pointer-events-auto]="tool() === 'select'"
           data-testid="plan-empty-otto-line"
           [attr.data-ready]="ottoReady()"
         >
           <x-otto-mark size="20" />
-          <span class="shrink-0">{{ ottoReady() ? 'Or tell Otto:' : 'Or tell Otto, once it has a key:' }}</span>
+          <span class="shrink-0">{{ t(ottoReady() ? 'plan.empty.otto' : 'plan.empty.ottoNoKey') }}</span>
           <input
             type="text"
+            dir="auto"
             class="min-w-0 flex-1 bg-transparent border-0 p-0 italic text-[13px] text-fg underline decoration-dotted decoration-muted underline-offset-4 rounded-sm focus:outline-none focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
             [formField]="ottoForm.sentence"
-            aria-label="A sentence for Otto: Enter sends it"
-            [title]="ottoReady() ? 'Enter sends this to Otto, who drafts it on this level' : 'Enter opens Settings, where Otto gets its key'"
+            [attr.aria-label]="t('plan.empty.ottoInput')"
+            [title]="t(ottoReady() ? 'plan.empty.ottoReady' : 'plan.empty.ottoSetup')"
             (keydown.enter)="tellOtto(); $event.preventDefault()"
             data-testid="plan-empty-otto"
           />
@@ -490,12 +417,13 @@
       xInput
       class="absolute z-10 h-7 !w-52 text-xs shadow-[var(--shadow-pop)]"
       [class.font-mono]="d.mode === 'coord'"
+      [attr.dir]="d.mode === 'coord' ? 'ltr' : 'auto'"
       [style.left.px]="d.x"
       [style.top.px]="d.y"
       [value]="d.value"
       [placeholder]="d.placeholder"
       [attr.data-mode]="d.mode"
-      [attr.aria-label]="d.mode === 'text' ? d.placeholder : 'Typed length or coordinate'"
+      [attr.aria-label]="d.mode === 'text' ? d.placeholder : t('plan.typedLabel')"
       data-testid="dynamic-input"
       (keydown.enter)="commitTyped(); $event.preventDefault()"
       (keydown.escape)="closeTyped(); $event.preventDefault()"
@@ -504,9 +432,10 @@
   }
 </div>
 <div class="flex items-center gap-4 px-3 h-6 border-t border-edge bg-surface shrink-0 text-[11px] text-muted font-mono whitespace-nowrap overflow-hidden" data-testid="plan-footer">
-  <span class="min-w-48 shrink-0" data-testid="plan-cursor">{{ cursorLabel() }}</span>
-  <span class="shrink-0 min-w-20 text-success" data-testid="plan-snap">{{ snapLabel() }}</span>
-  <span class="shrink-0 max-w-40 truncate">{{ levelName() }}</span>
-  <span class="shrink-0" data-testid="plan-selection">{{ selectionLabel() }}</span>
-  <span class="flex-1 min-w-0 truncate text-right" data-testid="plan-hint">{{ hint() }}</span>
+  <span class="min-w-48 shrink-0"><span class="bidi-ltr" data-testid="plan-cursor">{{ cursorLabel() }}</span></span>
+  <span class="shrink-0 min-w-20 text-success rtl:font-sans" dir="auto" data-testid="plan-snap">{{ snapLabel() }}</span>
+  <span class="shrink-0 max-w-40 truncate" dir="auto">{{ levelName() }}</span>
+  <span class="shrink-0 rtl:font-sans" data-testid="plan-selection">{{ selectionLabel() }}</span>
+  <!-- Words read in the sans in Arabic: the mono face has no Arabic, and its wide space spreads the words apart. -->
+  <span class="flex-1 min-w-0 truncate text-end rtl:font-sans" data-testid="plan-hint">{{ hint() }}</span>
 </div>

@@ -35,6 +35,20 @@ describe('parseLength', () => {
     expect(parseLength('.5 m', metric())).toBe(500);
   });
 
+  it('reads lengths typed on an Arabic keyboard', () => {
+    expect(parseLength('٣٦٠٠', metric())).toBe(3600);
+    expect(parseLength('۳۶۰۰', metric())).toBe(3600);
+    expect(parseLength('٣٫٢م', metric())).toBe(3200);
+    expect(parseLength('٣٫٢ م', metric())).toBe(3200);
+    expect(parseLength('٣٢٠ سم', metric())).toBe(3200);
+    expect(parseLength('٣٢٠٠ مم', metric())).toBe(3200);
+    expect(parseLength('٣٢٠٠ملم', metric())).toBe(3200);
+    expect(parseLength('-١٥٠', metric())).toBe(-150);
+    expect(parseLength('١٬٢٥٠', metric())).toBe(1250);
+    expect(parseLength('3600 mm', metric())).toBe(3600);
+    expect(parseLength('م', metric())).toBeNull();
+  });
+
   it('reads feet and inches in the usual spellings', () => {
     expect(parseLength(`10'`, imperial())).toBeCloseTo(3048);
     expect(parseLength(`10' 6"`, imperial())).toBeCloseTo(3200.4);
@@ -74,5 +88,10 @@ describe('angles', () => {
     expect(parseAngle('-30 deg')).toBe(-30);
     expect(parseAngle(`${Math.PI / 2} rad`)).toBeCloseTo(90);
     expect(parseAngle('north')).toBeNull();
+    // Typed on an Arabic keyboard.
+    expect(parseAngle('٤٥')).toBe(45);
+    expect(parseAngle('٢٢٫٥°')).toBe(22.5);
+    expect(parseAngle('-٣٠ درجة')).toBe(-30);
+    expect(parseAngle('درجة')).toBeNull();
   });
 });

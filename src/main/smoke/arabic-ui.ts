@@ -1,6 +1,6 @@
-import type { ProjectSummary } from '@studio/core';
-import type { Smoke } from './harness';
-import { tab } from './plan-canvas';
+import type { Entity, ProjectSummary } from '@studio/core';
+import { wait, type Smoke } from './harness';
+import { canvas, canvasAttr, tab, view } from './plan-canvas';
 
 interface Layout {
   dir: string;
@@ -257,6 +257,8 @@ async function smokeArabicLibrary(smoke: Smoke): Promise<void> {
   await smoke.js(`document.querySelector('[data-section=updates]').scrollIntoView({ block: 'start' })`);
   await smoke.shots('87-settings-updates-arabic');
 
+  if (project) await smokeArabicPlan(smoke, project.id);
+
   // The project leaves: its tab closes and it goes to the trash, so the sections after this one count the library they expect.
   if (project) {
     await smoke.run('project.close', { id: project.id });
@@ -266,4 +268,193 @@ async function smokeArabicLibrary(smoke: Smoke): Promise<void> {
     "the Arabic project's tab is closed and the project in the trash",
     await smoke.until(async () => (await smoke.count(`[data-testid=tab][data-type="project.editor"][data-title="${ARABIC_NAME}"]`)) === 0 && !host.projects.list().some((p) => p.name === ARABIC_NAME)),
   );
+}
+
+type Wall = Extract<Entity, { type: 'wall' }>;
+
+/** The Arabic room name and label text the plan section draws. */
+const ROOM_NAME = 'غرفة المعيشة';
+const LABEL_TEXT = 'مطبخ مفتوح';
+
+/**
+ * How many dark pixels (the plan's ink on the light paper: walls, text) the plan canvas has in a box of
+ * window pixels, after the renderer has drawn a frame: a name or a label drawn there shows as ink. The box
+ * must lie on the canvas.
+ */
+const inkIn = (smoke: Smoke, box: { x: number; y: number; width: number; height: number }) =>
+  smoke.js<number>(`new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => {
+    const c = document.querySelector(${JSON.stringify(canvas)});
+    if (!c) return resolve(-1);
+    const r = c.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    const d = c.getContext('2d').getImageData(Math.round((${box.x} - r.x) * dpr), Math.round((${box.y} - r.y) * dpr), Math.round(${box.width} * dpr), Math.round(${box.height} * dpr)).data;
+    let n = 0;
+    // Opaque pixels only: outside the canvas getImageData answers transparent black.
+    for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 200 && d[i] + d[i + 1] + d[i + 2] < 300) n++;
+    resolve(n);
+  })))`);
+
+/**
+ * The plan in Arabic (milestone 12, step 3): the empty level's guide, the Wall tool's options and hint, a
+ * shortcut pressed on an Arabic keyboard layout, a wall drawn by typing its length in Arabic-Indic digits,
+ * a label typed in Arabic through the Label tool and a room named in Arabic drawn on the canvas, the hint
+ * following a live language switch, and a selected wall's Properties with its length a left-to-right island.
+ */
+async function smokeArabicPlan(smoke: Smoke, projectId: string): Promise<void> {
+  const { host } = smoke;
+  smoke.section('arabic: the plan');
+  const doc = () => host.projects.session(projectId)!.doc;
+  const level = doc().building.groundLevelId;
+  const entities = () => Object.values(doc().levelData[level].entities);
+  const walls = () => entities().filter((e): e is Wall => e.type === 'wall');
+  const hint = () => smoke.text(`${tab} [data-testid=plan-hint]`);
+  const tool = () => canvasAttr(smoke, 'tool');
+  await smoke.click(`[data-testid=tab][data-type="project.editor"][data-title="${ARABIC_NAME}"]`);
+  await smoke.until(() => smoke.js<boolean>(`document.querySelector('${tab} [data-testid=project-name]')?.value === ${JSON.stringify(ARABIC_NAME)}`));
+  await smoke.click(`${tab} [data-testid=right-tab-properties]`);
+
+  smoke.check('the empty level speaks Arabic', (await smoke.waitFor(`${tab} [data-testid=plan-empty]`, 3000, 'ارسم الجدار الأول.')) && (await smoke.waitFor(`${tab} [data-testid=plan-empty-otto-line]`, 3000, 'Otto')));
+  smoke.check("its sketch's dimension stays a drawing, left to right", (await direction(smoke, `${tab} [data-testid=plan-empty] x-room-sketch svg`)) === 'ltr');
+  smoke.check('the canvas is never mirrored', (await direction(smoke, canvas)) === 'ltr');
+  smoke.check('the Properties panel speaks Arabic', (await smoke.waitFor(`${tab} [data-testid=properties-empty]`, 3000, 'لا شيء محدد')) && (await smoke.waitFor(`${tab} [data-testid=right-tab-properties]`, 3000, 'الخصائص')));
+
+  smoke.section('arabic: the Wall tool');
+  await smoke.click(`${tab} [data-testid=tool-wall]`);
+  smoke.check('the Wall tool shows its options in Arabic', (await smoke.until(async () => (await tool()) === 'wall')) && (await smoke.waitFor(`${tab} [data-testid=tool-options]`, 3000, 'السماكة')));
+  smoke.check('and its hint in the footer, key names in Latin', await smoke.until(async () => (await hint()) === 'انقر بداية الجدار · V: تحديد'), await hint());
+  smoke.check('the hint is a line of the right-to-left footer', (await direction(smoke, `${tab} [data-testid=plan-hint]`)) === 'rtl');
+  // A live switch: the footer's hint follows the language without the tool being picked again.
+  await smoke.run('config.update', { patch: { appearance: { language: 'en' } } });
+  smoke.check('the hint follows a switch to English at once', await smoke.until(async () => (await hint()) === 'Click the start of a wall · V: select'), await hint());
+  await smoke.run('config.update', { patch: { appearance: { language: 'ar' } } });
+  smoke.check('and back to Arabic', await smoke.until(async () => (await hint()) === 'انقر بداية الجدار · V: تحديد'), await hint());
+  await smoke.until(() => smoke.js<boolean>(`document.documentElement.dir === 'rtl'`));
+
+  // On an Arabic layout the W key writes ص: the shortcut goes by the physical key. Electron's input events
+  // always come from a Latin layout, so this one is dispatched as the Arabic layout would send it.
+  await smoke.js(`document.querySelector('${canvas}').focus()`);
+  await smoke.key('Escape');
+  await smoke.until(async () => (await tool()) === 'select');
+  await smoke.js(`document.querySelector('${canvas}').dispatchEvent(new KeyboardEvent('keydown', { key: 'ص', code: 'KeyW', bubbles: true, cancelable: true }))`);
+  smoke.check('W on an Arabic keyboard layout picks the Wall tool', await smoke.until(async () => (await tool()) === 'wall'), await tool());
+  await wait(100);
+
+  // A wall typed in Arabic-Indic digits: start with a click (Alt: exactly there), aim to the right, type ٣٦٠٠.
+  // An empty level's camera has not moved yet, so the canvas has no `data-camera`: zoom in and out once.
+  await smoke.click(`${tab} [data-testid=plan-zoom-in]`);
+  await smoke.click(`${tab} [data-testid=plan-zoom-out]`);
+  await smoke.until(async () => Boolean(await canvasAttr(smoke, 'camera')));
+  let v = await view(smoke);
+  const start = v.at([-2000, -1500]);
+  await smoke.clickAt(start.x, start.y, { modifiers: ['alt'] });
+  await smoke.mouseMove(start.x + 60, start.y, ['alt']);
+  await smoke.mouseMove(start.x + 61, start.y, ['alt']);
+  // The first digit is a key the canvas must see; an Arabic-Indic one comes from an Arabic layout, dispatched as it would send it.
+  await smoke.js(`document.querySelector('${canvas}').dispatchEvent(new KeyboardEvent('keydown', { key: '٣', code: 'Digit3', bubbles: true, cancelable: true }))`);
+  smoke.check('an Arabic-Indic digit opens the input at the cursor', (await smoke.waitFor(`${tab} [data-testid=dynamic-input][data-mode=coord]`)) && (await smoke.js<string>(`document.querySelector('${tab} [data-testid=dynamic-input]').value`)) === '٣');
+  await smoke.typeText('٦٠٠');
+  const typed = await smoke.js<{ value: string; dir: string }>(`(() => { const el = document.querySelector('${tab} [data-testid=dynamic-input]'); return { value: el.value, dir: getComputedStyle(el).direction }; })()`);
+  smoke.check('the length reads as typed, left to right', typed.value === '٣٦٠٠' && typed.dir === 'ltr', typed);
+  await smoke.shots('88-plan-typed-arabic');
+  const before = walls().length;
+  await smoke.key('Return');
+  const typedWall = () => walls()[before];
+  const length = () => {
+    const w = typedWall();
+    return w ? Math.hypot(w.path.v[1].p[0] - w.path.v[0].p[0], w.path.v[1].p[1] - w.path.v[0].p[1]) : 0;
+  };
+  smoke.check('a length typed as ٣٦٠٠ draws a 3600 mm wall', await smoke.until(() => walls().length === before + 1 && Math.abs(length() - 3600) < 0.01), { walls: walls().length, length: length() });
+  smoke.check('the hint goes on to the next point, in Arabic', await smoke.until(async () => (await hint())?.startsWith('انقر النقطة التالية') === true), await hint());
+  await smoke.js(`document.querySelector('${canvas}').focus()`);
+  await smoke.key('Escape');
+  await smoke.key('Escape');
+  await smoke.until(async () => (await tool()) === 'select');
+
+  // The rest of the room through commands, and its name in Arabic.
+  const p0 = typedWall().path.v[0].p;
+  const corner = (dx: number, dy: number): [number, number] => [p0[0] + dx, p0[1] + dy];
+  await smoke.run('plan.wall.add', { levelId: level, points: [{ p: corner(3600, 0) }, { p: corner(3600, 3000) }, { p: corner(0, 3000) }, { p: corner(0, 0) }] }, { projectId });
+  await smoke.run('plan.room.add', { levelId: level, seed: corner(1800, 1500), name: ROOM_NAME }, { projectId });
+  const rooms = await smoke.run<{ name: string; enclosed: boolean; labelAt: [number, number] }[]>('plan.rooms', { levelId: level }, { projectId });
+  const room = rooms.find((r) => r.name === ROOM_NAME);
+  smoke.check('the Arabic room is enclosed', room?.enclosed === true, rooms);
+  // Fit the room into view. The walls reach the window's mirror a moment after the commands: fit again until both corners are on the canvas.
+  const inView = async () => {
+    const now = await view(smoke);
+    return [corner(-200, -200), corner(3800, 3200)].every((p) => {
+      const s = now.at(p);
+      return s.x > now.rect.x && s.x < now.rect.x + now.rect.width && s.y > now.rect.y && s.y < now.rect.y + now.rect.height;
+    });
+  };
+  smoke.check(
+    'the room fits into view',
+    await smoke.until(async () => {
+      await smoke.click(`${tab} [data-testid=plan-zoom-fit]`);
+      await wait(150);
+      return inView();
+    }),
+  );
+
+  // A label typed in Arabic through the Label tool, in the room above its name (on the room's light floor).
+  const labelAt = corner(1800, 2300);
+  const labelBox = (at: { x: number; y: number }) => ({ x: at.x - 50, y: at.y - 12, width: 100, height: 24 });
+  v = await view(smoke);
+  const inkBefore = await inkIn(smoke, labelBox(v.at(labelAt)));
+  await smoke.js(`document.querySelector('${canvas}').focus()`);
+  await smoke.key('T');
+  smoke.check('T picks the Label tool', await smoke.until(async () => (await tool()) === 'label'), await tool());
+  await wait(100);
+  // The Label tool's options bar took space above the canvas: measure again.
+  v = await view(smoke);
+  const labelPx = v.at(labelAt);
+  await smoke.clickAt(labelPx.x, labelPx.y, { modifiers: ['alt'] });
+  smoke.check('the Label tool asks for its text in Arabic', (await smoke.waitFor(`${tab} [data-testid=dynamic-input][data-mode=text]`)) && (await smoke.js<string>(`document.querySelector('${tab} [data-testid=dynamic-input]').placeholder`)) === 'النص');
+  await smoke.typeText(LABEL_TEXT);
+  await smoke.key('Return');
+  const label = () => entities().find((e) => e.type === 'label' && e.text === LABEL_TEXT);
+  smoke.check('an Arabic label is placed', await smoke.until(() => Boolean(label())), entities().filter((e) => e.type === 'label'));
+  await smoke.js(`document.querySelector('${canvas}').focus()`);
+  await smoke.key('Escape');
+  await smoke.until(async () => (await tool()) === 'select');
+  await wait(100);
+
+  // Drawn: ink where the label and the room's name are (both on the room's light floor, nothing else dark there).
+  v = await view(smoke);
+  const inkAfter = await inkIn(smoke, labelBox(v.at(labelAt)));
+  smoke.check('the Arabic label is drawn on the canvas', inkBefore >= 0 && inkAfter > inkBefore + 15, { inkBefore, inkAfter });
+  if (room) {
+    const name = v.at(room.labelAt);
+    const nameInk = await inkIn(smoke, { x: name.x - 50, y: name.y - 18, width: 100, height: 16 });
+    smoke.check("and so is the room's Arabic name", nameInk > 15, nameInk);
+  }
+  await smoke.shots('89-plan-arabic');
+
+  await smoke.click(`${tab} [data-testid=snap-menu-button]`);
+  smoke.check('the snap menu speaks Arabic', (await smoke.waitFor(`${tab} [data-testid=snap-menu]`, 3000, 'نقاط النهاية')) && (await smoke.waitFor(`${tab} [data-testid=snap-menu]`, 3000, 'إظهار الشبكة')));
+  smoke.check('with its grid spacing a left-to-right island', (await direction(smoke, `${tab} [data-testid=grid-spacing]`)) === 'ltr');
+  await smoke.shots('91-plan-snap-menu-arabic');
+  await smoke.js(`document.querySelector('[data-testid=snap-menu]')?.previousElementSibling?.dispatchEvent(new MouseEvent('click', { bubbles: true }))`);
+  await smoke.gone(`${tab} [data-testid=snap-menu]`);
+  // The stair's options bar, the longest, and its hint on a one-level project.
+  await smoke.js(`document.querySelector('${canvas}').focus()`);
+  await smoke.key('S', ['shift']);
+  smoke.check('Shift+S picks the stair, its options and hint in Arabic', (await smoke.until(async () => (await tool()) === 'stair')) && (await smoke.waitFor(`${tab} [data-testid=tool-options]`, 3000, 'درج')) && (await smoke.until(async () => (await hint())?.startsWith('يحتاج الدرج') === true)), await hint());
+  await smoke.shots('92-plan-stair-arabic');
+  await smoke.key('Escape');
+  await smoke.until(async () => (await tool()) === 'select');
+  await wait(100);
+  v = await view(smoke);
+
+  smoke.section('arabic: a selected wall');
+  const mid = v.at(corner(1800, 0));
+  await smoke.clickAt(mid.x, mid.y);
+  smoke.check('clicking the wall selects it', await smoke.until(async () => (await canvasAttr(smoke, 'selection')) === typedWall().id), await canvasAttr(smoke, 'selection'));
+  smoke.check('its Properties speak Arabic', (await smoke.waitFor(`${tab} [data-testid=properties-title]`, 3000, 'جدار')) && (await smoke.waitFor(`${tab} [data-testid=entity-editor][data-type=wall]`, 3000, 'السماكة')));
+  smoke.check('its length reads 3600 mm, a left-to-right island', (await smoke.text(`${tab} [data-testid=prop-length]`)) === '3600 mm' && (await direction(smoke, `${tab} [data-testid=prop-length]`)) === 'ltr', await smoke.text(`${tab} [data-testid=prop-length]`));
+  smoke.check('and its thickness field too', (await direction(smoke, `${tab} [data-testid=prop-thickness]`)) === 'ltr');
+  smoke.check('the footer counts the selection in Arabic', await smoke.waitFor(`${tab} [data-testid=plan-selection]`, 3000, 'عنصر واحد محدد'));
+  smoke.check('and its hint is Arabic', (await hint())?.startsWith('تم تحديد عنصر واحد') === true, await hint());
+  await smoke.shots('90-plan-properties-arabic');
+  await smoke.js(`document.querySelector('${canvas}').focus()`);
+  await smoke.key('Escape');
 }

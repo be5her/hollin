@@ -1,4 +1,4 @@
-import { add, arrowHeadLines, breakLinePoints, connectorRole, deriveConnector, deriveLevels, normalize, perp, polygonBox, polygonContains, polygonEdgeDistance, resolvePath, scale, sub, walkPoints, walkTangent, type Box, type Connector, type ConnectorGeometry, type ConnectorRole, type DerivedLevel, type Path, type Polygon, type ProjectDoc, type RuleLimits, type Seg, type Vec2 } from '@studio/core';
+import { t, add, arrowHeadLines, breakLinePoints, connectorRole, deriveConnector, deriveLevels, normalize, perp, polygonBox, polygonContains, polygonEdgeDistance, resolvePath, scale, sub, walkPoints, walkTangent, type Box, type Connector, type ConnectorGeometry, type ConnectorRole, type DerivedLevel, type Path, type Polygon, type ProjectDoc, type RuleLimits, type Seg, type Vec2 } from '@studio/core';
 import { tracePolygon, traceSegments } from './draw';
 import type { RenderFrame, TextOp } from './render';
 import { withAlpha } from './theme';
@@ -125,7 +125,7 @@ export function drawConnector(ctx: CanvasRenderingContext2D, pc: PlanConnector, 
         ctx.stroke();
         ctx.lineWidth = px(frame, 1);
       }
-      if (!faint && g.axis.length) drawWalkArrow(ctx, frame, g.axis, g.walkLength, pc.role === 'top' ? 'down' : 'up', cut, label, `${g.risers} R`);
+      if (!faint && g.axis.length) drawWalkArrow(ctx, frame, g.axis, g.walkLength, pc.role === 'top' ? 'down' : 'up', cut, label, t('tools.canvas.risers', { count: g.risers }));
       break;
     }
     case 'ramp': {
@@ -158,7 +158,7 @@ export function drawConnector(ctx: CanvasRenderingContext2D, pc: PlanConnector, 
         line(ctx, start, end);
         arrowHead(ctx, frame, end, pc.role === 'top' ? scale(dir, -1) : dir);
         ctx.stroke();
-        label(pc.role === 'top' ? 'DN' : 'UP', add(start, scale(perp(dir), px(frame, 12))));
+        label(pc.role === 'top' ? t('tools.canvas.down') : t('tools.canvas.up'), add(start, scale(perp(dir), px(frame, 12))));
       }
       break;
     }
@@ -210,7 +210,7 @@ function drawWalkArrow(ctx: CanvasRenderingContext2D, frame: RenderFrame, segs: 
   ctx.fillStyle = ctx.strokeStyle;
   ctx.fill();
   const n = perp(walkTangent(segs, way === 'up' ? 0 : total));
-  label(way === 'up' ? 'UP' : 'DN', add(startDot, scale(n, px(frame, 14))));
+  label(way === 'up' ? t('tools.canvas.up') : t('tools.canvas.down'), add(startDot, scale(n, px(frame, 14))));
   if (extra) label(extra, sub(startDot, scale(n, px(frame, 14))));
 }
 

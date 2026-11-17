@@ -22,12 +22,6 @@ const PENDING = new Set([
   'packages/modules/building/ui/scene-view.html',
   'packages/modules/building/ui/section-view.ts',
   'packages/modules/decor/ui/catalog-panel.ts',
-  'packages/modules/plan/ui/connector-properties.html',
-  'packages/modules/plan/ui/item-properties.ts',
-  'packages/modules/plan/ui/light-properties.ts',
-  'packages/modules/plan/ui/material-picker.ts',
-  'packages/modules/plan/ui/plan-view.html',
-  'packages/modules/plan/ui/properties-panel.html',
   'packages/modules/rules/ui/warnings-panel.ts',
 ]);
 

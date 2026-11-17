@@ -1,5 +1,5 @@
 import RBush from 'rbush';
-import { DEG, add, angleOf, arcGeometry, columnPolygon, distance, dot, formatAngle, length, normalize, openingFrame, perp, perpendicularFoot, resolvePath, scale, segmentBox, segmentIntersections, segmentPoint, sub, tangentPoints, withinSegment, type Box, type Entity, type LevelWalls, type Seg, type Vec2 } from '@studio/core';
+import { DEG, add, angleOf, arcGeometry, columnPolygon, distance, dot, formatAngle, length, normalize, openingFrame, perp, perpendicularFoot, resolvePath, scale, segmentBox, segmentIntersections, segmentPoint, sub, tangentPoints, withinSegment, isMessageKey, t as tr, type Box, type Entity, type LevelWalls, type Seg, type Vec2 } from '@studio/core';
 
 export type SnapKind = 'endpoint' | 'intersection' | 'midpoint' | 'center' | 'perpendicular' | 'tangent' | 'on' | 'extension' | 'angle' | 'grid';
 
@@ -87,7 +87,16 @@ interface SnapPoint extends Box {
 
 /** Points you aim at win; the tracked direction beats a line merely under the cursor. */
 const PRIORITY: Record<SnapKind, number> = { endpoint: 0, intersection: 1, midpoint: 2, center: 3, perpendicular: 4, tangent: 4, angle: 5, on: 6, extension: 7, grid: 8 };
-const LABELS: Record<SnapKind, string> = { endpoint: 'Endpoint', intersection: 'Intersection', midpoint: 'Midpoint', center: 'Centre', perpendicular: 'Perpendicular', tangent: 'Tangent', on: 'On line', extension: 'Extension', angle: '', grid: 'Grid' };
+/** What the footer and the label at the cursor call a snap (in the process language); the tracked direction names itself. */
+function snapLabel(kind: SnapKind): string {
+  return kind === 'angle' ? '' : tr(`tools.snap.${kind}`);
+}
+
+/** A tracked reference's name (`previous`, `wall` ...) in the process language. */
+function referenceName(name: string): string {
+  const key = `tools.track.${name}`;
+  return isMessageKey(key) ? tr(key) : name;
+}
 
 /** Everything on a level that can be snapped to, in an R-tree: wall reference lines and faces, outlines, opening jambs, centres. */
 export class SnapIndex {
@@ -228,7 +237,7 @@ export function trackDirection(from: Vec2, cursor: Vec2, tolerance: number, step
   for (const ref of references) {
     if (length(ref.direction) < 1e-9) continue;
     const base = angleOf(ref.direction) / DEG;
-    for (const [offset, relation] of [[0, 'Parallel'], [180, 'Parallel'], [90, 'Perpendicular'], [270, 'Perpendicular']] as const) candidates.push({ angle: norm360(base + offset), label: `${relation} to ${ref.name}` });
+    for (const [offset, relation] of [[0, 'Parallel'], [180, 'Parallel'], [90, 'Perpendicular'], [270, 'Perpendicular']] as const) candidates.push({ angle: norm360(base + offset), label: tr(relation === 'Parallel' ? 'tools.track.parallel' : 'tools.track.perpendicular', { name: referenceName(ref.name) }) });
   }
   const cursorAngle = angleOf(d) / DEG;
   let best: { angle: number; label?: string } | null = null;
@@ -267,7 +276,7 @@ export function snapPoint(index: SnapIndex, cursor: Vec2, tolerance: number, set
   }
   if (!settings.enabled) return null;
   const candidates: SnapResult[] = [];
-  const consider = (point: Vec2, kind: SnapKind, guides: SnapResult['guides'] = [], label = LABELS[kind], anchor?: SnapAnchor, tangent?: SnapTangent | null, len?: number) => {
+  const consider = (point: Vec2, kind: SnapKind, guides: SnapResult['guides'] = [], label = snapLabel(kind), anchor?: SnapAnchor, tangent?: SnapTangent | null, len?: number) => {
     if (distance(point, cursor) <= tolerance) candidates.push({ point, kind, label, guides, ...(anchor ? { anchor } : {}), ...(tangent ? { tangent } : {}), ...(len !== undefined ? { length: len } : {}) });
   };
   const anchorOf = (s: SnapSeg, vertex: number | undefined): SnapAnchor | undefined => (s.side && vertex !== undefined ? { entityId: s.id, vertex, side: s.side } : undefined);
@@ -317,7 +326,7 @@ export function snapPoint(index: SnapIndex, cursor: Vec2, tolerance: number, set
     for (const x of extensions) consider(x.point, 'extension', [{ from: x.near, to: x.point }], undefined, undefined, { direction: normalize(sub(x.seg.b, x.seg.a)), entityId: x.id });
     for (let i = 0; i < extensions.length; i++) {
       for (let j = i + 1; j < extensions.length; j++) {
-        for (const p of segmentIntersections(extensions[i].seg, extensions[j].seg, true)) consider(p, 'intersection', [{ from: extensions[i].near, to: p }, { from: extensions[j].near, to: p }], 'Apparent intersection');
+        for (const p of segmentIntersections(extensions[i].seg, extensions[j].seg, true)) consider(p, 'intersection', [{ from: extensions[i].near, to: p }, { from: extensions[j].near, to: p }], tr('tools.snap.apparent'));
       }
     }
   }
@@ -331,7 +340,7 @@ export function snapPoint(index: SnapIndex, cursor: Vec2, tolerance: number, set
         const ray: Seg = { k: 'line', a: from, b: add(from, scale(t.direction, t.length + tolerance * 2)) };
         const fresh = (p: Vec2) => !candidates.some((c) => distance(c.point, p) < 1e-6);
         for (const s of nearby) for (const p of segmentIntersections(ray, s.seg)) if (fresh(p)) consider(p, 'intersection', tracked.guides, undefined, undefined, undefined, distance(from, p));
-        for (const x of extensions) for (const p of segmentIntersections(ray, x.seg, true)) if (fresh(p)) consider(p, 'intersection', [...tracked.guides, { from: x.near, to: p }], 'Apparent intersection', undefined, undefined, distance(from, p));
+        for (const x of extensions) for (const p of segmentIntersections(ray, x.seg, true)) if (fresh(p)) consider(p, 'intersection', [...tracked.guides, { from: x.near, to: p }], tr('tools.snap.apparent'), undefined, undefined, distance(from, p));
       }
     }
   }
@@ -342,7 +351,7 @@ export function snapPoint(index: SnapIndex, cursor: Vec2, tolerance: number, set
   if (settings.grid && settings.gridSpacing > 0) {
     const g = settings.gridSpacing;
     const point: Vec2 = [Math.round(cursor[0] / g) * g, Math.round(cursor[1] / g) * g];
-    return { point, kind: 'grid', label: LABELS.grid, guides: [] };
+    return { point, kind: 'grid', label: snapLabel('grid'), guides: [] };
   }
   return null;
 }

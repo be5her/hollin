@@ -1,7 +1,8 @@
-import { DEG, bulgeThrough, distance, formatAngle, formatLength, resolveCoordinate, segmentTangent, sub, wallBody, type Coordinate, type Path, type Vec2, type Vertex } from '@studio/core';
+import { t, DEG, bulgeThrough, distance, formatAngle, formatLength, resolveCoordinate, segmentTangent, sub, wallBody, type Coordinate, type Path, type Vec2, type Vertex } from '@studio/core';
 import { tracePolygon } from '../draw';
 import { drawScreenText, type RenderFrame } from '../render';
 import { referenceFrom, type SnapResult, type TrackReference } from '../snap';
+import { latinKey } from '../keys';
 import { withAlpha } from '../theme';
 import type { Tool, ToolHost, ToolPointer } from './tool';
 
@@ -89,7 +90,7 @@ export class WallTool implements Tool {
   }
 
   key(e: KeyboardEvent): boolean {
-    if (e.key === 'a' || e.key === 'A') {
+    if (latinKey(e) === 'a' || latinKey(e) === 'A') {
       if (!this.chain.length) return false;
       this.arcNext = !this.arcNext;
       this.arcEnd = null;
@@ -127,9 +128,9 @@ export class WallTool implements Tool {
   }
 
   hint(): string {
-    if (!this.chain.length) return 'Click the start of a wall · V: select';
-    if (this.arcNext) return this.arcEnd ? 'Click a point the arc passes through' : 'Click the end of the arc · A: straight';
-    return 'Click the next point · A: arc · click the first point to close · Enter: end · Escape: cancel';
+    if (!this.chain.length) return t('tools.wall.start');
+    if (this.arcNext) return t(this.arcEnd ? 'tools.arc.through' : 'tools.arc.end');
+    return t('tools.wall.next');
   }
 
   draw(ctx: CanvasRenderingContext2D, frame: RenderFrame): void {

@@ -3,8 +3,10 @@ import { common } from './common';
 import { edit } from './edit';
 import { exchange } from './exchange';
 import { library } from './library';
+import { plan } from './plan';
 import { settings } from './settings';
 import { shell } from './shell';
+import { tools } from './tools';
 import { updates } from './updates';
 
 /**
@@ -19,6 +21,8 @@ export const en = {
   ...exchange,
   ...updates,
   ...edit,
+  ...plan,
+  ...tools,
 } as const satisfies Record<string, Message>;
 
 export type MessageKey = keyof typeof en;

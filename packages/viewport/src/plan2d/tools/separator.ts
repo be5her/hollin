@@ -1,4 +1,4 @@
-import { distance, normalize, type Coordinate, type Vec2, resolveCoordinate, sub } from '@studio/core';
+import { t, distance, normalize, type Coordinate, type Vec2, resolveCoordinate, sub } from '@studio/core';
 import type { RenderFrame } from '../render';
 import { referenceFrom, type SnapResult, type TrackReference } from '../snap';
 import type { Tool, ToolHost, ToolPointer } from './tool';
@@ -75,8 +75,7 @@ export class SeparatorTool implements Tool {
   }
 
   hint(): string {
-    if (!this.points.length) return 'Click the start of a room divider · V: select';
-    return 'Click the next point · Enter or double-click: end · Escape: cancel';
+    return t(this.points.length ? 'tools.separator.next' : 'tools.separator.start');
   }
 
   draw(ctx: CanvasRenderingContext2D, frame: RenderFrame): void {

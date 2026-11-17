@@ -2,7 +2,7 @@ import { NgTemplateOutlet } from '@angular/common';
 import { Component, computed, inject, input, linkedSignal, untracked } from '@angular/core';
 import { FormField, form } from '@angular/forms/signals';
 import { arcGeometry, bulgeOf, connectorPath, dimensionGeometry, distance, findEntity, formatArea, isConnectorId, pathLength, pathOfEntity, resolveDimension, signedArea, wallSidesFacing, type Connector, type Entity, type Path, type Vec2 } from '@studio/core';
-import { AngleInput, Checkbox, EmptyState, HostBridge, Input, Kbd, LengthInput, ProjectDocs, Select, Toasts, Units } from '@studio/ui';
+import { AngleInput, Checkbox, EmptyState, HostBridge, I18n, Input, Kbd, LengthInput, ProjectDocs, Select, Toasts, Units } from '@studio/ui';
 import { ConnectorProperties } from './connector-properties';
 import { ItemProperties } from './item-properties';
 import { LightProperties } from './light-properties';
@@ -13,7 +13,6 @@ import { PlanSelection } from './plan-selection';
 type Wall = Extract<Entity, { type: 'wall' }>;
 type Opening = Extract<Entity, { type: 'opening' }>;
 
-const TYPE_NAMES: Record<Entity['type'], string> = { wall: 'Wall', opening: 'Opening', column: 'Column', slab: 'Slab', void: 'Void', shaft: 'Shaft', room: 'Room', separator: 'Room divider', shape: 'Shape', fixture: 'Fixture', point: 'Service point', dimension: 'Dimension', label: 'Label', item: 'Item', light: 'Light' };
 
 interface Draft {
   name: string;
@@ -69,10 +68,10 @@ export class PropertiesPanel {
   private readonly selection = inject(PlanSelection);
   private readonly geometry = inject(PlanGeometry);
   protected readonly units = inject(Units);
+  protected readonly t = inject(I18n).t;
 
   readonly projectId = input.required<string>();
 
-  protected readonly names = TYPE_NAMES;
   private readonly state = computed(() => this.docs.read(this.projectId()));
   private readonly selected = computed(() => this.selection.of(this.projectId())());
   protected readonly entities = computed(() => {
@@ -94,7 +93,7 @@ export class PropertiesPanel {
   protected readonly summary = computed(() => {
     const counts = new Map<string, number>();
     for (const e of this.entities()) counts.set(e.type, (counts.get(e.type) ?? 0) + 1);
-    return [...counts].map(([type, n]) => `${n} ${TYPE_NAMES[type as Entity['type']].toLowerCase()}${n === 1 ? '' : 's'}`).join(', ');
+    return [...counts].map(([type, n]) => this.t(`plan.count.${type as Entity['type']}`, { count: n })).join(this.t('common.listSeparator'));
   });
   /** The first entity, which the form shows; a multi-selection of one type edits them all. */
   protected readonly subject = computed(() => this.entity() ?? (this.sameType() ? this.entities()[0] : null));
@@ -132,7 +131,7 @@ export class PropertiesPanel {
     const entities = doc.levelData[e.levelId]?.entities ?? {};
     const g = dimensionGeometry(e, resolveDimension(e, entities, this.geometry.cache.bodyOf), this.units.settings());
     const ties = (e.anchors?.from ? 1 : 0) + (e.anchors?.to ? 1 : 0);
-    return { text: g.text, ties: ties === 2 ? 'Both ends follow a wall or shape corner.' : ties === 1 ? 'One end follows a wall or shape corner.' : 'Free points: drag an end onto a wall or shape corner to tie it.' };
+    return { text: g.text, ties: this.t(ties === 2 ? 'plan.props.tiesBoth' : ties === 1 ? 'plan.props.tiesOne' : 'plan.props.tiesNone') };
   });
   /** A closed shape's area and perimeter; an open shape's or a divider's length. */
   protected readonly outlineInfo = computed(() => {
@@ -243,7 +242,7 @@ export class PropertiesPanel {
     const list = untracked(this.entities);
     if (!list.length) return;
     if (list.length === 1) void this.run('plan.entity.update', { id: list[0].id, set, unset, ...this.stale() });
-    else void this.run('plan.apply', { label: `Change ${list.length} ${TYPE_NAMES[list[0].type].toLowerCase()}s`, steps: list.map((e) => ({ command: 'plan.entity.update', input: { id: e.id, set, unset, ...this.stale() } })) });
+    else void this.run('plan.apply', { label: this.t('plan.edit.change', { what: this.t(`plan.count.${list[0].type}`, { count: list.length }) }), steps: list.map((e) => ({ command: 'plan.entity.update', input: { id: e.id, set, unset, ...this.stale() } })) });
   }
 
   protected setLength(field: string, mm: number | null): void {
@@ -363,11 +362,11 @@ export class PropertiesPanel {
   }
 
   protected connectorName(c: Connector): string {
-    return { stair: 'Stair', ladder: 'Ladder', ramp: 'Ramp', elevator: 'Elevator', escalator: 'Escalator' }[c.kind];
+    return this.t(`tools.connector.${c.kind}`);
   }
 
   protected typeName(e: Entity): string {
-    return TYPE_NAMES[e.type];
+    return this.t(`plan.type.${e.type}`);
   }
 
   protected asWall(e: Entity): Wall {

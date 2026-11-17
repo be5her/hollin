@@ -1,4 +1,4 @@
-import { add, columnPolygon, inflatePolygons, type Polygon, DEG, dimensionGeometry, dimensionMarks, dimensionOutline, flatten, formatArea, formatLength, itemFootprint, itemModel, itemSize, openingFrame, openingMisfits, openingSymbol, perp, PLAN_GLYPHS, polygonCentroid, resolveDimension, resolvePath, scale as vscale, wallBody, type DimensionGeometry, type Entity, type EntityType, type Layer, type LevelGeometry, type LevelWalls, type Path, type Region, type UnitSettings, type Vec2 } from '@studio/core';
+import { add, columnPolygon, inflatePolygons, type Polygon, DEG, dimensionGeometry, dimensionMarks, dimensionOutline, flatten, formatArea, formatLength, itemFootprint, itemModel, itemSize, openingFrame, openingMisfits, openingSymbol, perp, PLAN_GLYPHS, polygonCentroid, resolveDimension, resolvePath, scale as vscale, wallBody, currentLanguage, languageDirection, t, textDirection, type DimensionGeometry, type Entity, type EntityType, type Layer, type LevelGeometry, type LevelWalls, type Path, type Region, type UnitSettings, type Vec2 } from '@studio/core';
 import { visibleBox, worldToScreen, type Camera, type Size } from './camera';
 import { drawConnector, traceConnector, type PlanConnector } from './connectors';
 import { tracePath, tracePolygon, traceRegion, traceSegments } from './draw';
@@ -172,6 +172,13 @@ export interface TextOp {
   /** Screen offset applied after rotation, in px. */
   dx?: number;
   dy?: number;
+  /**
+   * The direction the text reads in. Canvas text has no `dir`, and a canvas in a right-to-left document
+   * inherits `rtl` (`3600 mm` would read `mm 3600`), so every text sets it: by default from its first
+   * strong letter (`textDirection`), left to right for measurements; a sentence the app composed around a
+   * name (`name · not enclosed`) takes the interface language's.
+   */
+  direction?: 'ltr' | 'rtl';
 }
 
 const METRIC_STEPS = [1, 10, 100, 1000, 10_000, 100_000];
@@ -245,6 +252,11 @@ export function renderPlan(ctx: CanvasRenderingContext2D, frame: RenderFrame): R
   const otto = drawAiMarks(ctx, frame);
   worldSpace(ctx, frame);
   return { drawn, connectors, levelId: frame.scene?.levelId ?? null, ms: performance.now() - started, ...otto };
+}
+
+/** The interface language's direction: for a sentence the app composed around a name or a number, which reads the interface's way whatever the name's script. */
+export function interfaceDirection(): 'ltr' | 'rtl' {
+  return languageDirection(currentLanguage());
 }
 
 /** Text at a world position, drawn in screen space; for tools and overlays. Restores the world transform afterwards. */
@@ -341,6 +353,7 @@ export function drawSnap(ctx: CanvasRenderingContext2D, frame: RenderFrame, snap
     ctx.font = `11px ${theme.fontSans}`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
+    ctx.direction = textDirection(text);
     const w = ctx.measureText(text).width + 8;
     ctx.fillStyle = withAlpha(theme.background, 0.9);
     ctx.fillRect(x + 12, y + 10, w, 16);
@@ -609,6 +622,8 @@ function drawAiMarks(ctx: CanvasRenderingContext2D, frame: RenderFrame): { highl
     ctx.fill();
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
+    // The tag is the interface's sentence around Otto's label: it reads in the interface's direction, from the same left edge.
+    ctx.direction = interfaceDirection();
     ctx.fillText(text, x + TAG_TEXT_X, y + TAG_HEIGHT / 2 + 0.5);
     tag = { text, x, y, width, height: TAG_HEIGHT };
   }
@@ -926,8 +941,8 @@ function drawEntity(ctx: CanvasRenderingContext2D, item: SceneItem, frame: Rende
         ctx.stroke();
         const label = e.number ? `${e.number} ${e.name}` : e.name;
         texts.push({ text: label, at: g.labelAt, screenPx: 12, color: theme.fg, align: 'center', baseline: 'bottom', dy: -2 });
-        if (g.shared) texts.push({ text: 'shares its space', at: g.labelAt, screenPx: 10, color: theme.warning, align: 'center', baseline: 'top', dy: 3, mono: true });
-        else texts.push({ text: formatArea(g.area, frame.units), at: g.labelAt, screenPx: 11, color: theme.muted, align: 'center', baseline: 'top', dy: 3, mono: true });
+        if (g.shared) texts.push({ text: t('tools.canvas.shared'), at: g.labelAt, screenPx: 10, color: theme.warning, align: 'center', baseline: 'top', dy: 3, mono: true });
+        else texts.push({ text: formatArea(g.area, frame.units), at: g.labelAt, screenPx: 11, color: theme.muted, align: 'center', baseline: 'top', dy: 3, mono: true, direction: 'ltr' });
         return;
       }
       // Not enclosed (or no geometry yet): a badge at the seed.
@@ -940,7 +955,8 @@ function drawEntity(ctx: CanvasRenderingContext2D, item: SceneItem, frame: Rende
       ctx.arc(seed[0], seed[1], px(frame, 5), 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
-      texts.push({ text: g && !g.enclosed ? `${e.name} · not enclosed` : e.name, at: seed, screenPx: 12, color: g && !g.enclosed ? theme.warning : theme.fg, align: 'left', baseline: 'middle', dx: 9 });
+      const open = Boolean(g && !g.enclosed);
+      texts.push({ text: open ? t('tools.canvas.notEnclosed', { name: e.name }) : e.name, at: seed, screenPx: 12, color: open ? theme.warning : theme.fg, align: 'left', baseline: 'middle', dx: 9, ...(open ? { direction: interfaceDirection() } : {}) });
       return;
     }
     case 'separator': {
@@ -1110,7 +1126,7 @@ export function drawDimensionGeometry(ctx: CanvasRenderingContext2D, frame: Rend
   }
   ctx.stroke();
   if (!g.text) return;
-  const op: TextOp = { text: g.text, at: g.textAt, screenPx: 11, color, align: 'center', baseline: 'bottom', rotation: g.textAngle, dy: -3, mono: true };
+  const op: TextOp = { text: g.text, at: g.textAt, screenPx: 11, color, align: 'center', baseline: 'bottom', rotation: g.textAngle, dy: -3, mono: true, direction: 'ltr' };
   if (texts) texts.push(op);
   else drawScreenText(ctx, frame, op);
 }
@@ -1134,6 +1150,7 @@ function drawTexts(ctx: CanvasRenderingContext2D, frame: RenderFrame, texts: Tex
     ctx.fillStyle = op.color;
     ctx.textAlign = op.align;
     ctx.textBaseline = op.baseline;
+    ctx.direction = op.direction ?? textDirection(op.text);
     ctx.fillText(op.text, 0, 0);
     ctx.restore();
   }

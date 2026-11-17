@@ -4,8 +4,10 @@ import { common } from './common';
 import { edit } from './edit';
 import { exchange } from './exchange';
 import { library } from './library';
+import { plan } from './plan';
 import { settings } from './settings';
 import { shell } from './shell';
+import { tools } from './tools';
 import { updates } from './updates';
 
 /** The Arabic catalog: the same areas and keys as English (a missing or extra key is a type error in its area's file). */
@@ -17,4 +19,6 @@ export const ar: Record<MessageKey, Message> = {
   ...exchange,
   ...updates,
   ...edit,
+  ...plan,
+  ...tools,
 };

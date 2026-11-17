@@ -1,4 +1,4 @@
-import type { Vec2 } from '@studio/core';
+import { t, type Vec2 } from '@studio/core';
 import type { RenderFrame } from '../render';
 import type { Tool, ToolHost, ToolPointer } from './tool';
 
@@ -20,7 +20,7 @@ export class LabelTool implements Tool {
     this.host.invalidate();
     this.host.requestText({
       screen: e.screen,
-      placeholder: 'Label text',
+      placeholder: t('tools.label.placeholder'),
       commit: (text) => {
         this.pending = null;
         const trimmed = text.trim();
@@ -36,7 +36,7 @@ export class LabelTool implements Tool {
   }
 
   hint(): string {
-    return this.pending ? 'Type the label text · Enter: place it · Escape: cancel' : 'Click where the label goes · V: select';
+    return t(this.pending ? 'tools.label.typing' : 'tools.label.idle');
   }
 
   draw(ctx: CanvasRenderingContext2D, frame: RenderFrame): void {

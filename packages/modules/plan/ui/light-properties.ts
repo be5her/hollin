@@ -1,7 +1,7 @@
 import { Component, computed, inject, input, linkedSignal, untracked } from '@angular/core';
 import { FormField, form } from '@angular/forms/signals';
-import type { Entity } from '@studio/core';
-import { AngleInput, HostBridge, Input, LengthInput, ProjectDocs, Select, Toasts, Units } from '@studio/ui';
+import { toLatinDigits, type Entity } from '@studio/core';
+import { AngleInput, HostBridge, I18n, Input, LengthInput, ProjectDocs, Select, Toasts, Units } from '@studio/ui';
 
 type Light = Extract<Entity, { type: 'light' }>;
 
@@ -28,38 +28,38 @@ interface Draft {
   template: `
     @let e = light();
     <label>
-      <span class="block text-xs font-medium text-muted mb-1">Kind</span>
+      <span class="block text-xs font-medium text-muted mb-1">{{ t('plan.light.kind') }}</span>
       <select xSelect class="w-full" [formField]="f.kind" (change)="setKind($any($event.target).value)" data-testid="light-kind">
-        <option value="point">Point (a bulb)</option>
-        <option value="spot">Spot</option>
-        <option value="area">Area (a panel)</option>
+        <option value="point">{{ t('plan.light.bulb') }}</option>
+        <option value="spot">{{ t('plan.light.spotKind') }}</option>
+        <option value="area">{{ t('plan.light.panel') }}</option>
       </select>
     </label>
     <div class="grid grid-cols-3 gap-2">
       <label><span class="block text-xs font-medium text-muted mb-1">X</span><input xInput xLength class="font-mono" [formField]="f.x" (commit)="setAt(0, $event)" data-testid="light-x" /></label>
       <label><span class="block text-xs font-medium text-muted mb-1">Y</span><input xInput xLength class="font-mono" [formField]="f.y" (commit)="setAt(1, $event)" data-testid="light-y" /></label>
-      <label><span class="block text-xs font-medium text-muted mb-1">Height</span><input xInput xLength class="font-mono" [formField]="f.height" (commit)="setAt(2, $event)" data-testid="light-height" /></label>
+      <label><span class="block text-xs font-medium text-muted mb-1">{{ t('plan.props.height') }}</span><input xInput xLength class="font-mono" [formField]="f.height" (commit)="setAt(2, $event)" data-testid="light-height" /></label>
     </div>
     <div class="grid grid-cols-2 gap-2">
       <label>
-        <span class="block text-xs font-medium text-muted mb-1">Lumens</span>
-        <input xInput class="font-mono" [formField]="f.lumens" (blur)="setLumens()" (keydown.enter)="$any($event.target).blur()" data-testid="light-lumens" />
+        <span class="block text-xs font-medium text-muted mb-1">{{ t('plan.light.lumens') }}</span>
+        <input xInput class="font-mono" dir="ltr" [formField]="f.lumens" (blur)="setLumens()" (keydown.enter)="$any($event.target).blur()" data-testid="light-lumens" />
       </label>
       <label>
-        <span class="block text-xs font-medium text-muted mb-1">Colour</span>
+        <span class="block text-xs font-medium text-muted mb-1">{{ t('plan.light.colour') }}</span>
         <input type="color" class="h-8 w-full rounded border border-edge bg-transparent cursor-pointer" [value]="e.color" (change)="set({ color: $any($event.target).value })" data-testid="light-color" />
       </label>
     </div>
     @if (e.kind === 'spot') {
       <label>
-        <span class="block text-xs font-medium text-muted mb-1">Cone</span>
+        <span class="block text-xs font-medium text-muted mb-1">{{ t('plan.light.cone') }}</span>
         <input xInput xAngle class="font-mono" [formField]="f.angle" (commit)="setAngle($event)" data-testid="light-angle" />
       </label>
-      <div class="text-[11px] font-medium text-muted uppercase tracking-wide">Aimed at</div>
+      <div class="text-[11px] font-medium text-muted uppercase tracking-wide">{{ t('plan.light.aimedAt') }}</div>
       <div class="grid grid-cols-3 gap-2">
-        <label><span class="block text-xs font-medium text-muted mb-1">X</span><input xInput xLength [allowEmpty]="true" placeholder="below" class="font-mono" [formField]="f.tx" (commit)="setTarget(0, $event)" data-testid="light-tx" /></label>
-        <label><span class="block text-xs font-medium text-muted mb-1">Y</span><input xInput xLength [allowEmpty]="true" placeholder="below" class="font-mono" [formField]="f.ty" (commit)="setTarget(1, $event)" /></label>
-        <label><span class="block text-xs font-medium text-muted mb-1">Height</span><input xInput xLength [allowEmpty]="true" placeholder="0" class="font-mono" [formField]="f.tz" (commit)="setTarget(2, $event)" /></label>
+        <label><span class="block text-xs font-medium text-muted mb-1">X</span><input xInput xLength [allowEmpty]="true" [placeholder]="t('plan.light.below')" class="font-mono" [formField]="f.tx" (commit)="setTarget(0, $event)" data-testid="light-tx" /></label>
+        <label><span class="block text-xs font-medium text-muted mb-1">Y</span><input xInput xLength [allowEmpty]="true" [placeholder]="t('plan.light.below')" class="font-mono" [formField]="f.ty" (commit)="setTarget(1, $event)" /></label>
+        <label><span class="block text-xs font-medium text-muted mb-1">{{ t('plan.props.height') }}</span><input xInput xLength [allowEmpty]="true" placeholder="0" class="font-mono" [formField]="f.tz" (commit)="setTarget(2, $event)" /></label>
       </div>
     }
   `,
@@ -70,6 +70,7 @@ export class LightProperties {
   private readonly host = inject(HostBridge);
   private readonly toasts = inject(Toasts);
   protected readonly units = inject(Units);
+  protected readonly t = inject(I18n).t;
 
   readonly projectId = input.required<string>();
   readonly light = input.required<Light>();
@@ -109,9 +110,9 @@ export class LightProperties {
 
   protected setLumens(): void {
     const e = untracked(this.light);
-    const value = Number(untracked(this.draft).lumens.replace(/lm/i, '').trim());
+    const value = Number(toLatinDigits(untracked(this.draft).lumens).replace(/lm/i, '').trim());
     if (!Number.isFinite(value) || value < 0) {
-      this.toasts.notify('Lumens: a number, 0 or more (800 is a household bulb).', 'error');
+      this.toasts.notify(this.t('plan.light.lumensInvalid'), 'error');
       this.draft.update((d) => ({ ...d, lumens: String(e.intensity) }));
       return;
     }

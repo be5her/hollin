@@ -27,6 +27,29 @@ export interface PlanTheme {
   fontMono: string;
 }
 
+/**
+ * The faces the plan writes in when no document gives them (thumbnails, snapshots): the bundled Latin
+ * faces, then IBM Plex Sans Arabic, which carries only the Arabic letters (its `unicode-range`), as the
+ * `--font-sans` and `--font-mono` stacks in styles.css have them.
+ */
+const PLAN_FONT_SANS = "'Alegreya Sans', 'IBM Plex Sans Arabic', system-ui, sans-serif";
+const PLAN_FONT_MONO = "'IBM Plex Mono', 'IBM Plex Sans Arabic', ui-monospace, monospace";
+
+/** Arabic text for `document.fonts.load`: the Arabic faces only load for text in their `unicode-range`. */
+const ARABIC_SAMPLE = 'مخطط';
+
+/**
+ * Loads the faces a plan render writes in, Latin and Arabic, regular and the tag's 500, so the first frame
+ * or a render made now (a thumbnail, a snapshot) is not drawn in the fallback. Never rejects.
+ */
+export function loadPlanFonts(fonts: FontFaceSet, theme: Pick<PlanTheme, 'fontSans' | 'fontMono'>): Promise<void> {
+  const loads = [`12px ${theme.fontSans}`, `500 12px ${theme.fontSans}`, `12px ${theme.fontMono}`].flatMap((font) => [fonts.load(font), fonts.load(font, ARABIC_SAMPLE)]);
+  return Promise.all(loads).then(
+    () => undefined,
+    () => undefined,
+  );
+}
+
 /** The light palette, the `:root` block of styles.css (`packages/modules/plan/snapshot-theme.test.ts` keeps them equal), used when no document is available (tests, thumbnails). */
 export const LIGHT_THEME: PlanTheme = {
   background: '#f6f1e8',
@@ -48,8 +71,8 @@ export const LIGHT_THEME: PlanTheme = {
   decor: '#8c6b4a',
   ai: '#8a3f6f',
   aiFg: '#fbf6ee',
-  fontSans: "'Alegreya Sans', system-ui, sans-serif",
-  fontMono: "'IBM Plex Mono', ui-monospace, monospace",
+  fontSans: PLAN_FONT_SANS,
+  fontMono: PLAN_FONT_MONO,
 };
 
 /** The dark palette, the `.dark` block of styles.css (`packages/modules/plan/snapshot-theme.test.ts` keeps them equal): renders asked for in dark (`export.image`) without the window's theme. */
@@ -73,8 +96,8 @@ export const DARK_THEME: PlanTheme = {
   decor: '#d4a97a',
   ai: '#d892bd',
   aiFg: '#1d1a17',
-  fontSans: "'Alegreya Sans', system-ui, sans-serif",
-  fontMono: "'IBM Plex Mono', ui-monospace, monospace",
+  fontSans: PLAN_FONT_SANS,
+  fontMono: PLAN_FONT_MONO,
 };
 
 /** The CSS variable each plan colour is read from. */

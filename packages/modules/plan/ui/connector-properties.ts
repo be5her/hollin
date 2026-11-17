@@ -1,17 +1,10 @@
 import { Component, computed, inject, input, linkedSignal, untracked } from '@angular/core';
 import { FormField, form } from '@angular/forms/signals';
-import { DEFAULT_RULE_LIMITS, deriveConnector, deriveLevels, type Connector } from '@studio/core';
-import { AngleInput, AppState, Checkbox, HostBridge, Input, LengthInput, ProjectDocs, Select, Toasts, Units } from '@studio/ui';
+import { DEFAULT_RULE_LIMITS, deriveConnector, deriveLevels, toLatinDigits, type Connector } from '@studio/core';
+import { AngleInput, AppState, Checkbox, HostBridge, I18n, Input, LengthInput, ProjectDocs, Select, Toasts, Units } from '@studio/ui';
 
-const KIND_NAMES: Record<Connector['kind'], string> = { stair: 'Stair', ladder: 'Ladder', ramp: 'Ramp', elevator: 'Elevator', escalator: 'Escalator' };
-const SHAPES = [
-  { value: 'straight', label: 'Straight' },
-  { value: 'l', label: 'L (one landing)' },
-  { value: 'u', label: 'U (half landing)' },
-  { value: 'winder', label: 'Winder' },
-  { value: 'curved', label: 'Curved' },
-  { value: 'spiral', label: 'Spiral' },
-];
+/** The stair shapes, in the select's order; each is named by `plan.connector.<shape>`. */
+const SHAPES = ['straight', 'l', 'u', 'winder', 'curved', 'spiral'] as const;
 
 interface Draft {
   name: string;
@@ -52,11 +45,13 @@ export class ConnectorProperties {
   private readonly toasts = inject(Toasts);
   private readonly app = inject(AppState);
   protected readonly units = inject(Units);
+  private readonly i18n = inject(I18n);
+  protected readonly t = this.i18n.t;
+  protected readonly label = this.i18n.label;
 
   readonly projectId = input.required<string>();
   readonly connector = input.required<Connector>();
 
-  protected readonly kindName = computed(() => KIND_NAMES[this.connector().kind]);
   protected readonly shapes = SHAPES;
   private readonly state = computed(() => this.docs.read(this.projectId()));
   protected readonly levels = computed(() => {
@@ -70,20 +65,23 @@ export class ConnectorProperties {
     if (!doc) return null;
     const g = deriveConnector(this.connector(), deriveLevels(doc), this.limits());
     const len = (mm: number) => this.units.length(mm);
+    const t = this.t;
     const lines: string[] = [];
     switch (g.kind) {
-      case 'stair':
-        lines.push(`${g.risers} risers of ${len(g.riserHeight)}`, `Treads ${len(g.treadDepth)} on the walk line`, `${g.flights.length} flight${g.flights.length === 1 ? '' : 's'}${g.landings.length ? `, ${g.landings.length} landing${g.landings.length === 1 ? '' : 's'}` : ''}`, `Rise ${len(g.rise)}`);
+      case 'stair': {
+        const flights = t('plan.connector.flights', { count: g.flights.length });
+        lines.push(t('plan.connector.riserLine', { count: g.risers, height: len(g.riserHeight) }), t('plan.connector.treads', { depth: len(g.treadDepth) }), g.landings.length ? t('plan.connector.flightsLandings', { flights, count: g.landings.length }) : flights, t('plan.connector.rise', { length: len(g.rise) }));
         break;
+      }
       case 'ramp':
-        lines.push(`Slope ${(Math.round(g.slope * 10) / 10).toFixed(1)} %`, `Run ${len(g.run)}`, `Rise ${len(g.rise)}`);
+        lines.push(t('plan.connector.slope', { slope: (Math.round(g.slope * 10) / 10).toFixed(1) }), t('plan.connector.run', { length: len(g.run) }), t('plan.connector.rise', { length: len(g.rise) }));
         break;
       case 'ladder':
       case 'escalator':
-        lines.push(`Run ${len(g.run)}`, `Rise ${len(g.rise)}`);
+        lines.push(t('plan.connector.run', { length: len(g.run) }), t('plan.connector.rise', { length: len(g.rise) }));
         break;
       case 'elevator':
-        lines.push(`${g.stops.length} stops, ${len(g.rise)} of travel`);
+        lines.push(t('plan.connector.travel', { count: g.stops.length, length: len(g.rise) }));
         break;
     }
     return { lines, broken: g.broken.map((b) => b.message) };
@@ -171,9 +169,9 @@ export class ConnectorProperties {
       if (c.riser.count !== undefined) void this.update({ riser: { ...c.riser, count: undefined } });
       return;
     }
-    const n = Number(text);
+    const n = Number(toLatinDigits(text));
     if (!Number.isInteger(n) || n < 2 || n > 60) {
-      this.toasts.notify('Risers: a whole number from 2 to 60, or empty to work it out.', 'error');
+      this.toasts.notify(this.t('plan.connector.risersInvalid'), 'error');
       this.draft.update((d) => ({ ...d, risers: c.riser.count ? String(c.riser.count) : '' }));
       return;
     }
@@ -188,9 +186,9 @@ export class ConnectorProperties {
   protected setSlope(): void {
     const c = untracked(this.connector);
     if (c.kind !== 'ramp') return;
-    const value = Number(untracked(this.draft).maxSlope.replace('%', '').trim());
+    const value = Number(toLatinDigits(untracked(this.draft).maxSlope).replace(/[%٪]/, '').trim());
     if (!Number.isFinite(value) || value <= 0 || value > 100) {
-      this.toasts.notify('The slope limit is a percentage above 0 and at most 100.', 'error');
+      this.toasts.notify(this.t('plan.connector.slopeInvalid'), 'error');
       this.draft.update((d) => ({ ...d, maxSlope: String(c.maxSlope) }));
       return;
     }
@@ -214,7 +212,7 @@ export class ConnectorProperties {
     if (keep) stops.push({ levelId, door: (change.door ?? current?.door ?? 'front') as 'front' });
     stops = stops.sort((a, b) => order.indexOf(a.levelId) - order.indexOf(b.levelId));
     if (stops.length < 2) {
-      this.toasts.notify('An elevator stops at two levels at least.', 'error');
+      this.toasts.notify(this.t('plan.connector.twoStops'), 'error');
       return;
     }
     void this.update({ stops });

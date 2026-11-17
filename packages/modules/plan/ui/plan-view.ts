@@ -1,8 +1,8 @@
-import { DOCUMENT, Component, DestroyRef, ElementRef, Injector, afterNextRender, afterRenderEffect, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
+import { DOCUMENT, Component, DestroyRef, ElementRef, Injector, afterNextRender, afterRenderEffect, computed, effect, inject, input, linkedSignal, signal, untracked, viewChild } from '@angular/core';
 import { FormField, form } from '@angular/forms/signals';
-import { DEFAULT_RULE_LIMITS, connectorsOnLevel, deriveLevels, type DimensionKind, type GlobalConfig, type ProjectDoc, type Vec2, parseAngle } from '@studio/core';
-import { AppState, AssistantDrafts, Checkbox, ContextMenu, HostBridge, Icon, IconButton, Input, Kbd, LengthInput, OttoEdits, OttoMark, ProjectDocs, ProjectView, RoomSketch, Select, TabsState, Toasts, Units, type ContextMenuItem } from '@studio/ui';
-import { DEFAULT_TOOL_OPTIONS, LIGHT_THEME, Plan2dEditor, drawingScale, readPlanTheme, renderLevelToPng, type Camera, type ShapeOptions, type SnapResult, type StairShape, type TextRequest, type ToolId, type UnderlayMode, type WallOptions } from '@studio/viewport';
+import { DEFAULT_RULE_LIMITS, connectorsOnLevel, deriveLevels, toLatinDigits, type DimensionKind, type GlobalConfig, type ProjectDoc, type Vec2, parseAngle } from '@studio/core';
+import { AppState, AssistantDrafts, Checkbox, ContextMenu, HostBridge, I18n, Icon, IconButton, Input, Kbd, LengthInput, OttoEdits, OttoMark, ProjectDocs, ProjectView, RoomSketch, Select, TabsState, Toasts, Units, type ContextMenuItem } from '@studio/ui';
+import { DEFAULT_TOOL_OPTIONS, LIGHT_THEME, Plan2dEditor, drawingScale, loadPlanFonts, readPlanTheme, renderLevelToPng, type Camera, type ShapeOptions, type SnapResult, type StairShape, type TextRequest, type ToolId, type UnderlayMode, type WallOptions } from '@studio/viewport';
 import { ArrowBigUp, Blinds, BrickWall, ChevronDown, ChevronsUp, Circle, CircleDot, DoorOpen, DraftingCompass, Footprints, LandPlot, Lightbulb, Magnet, Maximize, MousePointer2, MoveUpRight, Pentagon, Ruler, SeparatorVertical, Sofa, Square, TrendingUp, Type, ZoomIn, ZoomOut } from 'lucide';
 import { PlanGeometry } from './plan-geometry';
 import { PlanSelection } from './plan-selection';
@@ -17,17 +17,8 @@ interface WallDraft {
 
 type EditorConfig = GlobalConfig['editor'];
 
-/** The snap kinds the menu toggles, in order. */
-const SNAP_KINDS: { key: keyof EditorConfig; label: string }[] = [
-  { key: 'snapEndpoint', label: 'Endpoints' },
-  { key: 'snapMidpoint', label: 'Midpoints' },
-  { key: 'snapCenter', label: 'Centres' },
-  { key: 'snapIntersection', label: 'Intersections' },
-  { key: 'snapPerpendicular', label: 'Perpendicular and tangent' },
-  { key: 'snapExtension', label: 'Extensions' },
-  { key: 'snapAngle', label: 'Angle tracking' },
-  { key: 'snapGrid', label: 'Grid' },
-];
+/** The snap kinds the menu toggles, in order; each is named by `plan.snapKind.<key>`. */
+const SNAP_KINDS: (keyof EditorConfig)[] = ['snapEndpoint', 'snapMidpoint', 'snapCenter', 'snapIntersection', 'snapPerpendicular', 'snapExtension', 'snapAngle', 'snapGrid'];
 
 /**
  * The plan of the active level: the tools, the level switcher, reference underlay, snapping and
@@ -61,6 +52,9 @@ export class PlanView {
   private readonly destroyRef = inject(DestroyRef);
   private readonly injector = inject(Injector);
   protected readonly units = inject(Units);
+  private readonly i18n = inject(I18n);
+  protected readonly t = this.i18n.t;
+  protected readonly label = this.i18n.label;
 
   readonly projectId = input.required<string>();
 
@@ -110,9 +104,8 @@ export class PlanView {
     if (!doc || !id || !doc.levels[id]) return false;
     return Object.keys(doc.levelData[id]?.entities ?? {}).length === 0 && connectorsOnLevel(doc, id, this.levels()).length === 0;
   });
-  /** The sentence the empty level's guide offers to Otto, which the user can change before Enter sends it. */
-  protected readonly ottoExample = 'a 5 by 7 m studio with a bathroom in the corner';
-  private readonly ottoDraft = signal({ sentence: this.ottoExample });
+  /** The sentence the empty level's guide offers to Otto (in the interface's language), which the user can change before Enter sends it. */
+  private readonly ottoDraft = linkedSignal(() => ({ sentence: this.t('plan.empty.sentence') }));
   protected readonly ottoForm = form(this.ottoDraft);
   /** Otto can work here (a key, or a ready Claude Code); otherwise Enter on its line opens Settings. */
   protected readonly ottoReady = computed(() => {
@@ -181,7 +174,7 @@ export class PlanView {
   protected readonly selectionAttr = computed(() => this.selection().join(' '));
   protected readonly selectionLabel = computed(() => {
     const n = this.selection().length;
-    return n === 0 ? '' : n === 1 ? '1 selected' : `${n} selected`;
+    return n === 0 ? '' : this.t('plan.footer.selected', { count: n });
   });
 
   /** The wall tool's options, typed in display units; thickness and height are remembered in the settings. */
@@ -291,6 +284,11 @@ export class PlanView {
         if (c) this.editor.setToolOptions(this.toolOptions(c));
         this.armTool('paint');
       });
+    });
+    effect(() => {
+      // A language switch: the footer's hint and the words on the canvas follow (core's language is already switched).
+      this.i18n.language();
+      untracked(() => this.editor.languageChanged());
     });
     effect(() => this.editor.setUnderlay(this.underlay()));
     effect(() => this.editor.setRuleLimits(this.ruleLimits()));
@@ -411,8 +409,7 @@ export class PlanView {
         return c;
       },
     };
-    void Promise.all([this.document.fonts.load(`12px ${theme.fontSans}`), this.document.fonts.load(`12px ${theme.fontMono}`)])
-      .catch(() => undefined)
+    void loadPlanFonts(this.document.fonts, theme)
       .then(() => {
         const png = renderLevelToPng(doc, doc.building.groundLevelId, options);
         if (png) return this.host.invoke('project.thumbnail.set', { id: projectId, png }, null);
@@ -438,11 +435,8 @@ export class PlanView {
     const themes = new MutationObserver(() => this.editor.setTheme(readPlanTheme(this.document.documentElement)));
     themes.observe(this.document.documentElement, { attributes: true, attributeFilter: ['class'] });
     this.editor.setTheme(readPlanTheme(this.document.documentElement));
-    // Labels are drawn in the bundled faces, which load on first use: draw again once they have.
-    const theme = readPlanTheme(this.document.documentElement);
-    void Promise.all([this.document.fonts.load(`12px ${theme.fontSans}`), this.document.fonts.load(`12px ${theme.fontMono}`)])
-      .then(() => this.editor.setTheme(readPlanTheme(this.document.documentElement)))
-      .catch(() => undefined);
+    // Labels are drawn in the bundled faces, Latin and Arabic, which load on first use: draw again once they have.
+    void loadPlanFonts(this.document.fonts, readPlanTheme(this.document.documentElement)).then(() => this.editor.setTheme(readPlanTheme(this.document.documentElement)));
     this.destroyRef.onDestroy(() => {
       resizes.disconnect();
       themes.disconnect();
@@ -453,10 +447,10 @@ export class PlanView {
     const projectId = untracked(this.projectId);
     const run = (id: string, input: unknown) => this.host.invoke(id, input, projectId).catch((err) => this.toasts.error(err));
     const n = ids.length;
-    const what = n === 1 ? 'item' : `${n} items`;
+    const t = this.t;
     return [
       {
-        label: `Duplicate ${what}`,
+        label: t('plan.menu.duplicate', { count: n }),
         shortcut: 'Ctrl+D',
         disabled: !n,
         testId: 'menu-duplicate',
@@ -467,10 +461,10 @@ export class PlanView {
           }),
       },
       ...this.swingItems(ids),
-      { label: `Delete ${what}`, shortcut: 'Del', danger: true, disabled: !n, testId: 'menu-delete', select: () => void run('plan.entity.delete', { ids }) },
+      { label: t('plan.menu.delete', { count: n }), shortcut: 'Del', danger: true, disabled: !n, testId: 'menu-delete', select: () => void run('plan.entity.delete', { ids }) },
       'separator',
-      { label: 'Select all', shortcut: 'Ctrl+A', testId: 'menu-select-all', select: () => this.editor.select(Object.keys(this.editor.entities())) },
-      { label: 'Zoom to fit', shortcut: 'Home', select: () => this.editor.zoomToFit() },
+      { label: t('plan.menu.selectAll'), shortcut: 'Ctrl+A', testId: 'menu-select-all', select: () => this.editor.select(Object.keys(this.editor.entities())) },
+      { label: t('plan.menu.zoomFit'), shortcut: 'Home', select: () => this.editor.zoomToFit() },
     ];
   }
 
@@ -490,9 +484,9 @@ export class PlanView {
   }
 
   protected setLightLumens(value: string): void {
-    const lumens = Number(value.replace(/lm/i, '').trim());
+    const lumens = Number(toLatinDigits(value).replace(/lm/i, '').trim());
     if (Number.isFinite(lumens) && lumens >= 0) this.lightLumens.set(lumens);
-    else this.toasts.notify(`"${value}" is not a number of lumens`, 'error');
+    else this.toasts.notify(this.t('plan.toast.notLumens', { value }), 'error');
     this.canvas().nativeElement.focus({ preventScroll: true });
   }
 
@@ -592,7 +586,7 @@ export class PlanView {
       return;
     }
     if (this.editor.typed(value)) this.closeTyped();
-    else this.toasts.notify(`"${value}" is not a length or coordinate (try 3000, 3000<45, @1000,500 or 1000,500)`, 'error');
+    else this.toasts.notify(this.t('plan.toast.notCoordinate', { value }), 'error');
   }
 
   protected closeTyped(): void {
@@ -609,8 +603,8 @@ export class PlanView {
     const projectId = untracked(this.projectId);
     const flip = (next: typeof swing) => void this.host.invoke('plan.entity.update', { id: e.id, set: { swing: next } }, projectId).catch((err) => this.toasts.error(err));
     return [
-      { label: 'Flip swing side', testId: 'menu-flip-side', select: () => flip({ ...swing, side: swing.side === 'left' ? 'right' : 'left' }) },
-      { label: 'Flip hinge', testId: 'menu-flip-hinge', select: () => flip({ ...swing, hinge: swing.hinge === 'start' ? 'end' : 'start' }) },
+      { label: this.t('plan.menu.flipSide'), testId: 'menu-flip-side', select: () => flip({ ...swing, side: swing.side === 'left' ? 'right' : 'left' }) },
+      { label: this.t('plan.menu.flipHinge'), testId: 'menu-flip-hinge', select: () => flip({ ...swing, hinge: swing.hinge === 'start' ? 'end' : 'start' }) },
     ];
   }
 
@@ -658,9 +652,9 @@ export class PlanView {
     const draft = untracked(this.wallDraft);
     const thickness = this.units.parseLength(draft.thickness);
     const height = draft.height.trim() === '' ? null : this.units.parseLength(draft.height);
-    if (thickness === null || thickness <= 0) this.toasts.notify(`"${draft.thickness}" is not a thickness`, 'error');
+    if (thickness === null || thickness <= 0) this.toasts.notify(this.t('plan.toast.notThickness', { value: draft.thickness }), 'error');
     else this.wallOptions = { ...this.wallOptions, thickness };
-    if (draft.height.trim() !== '' && (height === null || height <= 0)) this.toasts.notify(`"${draft.height}" is not a height`, 'error');
+    if (draft.height.trim() !== '' && (height === null || height <= 0)) this.toasts.notify(this.t('plan.toast.notHeight', { value: draft.height }), 'error');
     else this.wallOptions = { ...this.wallOptions, height };
     this.wallOptions = { ...this.wallOptions, alignment: draft.alignment, single: draft.single };
     this.showWallOptions();
@@ -681,8 +675,8 @@ export class PlanView {
   }
 
   protected angleTrackingLabel(c: EditorConfig): string {
-    if (!c.snapAngle) return 'Angle tracking off';
-    return c.snap ? `Angle tracking on, every ${c.angleStep}° (Shift: 45° steps)` : 'Angle tracking on, but snapping is off';
+    if (!c.snapAngle) return this.t('plan.angle.off');
+    return c.snap ? this.t('plan.angle.on', { step: c.angleStep }) : this.t('plan.angle.noSnap');
   }
 
   protected setEditorFlag(key: keyof EditorConfig, value: boolean): void {
@@ -694,7 +688,7 @@ export class PlanView {
   }
 
   protected setAngleStep(value: string): void {
-    const step = Number(value);
+    const step = Number(toLatinDigits(value));
     if (Number.isFinite(step) && step >= 1 && step <= 90) void this.updateEditorConfig({ angleStep: step });
   }
 

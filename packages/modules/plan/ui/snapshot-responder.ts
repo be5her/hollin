@@ -1,7 +1,7 @@
 import { DOCUMENT, Service, inject, untracked } from '@angular/core';
 import { DEFAULT_RULE_LIMITS, type HostEvents, type ProjectDoc } from '@studio/core';
 import { AppState, HostBridge, ProjectDocs, Units } from '@studio/ui';
-import { DARK_SCENE_THEME, DARK_THEME, LIGHT_SCENE_THEME, LIGHT_THEME, SnapshotSizeError, renderBuildingToPng, renderLevelToPng } from '@studio/viewport';
+import { DARK_SCENE_THEME, DARK_THEME, LIGHT_SCENE_THEME, LIGHT_THEME, SnapshotSizeError, loadPlanFonts, renderBuildingToPng, renderLevelToPng } from '@studio/viewport';
 import { PlanGeometry } from './plan-geometry';
 
 /** How long to wait for a project's document to arrive in the mirror before giving up on a snapshot. */
@@ -41,11 +41,8 @@ export class SnapshotResponder {
       const limits = untracked(this.app.config)?.rules ?? DEFAULT_RULE_LIMITS;
       const { width, height, transparent } = request;
       const dark = request.theme === 'dark';
-      // A plan render draws its labels in the bundled faces: have them loaded first.
-      if (request.view !== '3d') {
-        const theme = dark ? DARK_THEME : LIGHT_THEME;
-        await Promise.all([this.document.fonts.load(`12px ${theme.fontSans}`), this.document.fonts.load(`12px ${theme.fontMono}`)]).catch(() => undefined);
-      }
+      // A plan render draws its labels in the bundled faces, Latin and Arabic: have them loaded first.
+      if (request.view !== '3d') await loadPlanFonts(this.document.fonts, dark ? DARK_THEME : LIGHT_THEME);
       const png =
         request.view === '3d'
           ? await renderBuildingToPng(doc, { width, height, createCanvas, limits, theme: dark ? DARK_SCENE_THEME : LIGHT_SCENE_THEME, transparent, azimuth: request.azimuth, elevation: request.elevation, mode: request.display, levelId: request.levelId, explode: request.explode, lighting: request.lighting })

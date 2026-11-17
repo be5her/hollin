@@ -9,7 +9,7 @@ import { mainModules } from './main';
  * `packages/core/src/i18n/ar/commands.ts`. `PENDING_MODULES` lists the modules whose titles are not
  * written yet; each step of milestone 12 removes the ones it finished, and never adds to it.
  */
-const PENDING_MODULES = new Set(['building', 'plan', 'decor', 'rules']);
+const PENDING_MODULES = new Set(['building', 'decor', 'rules']);
 
 function registry(): CommandRegistry {
   const registry = new CommandRegistry();

@@ -1,4 +1,4 @@
-import { dimensionGeometry, distance, offsetTowards, resolveCoordinate, sub, type Coordinate, type Dimension, type DimensionKind, type DimensionPoints, type Vec2 } from '@studio/core';
+import { t, dimensionGeometry, distance, offsetTowards, resolveCoordinate, sub, type Coordinate, type Dimension, type DimensionKind, type DimensionPoints, type Vec2 } from '@studio/core';
 import { drawDimensionGeometry, type RenderFrame } from '../render';
 import { referenceFrom, type SnapAnchor, type SnapTangent, type TrackReference } from '../snap';
 import type { Tool, ToolHost, ToolPointer } from './tool';
@@ -98,15 +98,15 @@ export class DimensionTool implements Tool {
     const n = this.picked.length;
     const kind = this.kind;
     if (kind === 'angular') {
-      if (n === 0) return 'Click the corner of the angle · V: select';
-      if (n === 1) return 'Click a point on the first side';
-      if (n === 2) return 'Click a point on the second side';
-      return 'Click where the arc goes (or type its radius) · Enter: here · Escape: cancel';
+      if (n === 0) return t('tools.dimension.angleCorner');
+      if (n === 1) return t('tools.dimension.angleFirst');
+      if (n === 2) return t('tools.dimension.angleSecond');
+      return t('tools.dimension.angleArc');
     }
-    if (kind === 'radius') return n === 0 ? 'Click the centre of the arc or circle · V: select' : 'Click a point on the arc (or type the radius)';
-    if (n === 0) return `Click the first point of the ${kind} dimension · V: select`;
-    if (n === 1) return 'Click the second point (a wall or shape corner ties the dimension to it)';
-    return 'Click where the dimension line goes (or type the distance) · Enter: here · Escape: cancel';
+    if (kind === 'radius') return t(n === 0 ? 'tools.dimension.radiusCentre' : 'tools.dimension.radiusPoint');
+    if (n === 0) return t('tools.dimension.first', { kind: t(`tools.dimension.kind.${kind}`) });
+    if (n === 1) return t('tools.dimension.second');
+    return t('tools.dimension.line');
   }
 
   draw(ctx: CanvasRenderingContext2D, frame: RenderFrame): void {
