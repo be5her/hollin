@@ -64,8 +64,9 @@
   src: url('./fonts/Fraunces-Italic[SOFT,WONK,opsz,wght].ttf') format('truetype');
 }
 /*
- * Arabic (docs/i18n.md): IBM Plex Sans Arabic for text and Noto Naskh Arabic for headings, limited to
- * the Arabic blocks by unicode-range, so Latin keeps its faces inside Arabic text and the reverse.
+ * Arabic (docs/i18n.md): IBM Plex Sans Arabic for text and Markazi Text for headings (a soft, warm
+ * naskh beside Fraunces; it is drawn small on its body, hence size-adjust), limited to the Arabic
+ * blocks by unicode-range, so Latin keeps its faces inside Arabic text and the reverse.
  * No italics: Arabic has none, and the browser must not slant these (font-synthesis-style below).
  */
 @font-face {
@@ -93,11 +94,12 @@
   unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC;
 }
 @font-face {
-  font-family: 'Noto Naskh Arabic';
+  font-family: 'Markazi Text';
   font-style: normal;
   font-weight: 400 700;
   font-display: swap;
-  src: url('./fonts/NotoNaskhArabic[wght].woff2') format('woff2');
+  size-adjust: 116%;
+  src: url('./fonts/MarkaziText[wght].woff2') format('woff2');
   unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC;
 }
 
@@ -132,7 +134,7 @@
   --ai-tint: #f1e3ea;
   --font-sans: 'Alegreya Sans', 'IBM Plex Sans Arabic', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'IBM Plex Mono', 'IBM Plex Sans Arabic', ui-monospace, 'Cascadia Code', Consolas, monospace;
-  --font-display: 'Fraunces', 'Noto Naskh Arabic', Georgia, 'Times New Roman', serif;
+  --font-display: 'Fraunces', 'Markazi Text', Georgia, 'Times New Roman', serif;
   /* The one soft shadow (dialogs, the palette, menus, toasts): ink at 12 %. */
   --shadow-pop: 0 8px 24px color-mix(in srgb, var(--fg) 12%, transparent);
   /* The plan canvas (read by @studio/viewport; keep as #rrggbb, alpha is applied in code). */

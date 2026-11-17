@@ -49,7 +49,7 @@ interface AppInfo {
 }
 
 /** The fonts and libraries About credits, by their own names (a left-to-right island in Arabic). */
-const FONT_CREDITS = 'Alegreya Sans, IBM Plex Mono, Fraunces, IBM Plex Sans Arabic, Noto Naskh Arabic (OFL 1.1) · Lucide (ISC) · three.js, Electron (MIT)';
+const FONT_CREDITS = 'Alegreya Sans, IBM Plex Mono, Fraunces, IBM Plex Sans Arabic, Markazi Text (OFL 1.1) · Lucide (ISC) · three.js, Electron (MIT)';
 
 /**
  * Settings: appearance (theme and language), units, the MCP server, the assistant and About. Choices apply at once; the

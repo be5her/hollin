@@ -15,7 +15,7 @@ Hollin gets a second language, Arabic, and with it a right-to-left interface. Ev
 - **Names stay Latin:** Hollin, Otto, Claude, Claude Code, MCP.
 - **The canvases never mirror;** the chrome does.
 - **Agents read English:** command descriptions, schemas, guidelines, `plan.describe`, error `message`s. The user reads Arabic: titles, labels, errors (through `i18n` on the error), warnings.
-- **Fonts:** IBM Plex Sans Arabic (text) and Noto Naskh Arabic (headings), OFL, already in `src/renderer/src/fonts/` with their licences.
+- **Fonts:** IBM Plex Sans Arabic (text) and Markazi Text (headings; it replaced Noto Naskh Arabic after step 3, as the closer match to Fraunces), OFL, already in `src/renderer/src/fonts/` with their licences.
 
 ## Rules for every step
 

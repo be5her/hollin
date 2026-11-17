@@ -4,7 +4,7 @@ import alegreyaSans from '../../../../src/renderer/src/fonts/OFL-AlegreyaSans.tx
 import fraunces from '../../../../src/renderer/src/fonts/OFL-Fraunces.txt';
 import plexMono from '../../../../src/renderer/src/fonts/OFL-IBMPlexMono.txt';
 import plexSansArabic from '../../../../src/renderer/src/fonts/OFL-IBMPlexSansArabic.txt';
-import notoNaskhArabic from '../../../../src/renderer/src/fonts/OFL-NotoNaskhArabic.txt';
+import markaziText from '../../../../src/renderer/src/fonts/OFL-MarkaziText.txt';
 
 /** The bundled fonts' licences, as shipped beside the font files, and the icons' licence. */
 const LICENCES = [
@@ -12,7 +12,7 @@ const LICENCES = [
   { id: 'ibm-plex-mono', name: 'IBM Plex Mono', licence: 'SIL Open Font License 1.1', text: plexMono },
   { id: 'fraunces', name: 'Fraunces', licence: 'SIL Open Font License 1.1', text: fraunces },
   { id: 'ibm-plex-sans-arabic', name: 'IBM Plex Sans Arabic', licence: 'SIL Open Font License 1.1', text: plexSansArabic },
-  { id: 'noto-naskh-arabic', name: 'Noto Naskh Arabic', licence: 'SIL Open Font License 1.1', text: notoNaskhArabic },
+  { id: 'markazi-text', name: 'Markazi Text', licence: 'SIL Open Font License 1.1', text: markaziText },
 ] as const;
 
 /** About's Licences…: one font at a time, its full licence text, and a line for the icons. */

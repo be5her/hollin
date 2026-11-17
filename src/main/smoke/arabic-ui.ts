@@ -68,7 +68,7 @@ export async function smokeArabicUi(smoke: Smoke): Promise<void> {
   smoke.check('while the space for the window buttons stays where the OS draws them', arabic.padLeft === english.padLeft && arabic.padRight === english.padRight, { english, arabic });
   const heading = await smoke.js<{ spacing: string; font: boolean }>(`(async () => {
     const h = document.querySelector('[data-testid=settings-title]');
-    const faces = await document.fonts.load('600 28px "Noto Naskh Arabic"', 'الإعدادات');
+    const faces = await document.fonts.load('600 28px "Markazi Text"', 'الإعدادات');
     const text = await document.fonts.load('13px "IBM Plex Sans Arabic"', 'الإعدادات');
     return { spacing: getComputedStyle(h).letterSpacing, font: faces.length > 0 && text.length > 0 };
   })()`);
