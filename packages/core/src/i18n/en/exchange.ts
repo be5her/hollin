@@ -116,4 +116,7 @@ export const exchange = {
   'exchange.import.numberRequired': 'Enter a number',
   'exchange.import.prefixTooLong': 'At most 60 characters',
   'exchange.import.tickOne': 'Tick at least one layer',
+
+  /** What an exported sheet's title block writes (PDF and SVG): the drawing scale. */
+  'exchange.sheet.scale': 'Scale 1:{scale}',
 } as const;

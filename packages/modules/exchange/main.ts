@@ -8,6 +8,8 @@ import {
   StudioError,
   assetFileOf,
   buildingToGlb,
+  currentLanguage,
+  decodeDxfBytes,
   defineCommand,
   defineModule,
   drawingToDxf,
@@ -24,8 +26,8 @@ import {
   planDrawing,
   readDxf,
   readPngHeader,
+  sheetDate,
   svgLayout,
-  today,
   UnitSettingsSchema,
   type DxfFile,
   type PlanDrawing,
@@ -95,13 +97,36 @@ export async function existingFiles(paths: readonly string[]): Promise<string[]>
   return paths.filter((_, i) => found[i]);
 }
 
+/** The face a PDF embeds for Arabic text (IBM Plex Sans Arabic Regular, OFL), in the app's resources (`resources/fonts`). */
+export const ARABIC_FONT_FILE = 'IBMPlexSansArabic-Regular.ttf';
+
+let arabicFontCache: { path: string; bytes: Uint8Array } | null = null;
+
+/**
+ * The Arabic face's bytes from the host's fonts folder, read once; undefined when the host has none or the
+ * file cannot be read, so a Latin PDF is written all the same and an Arabic one fails with
+ * `errors.exchange.noArabicFont` naming the file.
+ */
+export async function arabicFont(dir: string | undefined): Promise<{ path: string; bytes?: Uint8Array }> {
+  const path = dir ? nodePath.join(dir, ARABIC_FONT_FILE) : ARABIC_FONT_FILE;
+  if (arabicFontCache?.path === path) return arabicFontCache;
+  if (!dir) return { path };
+  try {
+    arabicFontCache = { path, bytes: new Uint8Array(await fs.readFile(path)) };
+    return arabicFontCache;
+  } catch {
+    return { path };
+  }
+}
+
 /** The largest DXF `import.dxf` and `import.dxf.probe` read: past it the file is refused before reading. */
 export const MAX_DXF_BYTES = 200 * 1024 * 1024;
 
 /**
  * Reads a DXF file for import: an absolute path (INVALID_INPUT otherwise), NOT_FOUND when missing,
- * refused when larger than `maxBytes` (200 MB), decoded as UTF-8 (a BOM dropped by the reader), or as
- * Latin-1 when it is not valid UTF-8 (older ANSI files); a binary DXF or a file without sections is refused.
+ * refused when larger than `maxBytes` (200 MB), decoded as UTF-8 when it is (a BOM dropped), else in the code
+ * page its `$DWGCODEPAGE` names (`ANSI_1256` Arabic, the other ANSI pages; Windows-1252 otherwise) by
+ * `decodeDxfBytes`; a binary DXF or a file without sections is refused.
  */
 export async function readDxfFile(path: string, maxBytes = MAX_DXF_BYTES): Promise<DxfFile> {
   if (!nodePath.isAbsolute(path)) throw new StudioError('INVALID_INPUT', 'path must be a full (absolute) file path.');
@@ -117,8 +142,7 @@ export async function readDxfFile(path: string, maxBytes = MAX_DXF_BYTES): Promi
     throw err;
   }
   if (bytes.subarray(0, 18).toString('latin1') === 'AutoCAD Binary DXF') throw new StudioError('INVALID_INPUT', { key: 'errors.dxf.binary' });
-  let text = bytes.toString('utf8');
-  if (text.includes('\uFFFD')) text = bytes.toString('latin1');
+  const { text } = decodeDxfBytes(bytes);
   if (!/^\s*0\s*\r?\n\s*SECTION\s*$/m.test(text.slice(0, 4096).replace(/^\uFEFF/, ''))) throw new StudioError('INVALID_INPUT', { key: 'errors.dxf.notDxf', params: { name: nodePath.basename(path) } });
   return readDxf(text);
 }
@@ -169,13 +193,15 @@ export const exchangeModule = defineModule({
         const drawings: PlanDrawing[] = levelIds.map((id) => planDrawing(doc, id, { units, limits: rules, layers: input.layers }));
         const scale = input.fit ? ('fit' as const) : input.scale;
         const title = input.title ? project.name : undefined;
-        const date = today();
+        // The sheet's date in the interface's language (YYYY-MM-DD in English).
+        const date = sheetDate(new Date(), currentLanguage());
         const files: { path: string; levelId?: string; bytes: number }[] = [];
         const levels: { levelId: string; name: string; scale: number; fits: boolean }[] = [];
 
         if (input.format === 'pdf') {
           const pages = drawings.map((drawing) => ({ drawing, title }));
-          const options = { page: input.page, orientation: input.orientation, scale, date, deflate: (bytes: Uint8Array) => deflateSync(bytes) };
+          const font = await arabicFont(ctx.host.fontsDir);
+          const options = { page: input.page, orientation: input.orientation, scale, date, deflate: (bytes: Uint8Array) => deflateSync(bytes), arabicFont: font.bytes, arabicFontName: font.path };
           const data = drawingToPdf(pages, options);
           await writeFileAtomic(input.path, data);
           files.push({ path: input.path, bytes: data.length });

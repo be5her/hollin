@@ -29,7 +29,11 @@ module.exports = {
   directories: { output: 'release', buildResources: 'resources' },
   files: ['out/**', '!out/renderer-tsc/**', 'package.json', '!**/*.map'],
   // The window icon on Linux and in dev runs; Windows and macOS take theirs from the executable and bundle.
-  extraResources: [{ from: 'resources/icon.png', to: 'icon.png' }],
+  // The Arabic face a PDF export embeds (src/main/index.ts gives the host this folder), with its licence.
+  extraResources: [
+    { from: 'resources/icon.png', to: 'icon.png' },
+    { from: 'resources/fonts', to: 'fonts', filter: ['*.ttf', '*.txt'] },
+  ],
   asar: true,
   // No native modules.
   npmRebuild: false,

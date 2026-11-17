@@ -88,9 +88,73 @@ export function dxfPairs(text: string): DxfPair[] {
   return out;
 }
 
-/** Decodes \U+XXXX escapes. */
+/** Decodes \U+XXXX escapes, and \M+nXXXX ones (a double-byte character of an East Asian code page). */
 export function decodeDxfString(value: string): string {
-  return value.replace(/\\U\+([0-9a-fA-F]{4})/g, (_, hex: string) => String.fromCharCode(Number.parseInt(hex, 16)));
+  return value.replace(/\\U\+([0-9a-fA-F]{4})/g, (_, hex: string) => String.fromCharCode(Number.parseInt(hex, 16))).replace(/\\M\+([1-5])([0-9a-fA-F]{4})/g, (_, page: string, hex: string) => mbcsChar(Number(page), hex));
+}
+
+/** The code pages AutoCAD's \M+n escapes number (1 Japanese, 2 Traditional Chinese, 3 Korean, 4 Johab, 5 Simplified Chinese), as `TextDecoder` labels; Johab has none. */
+const MBCS_PAGES: Record<number, string | null> = { 1: 'shift_jis', 2: 'big5', 3: 'euc-kr', 4: null, 5: 'gbk' };
+
+/** One \M+nXXXX character: its two bytes decoded in that code page, `?` when the page cannot be decoded here. */
+function mbcsChar(page: number, hex: string): string {
+  const label = MBCS_PAGES[page];
+  if (!label) return '?';
+  try {
+    return new TextDecoder(label).decode(new Uint8Array([Number.parseInt(hex.slice(0, 2), 16), Number.parseInt(hex.slice(2), 16)]));
+  } catch {
+    return '?';
+  }
+}
+
+/** `$DWGCODEPAGE` values (ANSI_1256 ...) as `TextDecoder` labels; the ones not listed are read as Windows-1252. */
+const CODE_PAGES: Record<string, string> = {
+  ANSI_874: 'windows-874',
+  ANSI_932: 'shift_jis',
+  ANSI_936: 'gbk',
+  ANSI_949: 'euc-kr',
+  ANSI_950: 'big5',
+  ANSI_1250: 'windows-1250',
+  ANSI_1251: 'windows-1251',
+  ANSI_1252: 'windows-1252',
+  ANSI_1253: 'windows-1253',
+  ANSI_1254: 'windows-1254',
+  ANSI_1255: 'windows-1255',
+  ANSI_1256: 'windows-1256',
+  ANSI_1257: 'windows-1257',
+  ANSI_1258: 'windows-1258',
+  'UTF-8': 'utf-8',
+  UTF8: 'utf-8',
+};
+
+/** A header variable's value as written in the first part of a file (group code `code` after `9` and its name), read from bytes as ASCII. */
+function headerValue(head: string, name: string, code: number): string | null {
+  const m = new RegExp(`(?:^|\\n)\\s*9\\s*\\r?\\n\\s*\\${name}\\s*\\r?\\n\\s*${code}\\s*\\r?\\n([^\\r\\n]*)`).exec(head);
+  return m ? m[1].trim() : null;
+}
+
+/**
+ * The text of a DXF file from its bytes: UTF-8 when the bytes are UTF-8 (every file from AutoCAD 2007 on,
+ * and a file of ASCII with \U+XXXX escapes, as the app writes); otherwise the code page its header names in
+ * `$DWGCODEPAGE` (`ANSI_1256` for Arabic, the other `ANSI_125x` pages, the East Asian ones), Windows-1252
+ * when it names none the reader knows. Escapes are left for `readDxf` to decode.
+ */
+export function decodeDxfBytes(bytes: Uint8Array): { text: string; encoding: string } {
+  try {
+    return { text: new TextDecoder('utf-8', { fatal: true }).decode(bytes), encoding: 'utf-8' };
+  } catch {
+    // Not UTF-8: the header says which code page (ASCII until then).
+  }
+  let head = '';
+  const n = Math.min(bytes.length, 256 * 1024);
+  for (let i = 0; i < n; i++) head += String.fromCharCode(bytes[i]);
+  const page = (headerValue(head, '$DWGCODEPAGE', 3) ?? '').toUpperCase();
+  const label = CODE_PAGES[page] ?? 'windows-1252';
+  try {
+    return { text: new TextDecoder(label).decode(bytes), encoding: label };
+  } catch {
+    return { text: new TextDecoder('windows-1252').decode(bytes), encoding: 'windows-1252' };
+  }
 }
 
 /** The `%%` control codes of TEXT and MTEXT: degree, plus-minus, diameter, a literal percent, `%%nnn` by code; underline and overline toggles dropped. */
@@ -152,6 +216,9 @@ export function stripMtext(value: string): string {
     } else if (code === 'U' && /^\+[0-9a-fA-F]{4}/.test(value.slice(i + 2, i + 7))) {
       out += String.fromCharCode(Number.parseInt(value.slice(i + 3, i + 7), 16));
       i += 6;
+    } else if (code === 'M' && /^\+[1-5][0-9a-fA-F]{4}/.test(value.slice(i + 2, i + 8))) {
+      out += mbcsChar(Number(value[i + 3]), value.slice(i + 4, i + 8));
+      i += 7;
     } else if (code === 'S') {
       const end = value.indexOf(';', i + 2);
       const body = value.slice(i + 2, end < 0 ? value.length : end);

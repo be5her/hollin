@@ -168,6 +168,8 @@ export interface HostApi {
   readonly platform: string;
   /** Per-machine app data folder. Absent in hosts without one. */
   readonly dataDir?: string;
+  /** The fonts the app ships for its exports (the Arabic face a PDF embeds): `resources/fonts` in the repository, the packaged app's resources. Absent in tests. */
+  readonly fontsDir?: string;
   config: {
     get(): GlobalConfig;
     update(patch: ConfigPatch): Promise<GlobalConfig>;

@@ -4,7 +4,8 @@ import { deriveConnector } from '../geometry/connectors';
 import { deriveLevels } from '../doc/derive';
 import { addEntityOps } from '../doc/builders';
 import { Transaction } from '../doc/ops';
-import { drawingHouse } from './house.fixture';
+import { setLanguage } from '../i18n';
+import { arabicHouse, drawingHouse } from './house.fixture';
 import { drawingBounds, drawingCounts, planDrawing, readableAngle, type DrawingFill, type DrawingLayerKind, type DrawingPrimitive, type DrawingStroke, type DrawingText, type PlanDrawing } from './drawing';
 
 const layerOf = (d: PlanDrawing, kind: DrawingLayerKind) => d.layers.find((l) => l.kind === kind);
@@ -169,5 +170,50 @@ describe('planDrawing', () => {
     expect(none.layers).toEqual([]);
     expect(Number.isFinite(none.bounds.minX)).toBe(false);
   });
-});
 
+  describe('in Arabic', () => {
+    const textsOf = (d: PlanDrawing, kind: DrawingLayerKind) => (layerOf(d, kind)?.primitives ?? []).filter((p): p is DrawingText => p.type === 'text');
+
+    it('writes the words it composes in the language, a composed sentence reading the interface way', () => {
+      const { doc, ground } = arabicHouse();
+      setLanguage('ar');
+      let arabic: PlanDrawing;
+      try {
+        arabic = planDrawing(doc, ground);
+      } finally {
+        setLanguage('en');
+      }
+      const english = planDrawing(doc, ground);
+      const rooms = textsOf(arabic, 'rooms').map((t) => t.text);
+      expect(rooms).toContain('⁨مخزن⁩ · غير مغلقة');
+      // An Arabic name in the Arabic sentence reads right to left by itself; in the English sentence it is told left to right.
+      expect(textsOf(arabic, 'rooms').find((t) => t.text.includes('غير مغلقة'))?.direction).toBeUndefined();
+      expect(textsOf(english, 'rooms').find((t) => t.text.includes('not enclosed'))).toMatchObject({ text: 'مخزن · not enclosed', direction: 'ltr' });
+      // UP and the riser count, and an unnamed built-in by its Arabic name.
+      const connectors = textsOf(arabic, 'connectors').map((t) => t.text);
+      expect(connectors).toContain('صعود');
+      expect(connectors.some((t) => t.includes('قائمة'))).toBe(true);
+      expect(textsOf(arabic, 'furniture').map((t) => t.text)).toEqual(['طاولة قهوة']);
+      expect(textsOf(english, 'furniture').map((t) => t.text)).toEqual(['Coffee table']);
+    });
+
+    it('sets Arabic stair labels beside the start dot from its gap, reading away from it', () => {
+      const { doc, ground } = arabicHouse();
+      setLanguage('ar');
+      try {
+        const labels = textsOf(planDrawing(doc, ground), 'connectors');
+        const up = labels.find((t) => t.text === 'صعود')!;
+        const risers = labels.find((t) => t.text.includes('قائمة'))!;
+        // The walk runs along y: each on its side of the dot, starting 0.6 label heights from it and reading away (label height 160 mm).
+        expect(risers.align).toBe(risers.at[0] > up.at[0] ? 'left' : 'right');
+        expect(up.align).toBe(up.at[0] > risers.at[0] ? 'left' : 'right');
+        expect(Math.abs(risers.at[0] - up.at[0])).toBeCloseTo(2 * 0.6 * 160, 6);
+      } finally {
+        setLanguage('en');
+      }
+      // In English the labels are centred as they always were.
+      const english = textsOf(planDrawing(drawingHouse().doc, drawingHouse().ground), 'connectors');
+      expect(english.filter((t) => t.text === 'UP' || / R$/.test(t.text)).every((t) => t.align === 'center')).toBe(true);
+    });
+  });
+});

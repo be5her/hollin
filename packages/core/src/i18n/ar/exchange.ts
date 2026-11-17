@@ -168,4 +168,6 @@ export const exchange = {
   'exchange.import.numberRequired': 'أدخل رقمًا',
   'exchange.import.prefixTooLong': 'لا يزيد على 60 حرفًا',
   'exchange.import.tickOne': 'اختر طبقة واحدة على الأقل',
+
+  'exchange.sheet.scale': 'المقياس 1:{scale}',
 } satisfies Record<keyof typeof source, Message>;

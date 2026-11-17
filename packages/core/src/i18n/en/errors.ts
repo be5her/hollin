@@ -127,6 +127,7 @@ export const errors = {
   'errors.exchange.noPng': 'The window did not answer with a PNG image.',
   'errors.exchange.tooBig': 'The window could draw only {drawnWidth} × {drawnHeight} px, not the {width} × {height} asked for; ask for a smaller image.',
   'errors.exchange.insideLibrary': 'Exports cannot be written inside the project library ({folder}); choose another folder.',
+  'errors.exchange.noArabicFont': 'The PDF has Arabic text, and the Arabic face the PDF embeds for it ({file}) could not be read.',
   'errors.exchange.exists': 'These files are there already: {names}. Export again with overwrite: true to replace them.',
   'errors.dxf.tooLarge': '{name} is {size} MB; DXF files over {max} MB are not imported.',
   'errors.dxf.missing': 'No file at {path}.',

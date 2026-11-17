@@ -1,6 +1,7 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { agentPayload, type Entity, type ProjectSummary } from '@studio/core';
+import { smokeArabicExchange } from './arabic-exchange';
 import { smokeArabicOtto } from './arabic-otto-ui';
 import { wait, type Smoke } from './harness';
 import { canvas, canvasAttr, tab, view } from './plan-canvas';
@@ -265,6 +266,7 @@ async function smokeArabicLibrary(smoke: Smoke): Promise<void> {
   if (project) await smokeArabicBuilding(smoke, project.id);
   if (project) await smokeArabicMain(smoke, project.id);
   if (project) await smokeArabicOtto(smoke, project.id);
+  if (project) await smokeArabicExchange(smoke, project.id, ARABIC_NAME);
 
   // The project leaves: its tab closes and it goes to the trash, so the sections after this one count the library they expect.
   if (project) {

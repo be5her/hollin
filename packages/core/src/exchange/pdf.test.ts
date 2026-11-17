@@ -1,10 +1,15 @@
+import { readFileSync } from 'node:fs';
 import { deflateSync, inflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import { drawingBounds, planDrawing, type DrawingLayer, type PlanDrawing } from './drawing';
 import { drawingHouse } from './house.fixture';
 import { BRANDING } from '../branding';
 import { textWidthEm, winAnsi } from './paper';
-import { arcToBeziers, drawingToPdf, pdfLayouts, pdfTextString } from './pdf';
+import { arcToBeziers, drawingToPdf, pdfLayouts, pdfTextRuns, pdfTextString } from './pdf';
+import { readTrueType } from './truetype';
+
+/** The face the app embeds for Arabic (resources/fonts). */
+const PLEX_ARABIC = new Uint8Array(readFileSync(new URL('../../../../resources/fonts/IBMPlexSansArabic-Regular.ttf', import.meta.url)));
 
 /** The file as one byte per character, so string indices are byte offsets. */
 const latin1 = (bytes: Uint8Array) => Buffer.from(bytes).toString('latin1');
@@ -222,6 +227,154 @@ describe('drawingToPdf', () => {
     // 'MM' is 1.666 em; at 10 mm on paper that is 16.66 mm, 47.225 pt.
     expect(at('left') - at('center')).toBeCloseTo((16.66 / 2) * (72 / 25.4), 2);
     expect(at('center') - at('right')).toBeCloseTo((16.66 / 2) * (72 / 25.4), 2);
+  });
+
+  describe('Arabic', () => {
+    const font = readTrueType(PLEX_ARABIC);
+    const NAME = 'غرفة المعيشة';
+    const arabic = () =>
+      drawingOf(
+        [
+          { type: 'text', at: [0, 0], text: NAME, height: 200, rotation: 0, align: 'center', baseline: 'middle' },
+          { type: 'text', at: [0, 1000], text: 'مطبخ 2', height: 200, rotation: 30, align: 'left', baseline: 'bottom' },
+          { type: 'text', at: [0, 2000], text: 'Living', height: 200, rotation: 0, align: 'center', baseline: 'middle' },
+        ],
+        'الطابق الأرضي',
+      );
+
+    /** The ToUnicode map of the embedded face: glyph id (hex) → its text. */
+    function toUnicode(p: Parsed, inflate: boolean): Map<string, string> {
+      const type0 = [...p.objects.values()].find((o) => o.includes('/Subtype /Type0'))!;
+      const ref = Number(/\/ToUnicode (\d+) 0 R/.exec(type0)![1]);
+      const obj = p.objects.get(ref)!;
+      const data = obj.slice(obj.indexOf('stream\n') + 7, obj.length - '\nendstream'.length);
+      const cmap = inflate ? inflateSync(Buffer.from(data, 'latin1')).toString('latin1') : data;
+      const map = new Map<string, string>();
+      for (const [, g, u] of cmap.matchAll(/<([0-9A-F]{4})> <([0-9A-F]+)>/g)) map.set(g, String.fromCharCode(...(u.match(/.{4}/g) ?? []).map((h) => Number.parseInt(h, 16))));
+      return map;
+    }
+
+    /** The text of each BT ... ET with the embedded face, read through ToUnicode glyph by glyph and put back in logical order (the glyphs reversed). */
+    function arabicTexts(content: string, map: Map<string, string>): string[] {
+      return [...content.matchAll(/BT [^\n]*?\/F4 [\s\S]*?ET/g)].map((m) => {
+        const glyphs = [...m[0].matchAll(/<([0-9A-F]+)> Tj/g)].flatMap(([, h]) => h.match(/.{4}/g) ?? []);
+        // Clusters (a letter and the marks drawn after it) reversed: the logical order.
+        const clusters: string[][] = [];
+        for (const g of glyphs) {
+          const text = map.get(g) ?? '?';
+          if (/^\p{M}+$/u.test(text) && clusters.length) clusters[clusters.length - 1].push(text);
+          else clusters.push([text]);
+        }
+        return clusters.reverse().flat().join('');
+      });
+    }
+
+    it('embeds the face as a Type0 font with its CIDFont, descriptor, file and ToUnicode map, offsets kept right', () => {
+      const p = parse(drawingToPdf([{ drawing: arabic(), title: 'بيت الأُسرة' }], { date: '2026-11-17', arabicFont: PLEX_ARABIC }));
+      p.offsets.forEach((o, i) => expect(p.text.slice(o, o + `${i + 1} 0 obj`.length)).toBe(`${i + 1} 0 obj`));
+      const all = [...p.objects.values()];
+      const type0 = all.find((o) => o.includes('/Subtype /Type0'))!;
+      expect(type0).toMatch(/\/BaseFont \/[A-Z]{6}\+IBMPlexSansArabic \/Encoding \/Identity-H \/DescendantFonts \[\d+ 0 R\] \/ToUnicode \d+ 0 R/);
+      const cid = p.objects.get(Number(/\/DescendantFonts \[(\d+) 0 R\]/.exec(type0)![1]))!;
+      expect(cid).toContain('/Subtype /CIDFontType2');
+      expect(cid).toContain('/CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >>');
+      expect(cid).toContain('/CIDToGIDMap /Identity');
+      expect(cid).toMatch(/\/W \[\d+ \[[\d. ]+\]/);
+      const descriptor = p.objects.get(Number(/\/FontDescriptor (\d+) 0 R/.exec(cid)![1]))!;
+      expect(descriptor).toMatch(/\/Type \/FontDescriptor \/FontName \/[A-Z]{6}\+IBMPlexSansArabic .*\/Ascent 780 \/Descent -220 .*\/FontFile2 \d+ 0 R/);
+      const fileObj = p.objects.get(Number(/\/FontFile2 (\d+) 0 R/.exec(descriptor)![1]))!;
+      const length = Number(/\/Length (\d+)/.exec(fileObj)![1]);
+      const sfnt = fileObj.slice(fileObj.indexOf('stream\n') + 7, fileObj.length - '\nendstream'.length);
+      expect(sfnt.length).toBe(length);
+      expect(Number(/\/Length1 (\d+)/.exec(fileObj)![1])).toBe(length);
+      // The subset reads back as a TrueType face, smaller than the whole.
+      const sub = readTrueType(new Uint8Array(Buffer.from(sfnt, 'latin1')));
+      expect(sub.glyph(0xfefb)).toBe(font.glyph(0xfefb));
+      expect(length).toBeLessThan(PLEX_ARABIC.length / 2);
+      expect(p.objects.get(6)).toMatch(/\/F4 \d+ 0 R/);
+    });
+
+    it('writes Arabic in the face, glyph ids in visual order, and reads back as the names through ToUnicode', () => {
+      const p = parse(drawingToPdf([{ drawing: arabic(), title: 'بيت الأُسرة' }], { date: '2026-11-17', arabicFont: PLEX_ARABIC }));
+      const content = pageContents(p)[0];
+      const texts = arabicTexts(content, toUnicode(p, false));
+      expect(texts).toContain(NAME);
+      expect(texts).toContain('الطابق الأرضي');
+      // The number stays in Helvetica, at the visual left of the word.
+      expect(content).toMatch(/BT [^\n]*Tm \/F1 [\d.]+ Tf \(2 \) Tj \/F4 [\d.]+ Tf <[0-9A-F]+> Tj ET/);
+      expect(texts).toContain('مطبخ');
+      // The title block's scale in Arabic is not checked here (the process language is English); the project's name is.
+      expect(texts).toContain('بيت الأُسرة');
+      // A Latin text is written as before.
+      expect(content).toContain('(Living) Tj');
+      // Each Arabic text carries its logical text for copying.
+      expect(content).toContain(`/Span << /ActualText ${pdfTextString(NAME)} >> BDC`);
+      // The lam-alef ligature maps back to two letters.
+      expect([...toUnicode(p, false).values()]).toContain('لأ');
+    });
+
+    it('deflates the font file and the map with the content', () => {
+      const p = parse(drawingToPdf([{ drawing: arabic() }], { arabicFont: PLEX_ARABIC, deflate: (b) => deflateSync(b) }));
+      p.offsets.forEach((o, i) => expect(p.text.slice(o, o + `${i + 1} 0 obj`.length)).toBe(`${i + 1} 0 obj`));
+      const fileObj = [...p.objects.values()].find((o) => o.includes('/Length1'))!;
+      expect(fileObj).toContain('/Filter /FlateDecode');
+      const data = fileObj.slice(fileObj.indexOf('stream\n') + 7, fileObj.length - '\nendstream'.length);
+      const sfnt = inflateSync(Buffer.from(data, 'latin1'));
+      expect(sfnt.length).toBe(Number(/\/Length1 (\d+)/.exec(fileObj)![1]));
+      expect(readTrueType(new Uint8Array(sfnt)).postScriptName).toBe('IBMPlexSansArabic');
+      expect(arabicTexts(pageContents(p, true)[0], toUnicode(p, true))).toContain(NAME);
+    });
+
+    it('measures a mixed line as the sum of its runs, and aligns by that width', () => {
+      const runs = pdfTextRuns('Bedroom غرفة 12 m²', font);
+      expect(runs.map((r) => r.font)).toEqual(['standard', 'embedded', 'standard']);
+      const [latin, own, digits] = runs;
+      if (latin.font !== 'standard' || own.font !== 'embedded' || digits.font !== 'standard') throw new Error('runs');
+      expect(latin.width).toBeCloseTo(textWidthEm(winAnsi('Bedroom ')), 9);
+      expect(own.width).toBeCloseTo(own.glyphs.reduce((sum, g) => sum + font.advance(g.id), 0) / font.unitsPerEm, 9);
+      expect(digits.width).toBeCloseTo(textWidthEm(winAnsi(' 12 m²')), 9);
+      const total = runs.reduce((sum, r) => sum + r.width, 0);
+      const x = (align: 'left' | 'center' | 'right') => {
+        const d = drawingOf([
+          { type: 'stroke', segs: [{ k: 'line', a: [-15000, -10000], b: [15000, 10000] }], closed: false, width: 0.25 },
+          { type: 'text', at: [0, 0], text: 'Bedroom غرفة 12 m²', height: 1000, rotation: 0, align, baseline: 'bottom' },
+        ]);
+        const content = pageContents(parse(drawingToPdf([{ drawing: d }], { scale: 100, arabicFont: PLEX_ARABIC })))[0];
+        return Number(/1 0 -?0 1 ([\d.-]+) [\d.-]+ Tm/.exec(content)![1]);
+      };
+      // 10 mm on paper: the whole line's width in points.
+      expect(x('left') - x('right')).toBeCloseTo(total * 10 * (72 / 25.4), 2);
+      expect(x('left') - x('center')).toBeCloseTo((total * 10 * (72 / 25.4)) / 2, 2);
+    });
+
+    it('moves a mark over its letter and back, so it takes no width', () => {
+      const runs = pdfTextRuns('غُرفة', font);
+      expect(runs).toHaveLength(1);
+      const own = runs[0];
+      if (own.font !== 'embedded') throw new Error('runs');
+      const mark = own.glyphs.find((g) => g.id === font.glyph(0x064f))!;
+      expect(mark.dx).toBeLessThan(0);
+      expect(mark.dy).toBeGreaterThanOrEqual(0);
+      expect(own.width).toBeCloseTo(pdfTextRuns('غرفة', font)[0].width, 9);
+      const content = pageContents(parse(drawingToPdf([{ drawing: drawingOf([{ type: 'text', at: [0, 0], text: 'غُرفة', height: 200, rotation: 0, align: 'center', baseline: 'middle' }]) }], { arabicFont: PLEX_ARABIC })))[0];
+      expect(content).toMatch(/\[([\d.]+)\] TJ [\d.-]+ Ts <[0-9A-F]{4}> Tj 0 Ts \[-\1\] TJ/);
+    });
+
+    it('fails with a translated error when the document has Arabic and no face', () => {
+      let error: unknown;
+      try {
+        drawingToPdf([{ drawing: arabic() }]);
+      } catch (err) {
+        error = err;
+      }
+      expect(error).toMatchObject({ code: 'UNAVAILABLE', i18n: { key: 'errors.exchange.noArabicFont' } });
+    });
+
+    it('writes a Latin-only document byte for byte as without the face', () => {
+      const plain = (options: Parameters<typeof drawingToPdf>[1]) => latin1(drawingToPdf(pages, { date: '2026-10-27', ...options })).replace(/\/CreationDate \(D:\d+Z\)/, '');
+      expect(plain({ arabicFont: PLEX_ARABIC })).toBe(plain({}));
+      expect(plain({ arabicFont: PLEX_ARABIC })).not.toContain('/F4');
+    });
   });
 
   it('splits arcs into Béziers of a quarter turn at most, on the circle', () => {

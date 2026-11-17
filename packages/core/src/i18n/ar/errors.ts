@@ -131,6 +131,7 @@ export const errors = {
   'errors.exchange.noPng': 'لم تُرجع النافذة صورة PNG.',
   'errors.exchange.tooBig': 'لم تستطع النافذة أن ترسم إلا \u2066{drawnWidth} × {drawnHeight} px\u2069 بدلًا من \u2066{width} × {height}\u2069 المطلوبة؛ اطلب صورة أصغر.',
   'errors.exchange.insideLibrary': 'لا يمكن حفظ الملفات المصدَّرة داخل مكتبة المشاريع؛ اختر مجلدًا آخر غير مجلد المكتبة: \u2066{folder}\u2069',
+  'errors.exchange.noArabicFont': 'في المستند نص عربي، وتعذّرت قراءة الخط العربي الذي يُضمَّن في ملف PDF لكتابته: \u2066{file}\u2069',
   'errors.exchange.exists': 'هذه الملفات موجودة بالفعل: \u2066{names}\u2069. صدّر مرة أخرى مع السماح باستبدالها.',
   'errors.dxf.tooLarge': 'حجم \u2066{name}\u2069 هو \u2066{size} MB\u2069، ولا تُستورد ملفات DXF التي تتجاوز \u2066{max} MB\u2069.',
   'errors.dxf.missing': 'لا يوجد ملف في \u2066{path}\u2069.',

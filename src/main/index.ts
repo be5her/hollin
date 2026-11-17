@@ -134,6 +134,8 @@ async function main(): Promise<void> {
     updater,
     // The language 'system' follows: the OS's, or STUDIO_LANG in development; the smoke always runs in English.
     systemLocale: smoke ? 'en-US' : (dev && process.env.STUDIO_LANG) || app.getLocale(),
+    // The fonts the exports embed: electron-builder copies resources/fonts next to the app (extraResources).
+    fontsDir: app.isPackaged ? path.join(process.resourcesPath, 'fonts') : path.join(app.getAppPath(), 'resources', 'fonts'),
   });
   registerIpc(host);
   await host.start();

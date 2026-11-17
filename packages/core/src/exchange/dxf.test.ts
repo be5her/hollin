@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { Vec2 } from '../geometry/vec';
 import { drawingBounds, planDrawing, type DrawingLayer, type DrawingSegment, type PlanDrawing } from './drawing';
-import { dxfLineweight, dxfNumber, dxfString, drawingToDxf } from './dxf';
-import { decodeDxfString, dxfPairs, readDxfEntities, type DxfEntity } from './dxf-read';
-import { drawingHouse } from './house.fixture';
+import { DXF_ARABIC_STYLE, dxfLineweight, dxfNumber, dxfString, drawingToDxf } from './dxf';
+import { decodeDxfString, dxfPairs, readDxf, readDxfEntities, type DxfEntity } from './dxf-read';
+import { arabicHouse, drawingHouse } from './house.fixture';
 
 const near = (a: Vec2, b: Vec2, tolerance = 0.001) => Math.abs(a[0] - b[0]) <= tolerance && Math.abs(a[1] - b[1]) <= tolerance;
 const closeTo = (a: number, b: number, tolerance = 1e-6) => Math.abs(a - b) <= tolerance;
@@ -218,5 +218,37 @@ describe('drawingToDxf', () => {
     expect(r.insUnits).toBe(1);
     expect(r.entities).toEqual([{ type: 'LINE', layer: 'A', a: [0, 0], b: [25.4, 0] }]);
     expect(r.skipped).toEqual({ POINT: 1 });
+  });
+
+  it('writes Arabic texts in logical order as \\U+ escapes in a TrueType style, without the bidi controls, and they read back', () => {
+    const d = drawingOf([
+      { type: 'text', at: [0, 0], text: 'غرفة المعيشة', height: 200, rotation: 0, align: 'center', baseline: 'middle' },
+      { type: 'text', at: [0, 1000], text: '⁨Kitchen⁩ · غير مغلقة', height: 200, rotation: 0, align: 'left', baseline: 'middle', direction: 'rtl' },
+      { type: 'text', at: [0, 2000], text: 'Living', height: 200, rotation: 0, align: 'center', baseline: 'middle' },
+    ]);
+    const dxf = drawingToDxf(d);
+    // Logical order: the first letter (ghain, U+063A) first.
+    expect(dxf).toContain('\\U+063A\\U+0631\\U+0641\\U+0629 ');
+    expect(dxf).not.toMatch(/\\U\+206[6-9]|\\U\+200[EF]/);
+    expect(/[^\x00-\x7f]/.test(dxf)).toBe(false);
+    const texts = readDxfEntities(dxf).entities.filter((e) => e.type === 'TEXT');
+    expect(texts.map((t) => (t.type === 'TEXT' ? t.text : ''))).toEqual(['غرفة المعيشة', 'Kitchen · غير مغلقة', 'Living']);
+    // The Arabic texts take the TrueType style, the Latin one the standard one; the style is in the table.
+    const pairs = dxfPairs(dxf);
+    const textStyles = pairs.filter((p, i) => p.code === 7 && pairs.slice(0, i).reverse().find((q) => q.code === 0)?.value === 'TEXT').map((p) => p.value);
+    expect(textStyles).toEqual([DXF_ARABIC_STYLE.name, DXF_ARABIC_STYLE.name, 'Standard']);
+    expect(dxf).toContain(`  2\n${DXF_ARABIC_STYLE.name}\n 70\n0\n 40\n0\n 41\n1\n 50\n0\n 71\n0\n 42\n2.5\n  3\n${DXF_ARABIC_STYLE.font}\n`);
+    // A drawing without Arabic has the one style, as before.
+    expect(drawingToDxf(drawingOf([]))).not.toContain(DXF_ARABIC_STYLE.font);
+  });
+
+  it('round-trips a house named in Arabic: its room names and labels, its layers keeping their English names', () => {
+    const { doc, ground } = arabicHouse();
+    const d = planDrawing(doc, ground);
+    const read = readDxf(drawingToDxf(d));
+    const texts = read.entities.flatMap((e) => (e.type === 'TEXT' ? [e.text] : []));
+    for (const name of ['غرفة المعيشة', 'مطبخ 2', 'المدخل (الرئيسي) · 3600 mm', 'Bedroom غرفة النوم', 'غُرفة الأهلي لا']) expect(texts).toContain(name);
+    expect(read.layers.map((l) => l.name)).toEqual(['0', ...d.layers.map((l) => l.name)]);
+    expect(read.layers.map((l) => l.name)).toContain('Rooms');
   });
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Vec2 } from '../geometry/vec';
-import { readDxf, readDxfEntities, sampleBSpline, stripMtext, type DxfEntity } from './dxf-read';
+import { decodeDxfBytes, decodeDxfString, readDxf, readDxfEntities, sampleBSpline, stripMtext, type DxfEntity } from './dxf-read';
 
 /** A DXF from a template string: one code or value per line, indentation dropped. */
 const dxfText = (s: string, eol = '\n') =>
@@ -856,5 +856,93 @@ describe('readDxf', () => {
     expect(readDxf(blockDxf('', '', '9 $MEASUREMENT\n70 0'))).toMatchObject({ insUnits: null, measurement: 0 });
     expect(readDxf(blockDxf('', '', '9 $INSUNITS\n70 4\n9 $MEASUREMENT\n70 1'))).toMatchObject({ insUnits: 4, measurement: 1 });
     expect(readDxf(blockDxf('', '')).measurement).toBeNull();
+  });
+});
+
+/** A text in a single-byte Windows code page, by decoding every byte of it and looking each character up. */
+function encodeCodePage(text: string, label: string): Uint8Array {
+  const table = new Map<string, number>();
+  const decoder = new TextDecoder(label);
+  for (let b = 0; b < 256; b++) table.set(decoder.decode(new Uint8Array([b])), b);
+  return new Uint8Array([...text].map((ch) => {
+    const b = table.get(ch);
+    if (b === undefined) throw new Error(`${ch} is not in ${label}`);
+    return b;
+  }));
+}
+
+describe('decodeDxfBytes', () => {
+  /** A drawing from an Arabic AutoCAD before 2007: its header names ANSI_1256, its layer and text are in that code page. */
+  const arabicDxf = (page = 'ANSI_1256') =>
+    pairText(`
+      0 SECTION
+      2 HEADER
+      9 $ACADVER
+      1 AC1015
+      9 $DWGCODEPAGE
+      3 ${page}
+      9 $INSUNITS
+      70 4
+      0 ENDSEC
+      0 SECTION
+      2 TABLES
+      0 TABLE
+      2 LAYER
+      0 LAYER
+      2 جدران
+      70 0
+      62 7
+      0 ENDTAB
+      0 ENDSEC
+      0 SECTION
+      2 ENTITIES
+      0 TEXT
+      8 جدران
+      10 100
+      20 200
+      40 250
+      1 غرفة المعيشة \\U+00B2
+      0 LINE
+      8 جدران
+      10 0
+      20 0
+      11 1000
+      21 0
+      0 ENDSEC
+      0 EOF
+    `);
+
+  it('reads an ANSI_1256 file in its code page: the Arabic layer name and text, escapes still decoded', () => {
+    const bytes = encodeCodePage(arabicDxf(), 'windows-1256');
+    // Not UTF-8: read as Latin-1 it would be garbage.
+    expect(() => new TextDecoder('utf-8', { fatal: true }).decode(bytes)).toThrow();
+    const { text, encoding } = decodeDxfBytes(bytes);
+    expect(encoding).toBe('windows-1256');
+    const file = readDxf(text);
+    expect(file.layers.map((l) => l.name)).toEqual(['جدران']);
+    const label = file.entities.find((e) => e.type === 'TEXT');
+    expect(label).toMatchObject({ layer: 'جدران', text: 'غرفة المعيشة ²' });
+    expect(file.entities.filter((e) => e.layer === 'جدران')).toHaveLength(2);
+  });
+
+  it('reads UTF-8 as UTF-8 whatever the header says, and the other ANSI pages in theirs', () => {
+    const utf8 = new TextEncoder().encode(arabicDxf());
+    expect(decodeDxfBytes(utf8)).toMatchObject({ encoding: 'utf-8' });
+    expect(readDxf(decodeDxfBytes(utf8).text).layers[0].name).toBe('جدران');
+    // Greek in ANSI_1253, a Windows-1252 file with an accent, and a page the reader does not know read as Windows-1252.
+    const greek = encodeCodePage(arabicDxf('ANSI_1253').replace(/جدران/g, 'Τοίχοι').replace('غرفة المعيشة', 'Σαλόνι'), 'windows-1253');
+    expect(readDxf(decodeDxfBytes(greek).text).layers[0].name).toBe('Τοίχοι');
+    const latin = encodeCodePage(arabicDxf('ANSI_1252').replace(/جدران/g, 'Murs').replace('غرفة المعيشة', 'Séjour'), 'windows-1252');
+    expect(decodeDxfBytes(latin)).toMatchObject({ encoding: 'windows-1252' });
+    expect(readDxf(decodeDxfBytes(latin).text).entities.find((e) => e.type === 'TEXT')).toMatchObject({ text: 'Séjour ²' });
+    const unknown = encodeCodePage(arabicDxf('DOS999').replace(/جدران/g, 'Murs').replace('غرفة المعيشة', 'Séjour'), 'windows-1252');
+    expect(decodeDxfBytes(unknown).encoding).toBe('windows-1252');
+  });
+
+  it('decodes \\M+n escapes in their East Asian code page, next to \\U+ ones', () => {
+    // Two characters in Shift-JIS, written as AutoCAD escapes them: 0x959D and 0x89AE.
+    expect(decodeDxfString('\\M+1959D\\M+189AE \\U+00B2')).toBe(`${new TextDecoder('shift_jis').decode(new Uint8Array([0x95, 0x9d, 0x89, 0xae]))} ²`);
+    expect(decodeDxfString('\\M+4ABCD')).toBe('?');
+    expect(stripMtext('{\\fArial;\\M+1959D}\\P\\U+0628')).toBe(`${new TextDecoder('shift_jis').decode(new Uint8Array([0x95, 0x9d]))}\nب`);
   });
 });

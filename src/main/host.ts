@@ -55,6 +55,8 @@ export interface HostOptions {
    * The smoke passes `en-US`, so it runs in English on any machine; `STUDIO_LANG` overrides it in development.
    */
   systemLocale?: string;
+  /** The fonts the exports embed (`resources/fonts`, or `fonts` in the packaged app's resources). */
+  fontsDir?: string;
 }
 
 /** What `app.language` answers: the language the app speaks now, its direction, what Settings stores and the OS locale it follows. */
@@ -114,6 +116,7 @@ export class Host {
       version: opts.version,
       platform: opts.platform,
       dataDir: opts.userDataDir,
+      fontsDir: opts.fontsDir,
       config: {
         get: () => this.config.get(),
         update: (patch) => this.config.update(patch),
