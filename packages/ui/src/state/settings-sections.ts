@@ -2,6 +2,7 @@ import { Service, signal, type Type } from '@angular/core';
 
 export interface SettingsSection {
   id: string;
+  /** The heading: a message key, translated where it shows (plain text shows as it is). */
   title: string;
   /** Sort position among the sections. Below `SETTINGS_LATE` a section comes after Units; from it on, after the Assistant, just before About. */
   order: number;

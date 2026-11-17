@@ -1,7 +1,7 @@
 import { NgTemplateOutlet } from '@angular/common';
 import { Component, ElementRef, afterRenderEffect, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
 import { BRANDING, MAX_CHAT_IMAGES, type AssistantEvent, type AssistantStatus, type ChatImageInput, type ChatSnapshot, type ToolItem } from '@studio/core';
-import { AppState, AssistantDrafts, Button, HostBridge, Icon, Kbd, OTTO_RULE, OttoMark, Spinner, TabsState, Toasts, injectHostEvent, invokeResource, ottoModelLabel } from '@studio/ui';
+import { AppState, AssistantDrafts, Button, HostBridge, I18n, Icon, Kbd, OTTO_RULE, OttoMark, Spinner, TabsState, Toasts, injectHostEvent, invokeResource, ottoModelLabel } from '@studio/ui';
 import { ArrowDown, Camera, Check, CircleAlert, Eraser, ImageOff, KeyRound, Plug, RefreshCw, Send, Settings2, ShieldAlert, Square, X } from 'lucide';
 import { imageFiles, prepareImage, type PreparedImage } from './pasted-images';
 
@@ -50,7 +50,11 @@ export class AssistantPanel {
   protected readonly icons = { ArrowDown, Camera, Check, CircleAlert, Eraser, ImageOff, KeyRound, Plug, RefreshCw, Send, Settings2, ShieldAlert, Square, X };
   protected readonly maxImages = MAX_CHAT_IMAGES;
   protected readonly examples = EXAMPLES;
-  protected readonly rule = OTTO_RULE;
+  private readonly t = inject(I18n).t;
+  /** Otto's rule in the language of the moment. */
+  protected get rule(): string {
+    return this.t(OTTO_RULE);
+  }
   protected readonly productName = BRANDING.productName;
   protected readonly status = invokeResource<AssistantStatus>('assistant.status', () => ({}), { projectId: () => null, refreshOnEvents: ['secrets.changed', 'config.changed', 'mcp.status'] });
   protected readonly chat = signal<ChatSnapshot | null>(null);
@@ -94,7 +98,7 @@ export class AssistantPanel {
   protected readonly modelLabel = computed(() => ottoModelLabel(this.status.value(), this.app.config()?.ai, { model: this.status.value()?.provider === 'api' ? (this.chat()?.model ?? undefined) : undefined, detail: true }));
   protected readonly headerLabel = computed(() => {
     const reason = this.emptyReason();
-    return reason ? `Otto, ${this.setupLine()}` : `Otto, ${this.modelLabel()}, ${OTTO_RULE}`;
+    return reason ? `Otto, ${this.setupLine()}` : `Otto, ${this.modelLabel()}, ${this.t(OTTO_RULE)}`;
   });
   /** The header's second line in a setup state. */
   protected readonly setupLine = computed(() => {
@@ -238,7 +242,8 @@ export class AssistantPanel {
   }
 
   protected openSettings(): void {
-    this.tabs.open({ type: 'settings.main', title: 'Settings', data: { key: 'settings', section: 'ai' } }, { singletonKey: 'settings.main:settings' });
+    const settings = this.tabs.open({ type: 'settings.main', title: 'Settings', titleKey: 'shell.tab.settings', data: { key: 'settings', section: 'ai' } }, { singletonKey: 'settings.main:settings' });
+    this.tabs.update(settings.id, { data: { key: 'settings', section: 'ai' } });
   }
 
   /** Probes Claude Code again (after installing it or logging in). */

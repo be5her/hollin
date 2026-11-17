@@ -1,5 +1,5 @@
 import { Service, signal } from '@angular/core';
-import { toErrorPayload } from '@studio/core';
+import { t, toErrorPayload } from '@studio/core';
 
 export interface Toast {
   id: number;
@@ -44,11 +44,11 @@ export class Toasts {
     this.list.update((toasts) => toasts.filter((t) => t.id !== id));
   }
 
-  /** Copy text to the clipboard and say so. */
-  copy(text: string, what = 'Copied'): void {
+  /** Copy text to the clipboard and say so (`what`, or "Copied" in the app's language). */
+  copy(text: string, what?: string): void {
     void navigator.clipboard.writeText(text).then(
-      () => this.notify(what, 'success'),
-      () => this.notify('Could not copy to the clipboard', 'error'),
+      () => this.notify(what ?? t('common.copied'), 'success'),
+      () => this.notify(t('common.copyFailed'), 'error'),
     );
   }
 }

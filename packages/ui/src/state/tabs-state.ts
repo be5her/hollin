@@ -1,11 +1,13 @@
 import { Service, computed, signal, untracked } from '@angular/core';
-import { moveItem, newId } from '@studio/core';
+import { moveItem, newId, type MessageKey } from '@studio/core';
 
 export interface Tab {
   id: string;
   /** `shell.home`, `shell.settings`, or registered by a module as `<module>.<kind>`, e.g. `project.editor`. */
   type: string;
   title: string;
+  /** For a tab whose title is the app's own words (Home, Settings): shown translated, so it follows the language. `title` keeps the English. */
+  titleKey?: MessageKey;
   /** Free-form payload the tab component reads. */
   data?: Record<string, unknown>;
   /** The project the tab shows; the project on screen is the active tab's. */

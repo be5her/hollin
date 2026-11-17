@@ -48,8 +48,8 @@
               </div>
             }
             <div class="flex justify-end gap-2 mt-4">
-              <button xButton variant="ghost" (click)="cancel(pending)">Cancel</button>
-              <button xButton variant="primary" type="submit">{{ pending.options.confirmLabel ?? 'OK' }}</button>
+              <button xButton variant="ghost" (click)="cancel(pending)">{{ t('common.cancel') }}</button>
+              <button xButton variant="primary" type="submit">{{ pending.options.confirmLabel ?? t('common.ok') }}</button>
             </div>
           </form>
         } @else if (pending.kind === 'form') {
@@ -80,8 +80,8 @@
               }
             </div>
             <div class="flex justify-end gap-2 mt-4">
-              <button xButton variant="ghost" type="button" (click)="cancel(pending)">Cancel</button>
-              <button xButton variant="primary" type="submit" [disabled]="invalid()" data-testid="form-dialog-confirm">{{ pending.options.confirmLabel ?? 'OK' }}</button>
+              <button xButton variant="ghost" type="button" (click)="cancel(pending)">{{ t('common.cancel') }}</button>
+              <button xButton variant="primary" type="submit" [disabled]="invalid()" data-testid="form-dialog-confirm">{{ pending.options.confirmLabel ?? t('common.ok') }}</button>
             </div>
           </form>
         } @else {
@@ -91,15 +91,15 @@
               <p class="text-sm text-muted">{{ pending.options.message }}</p>
             }
             @if (pending.options.details?.length) {
-              <ul class="mt-2 ml-4 list-disc text-sm text-fg/85 space-y-0.5" data-testid="confirm-details">
+              <ul class="mt-2 ms-4 list-disc text-sm text-fg/85 space-y-0.5" data-testid="confirm-details">
                 @for (line of pending.options.details; track $index) {
                   <li>{{ line }}</li>
                 }
               </ul>
             }
             <div class="flex justify-end gap-2 mt-4">
-              <button xButton variant="ghost" xAutofocus (click)="cancel(pending)">Cancel</button>
-              <button xButton [variant]="pending.options.danger ? 'danger' : 'primary'" [class]="pending.options.danger ? 'border-danger/40' : ''" (click)="pending.resolve(true)">{{ pending.options.confirmLabel ?? 'Confirm' }}</button>
+              <button xButton variant="ghost" xAutofocus (click)="cancel(pending)">{{ t('common.cancel') }}</button>
+              <button xButton [variant]="pending.options.danger ? 'danger' : 'primary'" [class]="pending.options.danger ? 'border-danger/40' : ''" (click)="pending.resolve(true)">{{ pending.options.confirmLabel ?? t('common.confirm') }}</button>
             </div>
           </div>
         }

@@ -64,7 +64,8 @@ export class FirstLaunch {
     const text = untracked(this.ottoDraft).sentence.trim();
     if (!text || this.busy) return;
     if (!untracked(this.ready)) {
-      this.tabs.open({ type: 'settings.main', title: 'Settings', data: { key: 'settings', section: 'ai' } }, { singletonKey: 'settings.main:settings' });
+      const settings = this.tabs.open({ type: 'settings.main', title: 'Settings', titleKey: 'shell.tab.settings', data: { key: 'settings', section: 'ai' } }, { singletonKey: 'settings.main:settings' });
+      this.tabs.update(settings.id, { data: { key: 'settings', section: 'ai' } });
       return;
     }
     this.busy = true;

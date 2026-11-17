@@ -1,5 +1,6 @@
 import { Component, inject } from '@angular/core';
 import { CircleAlert, CircleCheck, Info, X } from 'lucide';
+import { I18n } from '../i18n/i18n';
 import { Icon } from '../icon/icon';
 import { Toasts } from './toasts';
 
@@ -14,6 +15,7 @@ const ICONS = { info: Info, success: CircleCheck, error: CircleAlert };
 })
 export class ToastHost {
   protected readonly toasts = inject(Toasts);
+  protected readonly t = inject(I18n).t;
   protected readonly icons = ICONS;
   protected readonly closeIcon = X;
 }

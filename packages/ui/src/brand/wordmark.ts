@@ -11,6 +11,8 @@ import { BRANDING } from '@studio/core';
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     class: 'inline-block whitespace-nowrap font-display font-semibold text-fg',
+    // A name: its full stop stays after it in a right-to-left interface too.
+    dir: 'ltr',
     '[style.font-size.px]': 'size()',
     '[style.font-variation-settings]': 'variation()',
     style: 'line-height: 1; letter-spacing: -0.01em',

@@ -22,14 +22,17 @@ export class ContextMenuHost {
   protected readonly gutter = computed(() => this.menu()?.items.some((item) => item !== 'separator' && item.checked !== undefined) ?? false);
 
   constructor() {
-    // Keep the menu inside the window: flip left or up when it would overflow.
+    // Keep the menu inside the window: flip left or up when it would overflow. Right to left, it opens to
+    // the left of the pointer (its start edge there) and flips to the right when that overflows.
     afterRenderEffect({
       write: () => {
         const menu = this.menu();
         const panel = this.panel()?.nativeElement;
         if (!menu || !panel) return;
         const { width, height } = panel.getBoundingClientRect();
-        panel.style.left = `${menu.x + width > window.innerWidth - 4 ? Math.max(4, menu.x - width) : menu.x}px`;
+        const rtl = getComputedStyle(panel).direction === 'rtl';
+        const left = rtl ? (menu.x - width < 4 ? Math.min(menu.x, window.innerWidth - 4 - width) : menu.x - width) : menu.x + width > window.innerWidth - 4 ? Math.max(4, menu.x - width) : menu.x;
+        panel.style.left = `${left}px`;
         panel.style.top = `${menu.y + height > window.innerHeight - 4 ? Math.max(4, menu.y - height) : menu.y}px`;
         panel.style.visibility = 'visible';
         panel.focus();

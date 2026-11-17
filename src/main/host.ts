@@ -3,14 +3,21 @@ import {
   BRANDING,
   CommandRegistry,
   StudioError,
+  languageDirection,
+  resolveLanguage,
+  setLanguage,
   toErrorPayload,
   toolInputSchema,
   type Caller,
   type ErrorPayload,
+  type GlobalConfig,
   type HostApi,
   type HostEventMessage,
   type HostEventName,
   type HostEvents,
+  type Language,
+  type LanguagePreference,
+  type TextDirection,
   type McpCallEntry,
   type McpStatus,
   type ModuleMain,
@@ -40,6 +47,19 @@ export interface HostOptions {
   autosave?: { debounceMs?: number; maxWaitMs?: number };
   /** In-app updates: electron-updater in the app (`updater.ts`), a scripted one in the smoke; absent in tests. */
   updater?: Updater;
+  /**
+   * The operating system's locale (Electron's `app.getLocale()`), which `appearance.language: 'system'` follows.
+   * The smoke passes `en-US`, so it runs in English on any machine; `STUDIO_LANG` overrides it in development.
+   */
+  systemLocale?: string;
+}
+
+/** What `app.language` answers: the language the app speaks now, its direction, what Settings stores and the OS locale it follows. */
+export interface LanguageState {
+  language: Language;
+  direction: TextDirection;
+  preference: LanguagePreference;
+  systemLocale: string;
 }
 
 export interface InvokeOptions {
@@ -65,6 +85,8 @@ export class Host {
   private mcpError: string | undefined;
   private readonly calls: McpCallEntry[] = [];
   private service: ProjectService | null = null;
+  /** The resolved language: `setLanguage` is called with it, and `language.changed` announces a change. */
+  private language: Language = 'en';
 
   /** The project library and the open projects; available once `start` has run. */
   get projects(): ProjectService {
@@ -79,7 +101,11 @@ export class Host {
 
   constructor(readonly opts: HostOptions) {
     const host = this;
-    this.config = new ConfigStore(path.join(opts.userDataDir, 'config.json'), (config) => this.emit('config.changed', { config }));
+    this.config = new ConfigStore(path.join(opts.userDataDir, 'config.json'), (config) => {
+      this.emit('config.changed', { config });
+      this.applyLanguage(config);
+    });
+    this.applyLanguage(this.config.get());
     this.secrets = new SecretStore(path.join(opts.userDataDir, 'secrets.json'), opts.cipher);
     this.api = {
       version: opts.version,
@@ -127,6 +153,7 @@ export class Host {
 
   async start(): Promise<void> {
     const config = await this.config.load();
+    this.applyLanguage(config);
     await this.secrets.load();
     for (const mod of this.registry.listModules()) {
       try {
@@ -177,6 +204,24 @@ export class Host {
     }
     // Let queued writes finish before the process (or the smoke test's cleanup) removes anything.
     await Promise.all([this.config.idle(), this.secrets.idle(), this.opts.updater?.idle()]);
+  }
+
+  /** The language the app speaks, and what it was resolved from (`app.language`). */
+  languageState(): LanguageState {
+    const preference = this.config.get().appearance.language;
+    return { language: this.language, direction: languageDirection(this.language), preference, systemLocale: this.opts.systemLocale ?? '' };
+  }
+
+  /**
+   * Resolves `appearance.language` against the system locale, makes it the process language (`t` in
+   * main reads it) and announces it when it changed. Runs at construction, at start and on every config change.
+   */
+  private applyLanguage(config: GlobalConfig): void {
+    const language = resolveLanguage(config.appearance.language, this.opts.systemLocale);
+    setLanguage(language);
+    if (language === this.language) return;
+    this.language = language;
+    this.emit('language.changed', { language, direction: languageDirection(language) });
   }
 
   /** Runs a command for the UI (or the smoke test) and never throws: the outcome crosses IPC as data. */

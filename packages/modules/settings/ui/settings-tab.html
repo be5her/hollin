@@ -1,111 +1,122 @@
 <div class="max-w-3xl mx-auto w-full px-8 py-8 flex flex-col gap-10">
-  <h1 class="heading-page text-fg">Settings</h1>
+  <h1 class="heading-page text-fg" data-testid="settings-title">{{ t('settings.title') }}</h1>
 
   <section data-section="appearance">
-    <h2 class="heading-panel text-fg mb-3 pb-1 border-b border-edge">Appearance</h2>
-    <label xLabel for="settings-theme">Theme</label>
-    <select xSelect id="settings-theme" class="w-48" [formField]="settings.theme" data-testid="settings-theme">
-      <option value="system">Follow system</option>
-      <option value="light">Light</option>
-      <option value="dark">Dark</option>
-    </select>
+    <h2 class="heading-panel text-fg mb-3 pb-1 border-b border-edge">{{ t('settings.appearance.title') }}</h2>
+    <div class="flex flex-wrap gap-x-6 gap-y-3">
+      <div>
+        <label xLabel for="settings-theme">{{ t('settings.theme.label') }}</label>
+        <select xSelect id="settings-theme" class="w-48" [formField]="settings.theme" data-testid="settings-theme">
+          <option value="system">{{ t('settings.theme.system') }}</option>
+          <option value="light">{{ t('settings.theme.light') }}</option>
+          <option value="dark">{{ t('settings.theme.dark') }}</option>
+        </select>
+      </div>
+      <div>
+        <label xLabel for="settings-language">{{ t('settings.language.label') }}</label>
+        <select xSelect id="settings-language" class="w-48" [formField]="settings.language" data-testid="settings-language">
+          <option value="system">{{ t('settings.language.system') }}</option>
+          @for (l of languages; track l.id) {
+            <option [value]="l.id" [attr.lang]="l.id" [attr.dir]="l.dir">{{ l.name }}</option>
+          }
+        </select>
+      </div>
+    </div>
+    <p class="text-[13px] text-muted mt-2">{{ t('settings.language.note') }}</p>
   </section>
 
   <section data-section="units">
-    <h2 class="heading-panel text-fg mb-1 pb-1 border-b border-edge">Units</h2>
-    <p class="text-[13px] text-muted mb-3">How lengths are shown and typed. Designs are always stored in millimetres, so switching never changes them.</p>
+    <h2 class="heading-panel text-fg mb-1 pb-1 border-b border-edge">{{ t('settings.units.title') }}</h2>
+    <p class="text-[13px] text-muted mb-3">{{ t('settings.units.note') }}</p>
     <x-units-editor [formField]="settings.units" />
   </section>
 
   @for (section of sections(); track section.id) {
     <section [attr.data-section]="section.id">
-      <h2 class="heading-panel text-fg mb-1 pb-1 border-b border-edge">{{ section.title }}</h2>
+      <h2 class="heading-panel text-fg mb-1 pb-1 border-b border-edge">{{ label(section.title) }}</h2>
       <ng-container *ngComponentOutlet="section.component" />
     </section>
   }
 
   <section data-section="mcp">
-    <h2 class="heading-panel text-fg mb-1 pb-1 border-b border-edge">MCP server</h2>
-    <p class="text-[13px] text-muted mb-3">
-      AI agents such as Claude Desktop and Claude Code can work on your designs through this local server. Every command in the palette is available to them. Agents act on
-      the project on screen unless they name another.
-    </p>
+    <h2 class="heading-panel text-fg mb-1 pb-1 border-b border-edge">{{ t('settings.mcp.title') }}</h2>
+    <p class="text-[13px] text-muted mb-3">{{ t('settings.mcp.note') }}</p>
     <div class="flex items-center gap-5 flex-wrap">
-      <label class="flex items-center gap-2 text-sm"><input xCheckbox type="checkbox" [formField]="settings.mcpEnabled" data-testid="settings-mcp-enabled" />Enabled</label>
+      <label class="flex items-center gap-2 text-sm"><input xCheckbox type="checkbox" [formField]="settings.mcpEnabled" data-testid="settings-mcp-enabled" />{{ t('settings.mcp.enabled') }}</label>
       <label class="flex items-center gap-2 text-sm"
-        >Port<input xInput type="number" class="w-24" [formField]="settings.port" (blur)="savePort()" (keydown.enter)="savePort()" data-testid="settings-mcp-port"
+        >{{ t('settings.mcp.port') }}<input xInput type="number" dir="ltr" class="w-24" [formField]="settings.port" (blur)="savePort()" (keydown.enter)="savePort()" data-testid="settings-mcp-port"
       /></label>
       <span class="text-xs" [class]="mcp()?.running ? 'text-success' : 'text-danger'" data-testid="settings-mcp-state">{{
-        mcp()?.running ? 'Running' : (mcp()?.error ?? 'Stopped')
+        mcp()?.running ? t('settings.mcp.running') : (mcp()?.error ?? t('settings.mcp.stopped'))
       }}</span>
       @if (mcp()?.error && config()?.mcp?.enabled) {
-        <button xButton size="sm" (click)="restartMcp()">Try again</button>
+        <button xButton size="sm" (click)="restartMcp()">{{ t('settings.mcp.retry') }}</button>
       }
     </div>
     <label class="flex items-start gap-2 text-sm mt-3"
       ><input xCheckbox type="checkbox" class="mt-0.5" [formField]="settings.allowMutations" data-testid="settings-mcp-mutations" /><span
-        >Allow agents to delete or overwrite data
-        <span class="block text-xs text-muted">Ordinary design edits are always allowed and can be undone. This covers things that cannot: emptying the trash, deleting snapshots, writing files outside the library.</span></span
+        >{{ t('settings.mcp.mutations') }}
+        <span class="block text-xs text-muted">{{ t('settings.mcp.mutationsNote') }}</span></span
       ></label
     >
     <div class="mt-4 flex flex-col gap-3">
       @for (s of snippets(); track s.id) {
         <div>
-          <label xLabel>{{ s.client }} <span class="font-normal">· {{ s.where }}</span></label>
+          <label xLabel>{{ snippetClient(s) }} <span class="font-normal">· {{ snippetWhere(s) }}</span></label>
           <ng-container *ngTemplateOutlet="copyRow; context: { $implicit: s.text, id: s.id }" />
         </div>
       }
     </div>
-    <h3 class="text-xs font-medium text-muted mt-5 mb-1.5">Recent agent calls</h3>
+    <h3 class="text-xs font-medium text-muted mt-5 mb-1.5">{{ t('settings.mcp.calls') }}</h3>
     @if (recentCalls().length) {
       <div class="border border-edge rounded-md divide-y divide-edge text-xs" data-testid="settings-mcp-calls">
         @for (call of recentCalls(); track $index) {
           <div class="flex items-center gap-3 px-2.5 py-1.5">
             <span class="size-1.5 rounded-full shrink-0" [class]="call.ok ? 'bg-success' : 'bg-danger'"></span>
-            <span class="font-mono">{{ call.tool }}</span>
+            <span class="font-mono bidi-ltr">{{ call.tool }}</span>
             <span class="flex items-center gap-1.5 min-w-0 text-muted" [attr.data-caller]="call.caller" data-testid="settings-mcp-call-agent">
               @if (call.caller === 'assistant') {
                 <x-otto-mark size="14" />
               } @else {
                 <span class="size-1.5 rounded-full border-[1.5px] border-muted box-content shrink-0" aria-hidden="true"></span>
               }
-              <span class="truncate">{{ signature(call.caller, call.agent) }}</span>
+              <span class="truncate bidi-ltr">{{ signature(call.caller, call.agent) }}</span>
             </span>
             @if (call.error) {
-              <span xBadge>{{ call.error }}</span>
+              <span xBadge class="bidi-ltr">{{ call.error }}</span>
             }
             <span class="flex-1"></span>
-            <span class="text-muted italic">{{ time(call.at) }}</span>
+            <span class="text-muted italic bidi-ltr">{{ time(call.at) }}</span>
           </div>
         }
       </div>
     } @else {
-      <p class="text-xs text-muted">No calls yet.</p>
+      <p class="text-xs text-muted">{{ t('settings.mcp.noCalls') }}</p>
     }
   </section>
 
   <section data-section="ai">
-    <h2 class="heading-panel text-fg mb-1 pb-1 border-b border-edge flex items-center gap-2"><x-otto-mark size="20" />Assistant</h2>
-    <p class="text-[13px] text-muted mb-2 max-w-2xl" data-testid="settings-ai-intro">Otto, the assistant in every project tab, reaches Claude through the Claude API with your own key (the default) or through the Claude Code you have installed and logged in on this computer.</p>
-    <p class="text-[13px] text-muted mb-3 max-w-2xl" data-testid="settings-ai-rule">Otto edits as a named author on your undo stack and asks before it deletes anything. Before it deletes or overwrites, the question appears in the chat and nothing runs until you answer; ordinary edits need no yes: they land as one step each, signed Otto, and Ctrl+Z takes them back.</p>
-    <label xLabel for="settings-provider">Provider</label>
+    <h2 class="heading-panel text-fg mb-1 pb-1 border-b border-edge flex items-center gap-2"><x-otto-mark size="20" />{{ t('settings.ai.title') }}</h2>
+    <p class="text-[13px] text-muted mb-2 max-w-2xl" data-testid="settings-ai-intro">{{ t('settings.ai.intro') }}</p>
+    <p class="text-[13px] text-muted mb-3 max-w-2xl" data-testid="settings-ai-rule">{{ t('settings.ai.rule') }}</p>
+    <label xLabel for="settings-provider">{{ t('settings.ai.provider') }}</label>
     <select xSelect id="settings-provider" class="w-72" [formField]="settings.provider" data-testid="settings-provider">
       @for (p of providers; track p.id) {
-        <option [value]="p.id">{{ p.label }}</option>
+        <option [value]="p.id">{{ providerName(p.id) }}</option>
       }
     </select>
     @if (draft().provider === 'claude-code') {
-      <p class="text-xs text-muted mt-2 max-w-xl" data-testid="settings-claude-code-note">Uses your own Claude Code and its login, on this computer only, and counts against your Claude Code usage limits. The app never reads or stores its credentials; its only tools are this app's commands, through the MCP server, which must be on.</p>
-      <label xLabel class="mt-4" for="settings-claude-code-path">Claude Code command</label>
+      <p class="text-xs text-muted mt-2 max-w-xl" data-testid="settings-claude-code-note">{{ t('settings.ai.claudeCodeNote') }}</p>
+      <label xLabel class="mt-4" for="settings-claude-code-path">{{ t('settings.ai.claudeCodePath') }}</label>
       <div class="flex items-center gap-2">
-        <input xInput id="settings-claude-code-path" class="w-96 font-mono" placeholder="claude (on PATH)" [formField]="settings.claudeCodePath" (blur)="saveClaudeCodePath()" (keydown.enter)="saveClaudeCodePath()" data-testid="settings-claude-code-path" />
-        <button xButton size="sm" variant="secondary" class="shrink-0 whitespace-nowrap" [icon]="icons.RefreshCw" [loading]="checking()" (click)="checkClaudeCode()" data-testid="settings-claude-code-check">Check again</button>
+        <input xInput id="settings-claude-code-path" dir="ltr" class="w-96 font-mono" [placeholder]="t('settings.ai.claudeCodePathPlaceholder')" [formField]="settings.claudeCodePath" (blur)="saveClaudeCodePath()" (keydown.enter)="saveClaudeCodePath()" data-testid="settings-claude-code-path" />
+        <button xButton size="sm" variant="secondary" class="shrink-0 whitespace-nowrap" [icon]="icons.RefreshCw" [loading]="checking()" (click)="checkClaudeCode()" data-testid="settings-claude-code-check">{{ t('settings.ai.checkAgain') }}</button>
       </div>
       <p class="text-xs mt-1.5" [class]="assistant.value()?.claudeCode?.found && assistant.value()?.claudeCode?.loggedIn ? 'text-success' : 'text-warning'" data-testid="settings-claude-code-state">{{ claudeCodeState() }}</p>
       <div class="flex flex-wrap items-end gap-x-4 gap-y-2 mt-4">
         <div>
-          <label xLabel for="settings-claude-code-model">Model</label>
-          <input xInput id="settings-claude-code-model" class="w-56 font-mono" list="settings-claude-code-models" placeholder="Claude Code's default" [formField]="settings.claudeCodeModel" (blur)="saveClaudeCodeModel()" (keydown.enter)="saveClaudeCodeModel()" data-testid="settings-claude-code-model" />
+          <label xLabel for="settings-claude-code-model">{{ t('settings.ai.model') }}</label>
+          <input xInput id="settings-claude-code-model" dir="ltr" class="w-56 font-mono" list="settings-claude-code-models" [placeholder]="t('settings.ai.claudeCodeDefault')" [formField]="settings.claudeCodeModel" (blur)="saveClaudeCodeModel()" (keydown.enter)="saveClaudeCodeModel()" data-testid="settings-claude-code-model" />
           <datalist id="settings-claude-code-models">
             @for (m of claudeCodeModels; track m) {
               <option [value]="m"></option>
@@ -113,36 +124,36 @@
           </datalist>
         </div>
         <div>
-          <label xLabel for="settings-claude-code-effort">Effort</label>
+          <label xLabel for="settings-claude-code-effort">{{ t('settings.ai.effort') }}</label>
           <select xSelect id="settings-claude-code-effort" class="w-44" [formField]="settings.claudeCodeEffort" data-testid="settings-claude-code-effort">
             @for (e of claudeCodeEfforts; track e) {
-              <option [value]="e">{{ e || "Claude Code's default" }}</option>
+              <option [value]="e">{{ e ? effortName(e) : t('settings.ai.claudeCodeDefault') }}</option>
             }
           </select>
         </div>
       </div>
-      <p class="text-xs text-muted mt-1.5">An alias (fable, opus, sonnet, haiku) or a full model id. Applies from the next message; the chat continues the same session.</p>
+      <p class="text-xs text-muted mt-1.5">{{ t('settings.ai.claudeCodeModelHint') }}</p>
     } @else {
-    <label xLabel class="mt-4" for="settings-model">Model</label>
+    <label xLabel class="mt-4" for="settings-model">{{ t('settings.ai.model') }}</label>
     <select xSelect id="settings-model" class="w-72" [formField]="settings.model" data-testid="settings-model">
       @for (m of models; track m.id) {
-        <option [value]="m.id">{{ m.label }} · {{ m.note }}</option>
+        <option [value]="m.id">{{ m.label }} · {{ modelNote(m) }}</option>
       }
     </select>
-    <p class="text-xs text-muted mt-2">The key is stored encrypted on this computer and is never shared with agents or exported.</p>
-    <label xLabel class="mt-4" for="settings-key">Claude API key</label>
+    <p class="text-xs text-muted mt-2">{{ t('settings.ai.keyNote') }}</p>
+    <label xLabel class="mt-4" for="settings-key">{{ t('settings.ai.key') }}</label>
     @if (keyStatus.value()?.set) {
       <div class="flex items-center gap-2" data-testid="settings-key-set">
-        <span class="flex items-center gap-1.5 text-sm"><svg [xIcon]="icons.KeyRound" class="size-3.5 text-success"></svg>A key is set</span>
+        <span class="flex items-center gap-1.5 text-sm"><svg [xIcon]="icons.KeyRound" class="size-3.5 text-success"></svg>{{ t('settings.ai.keySet') }}</span>
         @if (!keyStatus.value()?.persistent) {
-          <span xBadge>this session only</span>
+          <span xBadge>{{ t('settings.ai.sessionOnly') }}</span>
         }
-        <button xButton size="sm" variant="danger" [icon]="icons.Trash2" (click)="clearKey()" data-testid="settings-key-clear">Remove</button>
+        <button xButton size="sm" variant="danger" [icon]="icons.Trash2" (click)="clearKey()" data-testid="settings-key-clear">{{ t('settings.ai.removeKey') }}</button>
       </div>
     } @else {
       <form class="flex items-center gap-2" (submit)="saveKey($event)">
-        <input xInput id="settings-key" type="password" class="w-96 font-mono" placeholder="sk-ant-…" [formField]="keyForm.key" data-testid="settings-key-input" />
-        <button xButton type="submit" variant="primary" class="shrink-0 whitespace-nowrap" [loading]="savingKey()" [disabled]="keyForm().invalid()" data-testid="settings-key-save">Save key</button>
+        <input xInput id="settings-key" type="password" dir="ltr" class="w-96 font-mono" placeholder="sk-ant-…" [formField]="keyForm.key" data-testid="settings-key-input" />
+        <button xButton type="submit" variant="primary" class="shrink-0 whitespace-nowrap" [loading]="savingKey()" [disabled]="keyForm().invalid()" data-testid="settings-key-save">{{ t('settings.ai.saveKey') }}</button>
       </form>
     }
     }
@@ -150,32 +161,32 @@
 
   @for (section of lateSections(); track section.id) {
     <section [attr.data-section]="section.id">
-      <h2 class="heading-panel text-fg mb-1 pb-1 border-b border-edge">{{ section.title }}</h2>
+      <h2 class="heading-panel text-fg mb-1 pb-1 border-b border-edge">{{ label(section.title) }}</h2>
       <ng-container *ngComponentOutlet="section.component" />
     </section>
   }
 
   <section data-section="about">
-    <h2 class="heading-panel text-fg mb-1 pb-1 border-b border-edge">About</h2>
+    <h2 class="heading-panel text-fg mb-1 pb-1 border-b border-edge">{{ t('settings.about.title') }}</h2>
     <div class="grid grid-cols-[112px_1fr] gap-8 items-start mt-5" data-testid="settings-about">
       <x-app-mark size="112" />
       <div class="min-w-0">
         <x-wordmark size="40" />
-        <p class="mt-2.5 text-[14px] leading-5 text-muted max-w-[60ch]" data-testid="about-description">{{ description }}</p>
-        <p class="heading-dialog mt-3.5" data-testid="about-credit"><span class="text-fg">{{ productName }}</span><span class="text-ai italic"> with Otto</span></p>
+        <p class="mt-2.5 text-[14px] leading-5 text-muted max-w-[60ch]" data-testid="about-description">{{ t('common.appDescription') }}</p>
+        <p class="heading-dialog mt-3.5" data-testid="about-credit"><span class="text-fg">{{ productName }}</span><span class="text-ai italic"> {{ t('settings.about.withOtto') }}</span></p>
         <p class="mt-1 text-[13px] text-muted" data-testid="about-assistant">
           @if (assistantCredit(); as credit) {
-            <span class="font-mono text-[12px]">{{ credit.model }}</span> · {{ credit.provider }} ·
+            <span class="font-mono text-[12px] bidi-ltr">{{ credit.model }}</span> · {{ credit.provider }} ·
           }
-          Otto asks before it deletes anything, and signs its work in History.
+          {{ t('settings.about.rule') }}
         </p>
         <p class="mt-3.5 font-mono text-xs leading-5 text-muted" data-testid="about-version">
-          Version {{ info.value()?.version }} · Alegreya Sans, IBM Plex Mono, Fraunces (OFL 1.1) · Lucide (ISC) · three.js, Electron (MIT) ·
-          <button type="button" class="text-accent hover:underline focus:outline-none focus-visible:outline-2 focus-visible:outline-accent" (click)="showLicences()" data-testid="about-licences">Licences…</button>
+          {{ t('settings.about.version') }} <span class="bidi-ltr">{{ info.value()?.version }}</span> · <span class="bidi-ltr">{{ fontCredits }}</span> ·
+          <button type="button" class="text-accent hover:underline focus:outline-none focus-visible:outline-2 focus-visible:outline-accent" (click)="showLicences()" data-testid="about-licences">{{ t('settings.about.licences') }}</button>
         </p>
         @if (info.value(); as about) {
           <p class="mt-1 text-[11px] leading-[14px] text-muted break-all" data-testid="about-runtime">
-            {{ about.platform }} · Electron {{ about.runtime['electron'] }} · Chromium {{ about.runtime['chrome'] }} · data in <span class="font-mono">{{ about.dataDir }}</span>
+            <span class="bidi-ltr">{{ about.platform }} · Electron {{ about.runtime['electron'] }} · Chromium {{ about.runtime['chrome'] }}</span> · {{ t('settings.about.dataIn') }} <span class="font-mono bidi-ltr">{{ about.dataDir }}</span>
           </p>
         }
       </div>
@@ -185,7 +196,7 @@
 
 <ng-template #copyRow let-text let-id="id">
   <div class="flex items-start gap-2">
-    <pre class="flex-1 text-xs font-mono bg-surface border border-edge rounded-md px-2 py-1.5 overflow-x-auto whitespace-pre" [attr.data-testid]="'snippet-' + id">{{ text }}</pre>
-    <button xButton size="sm" variant="ghost" [icon]="icons.Copy" (click)="copy(text)">Copy</button>
+    <pre class="flex-1 text-xs font-mono bg-surface border border-edge rounded-md px-2 py-1.5 overflow-x-auto whitespace-pre" dir="ltr" [attr.data-testid]="'snippet-' + id">{{ text }}</pre>
+    <button xButton size="sm" variant="ghost" [icon]="icons.Copy" (click)="copy(text)">{{ t('common.copy') }}</button>
   </div>
 </ng-template>

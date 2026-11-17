@@ -1,9 +1,16 @@
 import { Service, signal, untracked } from '@angular/core';
+import type { MessageParams } from '@studio/core';
 
-/** A UI-side entry for the command palette. Host commands are listed separately, from the registry. */
+/**
+ * A UI-side entry for the command palette. Host commands are listed separately, from the registry.
+ * `title` and `group` are message keys, translated where the palette shows them (plain text shows as it is),
+ * so the palette follows a language switch; the palette matches the English and the translated title.
+ */
 export interface UIAction {
   id: string;
   title: string;
+  /** Placeholders of `title`; a value that is a message key is translated too. */
+  titleParams?: MessageParams;
   group: string;
   description?: string;
   keywords?: string[];

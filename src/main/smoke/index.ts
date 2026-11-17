@@ -3,6 +3,7 @@ import path from 'node:path';
 import type { BrowserWindow } from 'electron';
 import type { Host } from '../host';
 import { Smoke, freePort } from './harness';
+import { smokeArabicUi } from './arabic-ui';
 import { smokeAssistantClaudeCode } from './assistant-claude-code';
 import { smokeAssistantUi } from './assistant-ui';
 import { smokeBuilding } from './building';
@@ -93,6 +94,8 @@ export async function runSmoke(host: Host, openWindow: () => BrowserWindow): Pro
     await smokeAssistantUi(smoke, duplexId);
     await smokeOttoUi(smoke, duplexId);
     await smokeAssistantClaudeCode(smoke, duplexId);
+    // Switches to Arabic and back, so it runs after the other UI sections and before identity-ui (which moves every project to the trash).
+    await smokeArabicUi(smoke);
     await smokeIdentityUi(smoke);
     await smokePerf(smoke);
     smoke.check('renderer has no console errors', smoke.consoleErrors.length === 0, smoke.consoleErrors);

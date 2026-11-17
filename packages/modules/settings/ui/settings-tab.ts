@@ -1,14 +1,15 @@
 import { NgComponentOutlet, NgTemplateOutlet } from '@angular/common';
 import { Component, ElementRef, afterRenderEffect, computed, effect, inject, input, linkedSignal, signal, untracked } from '@angular/core';
 import { FormField, form, max, min, required } from '@angular/forms/signals';
-import { AI_MODELS, AI_PROVIDERS, BRANDING, CLAUDE_CODE_EFFORTS, CLAUDE_CODE_MODEL_ALIASES, clientSnippets, defaultConfig, type AiProvider, type AssistantStatus, type ClaudeCodeEffort, type ConfigPatch, type GlobalConfig, type McpCallEntry, type ThemePreference, type UnitSettings } from '@studio/core';
-import { AppMark, AppState, Badge, Button, Checkbox, Dialogs, HostBridge, Icon, Input, Label, OttoMark, SETTINGS_LATE, Select, SettingsSections, Theme, Toasts, Wordmark, agentSignature, invokeResource, ottoModelLabel, providerLabel, type Tab, type TabComponent } from '@studio/ui';
+import { AI_MODELS, AI_PROVIDERS, BRANDING, CLAUDE_CODE_EFFORTS, CLAUDE_CODE_MODEL_ALIASES, LANGUAGES, clientSnippets, defaultConfig, isMessageKey, type AiProvider, type ClientSnippet, type LanguagePreference, type AssistantStatus, type ClaudeCodeEffort, type ConfigPatch, type GlobalConfig, type McpCallEntry, type ThemePreference, type UnitSettings } from '@studio/core';
+import { AppMark, AppState, Badge, Button, Checkbox, Dialogs, HostBridge, I18n, Icon, Input, Label, OttoMark, SETTINGS_LATE, Select, SettingsSections, Theme, Toasts, Wordmark, agentSignature, effortLabel, invokeResource, ottoModelLabel, providerLabel, type Tab, type TabComponent } from '@studio/ui';
 import { Copy, KeyRound, RefreshCw, Trash2 } from 'lucide';
 import { LicencesDialog } from './licences-dialog';
 import { UnitsEditor } from './units-editor';
 
 interface Draft {
   theme: ThemePreference;
+  language: LanguagePreference;
   units: UnitSettings;
   mcpEnabled: boolean;
   port: number;
@@ -23,6 +24,7 @@ interface Draft {
 function toDraft(config: GlobalConfig): Draft {
   return {
     theme: config.appearance.theme,
+    language: config.appearance.language,
     units: config.units,
     mcpEnabled: config.mcp.enabled,
     port: config.mcp.port,
@@ -46,8 +48,11 @@ interface AppInfo {
   secretsPersistent: boolean;
 }
 
+/** The fonts and libraries About credits, by their own names (a left-to-right island in Arabic). */
+const FONT_CREDITS = 'Alegreya Sans, IBM Plex Mono, Fraunces, IBM Plex Sans Arabic, Noto Naskh Arabic (OFL 1.1) · Lucide (ISC) · three.js, Electron (MIT)';
+
 /**
- * Settings: appearance, units, the MCP server, the assistant and About. Choices apply at once; the
+ * Settings: appearance (theme and language), units, the MCP server, the assistant and About. Choices apply at once; the
  * port applies when the field loses focus. Everything is stored in the global config, except the
  * API key, which goes to the encrypted secret store.
  */
@@ -64,6 +69,10 @@ export class SettingsTab implements TabComponent {
   private readonly toasts = inject(Toasts);
   private readonly dialogs = inject(Dialogs);
   private readonly element = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly i18n = inject(I18n);
+  protected readonly t = this.i18n.t;
+  /** A section title a module registered: a message key, or plain text. */
+  protected readonly label = this.i18n.label;
 
   readonly tab = input.required<Tab>();
 
@@ -73,7 +82,9 @@ export class SettingsTab implements TabComponent {
   protected readonly claudeCodeModels = CLAUDE_CODE_MODEL_ALIASES;
   protected readonly claudeCodeEfforts = CLAUDE_CODE_EFFORTS;
   protected readonly productName = BRANDING.productName;
-  protected readonly description = BRANDING.description;
+  /** Each language under its own name. */
+  protected readonly languages = LANGUAGES;
+  protected readonly fontCredits = FONT_CREDITS;
   protected readonly config = this.app.config;
   protected readonly mcp = this.app.mcpStatus;
   /** Sections other modules add, e.g. the library's location (after Units) and Updates (before About). */
@@ -103,16 +114,19 @@ export class SettingsTab implements TabComponent {
   protected readonly claudeCodeState = computed(() => {
     const cc = this.assistant.value()?.claudeCode;
     if (!cc) return '';
-    if (!cc.found) return `Not found: ${cc.error ?? cc.path}`;
+    const t = this.t;
+    if (!cc.found) return t('settings.claudeCode.notFound', { detail: cc.error ?? cc.path });
     const version = cc.version ? `Claude Code ${cc.version}` : 'Claude Code';
-    return cc.loggedIn === false ? `${version}, not logged in: run \`claude\` in a terminal and log in` : cc.loggedIn ? `${version}, logged in` : `${version}${cc.error ? `: ${cc.error}` : ''}`;
+    if (cc.loggedIn === false) return t('settings.claudeCode.notLoggedIn', { version });
+    if (cc.loggedIn) return t('settings.claudeCode.loggedIn', { version });
+    return cc.error ? t('settings.claudeCode.failed', { version, error: cc.error }) : version;
   });
   /** About's credit: the model and who provides it, as the assistant is set up now. */
   protected readonly assistantCredit = computed(() => {
     const s = this.assistant.value();
     if (!s) return null;
     // In the words Settings uses for the provider, so About and Settings say the same.
-    return { model: ottoModelLabel(s, this.config()?.ai), provider: providerLabel(s.provider) };
+    return { model: ottoModelLabel(s, this.config()?.ai, { t: this.t }), provider: providerLabel(s.provider, this.t) };
   });
   protected readonly calls = invokeResource<McpCallEntry[]>('mcp.calls', () => ({}), { projectId: null, refreshOnEvents: ['mcp.call'] });
   protected readonly recentCalls = computed(() => [...(this.calls.value() ?? [])].reverse().slice(0, 8));
@@ -127,7 +141,7 @@ export class SettingsTab implements TabComponent {
       const config = untracked(this.config);
       if (!config) return;
       const patch: ConfigPatch = {};
-      if (draft.theme !== config.appearance.theme) patch.appearance = { theme: draft.theme };
+      if (draft.theme !== config.appearance.theme || draft.language !== config.appearance.language) patch.appearance = { theme: draft.theme, language: draft.language };
       if (!same(draft.units, config.units)) patch.units = draft.units;
       if (draft.mcpEnabled !== config.mcp.enabled || draft.allowMutations !== config.mcp.allowMutations) {
         patch.mcp = { enabled: draft.mcpEnabled, allowMutations: draft.allowMutations };
@@ -164,7 +178,7 @@ export class SettingsTab implements TabComponent {
     const port = untracked(this.draft).port;
     if (!config || port === config.mcp.port) return;
     if (this.settings.port().invalid()) {
-      this.toasts.notify('The port must be a number from 1024 to 65535.', 'error');
+      this.toasts.notify(this.t('settings.mcp.portInvalid'), 'error');
       return;
     }
     void this.save({ mcp: { port } });
@@ -214,7 +228,7 @@ export class SettingsTab implements TabComponent {
     try {
       const status = await this.host.invoke<{ persistent: boolean }>('ai.key.set', { key }, null);
       this.keyDraft.set({ key: '' });
-      this.toasts.notify(status.persistent ? 'API key saved, encrypted' : 'API key kept for this session only: this system has no secure storage', 'success');
+      this.toasts.notify(this.t(status.persistent ? 'settings.ai.keySaved' : 'settings.ai.keySessionOnly'), 'success');
     } catch (err) {
       this.toasts.error(err);
     } finally {
@@ -225,7 +239,7 @@ export class SettingsTab implements TabComponent {
   protected async clearKey(): Promise<void> {
     try {
       await this.host.invoke('ai.key.clear', {}, null);
-      this.toasts.notify('API key removed', 'success');
+      this.toasts.notify(this.t('settings.ai.keyRemoved'), 'success');
     } catch (err) {
       this.toasts.error(err);
     }
@@ -245,6 +259,31 @@ export class SettingsTab implements TabComponent {
   }
 
   protected time(at: string): string {
-    return new Date(at).toLocaleTimeString();
+    return new Date(at).toLocaleTimeString(this.i18n.locale());
+  }
+
+  protected providerName(provider: AiProvider): string {
+    return providerLabel(provider, this.t);
+  }
+
+  protected effortName(effort: string): string {
+    return effortLabel(effort, this.t);
+  }
+
+  /** The note beside an API model ("Recommended"), translated by model id; a model without one keeps its English note. */
+  protected modelNote(model: (typeof AI_MODELS)[number]): string {
+    const key = `settings.modelNote.${model.id}`;
+    return isMessageKey(key) ? this.t(key) : model.note;
+  }
+
+  /** Where a client's snippet goes: translated by snippet id, or as `clientSnippets` says it (a path). */
+  protected snippetWhere(snippet: ClientSnippet): string {
+    const key = `settings.snippet.${snippet.id}.where`;
+    return isMessageKey(key) ? this.t(key) : snippet.where;
+  }
+
+  protected snippetClient(snippet: ClientSnippet): string {
+    const key = `settings.snippet.${snippet.id}.client`;
+    return isMessageKey(key) ? this.t(key) : snippet.client;
   }
 }

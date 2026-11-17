@@ -1,0 +1,60 @@
+import type { shell as source } from '../en/shell';
+import type { Message } from '../message';
+
+export const shell = {
+  'shell.tab.home': 'الرئيسية',
+  'shell.tab.settings': 'الإعدادات',
+  'shell.tab.unsaved': 'تغييرات غير محفوظة',
+  'shell.tab.close': 'إغلاق {title}',
+  'shell.tab.noView': 'لا يوجد عرض لنوع التبويب "{type}".',
+  'shell.tabs.label': 'المستندات المفتوحة',
+  'shell.tabMenu.closeOthers': 'إغلاق التبويبات الأخرى',
+  'shell.tabMenu.closeRight': 'إغلاق التبويبات التالية',
+  'shell.titleBar.search': 'ابحث في الأوامر…',
+  'shell.titleBar.settings': 'الإعدادات ({shortcut})',
+
+  'shell.group.app': 'التطبيق',
+  'shell.group.tabs': 'التبويبات',
+  'shell.group.panels': 'اللوحات',
+  'shell.action.palette': 'لوحة الأوامر',
+  'shell.action.home': 'الانتقال إلى الرئيسية',
+  'shell.action.settings': 'الإعدادات',
+  'shell.action.theme': 'التبديل بين المظهر الفاتح والداكن',
+  'shell.action.closeTab': 'إغلاق التبويب',
+  'shell.action.nextTab': 'التبويب التالي',
+  'shell.action.previousTab': 'التبويب السابق',
+  'shell.action.showPanel': 'إظهار {name}',
+
+  'shell.closeDirty.one': 'إغلاق "{title}" مع تغييرات غير محفوظة؟',
+  'shell.closeDirty.many': {
+    zero: 'إغلاق {count} تبويب مع تغييرات غير محفوظة؟',
+    one: 'إغلاق تبويب واحد مع تغييرات غير محفوظة؟',
+    two: 'إغلاق تبويبين مع تغييرات غير محفوظة؟',
+    few: 'إغلاق {count} تبويبات مع تغييرات غير محفوظة؟',
+    many: 'إغلاق {count} تبويبًا مع تغييرات غير محفوظة؟',
+    other: 'إغلاق {count} تبويب مع تغييرات غير محفوظة؟',
+  },
+  'shell.closeDirty.message': 'ستضيع التغييرات غير المحفوظة في هذه التبويبات.',
+
+  'shell.palette.placeholder': 'اكتب أمرًا…',
+  'shell.palette.commands': 'الأوامر',
+  'shell.palette.empty': 'لا توجد أوامر مطابقة.',
+  'shell.palette.back': 'رجوع',
+  'shell.palette.run': 'تشغيل',
+  'shell.palette.notNumber': 'يجب أن يكون {field} رقمًا',
+  'shell.palette.notJson': 'يجب أن يكون {field} نص JSON صالحًا',
+
+  'shell.status.saved': 'حُفظ {ago}',
+  'shell.status.notSaved': 'لم يُحفظ',
+  'shell.status.saving': 'جارٍ الحفظ…',
+  'shell.status.noProject': 'لا يوجد مشروع مفتوح',
+  'shell.status.units': 'وحدات العرض',
+  'shell.status.mcp': 'خادم MCP',
+  'shell.status.mcpOff': 'متوقف',
+  'shell.status.theme': 'تبديل المظهر',
+
+  'shell.activity.needsProject': '{name} (افتح مشروعًا أولًا)',
+  'shell.sidebar.noProject': 'لا يوجد مشروع معروض',
+  'shell.sidebar.noProjectHint': 'افتح مشروعًا لاستخدام هذه اللوحة.',
+  'shell.home.empty': 'ستظهر مشاريعك هنا.',
+} satisfies Record<keyof typeof source, Message>;

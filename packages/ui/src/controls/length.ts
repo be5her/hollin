@@ -1,4 +1,5 @@
 import { Directive, ElementRef, inject, input, output, signal } from '@angular/core';
+import { I18n } from '../i18n/i18n';
 import { Units } from '../state/units';
 
 /**
@@ -15,7 +16,7 @@ import { Units } from '../state/units';
     '[attr.aria-invalid]': 'invalid() ? "true" : null',
     '[class.!border-danger]': 'invalid()',
     '[class.!ring-danger/30]': 'invalid()',
-    '[attr.title]': 'invalid() ? "Not a length (try 3200, 3.2m or 10\' 6\\")" : null',
+    '[attr.title]': 'invalid() ? t("common.lengthInvalid") : null',
     '(focus)': 'focused()',
     '(input)': 'typed()',
     '(blur)': 'left()',
@@ -25,6 +26,7 @@ import { Units } from '../state/units';
 export class LengthInput {
   private readonly el = inject<ElementRef<HTMLInputElement>>(ElementRef);
   private readonly units = inject(Units);
+  protected readonly t = inject(I18n).t;
 
   /** An empty field is allowed and means "none" (null). */
   readonly allowEmpty = input(false);
@@ -76,7 +78,7 @@ export class LengthInput {
   host: {
     '[attr.aria-invalid]': 'invalid() ? "true" : null',
     '[class.!border-danger]': 'invalid()',
-    '[attr.title]': 'invalid() ? "Not an angle (try 45 or 30°)" : null',
+    '[attr.title]': 'invalid() ? t("common.angleInvalid") : null',
     '(focus)': 'focused()',
     '(input)': 'typed()',
     '(blur)': 'left()',
@@ -86,6 +88,7 @@ export class LengthInput {
 export class AngleInput {
   private readonly el = inject<ElementRef<HTMLInputElement>>(ElementRef);
   private readonly units = inject(Units);
+  protected readonly t = inject(I18n).t;
 
   readonly commit = output<number>();
   readonly invalid = signal(false);

@@ -1,16 +1,17 @@
-import { Component, computed, input, model } from '@angular/core';
+import { Component, computed, inject, input, model } from '@angular/core';
 import type { FormValueControl } from '@angular/forms/signals';
-import { formatLength, type UnitSettings } from '@studio/core';
-import { cn } from '@studio/ui';
+import { formatLength, isMessageKey, type UnitSettings } from '@studio/core';
+import { I18n, cn } from '@studio/ui';
 
 interface Choice<T> {
   value: T;
+  /** A message key, or a symbol shown as it is (`mm`, `1/16"`). */
   label: string;
 }
 
 const SYSTEMS: Choice<UnitSettings['system']>[] = [
-  { value: 'metric', label: 'Metric' },
-  { value: 'imperial', label: 'Imperial' },
+  { value: 'metric', label: 'settings.units.metric' },
+  { value: 'imperial', label: 'settings.units.imperial' },
 ];
 const METRIC_UNITS: Choice<UnitSettings['metricUnit']>[] = [
   { value: 'mm', label: 'mm' },
@@ -18,8 +19,8 @@ const METRIC_UNITS: Choice<UnitSettings['metricUnit']>[] = [
   { value: 'm', label: 'm' },
 ];
 const IMPERIAL_STYLES: Choice<UnitSettings['imperialStyle']>[] = [
-  { value: 'ft-in', label: `Feet and inches` },
-  { value: 'in', label: 'Inches' },
+  { value: 'ft-in', label: 'settings.units.feetInches' },
+  { value: 'in', label: 'settings.units.inches' },
 ];
 const PRECISIONS: Choice<number>[] = [0, 1, 2, 3].map((value) => ({ value, label: value === 0 ? '1' : `0.${'0'.repeat(value - 1)}1` }));
 const FRACTIONS: Choice<UnitSettings['fraction']>[] = ([1, 2, 4, 8, 16, 32, 64] as const).map((value) => ({ value, label: value === 1 ? '1"' : `1/${value}"` }));
@@ -32,47 +33,50 @@ const FRACTIONS: Choice<UnitSettings['fraction']>[] = ([1, 2, 4, 8, 16, 32, 64] 
   selector: 'x-units-editor',
   template: `
     <div class="grid grid-cols-[9rem_1fr] items-center gap-x-4 gap-y-2.5 text-sm">
-      <span class="text-muted text-xs">System</span>
-      <div class="flex gap-1" role="radiogroup" aria-label="Unit system">
+      <span class="text-muted text-xs">{{ t('settings.units.system') }}</span>
+      <div class="flex gap-1" role="radiogroup" [attr.aria-label]="t('settings.units.systemLabel')">
         @for (c of systems; track c.value) {
-          <button type="button" role="radio" [attr.aria-checked]="value().system === c.value" [class]="chip(value().system === c.value)" [disabled]="disabled()" [attr.data-testid]="'units-system-' + c.value" (click)="set('system', c.value)">{{ c.label }}</button>
+          <button type="button" role="radio" [attr.aria-checked]="value().system === c.value" [class]="chip(value().system === c.value)" [disabled]="disabled()" [attr.data-testid]="'units-system-' + c.value" (click)="set('system', c.value)">{{ label(c.label) }}</button>
         }
       </div>
       @if (value().system === 'metric') {
-        <span class="text-muted text-xs">Unit</span>
-        <div class="flex gap-1" role="radiogroup" aria-label="Metric unit">
+        <span class="text-muted text-xs">{{ t('settings.units.unit') }}</span>
+        <div class="flex gap-1" role="radiogroup" [attr.aria-label]="t('settings.units.metricUnit')">
           @for (c of metricUnits; track c.value) {
             <button type="button" role="radio" [attr.aria-checked]="value().metricUnit === c.value" [class]="chip(value().metricUnit === c.value)" [disabled]="disabled()" [attr.data-testid]="'units-metric-' + c.value" (click)="set('metricUnit', c.value)">{{ c.label }}</button>
           }
         </div>
-        <span class="text-muted text-xs">Precision</span>
-        <div class="flex gap-1" role="radiogroup" aria-label="Precision">
+        <span class="text-muted text-xs">{{ t('settings.units.precision') }}</span>
+        <div class="flex gap-1" role="radiogroup" [attr.aria-label]="t('settings.units.precision')">
           @for (c of precisions; track c.value) {
-            <button type="button" role="radio" [attr.aria-checked]="value().precision === c.value" [class]="chip(value().precision === c.value)" [disabled]="disabled()" (click)="set('precision', c.value)">{{ c.label }}</button>
+            <button type="button" role="radio" [attr.aria-checked]="value().precision === c.value" [class]="chip(value().precision === c.value)" [disabled]="disabled()" (click)="set('precision', c.value)"><span class="bidi-ltr">{{ c.label }}</span></button>
           }
         </div>
       } @else {
-        <span class="text-muted text-xs">Style</span>
-        <div class="flex gap-1" role="radiogroup" aria-label="Imperial style">
+        <span class="text-muted text-xs">{{ t('settings.units.style') }}</span>
+        <div class="flex gap-1" role="radiogroup" [attr.aria-label]="t('settings.units.imperialStyle')">
           @for (c of imperialStyles; track c.value) {
-            <button type="button" role="radio" [attr.aria-checked]="value().imperialStyle === c.value" [class]="chip(value().imperialStyle === c.value)" [disabled]="disabled()" (click)="set('imperialStyle', c.value)">{{ c.label }}</button>
+            <button type="button" role="radio" [attr.aria-checked]="value().imperialStyle === c.value" [class]="chip(value().imperialStyle === c.value)" [disabled]="disabled()" (click)="set('imperialStyle', c.value)">{{ label(c.label) }}</button>
           }
         </div>
-        <span class="text-muted text-xs">Round to</span>
-        <div class="flex gap-1 flex-wrap" role="radiogroup" aria-label="Fraction">
+        <span class="text-muted text-xs">{{ t('settings.units.roundTo') }}</span>
+        <div class="flex gap-1 flex-wrap" role="radiogroup" [attr.aria-label]="t('settings.units.fraction')">
           @for (c of fractions; track c.value) {
-            <button type="button" role="radio" [attr.aria-checked]="value().fraction === c.value" [class]="chip(value().fraction === c.value)" [disabled]="disabled()" (click)="set('fraction', c.value)">{{ c.label }}</button>
+            <button type="button" role="radio" [attr.aria-checked]="value().fraction === c.value" [class]="chip(value().fraction === c.value)" [disabled]="disabled()" (click)="set('fraction', c.value)"><span class="bidi-ltr">{{ c.label }}</span></button>
           }
         </div>
       }
-      <span class="text-muted text-xs">Example</span>
-      <span class="font-mono text-xs" data-testid="units-example">{{ example() }}</span>
+      <span class="text-muted text-xs">{{ t('settings.units.example') }}</span>
+      <span class="font-mono text-xs bidi-ltr justify-self-start" data-testid="units-example">{{ example() }}</span>
     </div>
   `,
 })
 export class UnitsEditor implements FormValueControl<UnitSettings> {
   readonly value = model.required<UnitSettings>();
   readonly disabled = input(false);
+  private readonly i18n = inject(I18n);
+  protected readonly t = this.i18n.t;
+  protected readonly label = this.i18n.label;
 
   protected readonly systems = SYSTEMS;
   protected readonly metricUnits = METRIC_UNITS;

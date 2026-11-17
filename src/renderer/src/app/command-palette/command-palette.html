@@ -4,8 +4,8 @@
       @if (pending(); as p) {
         <form class="p-4 flex flex-col gap-3" (submit)="submit($event)" data-testid="palette-form" [attr.data-command]="p.command.id">
           <div>
-            <h2 class="heading-panel text-fg">{{ p.command.title }}</h2>
-            <p class="text-xs text-muted mt-0.5">{{ p.command.description }}</p>
+            <h2 class="heading-panel text-fg">{{ i18n.commandTitle(p.command) }}</h2>
+            <p class="text-xs text-muted mt-0.5" dir="ltr">{{ p.command.description }}</p>
           </div>
           @for (field of p.fields; track field.key; let first = $first) {
             <div>
@@ -23,7 +23,7 @@
                     }
                   </select>
                 } @else if (field.kind === 'json') {
-                  <textarea xTextarea rows="4" [id]="'palette-' + field.key" [formField]="valuesForm[field.key]" placeholder="JSON" [xAutofocus]="first"></textarea>
+                  <textarea xTextarea rows="4" [id]="'palette-' + field.key" [formField]="valuesForm[field.key]" placeholder="JSON" dir="ltr" [xAutofocus]="first"></textarea>
                 } @else {
                   <input xInput [id]="'palette-' + field.key" [formField]="valuesForm[field.key]" [xAutofocus]="first" [attr.inputmode]="field.kind === 'number' ? 'decimal' : null" />
                 }
@@ -34,16 +34,16 @@
             </div>
           }
           <div class="flex justify-end gap-2 pt-1">
-            <button xButton variant="ghost" (click)="back()">Back</button>
-            <button xButton variant="primary" type="submit" [loading]="running()" data-testid="palette-run">Run</button>
+            <button xButton variant="ghost" (click)="back()">{{ t('shell.palette.back') }}</button>
+            <button xButton variant="primary" type="submit" [loading]="running()" data-testid="palette-run">{{ t('shell.palette.run') }}</button>
           </div>
         </form>
       } @else {
-        <div class="palette" role="dialog" aria-label="Command palette" (keydown)="keydown($event)">
+        <div class="palette" role="dialog" [attr.aria-label]="t('shell.action.palette')" (keydown)="keydown($event)">
           <input
             xAutofocus
             class="palette-input"
-            placeholder="Type a command…"
+            [placeholder]="t('shell.palette.placeholder')"
             spellcheck="false"
             autocomplete="off"
             role="combobox"
@@ -53,7 +53,7 @@
             [value]="search()"
             (input)="typed($event)"
           />
-          <div #list class="palette-list" role="listbox" aria-label="Commands">
+          <div #list class="palette-list" role="listbox" [attr.aria-label]="t('shell.palette.commands')">
             @for (group of shown(); track group.heading) {
               <div role="presentation" data-group>
                 <div class="palette-heading" aria-hidden="true" data-heading>{{ group.heading }}</div>
@@ -70,17 +70,17 @@
                     >
                       <span class="flex-1">{{ item.title }}</span>
                       @if (item.shortcut) {
-                        <kbd xKbd>{{ item.shortcut }}</kbd>
+                        <kbd xKbd class="bidi-ltr">{{ item.shortcut }}</kbd>
                       }
                       @if (item.commandId) {
-                        <span class="text-[10px] font-mono text-muted">{{ item.commandId }}</span>
+                        <span class="text-[10px] font-mono text-muted bidi-ltr">{{ item.commandId }}</span>
                       }
                     </div>
                   }
                 </div>
               </div>
             } @empty {
-              <div class="palette-empty">No matching commands.</div>
+              <div class="palette-empty">{{ t('shell.palette.empty') }}</div>
             }
           </div>
         </div>

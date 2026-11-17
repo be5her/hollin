@@ -14,6 +14,7 @@ export interface TabComponent {
  */
 export interface ModuleUI {
   id: string;
+  /** A message key (or plain text until the module is translated), shown translated in the activity bar and the sidebar. */
   title: string;
   icon: IconNode;
   /** Sort position in the activity bar. */

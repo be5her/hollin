@@ -131,6 +131,8 @@ async function main(): Promise<void> {
     // Smoke runs check autosave without waiting the full interval.
     autosave: smoke ? { debounceMs: 150, maxWaitMs: 1000 } : undefined,
     updater,
+    // The language 'system' follows: the OS's, or STUDIO_LANG in development; the smoke always runs in English.
+    systemLocale: smoke ? 'en-US' : (dev && process.env.STUDIO_LANG) || app.getLocale(),
   });
   registerIpc(host);
   await host.start();

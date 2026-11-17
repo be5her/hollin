@@ -5,6 +5,7 @@ import type { CatalogApi } from './decor/catalog';
 import type { Author, DocPatch, EditContext, HistoryInfo, HistoryState, LastTouched } from './doc/engine';
 import { StudioError } from './errors';
 import type { ProjectDoc } from './doc/schema';
+import type { Language, TextDirection } from './i18n';
 import type { LibraryInfo, ListQuery, OpenProject, ProjectSummary, SaveStatus, SnapshotInfo } from './projects';
 
 /** Who is calling a command. Each caller gets the mutating gate its own way (see CommandRegistry). */
@@ -323,6 +324,8 @@ export interface McpCallEntry {
 /** Events broadcast from the host to every window. Every change a view shows must be announced by one. */
 export interface HostEvents {
   'config.changed': { config: GlobalConfig };
+  /** The app's resolved language changed (Settings > Appearance > Language, or the system's when it is followed). */
+  'language.changed': { language: Language; direction: TextDirection };
   'mcp.status': McpStatus;
   'mcp.call': McpCallEntry;
   /** The assistant's API key was set or cleared. */

@@ -1,5 +1,5 @@
 import { Injector, Service, inject, runInInjectionContext, untracked } from '@angular/core';
-import { AppState, Dialogs, HostBridge, TabsState, Theme, Toasts, UiActions, type Tab, type UIAction } from '@studio/ui';
+import { AppState, Dialogs, HostBridge, I18n, TabsState, Theme, Toasts, UiActions, type Tab, type UIAction } from '@studio/ui';
 import { modules } from './modules';
 
 /** What the shell itself can do (tabs, settings, theme), plus the palette and keyboard wiring. */
@@ -13,16 +13,17 @@ export class ShellActions {
   private readonly theme = inject(Theme);
   private readonly actions = inject(UiActions);
   private readonly injector = inject(Injector);
+  private readonly i18n = inject(I18n);
 
   private readonly shellActions: UIAction[] = [
-    { id: 'palette.open', title: 'Command palette', group: 'App', shortcut: 'Ctrl+K', run: () => this.app.paletteOpen.set(true) },
-    { id: 'home.open', title: 'Go to Home', group: 'App', keywords: ['projects', 'library'], run: () => this.openHome() },
-    { id: 'settings.open', title: 'Settings', group: 'App', shortcut: 'Ctrl+,', keywords: ['preferences', 'options'], run: () => this.openSettings() },
-    { id: 'theme.toggle', title: 'Toggle light / dark theme', group: 'App', keywords: ['appearance', 'dark mode'], run: () => this.toggleTheme() },
+    { id: 'palette.open', title: 'shell.action.palette', group: 'shell.group.app', shortcut: 'Ctrl+K', run: () => this.app.paletteOpen.set(true) },
+    { id: 'home.open', title: 'shell.action.home', group: 'shell.group.app', keywords: ['projects', 'library'], run: () => this.openHome() },
+    { id: 'settings.open', title: 'shell.action.settings', group: 'shell.group.app', shortcut: 'Ctrl+,', keywords: ['preferences', 'options', 'language'], run: () => this.openSettings() },
+    { id: 'theme.toggle', title: 'shell.action.theme', group: 'shell.group.app', keywords: ['appearance', 'dark mode'], run: () => this.toggleTheme() },
     {
       id: 'tab.close',
-      title: 'Close tab',
-      group: 'Tabs',
+      title: 'shell.action.closeTab',
+      group: 'shell.group.tabs',
       shortcut: 'Ctrl+W',
       run: () => {
         const tab = untracked(this.tabs.activeTab);
@@ -33,14 +34,15 @@ export class ShellActions {
         return tab !== null && !tab.pinned;
       },
     },
-    { id: 'tab.next', title: 'Next tab', group: 'Tabs', shortcut: 'Ctrl+Tab', run: () => this.cycleTab(1) },
-    { id: 'tab.previous', title: 'Previous tab', group: 'Tabs', shortcut: 'Ctrl+Shift+Tab', run: () => this.cycleTab(-1) },
+    { id: 'tab.next', title: 'shell.action.nextTab', group: 'shell.group.tabs', shortcut: 'Ctrl+Tab', run: () => this.cycleTab(1) },
+    { id: 'tab.previous', title: 'shell.action.previousTab', group: 'shell.group.tabs', shortcut: 'Ctrl+Shift+Tab', run: () => this.cycleTab(-1) },
     ...modules
       .filter((m) => m.sidebar)
       .map<UIAction>((m) => ({
         id: `module.show.${m.id}`,
-        title: `Show ${m.title}`,
-        group: 'Panels',
+        title: 'shell.action.showPanel',
+        titleParams: { name: m.title },
+        group: 'shell.group.panels',
         run: () => this.app.activeModule.set(m.id),
         when: () => m.availability === 'always' || untracked(this.app.hasProject),
       })),
@@ -62,7 +64,7 @@ export class ShellActions {
   }
 
   openSettings(section?: string): void {
-    const tab = this.tabs.open({ type: 'settings.main', title: 'Settings', data: { key: 'settings', section } }, { singletonKey: 'settings.main:settings' });
+    const tab = this.tabs.open({ type: 'settings.main', title: 'Settings', titleKey: 'shell.tab.settings', data: { key: 'settings', section } }, { singletonKey: 'settings.main:settings' });
     if (section) this.tabs.update(tab.id, { data: { key: 'settings', section } });
   }
 
@@ -81,11 +83,12 @@ export class ShellActions {
     const closing = untracked(this.tabs.tabs).filter((t) => ids.includes(t.id) && !t.pinned);
     const dirty = closing.filter((t) => t.dirty);
     if (dirty.length) {
+      const t = this.i18n.t;
       const ok = await this.dialogs.confirm({
-        title: dirty.length === 1 ? `Close "${dirty[0].title}" with unsaved changes?` : `Close ${dirty.length} tabs with unsaved changes?`,
-        message: 'Unsaved changes in those tabs are lost.',
+        title: dirty.length === 1 ? t('shell.closeDirty.one', { title: dirty[0].titleKey ? t(dirty[0].titleKey) : dirty[0].title }) : t('shell.closeDirty.many', { count: dirty.length }),
+        message: t('shell.closeDirty.message'),
         danger: true,
-        confirmLabel: 'Close',
+        confirmLabel: t('common.close'),
       });
       if (!ok) return;
     }

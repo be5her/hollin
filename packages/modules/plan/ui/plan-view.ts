@@ -626,7 +626,8 @@ export class PlanView {
     const text = untracked(this.ottoDraft).sentence.trim();
     if (!text) return;
     if (!untracked(this.ottoReady)) {
-      this.tabs.open({ type: 'settings.main', title: 'Settings', data: { key: 'settings', section: 'ai' } }, { singletonKey: 'settings.main:settings' });
+      const settings = this.tabs.open({ type: 'settings.main', title: 'Settings', titleKey: 'shell.tab.settings', data: { key: 'settings', section: 'ai' } }, { singletonKey: 'settings.main:settings' });
+      this.tabs.update(settings.id, { data: { key: 'settings', section: 'ai' } });
       return;
     }
     this.view.set(id, 'rightPanel', 'assistant');

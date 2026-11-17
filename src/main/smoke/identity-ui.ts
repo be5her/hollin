@@ -141,7 +141,7 @@ export async function smokeIdentityUi(smoke: Smoke): Promise<void> {
   smoke.check('the credit line names the product with Otto, in two colours, "with Otto" in italic', credit.text === `${BRANDING.productName} with Otto` && credit.otto === 'with Otto' && credit.color !== credit.product && credit.style === 'italic', credit);
   smoke.check('then the model and the rule Otto keeps', await smoke.waitFor('[data-testid=about-assistant]', 3000, 'asks before it deletes anything'));
   const version = (await smoke.text('[data-testid=about-version]')) ?? '';
-  smoke.check('and the version with the fonts and their licences', version.includes(host.opts.version) && ['Alegreya Sans', 'IBM Plex Mono', 'Fraunces (OFL 1.1)', 'Lucide (ISC)'].every((t) => version.includes(t)), version);
+  smoke.check('and the version with the fonts and their licences', version.includes(host.opts.version) && ['Alegreya Sans', 'IBM Plex Mono', 'Fraunces', 'IBM Plex Sans Arabic', 'Noto Naskh Arabic (OFL 1.1)', 'Lucide (ISC)'].every((t) => version.includes(t)), version);
   await wait(150);
   await smoke.shots('67-about');
   await smoke.click('[data-testid=about-licences]');

@@ -1,3 +1,5 @@
+import { currentLanguage, intlLocale, translate, type Language } from '@studio/core';
+
 const UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
   ['year', 365 * 24 * 3600],
   ['month', 30 * 24 * 3600],
@@ -7,14 +9,19 @@ const UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
   ['minute', 60],
 ];
 
-const relative = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
+const formats = new Map<Language, Intl.RelativeTimeFormat>();
 
-/** "just now", "5 minutes ago", "yesterday", "3 weeks ago". */
-export function relativeTime(iso: string | null | undefined, now = Date.now()): string {
+/**
+ * "just now", "5 minutes ago", "yesterday", "3 weeks ago", in the app's language (`currentLanguage`;
+ * a `computed` that shows it reads `I18n.language` too, so it follows a switch).
+ */
+export function relativeTime(iso: string | null | undefined, now = Date.now(), language: Language = currentLanguage()): string {
   if (!iso) return '';
   const seconds = (Date.parse(iso) - now) / 1000;
   if (!Number.isFinite(seconds)) return '';
-  if (Math.abs(seconds) < 45) return 'just now';
+  if (Math.abs(seconds) < 45) return translate(language, 'common.justNow');
+  let relative = formats.get(language);
+  if (!relative) formats.set(language, (relative = new Intl.RelativeTimeFormat(intlLocale(language), { numeric: 'auto' })));
   for (const [unit, size] of UNITS) {
     if (Math.abs(seconds) >= size) return relative.format(Math.round(seconds / size), unit);
   }
