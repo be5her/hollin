@@ -1,0 +1,12 @@
+{
+  "name": "hollin-course",
+  "private": true,
+  "type": "module",
+  "description": "The Hollin course: a web tutorial that teaches home design with Hollin, in English and Arabic. Static files on Firebase Hosting.",
+  "license": "MIT",
+  "scripts": {
+    "check": "node scripts/check.mjs",
+    "serve": "node scripts/serve.mjs",
+    "deploy": "node scripts/check.mjs && npx --yes firebase-tools@15.36.0 deploy"
+  }
+}

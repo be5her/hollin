@@ -1,0 +1,29 @@
+rules_version = '2';
+
+// The course keeps one document per signed-in reader, `users/<uid>`: which lessons are done and which
+// steps are ticked (public/js/store.js). A reader can read, write and delete their own document and
+// nothing else; nobody else can read it. Writes are checked for shape and size, so the collection
+// cannot be used to store anything but progress.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{uid} {
+      function mine() {
+        return request.auth != null && request.auth.uid == uid;
+      }
+      function progress() {
+        let data = request.resource.data;
+        return data.keys().hasOnly(['done', 'checks', 'last', 'lang', 'updatedAt'])
+          && data.done is map && data.done.size() <= 60
+          && data.checks is map && data.checks.size() <= 60
+          && (!('last' in data) || data.last == null || (data.last is string && data.last.size() <= 60))
+          && (!('lang' in data) || data.lang in ['en', 'ar'])
+          && data.updatedAt == request.time;
+      }
+      allow read, delete: if mine();
+      allow create, update: if mine() && progress();
+    }
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

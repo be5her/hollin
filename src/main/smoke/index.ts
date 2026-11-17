@@ -43,6 +43,8 @@ import { smokeUpdatesUi } from './updates-ui';
 const SMOKE_WINDOW: readonly [number, number] = [1400, 760];
 
 export async function runSmoke(host: Host, openWindow: () => BrowserWindow): Promise<number> {
+  // `COURSE_SHOTS=<dir>`: draw the course's projects and save its pictures instead of running the checks (course-shots.ts).
+  if (process.env.COURSE_SHOTS) return (await import('./course-shots')).runCourseShots(host, openWindow, path.resolve(process.env.COURSE_SHOTS));
   const shots = process.env.SMOKE_SHOTS ? path.resolve(process.env.SMOKE_SHOTS) : undefined;
   const smoke = new Smoke(host, shots);
   const started = Date.now();
