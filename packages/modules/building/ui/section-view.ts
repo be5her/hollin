@@ -1,6 +1,6 @@
 import { Component, computed, inject, input } from '@angular/core';
-import { defaultConfig, deriveConnector, deriveLevels, type Connector, type DerivedLevel } from '@studio/core';
-import { AppState, EmptyState, ProjectDocs, Units } from '@studio/ui';
+import { defaultConfig, deriveConnector, deriveLevels, isMessageKey, textDirection, type DerivedLevel, type TextDirection } from '@studio/core';
+import { AppState, EmptyState, I18n, ProjectDocs, Units } from '@studio/ui';
 import { BuildingActions } from './building-actions';
 
 const W = 1000;
@@ -11,23 +11,15 @@ const BODY_W = 430;
 const LANES_X = 690;
 const LANES_W = 280;
 
-const TYPE_NAMES: Record<string, [string, string]> = {
-  wall: ['wall', 'walls'],
-  opening: ['opening', 'openings'],
-  column: ['column', 'columns'],
-  slab: ['slab', 'slabs'],
-  void: ['void', 'voids'],
-  shaft: ['shaft', 'shafts'],
-  room: ['room', 'rooms'],
-  separator: ['room divider', 'room dividers'],
-  shape: ['shape', 'shapes'],
-  fixture: ['fixture', 'fixtures'],
-  point: ['service point', 'service points'],
-  dimension: ['dimension', 'dimensions'],
-  label: ['label', 'labels'],
-  item: ['item', 'items'],
-  light: ['light', 'lights'],
-};
+/**
+ * The `text-anchor` that keeps a text at the same side of its point whichever way it reads: the drawing
+ * never mirrors, so a name that starts at the left of a level keeps starting there in Arabic.
+ */
+function anchor(side: 'left' | 'right' | 'middle', dir: TextDirection): 'start' | 'end' | 'middle' {
+  if (side === 'middle') return 'middle';
+  return (side === 'left') === (dir === 'ltr') ? 'start' : 'end';
+}
+
 
 /**
  * A section through the building: every level drawn at its elevation and height, basements below
@@ -39,10 +31,10 @@ const TYPE_NAMES: Record<string, [string, string]> = {
   imports: [EmptyState],
   template: `
     @if (levels().length) {
-      <svg [attr.viewBox]="'0 0 ' + width + ' ' + height" preserveAspectRatio="xMidYMid meet" class="w-full flex-1 min-h-0 select-none" role="img" aria-label="Section through the building" data-testid="section-view">
+      <svg [attr.viewBox]="'0 0 ' + width + ' ' + height" preserveAspectRatio="xMidYMid meet" class="w-full flex-1 min-h-0 select-none" direction="ltr" role="img" [attr.aria-label]="t('building.section.label')" data-testid="section-view">
         <!-- ground line -->
         <line [attr.x1]="20" [attr.x2]="width - 20" [attr.y1]="y(datum())" [attr.y2]="y(datum())" class="stroke-muted/60" stroke-width="1.5" stroke-dasharray="8 6" />
-        <text [attr.x]="width - 24" [attr.y]="y(datum()) - 8" text-anchor="end" class="fill-muted text-[13px]">Ground {{ units.length(datum()) }}</text>
+        <text [attr.x]="width - 24" [attr.y]="y(datum()) - 8" [attr.direction]="i18n.direction()" [attr.text-anchor]="anchor('right', i18n.direction())" class="fill-muted text-[13px]" data-testid="section-ground">{{ t('building.section.ground', { elevation: units.length(datum()) }) }}</text>
         @for (level of levels(); track level.id) {
           @let top = y(level.top);
           @let floor = y(level.elevation);
@@ -61,8 +53,9 @@ const TYPE_NAMES: Record<string, [string, string]> = {
             <!-- slab under the floor -->
             <rect [attr.x]="inset ? bodyX + bodyW / 2 : bodyX" [attr.y]="floor" [attr.width]="inset ? bodyW / 2 : bodyW" [attr.height]="Math.max(2, slab(level))" class="fill-muted/45" />
             <!-- Names start at the left of each level, so a mezzanine drawn in the right half never covers its host's name. -->
-            <text [attr.x]="(inset ? bodyX + bodyW / 2 : bodyX) + 18" [attr.y]="(top + floor) / 2 + 5" text-anchor="start" class="fill-fg text-[15px] font-medium">{{ level.name }}</text>
-            <text [attr.x]="labelsX - 12" [attr.y]="floor + 5" text-anchor="end" class="text-[13px] font-mono" [attr.class]="level.elevation < 0 ? 'fill-warning text-[13px] font-mono' : 'fill-muted text-[13px] font-mono'">{{ units.length(level.elevation) }}</text>
+            @let nameDir = dir(level.name);
+            <text [attr.x]="(inset ? bodyX + bodyW / 2 : bodyX) + 18" [attr.y]="(top + floor) / 2 + 5" [attr.direction]="nameDir" [attr.text-anchor]="anchor('left', nameDir)" class="fill-fg text-[15px] font-medium">{{ level.name }}</text>
+            <text [attr.x]="labelsX - 12" [attr.y]="floor + 5" direction="ltr" text-anchor="end" class="text-[13px] font-mono" [attr.class]="level.elevation < 0 ? 'fill-warning text-[13px] font-mono' : 'fill-muted text-[13px] font-mono'">{{ units.length(level.elevation) }}</text>
             <line [attr.x1]="labelsX - 6" [attr.x2]="bodyX" [attr.y1]="floor" [attr.y2]="floor" class="stroke-muted/50" stroke-width="1" />
           </g>
         }
@@ -79,22 +72,22 @@ const TYPE_NAMES: Record<string, [string, string]> = {
             } @else {
               <line [attr.x1]="x - (c.kind === 'ladder' ? 0 : 10)" [attr.x2]="x + (c.kind === 'ladder' ? 0 : 10)" [attr.y1]="y(c.bottom)" [attr.y2]="y(c.top)" class="stroke-accent" stroke-width="3" stroke-linecap="round" />
             }
-            <text [attr.x]="x" [attr.y]="y(c.top) - 8" text-anchor="middle" class="fill-muted text-[12px]">{{ c.label }}</text>
+            <text [attr.x]="x" [attr.y]="y(c.top) - 8" [attr.direction]="dir(c.label)" text-anchor="middle" class="fill-muted text-[12px]">{{ c.label }}</text>
           </g>
         }
       </svg>
       <div class="shrink-0 border-t border-edge px-4 py-2.5 text-xs flex items-center gap-3 flex-wrap" data-testid="level-contents">
-        <span class="font-medium">{{ activeName() }}</span>
+        <span class="font-medium" dir="auto">{{ activeName() }}</span>
         @if (contents().length) {
           @for (item of contents(); track item.type) {
-            <span class="px-1.5 py-0.5 rounded bg-elevated text-muted">{{ item.count }} {{ item.label }}</span>
+            <span class="px-1.5 py-0.5 rounded bg-elevated text-muted">{{ item.label }}</span>
           }
         } @else {
-          <span class="text-muted">Nothing drawn on this level yet.</span>
+          <span class="text-muted">{{ t('building.section.empty') }}</span>
         }
       </div>
     } @else {
-      <x-empty-state title="Loading the building…" />
+      <x-empty-state [title]="t('building.section.loading')" />
     }
   `,
   host: { class: 'flex flex-col h-full min-h-0' },
@@ -104,6 +97,9 @@ export class SectionView {
   private readonly actions = inject(BuildingActions);
   private readonly app = inject(AppState);
   protected readonly units = inject(Units);
+  protected readonly i18n = inject(I18n);
+  protected readonly t = this.i18n.t;
+  protected readonly anchor = anchor;
 
   readonly projectId = input.required<string>();
 
@@ -135,15 +131,15 @@ export class SectionView {
     const levels = this.levels();
     const limits = this.app.config()?.rules ?? defaultConfig().rules;
     const at = (id: string, offset = 0) => (levels.find((l) => l.id === id)?.elevation ?? 0) + offset;
-    const names: Record<Connector['kind'], string> = { stair: 'Stair', ladder: 'Ladder', ramp: 'Ramp', elevator: 'Elevator', escalator: 'Escalator' };
+    const name = (c: { kind: 'stair' | 'ladder' | 'ramp' | 'elevator' | 'escalator'; name?: string }) => c.name ?? this.t(`tools.connector.${c.kind}`);
     return Object.values(doc.connectors).map((c) => {
       if (c.kind === 'elevator') {
         const stops = c.stops.map((s) => at(s.levelId));
         const top = Math.max(...stops) + 2400;
-        return { id: c.id, kind: c.kind, label: c.name ?? names[c.kind], bottom: Math.min(...stops), top, stops, risers: 0 };
+        return { id: c.id, kind: c.kind, label: name(c), bottom: Math.min(...stops), top, stops, risers: 0 };
       }
       const risers = c.kind === 'stair' ? (deriveConnector(c, levels, limits) as { risers: number }).risers : 0;
-      return { id: c.id, kind: c.kind, label: c.name ?? names[c.kind], bottom: at(c.bottom.levelId, c.bottom.offset), top: at(c.top.levelId, c.top.offset), stops: [] as number[], risers };
+      return { id: c.id, kind: c.kind, label: name(c), bottom: at(c.bottom.levelId, c.bottom.offset), top: at(c.top.levelId, c.top.offset), stops: [] as number[], risers };
     });
   });
   protected readonly laneStep = computed(() => Math.min(70, (LANES_W - 48) / Math.max(1, this.connectors().length - 1)));
@@ -154,8 +150,16 @@ export class SectionView {
     const levelId = this.active();
     const counts = new Map<string, number>();
     for (const e of Object.values((doc && levelId && doc.levelData[levelId]?.entities) || {})) counts.set(e.type, (counts.get(e.type) ?? 0) + 1);
-    return [...counts].map(([type, count]) => ({ type, count, label: (TYPE_NAMES[type] ?? [type, `${type}s`])[count === 1 ? 0 : 1] }));
+    return [...counts].map(([type, count]) => {
+      const key = `plan.count.${type}`;
+      return { type, count, label: isMessageKey(key) ? this.t(key, { count }) : `${count} ${type}` };
+    });
   });
+
+  /** The direction a name drawn in the section reads in (the drawing itself never mirrors). */
+  protected dir(text: string): TextDirection {
+    return textDirection(text, this.i18n.direction());
+  }
 
   /** Elevation (mm) to drawing y. */
   protected y(elevation: number): number {

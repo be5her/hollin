@@ -174,7 +174,7 @@ describe('ramps, ladders, escalators', () => {
     expect(g.broken).toEqual([]);
     const steep = derive(ramp(line([0, 0], [0, 10000]), 'R'), low) as RampGeometry;
     expect(steep.slope).toBeCloseTo(10, 6);
-    expect(steep.broken).toEqual([{ rule: 'too-steep', message: 'Its slope of 10.0 % is steeper than 8.33 %.', value: 10, limit: 8.33 }]);
+    expect(steep.broken).toEqual([{ rule: 'too-steep', message: 'Its slope of 10.0 % is steeper than 8.33 %.', text: { key: 'rules.break.tooSteep', params: { slope: '10.0', limit: 8.33 } }, value: 10, limit: 8.33 }]);
   });
 
   it('leaves the landing at a ramp corner flat', () => {

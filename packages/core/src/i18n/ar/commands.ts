@@ -83,6 +83,30 @@ export const arCommandTitles: Record<string, string> = {
   'plan.entity.delete': 'حذف عناصر',
   'plan.apply': 'تطبيق تعديلات كثيرة دفعة واحدة',
 
+  // The building module.
+  'building.get': 'وصف المبنى',
+  'building.level.add': 'إضافة طابق',
+  'building.level.update': 'تعديل طابق',
+  'building.level.duplicate': 'تكرار طابق',
+  'building.level.move': 'إعادة ترتيب طابق',
+  'building.level.impact': 'ما تزيله إزالة طابق',
+  'building.level.remove': 'إزالة طابق',
+  'building.connector.add': 'إضافة درج أو منحدر أو سلّم أو مصعد أو سلّم متحرك',
+  'building.connector.update': 'تعديل عنصر حركة رأسية',
+  'building.connector.remove': 'إزالة عنصر حركة رأسية',
+
+  // The rules module.
+  'rules.check': 'فحص التصميم وفق قواعده',
+
+  // The decor module.
+  'catalog.search': 'البحث في الكتالوج',
+  'catalog.get': 'عنصر من الكتالوج',
+  'catalog.import': 'استيراد نموذج',
+  'catalog.remove': 'إزالة نموذج من الكتالوج',
+  'decor.material.set': 'تعيين تشطيب',
+  'decor.light.add': 'إضافة مصدر إضاءة',
+  'decor.item.place': 'وضع قطعة أثاث',
+
   // The edit module.
   'edit.undo': 'تراجع',
   'edit.redo': 'إعادة',

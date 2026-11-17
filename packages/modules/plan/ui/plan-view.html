@@ -272,7 +272,7 @@
   <div class="flex items-center gap-3 px-3 h-9 border-b border-edge bg-surface shrink-0 text-xs whitespace-nowrap overflow-hidden" data-testid="tool-options">
     <span class="font-medium">{{ t('plan.item.title') }}</span>
     @if (itemArm(); as arm) {
-      <span class="text-fg" dir="auto" data-testid="item-armed">{{ arm.name }}</span>
+      <span class="text-fg" dir="auto" data-testid="item-armed">{{ i18n.catalogName(arm.ref, arm.name) }}</span>
       @if (arm.size) {
         <span class="text-muted font-mono bidi-ltr">{{ units.length(arm.size[0]) }} × {{ units.length(arm.size[1]) }} × {{ units.length(arm.size[2]) }}</span>
       }
@@ -292,7 +292,7 @@
   <div class="flex items-center gap-3 px-3 h-9 border-b border-edge bg-surface shrink-0 text-xs whitespace-nowrap overflow-hidden" data-testid="tool-options">
     <span class="font-medium">{{ t('plan.paint.title') }}</span>
     @if (paintArm(); as paint) {
-      <span class="text-fg" dir="auto" data-testid="paint-armed">{{ paint.name }}</span>
+      <span class="text-fg" dir="auto" data-testid="paint-armed">{{ i18n.catalogName(paint.ref, paint.name) }}</span>
       <span class="text-muted">{{ t('plan.paint.keys') }}</span>
     } @else {
       <span class="text-muted">{{ t('plan.paint.none') }}</span>

@@ -2,11 +2,13 @@ import { ar } from './ar';
 import { arCommandTitles } from './ar/commands';
 import { en, type MessageKey } from './en';
 import type { Message, MessageParams } from './message';
+import { mmText, type PhraseFormat } from './phrase';
 
 export type { MessageKey } from './en';
 export { arCommandTitles } from './ar/commands';
 export type { Message, MessageParams, PluralForms } from './message';
 export * from './text';
+export * from './phrase';
 
 /**
  * The languages the app speaks. English is the source: its catalog (`./en`) defines every key, and
@@ -102,3 +104,6 @@ export function currentLanguage(): Language {
 export function t(key: MessageKey, params?: MessageParams): string {
   return translate(current, key, params);
 }
+
+/** English with lengths in millimetres as core writes them: the text agents read of a `Phrase` (a warning's `message`). */
+export const ENGLISH_PHRASE: PhraseFormat = { translate: (key, params) => translate('en', key, params), length: mmText };

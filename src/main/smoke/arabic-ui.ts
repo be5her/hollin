@@ -1,6 +1,7 @@
 import type { Entity, ProjectSummary } from '@studio/core';
 import { wait, type Smoke } from './harness';
 import { canvas, canvasAttr, tab, view } from './plan-canvas';
+import { sceneAttr } from './scene-canvas';
 
 interface Layout {
   dir: string;
@@ -258,6 +259,7 @@ async function smokeArabicLibrary(smoke: Smoke): Promise<void> {
   await smoke.shots('87-settings-updates-arabic');
 
   if (project) await smokeArabicPlan(smoke, project.id);
+  if (project) await smokeArabicBuilding(smoke, project.id);
 
   // The project leaves: its tab closes and it goes to the trash, so the sections after this one count the library they expect.
   if (project) {
@@ -457,4 +459,173 @@ async function smokeArabicPlan(smoke: Smoke, projectId: string): Promise<void> {
   await smoke.shots('90-plan-properties-arabic');
   await smoke.js(`document.querySelector('${canvas}').focus()`);
   await smoke.key('Escape');
+}
+
+/** Whether, in the first text node of an element, `first` is drawn to the left of `second` (both must be in it): `3000 mm` read in that visual order, not `mm 3000`. */
+const leftOf = (smoke: Smoke, selector: string, first: string, second: string) =>
+  smoke.js<boolean | null>(`(() => {
+    const el = document.querySelector(${JSON.stringify(selector)});
+    if (!el) return null;
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    let node;
+    while ((node = walker.nextNode()) && !node.textContent.includes(${JSON.stringify(first)}));
+    if (!node) return null;
+    const text = node.textContent;
+    const x = (needle) => {
+      const i = text.indexOf(needle);
+      if (i < 0) return NaN;
+      const range = document.createRange();
+      range.setStart(node, i);
+      range.setEnd(node, i + 1);
+      return range.getBoundingClientRect().x;
+    };
+    return x(${JSON.stringify(first)}) < x(${JSON.stringify(second)});
+  })()`);
+
+/**
+ * The building, the rules and the decor in Arabic (milestone 12, step 4), on the Arabic project the plan
+ * section drew: the Levels panel with its lengths read left to right (`3000 mm`, never `mm 3000`), the
+ * Layers panel, a stair made too steep raising a warning the Warnings panel says in Arabic, the Catalog
+ * searched in Arabic, a sofa placed from it with its Arabic name in Properties, the 3D view's toolbar,
+ * the section and Settings > Rules.
+ */
+async function smokeArabicBuilding(smoke: Smoke, projectId: string): Promise<void> {
+  const { host } = smoke;
+  const run = <T = unknown>(id: string, input: unknown = {}) => smoke.run<T>(id, input, { projectId });
+  const doc = () => host.projects.session(projectId)!.doc;
+  const ground = doc().building.groundLevelId;
+  const tool = () => canvasAttr(smoke, 'tool');
+
+  smoke.section('arabic: levels and layers');
+  // A level above the ground floor, for a stair to reach.
+  const upper = (await run<{ id: string }>('building.level.add', { position: 'top' })).id;
+  smoke.check('a second level is added', await smoke.until(async () => (await smoke.count(`${tab} [data-testid=level-row]`)) === 2));
+  // The ground floor stays the active level: its row, then its fields.
+  await smoke.click(`${tab} [data-testid=level-row][data-elevation="0"]`);
+  smoke.check(
+    'the Levels panel speaks Arabic',
+    (await smoke.waitFor(`${tab} [data-testid=levels-panel]`, 3000, 'الطوابق')) && (await smoke.waitFor(`${tab} [data-testid=level-details]`, 3000, 'الارتفاع بين الطابقين')) && (await smoke.waitFor(`${tab} [data-testid=level-details]`, 3000, 'المنسوب')),
+  );
+  const upperRow = `${tab} [data-testid=level-row][data-elevation="3000"] [data-testid=level-elevation]`;
+  smoke.check(
+    "the level above reads 3000 mm, the number left of its unit",
+    (await smoke.text(upperRow)) === '3000 mm' && (await direction(smoke, upperRow)) === 'ltr' && (await leftOf(smoke, upperRow, '3', 'm')) === true,
+    { text: await smoke.text(upperRow), left: await leftOf(smoke, upperRow, '3', 'm') },
+  );
+  const height = `${tab} [data-testid=level-height-input]`;
+  smoke.check(
+    "the ground floor's height field holds 3000 mm, left to right",
+    (await smoke.until(async () => (await smoke.js<string>(`document.querySelector('${height}')?.value ?? ''`)) === '3000 mm')) && (await direction(smoke, height)) === 'ltr',
+    await smoke.js<string>(`document.querySelector('${height}')?.value ?? ''`),
+  );
+  smoke.check("and the level's name field takes either direction", (await smoke.js<string | null>(`document.querySelector('${tab} [data-testid=level-name]')?.getAttribute('dir') ?? null`)) === 'auto');
+  smoke.check(
+    'the Layers panel speaks Arabic',
+    (await smoke.waitFor(`${tab} [data-testid=layers-panel]`, 3000, 'الطبقات')) && (await smoke.waitFor(`${tab} [data-testid=layer-kind]`, 3000, 'إنشائية')) && (await smoke.waitFor(`${tab} [data-testid=layers-panel]`, 3000, 'العتامة')),
+  );
+  smoke.check(
+    'with its opacity a left-to-right island and its buttons named in Arabic',
+    (await direction(smoke, `${tab} [data-testid=layer-opacity-value]`)) === 'ltr' && ((await smoke.js<string>(`document.querySelector('${tab} [data-testid=layer-visible]')?.getAttribute('aria-label') ?? ''`)) ?? '').startsWith('إخفاء'),
+  );
+  await smoke.js(`document.querySelector('${tab} [data-testid=project-left]').scrollTop = 0`);
+  await smoke.shots('93-levels-layers-arabic');
+
+  smoke.section('arabic: a warning');
+  const walls = Object.values(doc().levelData[ground].entities).filter((e): e is Wall => e.type === 'wall');
+  const xs = walls.flatMap((w) => w.path.v.map((v) => v.p[0]));
+  const ys = walls.flatMap((w) => w.path.v.map((v) => v.p[1]));
+  const [minX, minY] = [Math.min(...xs), Math.min(...ys)];
+  // A stair beside the room, then eight risers over 3 m: 375 mm each, too high (as the rules section does in English).
+  const stair = (await run<{ id: string }>('building.connector.add', { connector: { kind: 'stair', shape: 'straight', from: [minX - 1500, minY], to: [minX - 1500, minY + 3000], bottomLevelId: ground, topLevelId: upper } })).id;
+  await run('building.connector.update', { id: stair, set: { riser: { count: 8 } } });
+  await smoke.click(`${tab} [data-testid=right-tab-warnings]`);
+  const row = `${tab} [data-testid=warning-row][data-rule=stair-limits][data-target="${stair}"]`;
+  smoke.check('the stair raises a warning', await smoke.waitFor(row, 5000), await smoke.text(`${tab} [data-testid=warnings-panel]`));
+  const warning = (await smoke.js<string[]>(`[...document.querySelectorAll('${row} [data-testid=warning-text]')].map((el) => el.textContent)`)) ?? [];
+  const high = warning.find((text) => text.includes('ارتفاع القائمة')) ?? '';
+  smoke.check('the Warnings panel says it in Arabic, the stair named as its kind', high.startsWith('\u2068الدرج\u2069') && high.includes('يتجاوز الحد الأقصى'), warning);
+  // The panel keeps a length on one line: a no-break space between the number and its unit.
+  smoke.check('its lengths are formatted and isolated left to right', high.includes(`${LRI}375\u00a0mm${PDI}`), high);
+  smoke.check('the panel counts in Arabic, its tab too', (await smoke.waitFor(`${tab} [data-testid=warnings-count]`, 3000, 'تحذير')) && (await smoke.waitFor(`${tab} [data-testid=right-tab-warnings]`, 3000, 'التحذيرات')));
+  const agents = (await run<{ warnings: { id: string; message: string }[] }>('rules.check')).warnings.find((w) => w.id === `${stair}:riser-high`);
+  smoke.check('while agents still read the warning in English', agents?.message.startsWith('Stair: Risers of 375 mm are higher than') === true, agents);
+  await smoke.shots('94-warnings-arabic');
+
+  smoke.section('arabic: the catalog');
+  await smoke.click(`${tab} [data-testid=right-tab-catalog]`);
+  smoke.check(
+    'the Catalog speaks Arabic',
+    (await smoke.waitFor(`${tab} [data-testid=catalog-tab-item]`, 3000, 'الأثاث')) && (await smoke.waitFor(`${tab} [data-testid=catalog-category][data-category=bedroom]`, 3000, 'النوم')) && (await smoke.js<string>(`document.querySelector('${tab} [data-testid=catalog-search]').placeholder`)) === 'بحث',
+  );
+  // "أريكة" typed without its hamza and with ه for ة, as people often type it.
+  await smoke.fill(`${tab} [data-testid=catalog-search]`, 'اريكه');
+  const firstCard = () => smoke.js<string>(`document.querySelector('${tab} [data-testid=catalog-card]')?.dataset.ref ?? ''`);
+  smoke.check('an Arabic search finds the sofas, best match first', await smoke.until(async () => (await firstCard()) === 'builtin:sofa-2' && (await smoke.count(`${tab} [data-testid=catalog-card]`)) < 5), { first: await firstCard(), count: await smoke.count(`${tab} [data-testid=catalog-card]`) });
+  const sofa = `${tab} [data-testid=catalog-card][data-ref="builtin:sofa-2"]`;
+  smoke.check('shown by their Arabic names', (await smoke.text(`${sofa} [data-testid=catalog-card-name]`)) === 'أريكة بمقعدين', await smoke.text(`${sofa} [data-testid=catalog-card-name]`));
+  smoke.check('with their sizes left to right', (await direction(smoke, `${sofa} [data-testid=catalog-card-caption]`)) === 'ltr');
+  await smoke.shots('95-catalog-arabic');
+
+  smoke.section('arabic: a piece placed');
+  await smoke.click(sofa);
+  smoke.check('a click arms the Furniture tool, its options naming the sofa in Arabic', (await smoke.until(async () => (await tool()) === 'item')) && (await smoke.waitFor(`${tab} [data-testid=item-armed]`, 3000, 'أريكة بمقعدين')));
+  // The options bar took space above the canvas: measure again.
+  let v = await view(smoke);
+  const at: [number, number] = [minX + 1000, minY + 900];
+  const items = () => Object.values(doc().levelData[ground].entities).filter((e) => e.type === 'item');
+  const p = v.at(at);
+  await smoke.mouseMove(p.x, p.y, ['alt']);
+  await smoke.clickAt(p.x, p.y, { modifiers: ['alt'] });
+  smoke.check('a click places it', await smoke.until(() => items().length === 1), items().length);
+  const item = items()[0];
+  await smoke.js(`document.querySelector('${canvas}').focus()`);
+  await smoke.key('Escape');
+  await smoke.until(async () => (await tool()) === 'select');
+  await wait(100);
+  v = await view(smoke);
+  const q = v.at(at);
+  await smoke.clickAt(q.x, q.y);
+  smoke.check('clicking it selects it', await smoke.until(async () => (await canvasAttr(smoke, 'selection')) === item?.id), await canvasAttr(smoke, 'selection'));
+  await smoke.click(`${tab} [data-testid=right-tab-properties]`);
+  smoke.check('Properties name its model in Arabic', await smoke.waitFor(`${tab} [data-testid=item-model-name]`, 3000, 'أريكة بمقعدين'), await smoke.text(`${tab} [data-testid=item-model-name]`));
+  smoke.check(
+    'and its material slots and their built-in materials too',
+    (await smoke.waitFor(`${tab} [data-testid=item-model]`, 3000)) && (await smoke.js<boolean>(`(() => { const s = document.querySelector('${tab} [data-testid=item-slot-fabric]'); return !!s && s.closest('label').textContent.includes('القماش') && [...s.options].some((o) => o.textContent.includes('قماش فحمي')); })()`)),
+  );
+  await smoke.shots('96-item-properties-arabic');
+  await smoke.js(`document.querySelector('${canvas}').focus()`);
+  await smoke.key('Escape');
+
+  smoke.section('arabic: the 3D view and the section');
+  await smoke.click(`${tab} [data-testid=center-tab-3d]`);
+  smoke.check(
+    "the 3D view's toolbar speaks Arabic",
+    (await smoke.waitFor(`${tab} [data-testid=scene-toolbar]`, 5000, 'أعلى')) && (await smoke.waitFor(`${tab} [data-testid=scene-lighting-day]`, 3000, 'نهار')) && (await smoke.waitFor(`${tab} [data-testid=scene-mode-cutaway]`, 3000, 'قطع')) && (await smoke.waitFor(`${tab} [data-testid=scene-footer]`, 3000, 'اسحب للدوران')),
+  );
+  smoke.check('its tab title too', await smoke.waitFor(`${tab} [data-testid=center-tab-3d]`, 3000, 'ثلاثي الأبعاد'));
+  smoke.check('the 3D canvas draws the building', await smoke.until(async () => Number(await sceneAttr(smoke, 'meshes')) > 0, 10_000));
+  const option = await smoke.js<string>(`document.querySelector('${tab} [data-testid=scene-level] option[value="${ground}"]')?.textContent ?? ''`);
+  smoke.check("its level select keeps each elevation left to right", option.includes(`${LRI}0 mm${PDI}`), option);
+  await smoke.shots('97-scene-arabic');
+  await smoke.click(`${tab} [data-testid=center-tab-section]`);
+  smoke.check(
+    'the section speaks Arabic, its drawing never mirrored',
+    (await smoke.waitFor(`${tab} [data-testid=section-ground]`, 3000, 'منسوب الأرض')) && (await smoke.waitFor(`${tab} [data-testid=level-contents]`, 3000, 'قطعة أثاث')) && (await direction(smoke, `${tab} [data-testid=section-view]`)) === 'ltr',
+    await smoke.text(`${tab} [data-testid=level-contents]`),
+  );
+  await smoke.shots('98-section-arabic');
+  await smoke.click(`${tab} [data-testid=center-tab-plan]`);
+  await smoke.waitFor(canvas);
+
+  smoke.section('arabic: Settings > Rules');
+  await smoke.click('[data-testid=tab][data-type="settings.main"]');
+  await smoke.waitFor('[data-section=rules]');
+  smoke.check(
+    'the Rules section speaks Arabic, its limits left to right',
+    (await smoke.waitFor('[data-section=rules] h2', 3000, 'القواعد')) && (await smoke.waitFor('[data-section=rules]', 3000, 'أعلى قائمة')) && (await direction(smoke, '[data-testid=rule-maxRiser]')) === 'ltr' && (await direction(smoke, '[data-testid=rule-maxRampSlope]')) === 'ltr',
+  );
+  await smoke.js(`document.querySelector('[data-section=rules]').scrollIntoView({ block: 'start' })`);
+  await smoke.shots('99-settings-rules-arabic');
+  await smoke.click(`[data-testid=tab][data-type="project.editor"][data-title="${ARABIC_NAME}"]`);
+  await smoke.until(() => smoke.js<boolean>(`document.querySelector('${tab} [data-testid=project-name]')?.value === ${JSON.stringify(ARABIC_NAME)}`));
 }

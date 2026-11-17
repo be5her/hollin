@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { polygonArea } from '../geometry/polygon';
 import { meshBox, meshVolume } from '../solids/mesh';
 import { ITEM_CATEGORIES, MATERIALS, OPENING_STYLES, RECIPES, builtinMaterial } from './builtin';
-import { builtinEntries, searchCatalog } from './catalog';
+import { translate } from '../i18n';
+import { builtinEntries, builtinNameKey, catalogName, categoryName, searchCatalog } from './catalog';
 import { recipeDetails, recipeMeshes, recipeOutline } from './recipes';
 import { parseRef } from './refs';
 
@@ -78,5 +79,38 @@ describe('the built-in catalog', () => {
     const materials = builtinEntries().filter((e) => e.kind === 'material');
     expect(searchCatalog(materials, 'oak').map((e) => e.ref).slice(0, 3)).toEqual(['builtin:oak', 'builtin:oak-floor', 'builtin:herringbone-oak']);
     expect(searchCatalog(materials, 'parquet').map((e) => e.ref).sort()).toEqual(['builtin:herringbone-oak', 'builtin:oak-floor']);
+  });
+
+  it('names every built-in in English as it is defined and in Arabic, by its id', () => {
+    for (const x of [...RECIPES, ...MATERIALS, ...OPENING_STYLES]) {
+      const key = builtinNameKey(x.id);
+      expect(key, x.id).not.toBeNull();
+      // English repeats the definition's name, which agents read; Arabic has its own.
+      expect(translate('en', key!), x.id).toBe(x.name);
+      const arabic = translate('ar', key!);
+      expect(arabic, x.id).not.toBe(x.name);
+      expect(arabic, x.id).toMatch(/[؀-ۿ]/);
+      expect(catalogName(`builtin:${x.id}`, x.name, 'ar'), x.id).toBe(arabic);
+    }
+    expect(builtinNameKey('no-such-thing')).toBeNull();
+    // Anything else keeps the name it was given.
+    expect(catalogName('asset:abc.glb', 'My chair', 'ar')).toBe('My chair');
+    expect(catalogName('builtin:sofa-3', 'Sofa, 3 seats', 'en')).toBe('Sofa, 3 seats');
+    expect(categoryName('bedroom', 'ar')).toBe(translate('ar', 'decor.category.bedroom'));
+    expect(categoryName('my-own', 'ar')).toBe('my-own');
+  });
+
+  it('finds a built-in by its Arabic name as by its English one, folded', () => {
+    const items = builtinEntries().filter((e) => e.kind === 'item');
+    const refs = (q: string) => searchCatalog(items, q).map((e) => e.ref);
+    // "أريكة" with its hamza, and typed without it and with ه for ة, as people often do.
+    expect(refs('أريكة').slice(0, 2).sort()).toEqual(['builtin:sofa-2', 'builtin:sofa-3']);
+    expect(refs('اريكه').slice(0, 2).sort()).toEqual(['builtin:sofa-2', 'builtin:sofa-3']);
+    expect(refs('sofa').slice(0, 2)).toEqual(['builtin:sofa-2', 'builtin:sofa-3']);
+    expect(refs('سرير مزدوج')[0]).toBe('builtin:bed-double');
+    // A category in Arabic keeps its furniture.
+    expect(refs('المطبخ')).toEqual(expect.arrayContaining(['builtin:fridge', 'builtin:cooker']));
+    const materials = builtinEntries().filter((e) => e.kind === 'material');
+    expect(searchCatalog(materials, 'بلوط').map((e) => e.ref)).toEqual(expect.arrayContaining(['builtin:oak', 'builtin:oak-floor', 'builtin:herringbone-oak']));
   });
 });

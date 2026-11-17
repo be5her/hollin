@@ -16,13 +16,6 @@ const SCANNED = ['packages/modules', 'packages/ui/src', 'src/renderer/src/app'];
 /** Not converted yet: later steps of milestone 12 empty this list. Never add to it. */
 const PENDING = new Set([
   'packages/modules/assistant/ui/assistant-panel.html',
-  'packages/modules/building/ui/layers-panel.ts',
-  'packages/modules/building/ui/levels-panel.html',
-  'packages/modules/building/ui/rules-settings.ts',
-  'packages/modules/building/ui/scene-view.html',
-  'packages/modules/building/ui/section-view.ts',
-  'packages/modules/decor/ui/catalog-panel.ts',
-  'packages/modules/rules/ui/warnings-panel.ts',
 ]);
 
 /**

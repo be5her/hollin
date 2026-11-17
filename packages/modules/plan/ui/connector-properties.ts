@@ -84,7 +84,7 @@ export class ConnectorProperties {
         lines.push(t('plan.connector.travel', { count: g.stops.length, length: len(g.rise) }));
         break;
     }
-    return { lines, broken: g.broken.map((b) => b.message) };
+    return { lines, broken: g.broken.map((b) => this.i18n.phrase(b.text, len)) };
   });
   /** An elevator's stops as checkboxes over the levels, top to bottom, with the door side of each. */
   protected readonly stops = computed(() => {

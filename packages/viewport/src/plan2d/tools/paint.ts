@@ -1,4 +1,4 @@
-import { t, faceOffset, flatten, offsetPath, roomAt, sideOfWall, type Entity, type Vec2, type WallSide } from '@studio/core';
+import { catalogName, t, faceOffset, flatten, offsetPath, roomAt, sideOfWall, type Entity, type Vec2, type WallSide } from '@studio/core';
 import { tracePolygon } from '../draw';
 import { drawScreenText, type RenderFrame } from '../render';
 import { withAlpha } from '../theme';
@@ -44,7 +44,7 @@ export class PaintTool implements Tool {
   hint(): string {
     const o = this.host.options().paint;
     if (!o.ref) return t('tools.paint.none');
-    return t('tools.paint.place', { name: o.name || o.ref });
+    return t('tools.paint.place', { name: catalogName(o.ref, o.name || o.ref) });
   }
 
   draw(ctx: CanvasRenderingContext2D, frame: RenderFrame): void {

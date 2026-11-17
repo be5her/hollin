@@ -1,14 +1,18 @@
 import { DOCUMENT, Service, computed, inject, signal } from '@angular/core';
 import {
+  catalogName,
+  categoryName,
   commandTitle,
   intlLocale,
   isMessageKey,
   languageDirection,
+  phraseText,
   setLanguage,
   translate,
   type Language,
   type MessageKey,
   type MessageParams,
+  type Phrase,
   type TextDirection,
 } from '@studio/core';
 import { HostBridge } from '../host/host-bridge';
@@ -43,6 +47,15 @@ export class I18n {
 
   /** A command's title as the palette shows it: Arabic by command id, English from its definition. */
   readonly commandTitle = (command: { id: string; title: string }): string => commandTitle(command, this.language());
+
+  /** A catalog entry's name as people read it: a built-in's in the current language, anything else (an imported model) as it is. */
+  readonly catalogName = (ref: string, name: string): string => catalogName(ref, name, this.language());
+
+  /** A catalog category by its id, in the current language. */
+  readonly categoryName = (category: string): string => categoryName(category, this.language());
+
+  /** A phrase (a rule warning, a broken limit) in the current language, its lengths in `length`'s units. */
+  readonly phrase = (phrase: Phrase, length: (mm: number) => string): string => phraseText(phrase, { translate: this.t, length });
 
   /** Load the language main resolved; the shell calls it before the first render. */
   async load(): Promise<void> {

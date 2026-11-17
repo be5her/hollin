@@ -52,7 +52,7 @@ export class PlanView {
   private readonly destroyRef = inject(DestroyRef);
   private readonly injector = inject(Injector);
   protected readonly units = inject(Units);
-  private readonly i18n = inject(I18n);
+  protected readonly i18n = inject(I18n);
   protected readonly t = this.i18n.t;
   protected readonly label = this.i18n.label;
 

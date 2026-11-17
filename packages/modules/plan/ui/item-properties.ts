@@ -28,7 +28,7 @@ interface Draft {
     @let e = item();
     @let m = model();
     <div class="text-xs text-muted" data-testid="item-model">
-      {{ t('plan.item.model') }} <span class="text-fg" dir="auto">{{ m.name }}</span>
+      {{ t('plan.item.model') }} <span class="text-fg" dir="auto" data-testid="item-model-name">{{ i18n.catalogName(e.asset, m.name) }}</span>
       <span class="block font-mono text-[11px] truncate" dir="ltr" [title]="e.asset">{{ e.asset }}</span>
     </div>
     <div class="grid grid-cols-2 gap-2">
@@ -52,17 +52,17 @@ interface Draft {
       <div class="text-[11px] font-medium text-muted uppercase tracking-wide mt-1">{{ t('plan.item.materials') }}</div>
       @for (slot of m.slots; track slot) {
         <label class="flex items-center gap-2">
-          <span class="w-16 shrink-0 text-xs text-muted capitalize truncate" dir="auto">{{ slot }}</span>
+          <span class="w-16 shrink-0 text-xs text-muted capitalize truncate" dir="auto">{{ slotName(slot) }}</span>
           <select xSelect class="flex-1 min-w-0 h-7 text-xs" (change)="setMaterial(slot, $any($event.target).value)" [attr.data-testid]="'item-slot-' + slot">
             <option value="" [selected]="!e.materials[slot]">{{ t('plan.item.default', { name: defaultName(slot) }) }}</option>
             @for (mat of materials; track mat.id) {
-              <option [value]="'builtin:' + mat.id" [selected]="e.materials[slot] === 'builtin:' + mat.id">{{ mat.name }}</option>
+              <option [value]="'builtin:' + mat.id" [selected]="e.materials[slot] === 'builtin:' + mat.id">{{ i18n.catalogName('builtin:' + mat.id, mat.name) }}</option>
             }
             @if (paintOf(slot); as paint) {
               <option [value]="'paint:' + paint" selected>{{ t('plan.material.colour', { color: paint }) }}</option>
             }
           </select>
-          <input type="color" class="size-7 shrink-0 rounded border border-edge bg-transparent cursor-pointer" [value]="colorOf(slot)" (change)="setMaterial(slot, 'paint:' + $any($event.target).value)" [attr.aria-label]="t('plan.item.colourOf', { slot })" [attr.data-testid]="'item-color-' + slot" />
+          <input type="color" class="size-7 shrink-0 rounded border border-edge bg-transparent cursor-pointer" [value]="colorOf(slot)" (change)="setMaterial(slot, 'paint:' + $any($event.target).value)" [attr.aria-label]="t('plan.item.colourOf', { slot: slotName(slot) })" [attr.data-testid]="'item-color-' + slot" />
         </label>
       }
     }
@@ -74,7 +74,8 @@ export class ItemProperties {
   private readonly host = inject(HostBridge);
   private readonly toasts = inject(Toasts);
   protected readonly units = inject(Units);
-  protected readonly t = inject(I18n).t;
+  protected readonly i18n = inject(I18n);
+  protected readonly t = this.i18n.t;
 
   readonly projectId = input.required<string>();
   readonly item = input.required<Item>();
@@ -134,11 +135,16 @@ export class ItemProperties {
     void this.update({ materials });
   }
 
+  /** A slot as people read it: a built-in model's slot by its name in the catalog (`decor.slot.<slot>`), an imported model's material name as it is. */
+  protected slotName(slot: string): string {
+    return this.model().recipe ? this.i18n.label(`decor.slot.${slot}`) : slot;
+  }
+
   /** The name of a slot's default material. */
   protected defaultName(slot: string): string {
     const ref = this.model().recipe?.slots[slot];
     const parsed = ref ? parseRef(ref) : null;
-    return parsed?.k === 'builtin' ? (builtinMaterial(parsed.id)?.name ?? parsed.id) : this.t('plan.item.theModel');
+    return parsed?.k === 'builtin' ? this.i18n.catalogName(ref!, builtinMaterial(parsed.id)?.name ?? parsed.id) : this.t('plan.item.theModel');
   }
 
   /** The paint colour a slot is given, if it is a plain colour. */

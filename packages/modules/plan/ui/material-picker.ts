@@ -14,7 +14,7 @@ import { I18n, Select } from '@studio/ui';
       <select xSelect class="flex-1 min-w-0 h-7 text-xs" (change)="pick($any($event.target).value)" [attr.aria-label]="labelText()" [attr.data-testid]="testId()">
         <option value="" [selected]="!value()">{{ i18n.label(noneLabel()) }}</option>
         @for (m of materials; track m.id) {
-          <option [value]="'builtin:' + m.id" [selected]="value() === 'builtin:' + m.id">{{ m.name }}</option>
+          <option [value]="'builtin:' + m.id" [selected]="value() === 'builtin:' + m.id">{{ i18n.catalogName('builtin:' + m.id, m.name) }}</option>
         }
         @if (paint(); as color) {
           <option [value]="'paint:' + color" selected>{{ t('plan.material.colour', { color }) }}</option>

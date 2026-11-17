@@ -7,6 +7,7 @@ import { deriveLevelGeometry } from '../geometry/level-geometry';
 import { openingMisfits } from '../geometry/openings';
 import { resolvePath, type Path } from '../geometry/path';
 import { polygonArea } from '../geometry/polygon';
+import { ENGLISH_PHRASE, phraseText, type Phrase } from '../i18n';
 
 export type RuleId = 'stair-limits' | 'ramp-slope' | 'elevator-stops' | 'connector-inverted' | 'connector-shape' | 'opening-misfit' | 'room-open' | 'opening-uncovered' | 'self-intersecting';
 
@@ -16,7 +17,10 @@ export interface Warning {
   id: string;
   rule: RuleId;
   severity: 'warning' | 'error';
+  /** In English, for agents and tests: `text` as English writes it. */
   message: string;
+  /** The message as its catalog key and parameters (`rules.*`): what the Warnings panel shows, in the user's language and units. */
+  text: Phrase;
   target: { kind: 'entity' | 'connector'; id: string };
   /** The level to show it on (a connector: where it starts). */
   levelId: string | null;
@@ -38,10 +42,16 @@ const CONNECTOR_RULE: Record<string, RuleId> = {
   'car-too-big': 'elevator-stops',
 };
 const SEVERITY: Record<RuleId, Warning['severity']> = { 'stair-limits': 'warning', 'ramp-slope': 'warning', 'elevator-stops': 'error', 'connector-inverted': 'error', 'connector-shape': 'warning', 'opening-misfit': 'warning', 'room-open': 'warning', 'opening-uncovered': 'warning', 'self-intersecting': 'error' };
-const KIND_NAMES: Record<Connector['kind'], string> = { stair: 'Stair', ladder: 'Ladder', ramp: 'Ramp', elevator: 'Elevator', escalator: 'Escalator' };
-const TYPE_NAMES: Partial<Record<Entity['type'], string>> = { wall: 'Wall', shape: 'Shape', separator: 'Room divider', slab: 'Slab', room: 'Room', void: 'Void', shaft: 'Shaft' };
+const TYPE_NAMES = new Set<Entity['type']>(['wall', 'shape', 'separator', 'slab', 'room', 'void', 'shaft']);
 
-const connectorName = (c: Connector): string => c.name || KIND_NAMES[c.kind];
+/** A connector's own name, or its kind for one without (translated where it is shown). */
+const connectorName = (c: Connector): string | Phrase => c.name || { key: `rules.kind.${c.kind}` };
+/** What crosses itself, by type. */
+const typeName = (type: Entity['type']): Phrase => ({ key: TYPE_NAMES.has(type) ? (`rules.type.${type}` as 'rules.type.wall') : 'rules.type.outline' });
+/** A warning from its text: the English message agents read is made from it. */
+function warning(id: string, rule: RuleId, text: Phrase, target: Warning['target'], levelId: string | null): Warning {
+  return { id, rule, severity: SEVERITY[rule], message: phraseText(text, ENGLISH_PHRASE), text, target, levelId };
+}
 /** The level a connector is shown on: where it starts (an elevator: its lowest stop). */
 function connectorLevel(c: Connector, levels: readonly DerivedLevel[]): string | null {
   if (c.kind !== 'elevator') return c.bottom.levelId;
@@ -56,7 +66,7 @@ export function checkConnectorRules(doc: Pick<ProjectDoc, 'building' | 'levels' 
     const levelId = connectorLevel(c, levels);
     for (const brk of deriveConnector(c, levels, limits).broken) {
       const rule = CONNECTOR_RULE[brk.rule] ?? 'stair-limits';
-      out.push({ id: `${c.id}:${brk.rule}`, rule, severity: SEVERITY[rule], message: `${connectorName(c)}: ${brk.message}`, target: { kind: 'connector', id: c.id }, levelId });
+      out.push(warning(`${c.id}:${brk.rule}`, rule, { key: 'rules.connector', params: { name: connectorName(c), detail: brk.text } }, { kind: 'connector', id: c.id }, levelId));
     }
   }
   return out;
@@ -90,17 +100,18 @@ export function checkLevelRules(doc: ProjectDoc, levelId: string, limits: RuleLi
   const level = levels.find((l) => l.id === levelId);
   if (!entities || !level) return [];
   const out: Warning[] = [];
-  const warn = (rule: RuleId, message: string, target: Warning['target']) => out.push({ id: `${target.id}:${rule}`, rule, severity: SEVERITY[rule], message, target, levelId });
+  const warn = (rule: RuleId, text: Phrase, target: Warning['target']) => out.push(warning(`${target.id}:${rule}`, rule, text, target, levelId));
+  const at = level.name;
   const openings = Object.values(entities).filter((e): e is Extract<Entity, { type: 'opening' }> => e.type === 'opening');
   for (const e of Object.values(entities)) {
     if (e.type === 'opening') {
       const wall = entities[e.wallId];
-      if (wall?.type === 'wall' && openingMisfits(wall, e, openings.filter((o) => o.wallId === e.wallId && o.id !== e.id))) warn('opening-misfit', `${e.kind === 'door' ? 'Door' : e.kind === 'window' ? 'Window' : 'Opening'} does not fit its wall on ${level.name}`, { kind: 'entity', id: e.id });
+      if (wall?.type === 'wall' && openingMisfits(wall, e, openings.filter((o) => o.wallId === e.wallId && o.id !== e.id))) warn('opening-misfit', { key: e.kind === 'door' ? 'rules.misfit.door' : e.kind === 'window' ? 'rules.misfit.window' : 'rules.misfit.opening', params: { level: at } }, { kind: 'entity', id: e.id });
       continue;
     }
     for (const path of pathsOf(e)) {
       if (segmentsSelfIntersect(resolvePath(path).segs, path.closed)) {
-        warn('self-intersecting', `${TYPE_NAMES[e.type] ?? 'Outline'}${'name' in e && e.name ? ` "${e.name}"` : ''} crosses itself on ${level.name}`, { kind: 'entity', id: e.id });
+        warn('self-intersecting', 'name' in e && e.name ? { key: 'rules.crossesNamed', params: { type: typeName(e.type), name: e.name, level: at } } : { key: 'rules.crosses', params: { type: typeName(e.type), level: at } }, { kind: 'entity', id: e.id });
         break;
       }
     }
@@ -109,7 +120,7 @@ export function checkLevelRules(doc: ProjectDoc, levelId: string, limits: RuleLi
   const geometry = deriveLevelGeometry(entities);
   for (const [id, room] of geometry.rooms) {
     const e = entities[id];
-    if (e?.type === 'room' && e.boundary.k === 'detect' && !room.enclosed) warn('room-open', `Room "${e.name}" on ${level.name} is not enclosed`, { kind: 'entity', id });
+    if (e?.type === 'room' && e.boundary.k === 'detect' && !room.enclosed) warn('room-open', { key: 'rules.roomOpen', params: { name: e.name, level: at } }, { kind: 'entity', id });
   }
   const slabs = [...geometry.slab, ...[...geometry.slabRegions.values()].flat()];
   for (const c of Object.values(doc.connectors)) {
@@ -118,7 +129,7 @@ export function checkLevelRules(doc: ProjectDoc, levelId: string, limits: RuleLi
     const area = footprint.reduce((sum, p) => sum + Math.abs(polygonArea(p)), 0);
     if (area <= 0) continue;
     const covered = slabs.length ? intersectPolygons(footprint, slabs).reduce((sum, p) => sum + Math.abs(polygonArea(p)), 0) : 0;
-    if (covered < 0.99 * area) warn('opening-uncovered', slabs.length ? `${connectorName(c)} passes through ${level.name} outside its slab` : `${connectorName(c)} passes through ${level.name}, which has no slab`, { kind: 'connector', id: c.id });
+    if (covered < 0.99 * area) warn('opening-uncovered', { key: slabs.length ? 'rules.uncovered' : 'rules.noSlab', params: { name: connectorName(c), level: at } }, { kind: 'connector', id: c.id });
   }
   return out;
 }

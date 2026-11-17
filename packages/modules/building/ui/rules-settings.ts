@@ -1,36 +1,29 @@
 import { Component, computed, inject, linkedSignal } from '@angular/core';
 import { FormField, form } from '@angular/forms/signals';
-import { defaultConfig, type RuleLimits } from '@studio/core';
-import { AppState, HostBridge, Input, Label, LengthInput, Toasts, Units } from '@studio/ui';
+import { defaultConfig, toLatinDigits, type RuleLimits } from '@studio/core';
+import { AppState, HostBridge, I18n, Input, Label, LengthInput, Toasts, Units } from '@studio/ui';
 
 type LengthKey = Exclude<keyof RuleLimits, 'maxRampSlope'>;
 
-const LENGTHS: { key: LengthKey; label: string }[] = [
-  { key: 'maxRiser', label: 'Highest riser' },
-  { key: 'minRiser', label: 'Lowest riser' },
-  { key: 'minTread', label: 'Shallowest tread' },
-  { key: 'minStairWidth', label: 'Narrowest stair' },
-  { key: 'comfortMin', label: '2 × riser + tread, from' },
-  { key: 'comfortMax', label: '2 × riser + tread, to' },
-  { key: 'stairCutHeight', label: 'Plan cut above the floor' },
-];
+/** The length limits, each labelled by `building.rules.<key>`. */
+const LENGTHS: LengthKey[] = ['maxRiser', 'minRiser', 'minTread', 'minStairWidth', 'comfortMin', 'comfortMax', 'stairCutHeight'];
 
 /** Settings > Rules: the limits stairs and ramps are checked against, in display units. */
 @Component({
   selector: 'x-rules-settings',
   imports: [FormField, Input, Label, LengthInput],
   template: `
-    <p class="text-xs text-muted mb-3">Stairs and ramps are checked against these limits; what breaks them shows in a project's Warnings. A stair's own riser and tread values take precedence.</p>
+    <p class="text-xs text-muted mb-3">{{ t('building.rules.intro') }}</p>
     <div class="grid grid-cols-2 gap-x-4 gap-y-2.5 max-w-lg">
-      @for (field of lengths; track field.key) {
+      @for (key of lengths; track key) {
         <div>
-          <label xLabel [for]="'rule-' + field.key">{{ field.label }}</label>
-          <input xInput xLength class="font-mono" [id]="'rule-' + field.key" [formField]="draftForm[field.key]" (commit)="save(field.key, $event)" [attr.data-testid]="'rule-' + field.key" />
+          <label xLabel [for]="'rule-' + key">{{ label('building.rules.' + key) }}</label>
+          <input xInput xLength class="font-mono" [id]="'rule-' + key" [formField]="draftForm[key]" (commit)="save(key, $event)" [attr.data-testid]="'rule-' + key" />
         </div>
       }
       <div>
-        <label xLabel for="rule-maxRampSlope">Steepest ramp (%)</label>
-        <input xInput class="font-mono" id="rule-maxRampSlope" [formField]="draftForm.maxRampSlope" (blur)="saveSlope()" (keydown.enter)="$any($event.target).blur()" data-testid="rule-maxRampSlope" />
+        <label xLabel for="rule-maxRampSlope">{{ t('building.rules.maxRampSlope') }}</label>
+        <input xInput class="font-mono" dir="ltr" id="rule-maxRampSlope" [formField]="draftForm.maxRampSlope" (blur)="saveSlope()" (keydown.enter)="$any($event.target).blur()" data-testid="rule-maxRampSlope" />
       </div>
     </div>
   `,
@@ -40,13 +33,17 @@ export class RulesSettings {
   private readonly host = inject(HostBridge);
   private readonly toasts = inject(Toasts);
   private readonly units = inject(Units);
+  private readonly i18n = inject(I18n);
+  protected readonly t = this.i18n.t;
+  /** A limit's label by its key (`building.rules.<key>`). */
+  protected readonly label = this.i18n.label;
 
   protected readonly lengths = LENGTHS;
   private readonly limits = computed(() => this.app.config()?.rules ?? defaultConfig().rules);
   protected readonly draft = linkedSignal(() => {
     const limits = this.limits();
     const out = { maxRampSlope: String(limits.maxRampSlope) } as Record<keyof RuleLimits, string>;
-    for (const { key } of LENGTHS) out[key] = this.units.length(limits[key]);
+    for (const key of LENGTHS) out[key] = this.units.length(limits[key]);
     return out;
   });
   protected readonly draftForm = form(this.draft);
@@ -57,9 +54,9 @@ export class RulesSettings {
   }
 
   protected saveSlope(): void {
-    const value = Number(this.draft().maxRampSlope.replace('%', '').trim());
+    const value = Number(toLatinDigits(this.draft().maxRampSlope).replace('%', '').trim());
     if (!Number.isFinite(value) || value <= 0 || value > 100) {
-      this.toasts.notify('The slope must be a percentage above 0 and at most 100.', 'error');
+      this.toasts.notify(this.t('building.rules.slopeInvalid'), 'error');
       this.draft.update((d) => ({ ...d, maxRampSlope: String(this.limits().maxRampSlope) }));
       return;
     }

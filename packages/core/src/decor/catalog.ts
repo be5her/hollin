@@ -1,7 +1,8 @@
 import { commandScore } from '../command-score';
+import { LANGUAGES, currentLanguage, foldForSearch, isMessageKey, translate, type Language, type MessageKey } from '../i18n';
 import type { Vec3 } from '../solids/mesh';
 import { MATERIALS, OPENING_STYLES, RECIPES } from './builtin';
-import { builtinRef } from './refs';
+import { builtinRef, parseRef } from './refs';
 
 /** A model imported into the library catalog (`catalog/furniture/<sha256>.glb`), as its index lists it. */
 export interface CatalogModel {
@@ -67,7 +68,41 @@ export interface CatalogEntry {
   elevation?: number;
 }
 
-const fold = (text: string) => text.normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase();
+/** Text folded for matching: no accents or Arabic marks, and the Arabic letter forms people interchange made one (`foldForSearch`). */
+const fold = (text: string) => foldForSearch(text.normalize('NFKD').replace(/\p{M}/gu, ''));
+
+/** The catalog key of a built-in's name (`builtin.<id>`), or null for an id the catalog does not name. */
+export function builtinNameKey(id: string): MessageKey | null {
+  const key = `builtin.${id}`;
+  return isMessageKey(key) ? key : null;
+}
+
+/**
+ * The name people read for a catalog reference in a language: a built-in's from the catalog
+ * (`builtin.<id>`), anything else (an imported model, a name someone gave) as it is. Agents read the
+ * English name the entry carries.
+ */
+export function catalogName(ref: string, name: string, language: Language = currentLanguage()): string {
+  const parsed = parseRef(ref);
+  const key = parsed?.k === 'builtin' ? builtinNameKey(parsed.id) : null;
+  return key ? translate(language, key) : name;
+}
+
+/** A catalog category by its id in a language (`decor.category.<id>`), or the id itself. */
+export function categoryName(category: string, language: Language = currentLanguage()): string {
+  const key = `decor.category.${category}`;
+  return isMessageKey(key) ? translate(language, key) : category;
+}
+
+/** Every name an entry can be found by: its own, and a built-in's in each language the app speaks. */
+function namesOf(e: CatalogEntry): string[] {
+  return [...new Set([e.name, ...LANGUAGES.map((l) => catalogName(e.ref, e.name, l.id))])];
+}
+
+/** Its category in each language, for matching. */
+function categoriesOf(e: CatalogEntry): string[] {
+  return [...new Set([e.category, ...LANGUAGES.map((l) => categoryName(e.category, l.id))])];
+}
 
 /** The built-in furniture, materials and styles as catalog entries. */
 export function builtinEntries(): CatalogEntry[] {
@@ -85,17 +120,20 @@ export function modelEntry(m: CatalogModel): CatalogEntry {
 
 /**
  * Ranks entries against a query with the palette's fuzzy score over the name (the name counts
- * most) and the category and tags. Entries that do not match are left out; no query keeps them all.
+ * most) and the category and tags. A built-in matches by its name and category in every language the
+ * app speaks ("أريكة" finds the sofas as "sofa" does), both sides folded (`foldForSearch`). Entries that
+ * do not match are left out; no query keeps them all.
  */
 export function searchCatalog(entries: readonly CatalogEntry[], query: string | undefined): CatalogEntry[] {
   const q = fold(query?.trim() ?? '');
   if (!q) return [...entries];
   return entries
     .map((e) => {
-      const name = commandScore(fold(e.name), q);
+      const name = Math.max(...namesOf(e).map((n) => commandScore(fold(n), q)));
+      const categories = categoriesOf(e);
       // A tag or category said exactly is nearly as good as the name.
-      const exact = fold(e.category) === q || e.tags.some((t) => fold(t) === q) ? 0.95 : 0;
-      const rest = commandScore(fold(`${e.category} ${e.tags.join(' ')}`), q);
+      const exact = categories.some((c) => fold(c) === q) || e.tags.some((t) => fold(t) === q) ? 0.95 : 0;
+      const rest = commandScore(fold(`${categories.join(' ')} ${e.tags.join(' ')}`), q);
       return { e, score: Math.max(name, exact, rest * 0.5) };
     })
     .filter((s) => s.score > 0.02)

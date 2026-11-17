@@ -1,4 +1,4 @@
-import { add, columnPolygon, inflatePolygons, type Polygon, DEG, dimensionGeometry, dimensionMarks, dimensionOutline, flatten, formatArea, formatLength, itemFootprint, itemModel, itemSize, openingFrame, openingMisfits, openingSymbol, perp, PLAN_GLYPHS, polygonCentroid, resolveDimension, resolvePath, scale as vscale, wallBody, currentLanguage, languageDirection, t, textDirection, type DimensionGeometry, type Entity, type EntityType, type Layer, type LevelGeometry, type LevelWalls, type Path, type Region, type UnitSettings, type Vec2 } from '@studio/core';
+import { add, catalogName, columnPolygon, inflatePolygons, type Polygon, DEG, dimensionGeometry, dimensionMarks, dimensionOutline, flatten, formatArea, formatLength, itemFootprint, itemModel, itemSize, openingFrame, openingMisfits, openingSymbol, perp, PLAN_GLYPHS, polygonCentroid, resolveDimension, resolvePath, scale as vscale, wallBody, currentLanguage, languageDirection, t, textDirection, type DimensionGeometry, type Entity, type EntityType, type Layer, type LevelGeometry, type LevelWalls, type Path, type Region, type UnitSettings, type Vec2 } from '@studio/core';
 import { visibleBox, worldToScreen, type Camera, type Size } from './camera';
 import { drawConnector, traceConnector, type PlanConnector } from './connectors';
 import { tracePath, tracePolygon, traceRegion, traceSegments } from './draw';
@@ -1054,7 +1054,7 @@ function drawItem(ctx: CanvasRenderingContext2D, item: SceneItem, frame: RenderF
   ctx.moveTo(tickAt[0] - side[0], tickAt[1] - side[1]);
   ctx.lineTo(tickAt[0] + side[0], tickAt[1] + side[1]);
   ctx.stroke();
-  if (Math.min(w, d) * frame.camera.scale >= 48) texts.push({ text: e.name ?? model.name, at: [e.at[0], e.at[1]], screenPx: 10, color: frame.theme.muted, align: 'center', baseline: 'middle' });
+  if (Math.min(w, d) * frame.camera.scale >= 48) texts.push({ text: e.name ?? catalogName(e.asset, model.name), at: [e.at[0], e.at[1]], screenPx: 10, color: frame.theme.muted, align: 'center', baseline: 'middle' });
 }
 
 /** A light on the plan: a circle with rays (and a spot's aim towards its target). */
