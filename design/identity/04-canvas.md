@@ -8,7 +8,7 @@ Conventions in this document:
 
 - **px** is a screen pixel at any zoom. The renderer gives every stroke its width as `n / camera.scale` (`px(frame, n)`), so a "1.5 px" line is 1.5 px on screen whether the plan is at 1:20 or 1:500; dash patterns the same. Only three things scale with the zoom: the reference underlay's wall bands (drawn at their real thickness), the point and light glyphs (`PLAN_GLYPHS`: 100 mm and 150 mm) and label text (its `size` is in mm). Screen text (`screenPx`) is a fixed pixel size and is skipped under 5 px.
 - **alpha** is applied in code (`withAlpha`); every `--plan-*` variable stays `#rrggbb`.
-- **Sans** is Alegreya Sans, **Mono** is IBM Plex Mono: the canvas reads `--font-sans` / `--font-mono` from `styles.css`, so it follows the identity the moment the variables name the bundled fonts (see Problems, P8, for the offscreen renders).
+- **Sans** is Alegreya Sans, **Mono** is IBM Plex Mono (Arabic text on the canvas, in both stacks, IBM Plex Sans Arabic, since milestone 12): the canvas reads `--font-sans` / `--font-mono` from `styles.css`, so it follows the identity the moment the variables name the bundled fonts (see Problems, P8, for the offscreen renders).
 - Light / dark hex pairs are written `light · dark`.
 
 ## (a) The plan

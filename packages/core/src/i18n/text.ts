@@ -66,7 +66,7 @@ export function foldForSearch(text: string): string {
 export const SENTENCE_NAME_MAX = 48;
 
 /** Direction marks and isolates, which a pasted sentence may carry and a name must not. */
-const BIDI_CONTROLS = /[‎‏‪-‮⁦-⁩]/g;
+const BIDI_CONTROLS = /[\u200e\u200f‪-‮\u2066-\u2069]/g;
 /** Where a sentence's first clause ends: a comma, a full stop (not one between digits, as in 3.5), a colon, a question or an exclamation, in Latin or Arabic punctuation, or a line break. */
 const CLAUSE_END = /[,;:!?\n،؛؟۔]|\.(?!\d)|(?<!\d)\./u;
 
@@ -149,6 +149,16 @@ export function ltrIslands(line: string): TextPart[] {
   }
   if (at < line.length) parts.push({ text: line.slice(at), ltr: false });
   return parts;
+}
+
+/**
+ * A text with its measurements, sizes and ranges (`ltrIslands`) put between U+2066 and U+2069, for a place
+ * that has no element to make them islands: canvas text, which a right-to-left `ctx.direction` would
+ * otherwise draw as `mm 3600`. A text with no measurement comes back as it is.
+ */
+export function isolateMeasurements(text: string): string {
+  const parts = ltrIslands(text);
+  return parts.some((p) => p.ltr) ? parts.map((p) => (p.ltr ? `\u2066${p.text}\u2069` : p.text)).join('') : text;
 }
 
 /**

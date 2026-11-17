@@ -227,8 +227,9 @@ export class PlanView {
       const was = untracked(this.tool);
       this.tool.set(tool);
       this.hint.set(hint);
-      // Leaving the Paint tool ends painting, in the 3D view too.
+      // Leaving the Paint tool ends painting, in the 3D view too; leaving the Item tool ends placing its model.
       if (was === 'paint' && tool !== 'paint') this.planTools.disarmPaint(untracked(this.projectId));
+      if (was === 'item' && tool !== 'item') this.planTools.disarmItem(untracked(this.projectId));
     },
     onSelectionChange: (ids) => {
       this.selection.set(ids);

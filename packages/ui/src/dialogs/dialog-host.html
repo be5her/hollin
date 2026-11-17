@@ -30,9 +30,9 @@
               <label xLabel>{{ pending.options.label }}</label>
             }
             @if (pending.options.multiline) {
-              <textarea xTextarea xAutofocus rows="8" [formField]="answerForm.text" [placeholder]="pending.options.placeholder ?? ''"></textarea>
+              <textarea xTextarea xAutofocus rows="8" [attr.dir]="answerForm.text().value() ? 'auto' : null" [formField]="answerForm.text" [placeholder]="pending.options.placeholder ?? ''"></textarea>
             } @else {
-              <input xInput xAutofocus [formField]="answerForm.text" [placeholder]="pending.options.placeholder ?? ''" (focus)="selectAll($event)" />
+              <input xInput xAutofocus [attr.dir]="answerForm.text().value() ? 'auto' : null" [formField]="answerForm.text" [placeholder]="pending.options.placeholder ?? ''" (focus)="selectAll($event)" />
             }
             @if (pending.options.choice; as choice) {
               <div class="flex items-center gap-2 mt-3">
@@ -69,9 +69,9 @@
                       }
                     </select>
                   } @else if (i === 0) {
-                    <input xInput xAutofocus [id]="'dialog-field-' + field.key" [class.font-mono]="field.mono" [formField]="valuesForm[i]" [attr.aria-invalid]="errors()[i] ? true : null" [class.!border-danger]="!!errors()[i]" (focus)="selectAll($event)" [attr.data-testid]="'dialog-field-' + field.key" />
+                    <input xInput xAutofocus [id]="'dialog-field-' + field.key" [class.font-mono]="field.mono" [attr.dir]="field.mono ? 'ltr' : valuesForm[i]().value() ? 'auto' : null" [formField]="valuesForm[i]" [attr.aria-invalid]="errors()[i] ? true : null" [class.!border-danger]="!!errors()[i]" (focus)="selectAll($event)" [attr.data-testid]="'dialog-field-' + field.key" />
                   } @else {
-                    <input xInput [id]="'dialog-field-' + field.key" [class.font-mono]="field.mono" [formField]="valuesForm[i]" [attr.aria-invalid]="errors()[i] ? true : null" [class.!border-danger]="!!errors()[i]" (focus)="selectAll($event)" [attr.data-testid]="'dialog-field-' + field.key" />
+                    <input xInput [id]="'dialog-field-' + field.key" [class.font-mono]="field.mono" [attr.dir]="field.mono ? 'ltr' : valuesForm[i]().value() ? 'auto' : null" [formField]="valuesForm[i]" [attr.aria-invalid]="errors()[i] ? true : null" [class.!border-danger]="!!errors()[i]" (focus)="selectAll($event)" [attr.data-testid]="'dialog-field-' + field.key" />
                   }
                   @if (errors()[i]; as error) {
                     <p class="text-[11px] text-danger mt-0.5">{{ error }}</p>

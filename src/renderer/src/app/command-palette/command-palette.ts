@@ -1,6 +1,7 @@
 import { Component, ElementRef, afterRenderEffect, computed, effect, inject, linkedSignal, signal, untracked, viewChild } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { FormField, form } from '@angular/forms/signals';
-import { commandScore, commandTitle, foldForSearch, isMessageKey, translate, type CommandMeta, type MessageParams } from '@studio/core';
+import { commandScore, commandTitle, foldForSearch, isMessageKey, latinKey, translate, type CommandMeta, type MessageParams } from '@studio/core';
 import { AppState, Autofocus, Button, Checkbox, HostBridge, I18n, Input, Kbd, Label, Select, TextArea, Toasts, UiActions } from '@studio/ui';
 import { buildInput, formFields, initialValues, type FormFieldSpec } from './command-form';
 
@@ -30,7 +31,10 @@ interface PaletteGroup {
  */
 @Component({
   selector: 'x-command-palette',
-  imports: [Autofocus, Button, Checkbox, FormField, Input, Kbd, Label, Select, TextArea],
+  // A command's form is its schema, written for agents in English: in English a field is named by its words and the
+  // descriptions are shown; in another language the title is translated, a field is named by its key, as code, and
+  // the English descriptions are left out.
+  imports: [Autofocus, Button, Checkbox, FormField, Input, Kbd, Label, NgTemplateOutlet, Select, TextArea],
   templateUrl: './command-palette.html',
   styleUrl: './command-palette.css',
   host: { class: 'contents' },
@@ -170,7 +174,8 @@ export class CommandPalette {
   protected keydown(event: KeyboardEvent): void {
     if (this.pending() || event.defaultPrevented || event.isComposing) return;
     const vim = event.ctrlKey;
-    switch (event.key) {
+    // Ctrl+N/J and Ctrl+P/K by the physical key, so they work on an Arabic keyboard layout too.
+    switch (vim ? latinKey(event) : event.key) {
       case 'n':
       case 'j':
         if (vim) this.step(event, 1);

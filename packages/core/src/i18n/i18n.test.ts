@@ -3,6 +3,7 @@ import { ar } from './ar';
 import { en, type MessageKey } from './en';
 import { SENTENCE_NAME_MAX, chatBlocks, ltrIslands, commandTitle, currentLanguage, foldForSearch, nameFromSentence, hasRtl, intlLocale, isMessageKey, languageDirection, resolveLanguage, setLanguage, t, textDirection, toLatinDigits, translate } from './index';
 import type { Message } from './message';
+import { DXF_UNIT_NAMES } from '../exchange/dxf-import';
 
 const placeholders = (text: string) => [...text.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
 const forms = (message: Message) => (typeof message === 'string' ? [message] : Object.values(message));
@@ -63,6 +64,47 @@ describe('translate', () => {
     expect(isMessageKey('common.ok')).toBe(true);
     expect(isMessageKey('common.nope')).toBe(false);
     expect(isMessageKey('toString')).toBe(false);
+  });
+
+  it('counts the things the interface counts most the way Arabic counts them', () => {
+    const counts = [0, 1, 2, 3, 11, 100];
+    const say = (key: MessageKey) => counts.map((count) => translate('ar', key, { count }));
+    expect(say('plan.count.wall')).toEqual(['0 جدار', 'جدار واحد', 'جداران', '3 جدران', '11 جدارًا', '100 جدار']);
+    expect(say('plan.count.room')).toEqual(['0 غرفة', 'غرفة واحدة', 'غرفتان', '3 غرف', '11 غرفةً', '100 غرفة']);
+    expect(say('library.card.levels')).toEqual(['0 طابق', 'طابق واحد', 'طابقان', '3 طوابق', '11 طابقًا', '100 طابق']);
+    // After «عُثر على», so two projects are in the genitive.
+    expect(say('library.settings.foundProjects')).toEqual(['0 مشروع', 'مشروع واحد', 'مشروعين', '3 مشاريع', '11 مشروعًا', '100 مشروع']);
+    expect(say('rules.count')).toEqual(['0 تحذير', 'تحذير واحد', 'تحذيران', '3 تحذيرات', '11 تحذيرًا', '100 تحذير']);
+    // English keeps its two forms.
+    expect(counts.map((count) => translate('en', 'plan.count.wall', { count }))).toEqual(['0 walls', '1 wall', '2 walls', '3 walls', '11 walls', '100 walls']);
+  });
+
+  it('isolates measurements, versions, paths and shortcuts inside Arabic sentences', () => {
+    // Without U+2066 … U+2069 a number and its unit after an Arabic letter read `mm 3000` (UBA rule W2), and a
+    // version or a shortcut at the start of a sentence takes the wrong end of the line.
+    const LTR = /^(height|length|width|depth|elevation|size|version|path|folder|file|slope|shortcut|w|d|h|shaftW|shaftD|carW|carD|angle|azimuth|percent|mb|drawnWidth|drawnHeight|color|range|lumens|limit)$/;
+    // A placeholder filled with a fragment that is already isolated (the ramp's ` · 8.3 %`).
+    const COMPOSED = new Set<string>(['tools.ramp.next']);
+    for (const key of keys) {
+      if (COMPOSED.has(key)) continue;
+      for (const text of forms(ar[key])) {
+        for (const m of text.matchAll(/\{(\w+)\}/g)) {
+          if (!LTR.test(m[1]) || text === m[0]) continue;
+          const before = text.slice(0, m.index);
+          expect(before.lastIndexOf('\u2066') > before.lastIndexOf('\u2069') || before.lastIndexOf('\u2068') > before.lastIndexOf('\u2069'), `${key}: {${m[1]}} is not isolated in "${text}"`).toBe(true);
+        }
+      }
+    }
+  });
+
+  it('names every DXF unit, the English as core names it for agents', () => {
+    for (const [code, name] of Object.entries(DXF_UNIT_NAMES)) {
+      if (code === '0') continue;
+      const key = `exchange.import.unit.${code}`;
+      expect(isMessageKey(key), key).toBe(true);
+      expect(translate('en', key as MessageKey)).toBe(name);
+      expect(translate('ar', key as MessageKey)).toMatch(/[؀-ۿ]/);
+    }
   });
 
   it('gives a command its English title in English and falls back to it', () => {
@@ -160,7 +202,7 @@ describe('a project name from a sentence', () => {
     expect(/^\p{M}/u.test(name)).toBe(false);
     expect(/\p{L}$/u.test(name)).toBe(false);
     expect(name.endsWith('مُ')).toBe(true);
-    expect(nameFromSentence('⁧غرفة⁩ الضيوف', untitled)).toBe('غرفة الضيوف');
+    expect(nameFromSentence('\u2067غرفة\u2069 الضيوف', untitled)).toBe('غرفة الضيوف');
   });
 
   it('capitalises a first letter outside the basic plane whole', () => {

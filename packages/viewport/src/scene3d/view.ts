@@ -1,4 +1,4 @@
-import { EYE_HEIGHT, floorAt, levelAt, nudgeOut, rideElevator, walkRelative, walkWorld, type ProjectDoc, type RuleLimits, type Vec3, type WalkWorld, type Walker } from '@studio/core';
+import { EYE_HEIGHT, floorAt, latinKey, levelAt, nudgeOut, rideElevator, walkRelative, walkWorld, type ProjectDoc, type RuleLimits, type Vec3, type WalkWorld, type Walker } from '@studio/core';
 import { Color, DirectionalLight, HemisphereLight, Matrix4, Mesh, PerspectiveCamera, Raycaster, Scene, Vector2, Vector3, WebGLRenderer, type Intersection, type Object3D } from 'three';
 import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
 import { FOV, ORBIT_PRESETS, fitOrbit, orbitBy, orbitEye, orbitPan, orbitZoomAt, type Orbit, type OrbitPreset } from './orbit';
@@ -513,7 +513,8 @@ export class Scene3dView {
       this.orbit = orbitZoomAt(this.orbit, Math.exp(e.deltaY * 0.0015), { x: e.clientX - r.left - r.width / 2, y: e.clientY - r.top - r.height / 2 }, this.size.height);
       this.moved();
     };
-    const keyName = (e: KeyboardEvent) => (e.key.length === 1 ? e.key.toLowerCase() : e.key.toLowerCase());
+    // WASD by the physical key, so walking works on an Arabic keyboard layout too (`latinKey`).
+    const keyName = (e: KeyboardEvent) => latinKey(e).toLowerCase();
     const keydown = (e: KeyboardEvent) => {
       const w = this.walking;
       if (!w) {

@@ -6,12 +6,12 @@ export const shell = {
   'shell.tab.settings': 'الإعدادات',
   'shell.tab.unsaved': 'تغييرات غير محفوظة',
   'shell.tab.close': 'إغلاق {title}',
-  'shell.tab.noView': 'لا يوجد عرض لنوع التبويب "{type}".',
+  'shell.tab.noView': 'لا يوجد عرض لنوع التبويب «\u2066{type}\u2069».',
   'shell.tabs.label': 'المستندات المفتوحة',
   'shell.tabMenu.closeOthers': 'إغلاق التبويبات الأخرى',
   'shell.tabMenu.closeRight': 'إغلاق التبويبات التالية',
   'shell.titleBar.search': 'ابحث في الأوامر…',
-  'shell.titleBar.settings': 'الإعدادات ({shortcut})',
+  'shell.titleBar.settings': 'الإعدادات (\u2066{shortcut}\u2069)',
 
   'shell.group.app': 'التطبيق',
   'shell.group.tabs': 'التبويبات',
@@ -25,7 +25,7 @@ export const shell = {
   'shell.action.previousTab': 'التبويب السابق',
   'shell.action.showPanel': 'إظهار {name}',
 
-  'shell.closeDirty.one': 'إغلاق "{title}" مع تغييرات غير محفوظة؟',
+  'shell.closeDirty.one': 'إغلاق «\u2068{title}\u2069» مع تغييرات غير محفوظة؟',
   'shell.closeDirty.many': {
     zero: 'إغلاق {count} تبويب مع تغييرات غير محفوظة؟',
     one: 'إغلاق تبويب واحد مع تغييرات غير محفوظة؟',

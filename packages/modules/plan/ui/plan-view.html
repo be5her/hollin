@@ -65,7 +65,7 @@
   <label class="sr-only" for="plan-level-select">{{ t('plan.level') }}</label>
   <select xSelect id="plan-level-select" class="h-7 text-xs shrink-0 w-44" (change)="chooseLevel($any($event.target).value)" data-testid="plan-level" [attr.aria-label]="t('plan.level')">
     @for (level of levelsTopDown(); track level.id) {
-      <option [value]="level.id" [selected]="level.id === activeLevelId()">{{ level.name }} · {{ units.length(level.elevation) }}</option>
+      <option [value]="level.id" [selected]="level.id === activeLevelId()">{{ t('plan.levelOption', { name: level.name, elevation: units.length(level.elevation) }) }}</option>
     }
   </select>
   <select xSelect class="h-7 text-xs shrink-0 w-32" (change)="chooseUnderlay($any($event.target).value)" data-testid="plan-underlay" [attr.aria-label]="t('plan.reference')">
@@ -228,11 +228,11 @@
       <label class="flex items-center gap-1.5 text-muted">{{ t('plan.opt.width') }} <input xInput xLength class="h-7 w-24 font-mono" [formField]="sizeForm.escalatorWidth" (commit)="setToolSize('escalatorWidth', $event)" [attr.aria-label]="t('plan.opt.width')" data-testid="escalator-width" /></label>
     } @else if (tool() === 'elevator') {
       <span class="text-muted">{{ t('plan.elevator.shaft') }}</span>
-      <label class="flex items-center gap-1.5 text-muted">{{ t('plan.opt.w') }} <input xInput xLength class="h-7 w-24 font-mono" [formField]="sizeForm.elevatorShaftW" (commit)="setToolSize('elevatorShaftW', $event)" [attr.aria-label]="t('plan.opt.w')" data-testid="elevator-shaft-w" /></label>
-      <label class="flex items-center gap-1.5 text-muted">{{ t('plan.opt.d') }} <input xInput xLength class="h-7 w-24 font-mono" [formField]="sizeForm.elevatorShaftD" (commit)="setToolSize('elevatorShaftD', $event)" [attr.aria-label]="t('plan.opt.d')" data-testid="elevator-shaft-d" /></label>
+      <label class="flex items-center gap-1.5 text-muted shrink-0">{{ t('plan.opt.w') }} <input xInput xLength class="h-7 !w-24 font-mono" [formField]="sizeForm.elevatorShaftW" (commit)="setToolSize('elevatorShaftW', $event)" [attr.aria-label]="t('plan.opt.w')" data-testid="elevator-shaft-w" /></label>
+      <label class="flex items-center gap-1.5 text-muted shrink-0">{{ t('plan.opt.d') }} <input xInput xLength class="h-7 !w-24 font-mono" [formField]="sizeForm.elevatorShaftD" (commit)="setToolSize('elevatorShaftD', $event)" [attr.aria-label]="t('plan.opt.d')" data-testid="elevator-shaft-d" /></label>
       <span class="text-muted">{{ t('plan.elevator.car') }}</span>
-      <label class="flex items-center gap-1.5 text-muted">{{ t('plan.opt.w') }} <input xInput xLength class="h-7 w-24 font-mono" [formField]="sizeForm.elevatorCarW" (commit)="setToolSize('elevatorCarW', $event)" [attr.aria-label]="t('plan.opt.w')" data-testid="elevator-car-w" /></label>
-      <label class="flex items-center gap-1.5 text-muted">{{ t('plan.opt.d') }} <input xInput xLength class="h-7 w-24 font-mono" [formField]="sizeForm.elevatorCarD" (commit)="setToolSize('elevatorCarD', $event)" [attr.aria-label]="t('plan.opt.d')" data-testid="elevator-car-d" /></label>
+      <label class="flex items-center gap-1.5 text-muted shrink-0">{{ t('plan.opt.w') }} <input xInput xLength class="h-7 !w-24 font-mono" [formField]="sizeForm.elevatorCarW" (commit)="setToolSize('elevatorCarW', $event)" [attr.aria-label]="t('plan.opt.w')" data-testid="elevator-car-w" /></label>
+      <label class="flex items-center gap-1.5 text-muted shrink-0">{{ t('plan.opt.d') }} <input xInput xLength class="h-7 !w-24 font-mono" [formField]="sizeForm.elevatorCarD" (commit)="setToolSize('elevatorCarD', $event)" [attr.aria-label]="t('plan.opt.d')" data-testid="elevator-car-d" /></label>
     }
     <label class="flex items-center gap-1.5 text-muted">
       {{ t('plan.opt.from') }}

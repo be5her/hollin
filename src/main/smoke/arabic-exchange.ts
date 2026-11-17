@@ -5,6 +5,7 @@ import { inflateSync } from 'node:zlib';
 import { BrowserWindow } from 'electron';
 import { currentLanguage, decodeDxfBytes, readDxf, sheetDate, type Entity } from '@studio/core';
 import { wait, type Smoke } from './harness';
+import { lookArabic } from './arabic-audit';
 import { tab } from './plan-canvas';
 
 type Exported = { format: string; files: { path: string; bytes: number }[]; levels: { levelId: string; name: string; scale: number }[] };
@@ -244,7 +245,7 @@ export async function smokeArabicExchange(smoke: Smoke, projectId: string, proje
   smoke.nextDialogPath(legacy);
   await smoke.click(`${tab} [data-testid=exchange-import-dxf]`);
   smoke.check('Import DXF… probes it and shows its Arabic layer', await smoke.waitFor(`[data-testid=import-dxf-layer][data-name="${layer}"]`, 10_000), await smoke.text('[data-testid=import-dxf-layers]'));
-  await smoke.shots('113-import-dxf-arabic');
+  await lookArabic(smoke, '113-import-dxf-arabic');
   await smoke.click('[data-testid=import-dxf-confirm]');
   smoke.check('the import says in Arabic what it brought in', await smoke.waitFor('[data-testid=toast-message]', 15_000, 'تم استيراد'), await smoke.text('[data-testid=toast-message]'));
   smoke.check('the Layers panel lists the Arabic layer', await smoke.waitFor(`${tab} [data-testid=layer-row][data-name="DXF ${layer}"]`, 5000));

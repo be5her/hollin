@@ -5,6 +5,7 @@ import { FakeClaude } from '@studio/modules/assistant/fake-api';
 import fakeClaudeSource from '@studio/modules/assistant/fake-claude.cjs?raw';
 import { STABLE_PROMPT, languagePrompt } from '@studio/modules/assistant/prompt';
 import { wait, type Smoke } from './harness';
+import { lookArabic } from './arabic-audit';
 import { canvas, tab, view } from './plan-canvas';
 
 /** The Arabic message typed into the composer, and the label and room name Otto's batch writes. */
@@ -160,7 +161,7 @@ export async function smokeArabicOtto(smoke: Smoke, projectId: string): Promise<
     );
     smoke.check('the empty composer follows the interface, right to left', (await direction(input)) === 'rtl');
     smoke.check('the Send arrow points the Arabic way', await smoke.js<boolean>(`getComputedStyle(document.querySelector('${panel} [data-testid=assistant-send] svg')).scale.startsWith('-1')`));
-    await smoke.shots('103-otto-empty-arabic');
+    await lookArabic(smoke, '103-otto-empty-arabic');
     await smoke.click(`${panel} [data-testid=assistant-example]`);
     smoke.check('an example goes into the composer as it is written, unsent', (await smoke.js<string>(`document.querySelector('${input}').value`)) === examples[0]?.text && fake.requests.length === 0);
     smoke.check('and the composer reads it right to left', (await direction(input)) === 'rtl');
@@ -336,7 +337,7 @@ export async function smokeArabicOtto(smoke: Smoke, projectId: string): Promise<
     await smoke.click(`${tab} [data-testid=right-tab-assistant]`);
     await smoke.waitFor(input);
     await smoke.js(`document.querySelector('${panel} [data-testid=assistant-log]').scrollTop = 1e6`);
-    await smoke.shots('104-otto-conversation-arabic');
+    await lookArabic(smoke, '104-otto-conversation-arabic');
 
     smoke.section('arabic: Otto asks first');
     const newWall = Object.values(doc().levelData[ground].entities).find((e: Entity) => e.type === 'wall' && !walls.some((w) => w.id === e.id))!;
@@ -352,7 +353,7 @@ export async function smokeArabicOtto(smoke: Smoke, projectId: string): Promise<
     smoke.check('the card names the call in Arabic for screen readers', ((await smoke.js<string>(`document.querySelector('${confirm}').getAttribute('aria-label')`)) ?? '').startsWith('يريد Otto تنفيذ «إزالة نموذج من الكتالوج»'));
     smoke.check('the status bar says Otto waits for your yes', await statusIs('waiting', 'Otto · ينتظر موافقتك'));
     smoke.check('the composer says so too', (await smoke.js<string>(`document.querySelector('${input}').placeholder`)) === 'ينتظر Otto جوابك أعلاه');
-    await smoke.shots('105-otto-confirm-arabic');
+    await lookArabic(smoke, '105-otto-confirm-arabic');
     await smoke.click(`${panel} [data-testid=assistant-decline]`);
     smoke.check('"Keep it" declines it, said in Arabic', await smoke.waitFor(`${panel} [data-testid=assistant-tool][data-command="catalog.remove"][data-status=declined]`, 5000, 'بقي كما هو. أُبلغ Otto بالرفض.'));
     smoke.check('the model was told no, in English', (await fake.received(2)) && JSON.stringify(fake.requests[1].body.messages.at(-1)).includes('MUTATION_DECLINED'));
@@ -376,7 +377,7 @@ export async function smokeArabicOtto(smoke: Smoke, projectId: string): Promise<
     smoke.check('with the API\'s own English words under it, left to right', ((await smoke.text(`${panel} [data-testid=assistant-error-detail]`)) ?? '').startsWith('The Claude API answered 529') && (await direction(`${panel} [data-testid=assistant-error-detail]`)) === 'ltr');
     smoke.check('the status bar says Otto could not reach Claude', await statusIs('failed', 'Otto · تعذّر الوصول إلى Claude'));
     smoke.check('and Send again is offered in Arabic', (await smoke.text(`${panel} [data-testid=assistant-retry]`)) === 'إعادة الإرسال');
-    await smoke.shots('106-otto-error-arabic');
+    await lookArabic(smoke, '106-otto-error-arabic');
     fake.script({ text: 'نعم، انتهيت.' });
     await smoke.click(`${panel} [data-testid=assistant-retry]`);
     smoke.check('Send again sends the Arabic message again and the error goes', (await smoke.waitFor(`${panel} [data-testid=assistant-item][data-kind=assistant]`, 8000, 'نعم، انتهيت.')) && (await smoke.gone(`${panel} [data-testid=assistant-error]`, 3000)) && JSON.stringify(fake.requests.at(-1)?.body.messages.at(-1)) === JSON.stringify({ role: 'user', content: 'هل انتهيت؟' }));
@@ -406,7 +407,7 @@ export async function smokeArabicOtto(smoke: Smoke, projectId: string): Promise<
     smoke.check('while the Arabic reply above still reads right to left', earlier[0]?.dir === 'rtl' && earlier[0].text.startsWith('أضفت غرفة النوم'), earlier[0]);
     smoke.check('the model was still told the interface is Arabic', fake.system(0)[1]?.text.endsWith(languagePrompt('ar')) === true);
     smoke.check('the status bar is ready again once the stop has passed', await statusIs('ready', 'Otto · جاهز', 8000), await smoke.text(status));
-    await smoke.shots('107-otto-mixed-arabic');
+    await lookArabic(smoke, '107-otto-mixed-arabic');
 
     smoke.section('arabic: Otto with Claude Code');
     await smoke.click(`${panel} [data-testid=assistant-clear]`);
@@ -438,7 +439,7 @@ export async function smokeArabicOtto(smoke: Smoke, projectId: string): Promise<
       await idle(30_000);
       smoke.check('the status bar says Otto is ready with Claude Code', await statusIs('ready', 'Otto · جاهز', 8000), await smoke.text(status));
       smoke.check('the header keeps the rule whole beside the Claude Code label', await smoke.js<boolean>(`(() => { const el = document.querySelector('${panel} [data-testid=assistant-model]').nextElementSibling; return el.scrollWidth <= el.clientWidth + 1; })()`));
-      await smoke.shots('108-otto-claude-code-arabic');
+      await lookArabic(smoke, '108-otto-claude-code-arabic');
       await smoke.click(`${panel} [data-testid=assistant-clear]`);
       smoke.check('Clear ends the Claude Code process', !start || (await smoke.until(() => !alive(start.pid), 30_000)));
     } finally {

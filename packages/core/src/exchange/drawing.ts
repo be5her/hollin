@@ -9,11 +9,11 @@ import { dimensionGeometry, dimensionMarks, resolveDimension } from '../geometry
 import { deriveRooms, deriveWalls, type Opening, type Wall } from '../geometry/level-geometry';
 import { columnPolygon, openingMisfits, openingSymbol } from '../geometry/openings';
 import { arcGeometry, flatten, flattenSegment, resolvePath, type Path, type Region, type Seg } from '../geometry/path';
-import { PLAN_GLYPHS, arrowHeadLines, breakLinePoints, walkSegments, walkTangent } from '../geometry/plan-symbols';
+import { PLAN_GLYPHS, arrowHeadLines, breakLinePoints, walkLabelPlacement, walkSegments, walkTangent } from '../geometry/plan-symbols';
 import { polygonCentroid } from '../geometry/polygon';
 import { DEG, add, emptyBox, extendBox, perp, scale, sub, type Box, type Vec2 } from '../geometry/vec';
 import { wallBody } from '../geometry/walls';
-import { currentLanguage, hasRtl, languageDirection, textDirection, t as tr } from '../i18n';
+import { currentLanguage, languageDirection, textDirection, t as tr } from '../i18n';
 import { formatArea } from '../units';
 
 /*
@@ -496,13 +496,11 @@ export function planDrawing(doc: ProjectDoc, levelId: string, options: PlanDrawi
       const dot = way === 'up' ? walk[0].a : walk[walk.length - 1].b;
       layer.push({ ...fill([circleRing(dot, lh * 0.27)], color ?? 'connector', 1), mark: true });
       const n = perp(walkTangent(segs, way === 'up' ? 0 : total));
-      // Beside the dot, one on each side; an Arabic label (its width unknown here, often wider than the estimate) or
-      // one too wide to be centred there without reaching the dot starts at that side's gap instead, reading away from the dot.
+      // Beside the dot, one on each side, placed as the canvas places them (`walkLabelPlacement`).
       const beside = (value: string, side: 1 | -1) => {
-        const at = add(dot, scale(n, side * lh * 1.27));
-        const halfWidth = (value.length * lh * 0.6) / 2;
-        if ((halfWidth <= lh * 1.27 && !hasRtl(value)) || Math.abs(n[0]) < Math.abs(n[1])) label(value, at);
-        else layer.push(text(add(dot, scale(n, side * lh * 0.6)), value, lh, { mono: true, align: side * n[0] > 0 ? 'left' : 'right', ...(color ? { color } : {}) }));
+        const { at, align } = walkLabelPlacement(dot, n, side, value, lh);
+        if (align === 'center') label(value, at);
+        else layer.push(text(at, value, lh, { mono: true, align, ...(color ? { color } : {}) }));
       };
       beside(way === 'up' ? tr('tools.canvas.up') : tr('tools.canvas.down'), 1);
       if (extra) beside(extra, -1);

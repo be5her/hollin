@@ -71,6 +71,7 @@ export class SettingsTab implements TabComponent {
   private readonly element = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly i18n = inject(I18n);
   protected readonly t = this.i18n.t;
+  protected readonly direction = this.i18n.direction;
   /** A section title a module registered: a message key, or plain text. */
   protected readonly label = this.i18n.label;
 

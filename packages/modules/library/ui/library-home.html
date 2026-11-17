@@ -100,7 +100,7 @@
                 <div class="text-[15px] leading-5 font-medium truncate" dir="auto" data-testid="project-card-name">{{ p.name }}</div>
                 <div class="flex gap-1.5 items-baseline mt-0.5 text-muted">
                   <span class="text-xs italic">{{ t('library.card.edited', { ago: ago(p.updatedAt) }) }}</span><span class="text-xs">·</span
-                  ><span class="font-mono text-[11px]">{{ t('library.card.levels', { count: p.levelCount }) }}</span>
+                  ><span class="font-mono rtl:font-sans text-[11px]">{{ t('library.card.levels', { count: p.levelCount }) }}</span>
                 </div>
                 @if (p.tags.length) {
                   <div class="flex flex-wrap gap-1 mt-1.5">

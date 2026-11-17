@@ -40,7 +40,7 @@ export interface FormDialogField {
   value: string;
   /** A select instead of a text input. */
   options?: { value: string; label: string }[];
-  /** Monospaced input, for lengths. */
+  /** Monospaced, left-to-right input, for lengths (a text field takes either direction, as people write it). */
   mono?: boolean;
   /** An error for this text (shown under the field, and the dialog cannot be confirmed), or null. */
   validate?(text: string): string | null;

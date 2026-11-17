@@ -5,6 +5,9 @@ import { AngleInput, AppState, Checkbox, HostBridge, I18n, Input, LengthInput, P
 
 /** The stair shapes, in the select's order; each is named by `plan.connector.<shape>`. */
 const SHAPES = ['straight', 'l', 'u', 'winder', 'curved', 'spiral'] as const;
+/** What keeps a length (`650 mm`) and a range (`600–650`) on one line in a broken limit. */
+const NO_BREAK_SPACE = String.fromCharCode(0xa0);
+const WORD_JOINER = String.fromCharCode(0x2060);
 
 interface Draft {
   name: string;
@@ -84,7 +87,9 @@ export class ConnectorProperties {
         lines.push(t('plan.connector.travel', { count: g.stops.length, length: len(g.rise) }));
         break;
     }
-    return { lines, broken: g.broken.map((b) => this.i18n.phrase(b.text, len)) };
+    // As the Warnings panel shows them: a length or a range never broken across lines (screenshot 136 had `600–650` and its `mm` apart).
+    const whole = (mm: number) => len(mm).replace(/ /g, NO_BREAK_SPACE);
+    return { lines, broken: g.broken.map((b) => this.i18n.phrase(b.text, whole).replace(/(\d)–(\d)/g, `$1${WORD_JOINER}–${WORD_JOINER}$2`)) };
   });
   /** An elevator's stops as checkboxes over the levels, top to bottom, with the door side of each. */
   protected readonly stops = computed(() => {

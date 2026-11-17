@@ -1,4 +1,4 @@
-import { add, catalogName, columnPolygon, inflatePolygons, type Polygon, DEG, dimensionGeometry, dimensionMarks, dimensionOutline, flatten, formatArea, formatLength, itemFootprint, itemModel, itemSize, openingFrame, openingMisfits, openingSymbol, perp, PLAN_GLYPHS, polygonCentroid, resolveDimension, resolvePath, scale as vscale, wallBody, currentLanguage, languageDirection, t, textDirection, type DimensionGeometry, type Entity, type EntityType, type Layer, type LevelGeometry, type LevelWalls, type Path, type Region, type UnitSettings, type Vec2 } from '@studio/core';
+import { add, catalogName, columnPolygon, inflatePolygons, type Polygon, DEG, dimensionGeometry, dimensionMarks, dimensionOutline, flatten, formatArea, formatLength, itemFootprint, itemModel, itemSize, openingFrame, openingMisfits, openingSymbol, perp, PLAN_GLYPHS, polygonCentroid, resolveDimension, resolvePath, scale as vscale, wallBody, currentLanguage, isolateMeasurements, languageDirection, t, textDirection, type DimensionGeometry, type Entity, type EntityType, type Layer, type LevelGeometry, type LevelWalls, type Path, type Region, type UnitSettings, type Vec2 } from '@studio/core';
 import { visibleBox, worldToScreen, type Camera, type Size } from './camera';
 import { drawConnector, traceConnector, type PlanConnector } from './connectors';
 import { tracePath, tracePolygon, traceRegion, traceSegments } from './draw';
@@ -354,11 +354,13 @@ export function drawSnap(ctx: CanvasRenderingContext2D, frame: RenderFrame, snap
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
     ctx.direction = textDirection(text);
-    const w = ctx.measureText(text).width + 8;
+    // An Arabic snap name with its length: the length an island, or a right-to-left line draws it `mm 3600`.
+    const shown = ctx.direction === 'rtl' ? isolateMeasurements(text) : text;
+    const w = ctx.measureText(shown).width + 8;
     ctx.fillStyle = withAlpha(theme.background, 0.9);
     ctx.fillRect(x + 12, y + 10, w, 16);
     ctx.fillStyle = theme.snap;
-    ctx.fillText(text, x + 16, y + 12);
+    ctx.fillText(shown, x + 16, y + 12);
   }
   worldSpace(ctx, frame);
 }
@@ -624,7 +626,7 @@ function drawAiMarks(ctx: CanvasRenderingContext2D, frame: RenderFrame): { highl
     ctx.textBaseline = 'middle';
     // The tag is the interface's sentence around Otto's label: it reads in the interface's direction, from the same left edge.
     ctx.direction = interfaceDirection();
-    ctx.fillText(text, x + TAG_TEXT_X, y + TAG_HEIGHT / 2 + 0.5);
+    ctx.fillText(ctx.direction === 'rtl' ? isolateMeasurements(text) : text, x + TAG_TEXT_X, y + TAG_HEIGHT / 2 + 0.5);
     tag = { text, x, y, width, height: TAG_HEIGHT };
   }
   ctx.restore();
@@ -1151,7 +1153,8 @@ function drawTexts(ctx: CanvasRenderingContext2D, frame: RenderFrame, texts: Tex
     ctx.textAlign = op.align;
     ctx.textBaseline = op.baseline;
     ctx.direction = op.direction ?? textDirection(op.text);
-    ctx.fillText(op.text, 0, 0);
+    // Right to left, a measurement in the text (a label's `3600 mm`) is an island, or it would read `mm 3600`.
+    ctx.fillText(ctx.direction === 'rtl' ? isolateMeasurements(op.text) : op.text, 0, 0);
     ctx.restore();
   }
 }

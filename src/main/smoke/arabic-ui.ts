@@ -3,6 +3,8 @@ import path from 'node:path';
 import { agentPayload, type Entity, type ProjectSummary } from '@studio/core';
 import { smokeArabicExchange } from './arabic-exchange';
 import { smokeArabicOtto } from './arabic-otto-ui';
+import { lookArabic } from './arabic-audit';
+import { selectTool, smokeArabicFirstLaunch, smokeArabicHomeWalk, smokeArabicProjectWalk, smokeArabicShellWalk } from './arabic-walk';
 import { wait, type Smoke } from './harness';
 import { canvas, canvasAttr, tab, view } from './plan-canvas';
 import { sceneAttr } from './scene-canvas';
@@ -83,12 +85,12 @@ export async function smokeArabicUi(smoke: Smoke): Promise<void> {
   smoke.check('measurements stay left-to-right islands', await smoke.js<boolean>(`getComputedStyle(document.querySelector('[data-testid=units-example]')).direction === 'ltr'`));
   smoke.check('the MCP state reads in Arabic', await smoke.waitFor('[data-testid=settings-mcp-state]', 3000, 'يعمل'));
   await smoke.js(`document.querySelector('[data-testid=settings]').scrollTop = 0`);
-  await smoke.shots('77-settings-arabic');
+  await lookArabic(smoke, '77-settings-arabic');
   await smoke.js(`document.querySelector('[data-section=mcp]').scrollIntoView({ block: 'start' })`);
-  await smoke.shots('78-settings-arabic-mcp');
+  await lookArabic(smoke, '78-settings-arabic-mcp');
   await smoke.js(`document.querySelector('[data-section=about]').scrollIntoView({ block: 'end' })`);
   smoke.check('About reads in Arabic with its version as an island', (await smoke.waitFor('[data-testid=about-version]', 3000, 'الإصدار')) && (await smoke.waitFor('[data-testid=about-description]', 3000, 'صمّم')));
-  await smoke.shots('79-settings-arabic-about');
+  await lookArabic(smoke, '79-settings-arabic-about');
 
   smoke.section('arabic: the palette');
   await smoke.key('K', ['control']);
@@ -97,7 +99,7 @@ export async function smokeArabicUi(smoke: Smoke): Promise<void> {
   await smoke.fill('[data-testid=palette-input]', 'الاعدادات');
   smoke.check('an Arabic search finds the Arabic title', await smoke.waitFor('.palette-item[data-selected=true]', 3000, 'الإعدادات'));
   smoke.check('the palette\'s groups are in Arabic', await smoke.waitFor('[data-heading]', 3000, 'التطبيق'));
-  await smoke.shots('80-palette-arabic');
+  await lookArabic(smoke, '80-palette-arabic');
   await smoke.fill('[data-testid=palette-input]', 'لغة التطبيق');
   smoke.check('a command is shown by its Arabic title', await smoke.waitFor('.palette-item[data-selected=true]', 3000, 'لغة التطبيق'));
   await smoke.fill('[data-testid=palette-input]', 'settings');
@@ -125,13 +127,15 @@ export async function smokeArabicUi(smoke: Smoke): Promise<void> {
     smoke.check('the tab menu speaks Arabic', await smoke.waitFor('[data-testid=tab-menu-close-others]', 3000, 'إغلاق التبويبات الأخرى'));
     const menu = await smoke.rect('[data-testid=context-menu]');
     smoke.check('and opens towards the start, to the left of the pointer', menu !== null && menu.x + menu.width <= at.x + 1, { menu, at });
-    await smoke.shots('81-tab-menu-arabic');
+    await lookArabic(smoke, '81-tab-menu-arabic');
     await smoke.key('Escape');
     await smoke.gone('[data-testid=context-menu]');
   } else {
     smoke.check('two tabs to reorder right to left', false, before);
   }
 
+  await smokeArabicShellWalk(smoke);
+  await smokeArabicShortcuts(smoke);
   await smokeArabicLibrary(smoke);
 
   smoke.section('arabic: back to English');
@@ -179,6 +183,7 @@ async function smokeArabicLibrary(smoke: Smoke): Promise<void> {
 
   await smoke.click('[data-testid=library-new]');
   smoke.check('New project asks in Arabic, with an Arabic default name', (await smoke.waitFor('x-dialog-host', 3000, 'مشروع جديد')) && (await smoke.js<string>(`document.querySelector('x-dialog-host form input')?.value ?? ''`)) === 'مشروع بلا عنوان');
+  await lookArabic(smoke, '170-new-project-arabic', 'the New project dialog');
   await smoke.fill('x-dialog-host form input', ARABIC_NAME);
   await smoke.click('x-dialog-host form button[type=submit]');
   const opened = (name: string) => smoke.js<boolean>(`document.querySelector('${tab} [data-testid=project-name]')?.value === ${JSON.stringify(name)}`);
@@ -189,7 +194,7 @@ async function smokeArabicLibrary(smoke: Smoke): Promise<void> {
   const card = `[data-testid=project-card][data-name="${ARABIC_NAME}"]`;
   smoke.check('its card is on Home, its name reading right to left', (await smoke.waitFor(card)) && (await direction(smoke, `${card} [data-testid=project-card-name]`)) === 'rtl');
   await smoke.js(`document.querySelector('[data-testid=library-home]').scrollTop = 0`);
-  await smoke.shots('82-home-arabic');
+  await lookArabic(smoke, '82-home-arabic');
 
   const found = () => smoke.js<string[]>(`[...document.querySelectorAll('[data-testid=project-card]')].map((c) => c.dataset.name)`);
   await smoke.fill('[data-testid=library-search]', ARABIC_SEARCH);
@@ -202,6 +207,7 @@ async function smokeArabicLibrary(smoke: Smoke): Promise<void> {
   await smoke.click('[data-testid=tab][data-type="shell.home"]');
   await smoke.fill('[data-testid=library-search]', '');
   await smoke.until(async () => (await smoke.count('[data-testid=otto-composer]')) === 1);
+  await smokeArabicHomeWalk(smoke, ARABIC_NAME);
   await smoke.click(`[data-testid=tab][data-type="project.editor"][data-title="${ARABIC_NAME}"]`);
   await smoke.until(() => opened(ARABIC_NAME));
 
@@ -223,12 +229,12 @@ async function smokeArabicLibrary(smoke: Smoke): Promise<void> {
     'History speaks Arabic',
     (await smoke.waitFor(`${tab} [data-testid=history-undo]`, 3000, 'تراجع')) && (await smoke.waitFor(`${tab} [data-testid=history-list]`, 3000, 'لا توجد تغييرات بعد')) && (await mirrored(smoke, `${tab} [data-testid=history-undo] svg`)),
   );
-  await smoke.shots('83-project-history-arabic');
+  await lookArabic(smoke, '83-project-history-arabic');
 
   await smoke.click(`${tab} [data-testid=right-tab-details]`);
   smoke.check('the project details speak Arabic', (await smoke.waitFor(`${tab} [data-testid=project-details]`, 3000, 'الوصف')) && (await smoke.waitFor(`${tab} [data-testid=project-details]`, 3000, 'النسخ المحفوظة')));
   smoke.check('and the description takes either direction', (await smoke.js<string | null>(`document.querySelector('${tab} [data-testid=project-description]')?.getAttribute('dir') ?? null`)) === 'auto');
-  await smoke.shots('84-project-details-arabic');
+  await lookArabic(smoke, '84-project-details-arabic');
 
   await smoke.click(`${tab} [data-testid=exchange-export]`);
   // The dialog starts from the last export's choices: a PDF of this one-level project names its pages.
@@ -241,7 +247,7 @@ async function smokeArabicLibrary(smoke: Smoke): Promise<void> {
   await smoke.click('[data-testid=export-format-png]');
   await smoke.click('[data-testid=export-view-3d]');
   smoke.check('its 3D line keeps the angles left to right', await smoke.waitFor('[data-testid=export-view3d-hint]', 3000, `${LRI}225°${PDI}`), await smoke.text('[data-testid=export-view3d-hint]'));
-  await smoke.shots('85-export-arabic');
+  await lookArabic(smoke, '85-export-arabic');
   await smoke.click('x-dialog-host button', 'إلغاء');
   smoke.check('and cancels in Arabic', await smoke.gone('[data-testid=export-dialog]'));
 
@@ -254,19 +260,28 @@ async function smokeArabicLibrary(smoke: Smoke): Promise<void> {
   );
   smoke.check('with its path a left-to-right island', (await direction(smoke, '[data-testid=library-path]')) === 'ltr');
   await smoke.js(`document.querySelector('[data-section=library]').scrollIntoView({ block: 'start' })`);
-  await smoke.shots('86-settings-library-arabic');
+  await lookArabic(smoke, '86-settings-library-arabic');
   smoke.check(
     'the Updates section speaks Arabic',
     (await smoke.waitFor('[data-section=updates] h2', 3000, 'التحديثات')) && (await smoke.waitFor('[data-testid=updates-check]', 3000, 'التحقق من وجود تحديثات')) && (await smoke.waitFor('[data-testid=updates-beta-note]', 3000, 'الإصدارات التجريبية')),
   );
   await smoke.js(`document.querySelector('[data-section=updates]').scrollIntoView({ block: 'start' })`);
-  await smoke.shots('87-settings-updates-arabic');
+  await lookArabic(smoke, '87-settings-updates-arabic');
 
-  if (project) await smokeArabicPlan(smoke, project.id);
-  if (project) await smokeArabicBuilding(smoke, project.id);
-  if (project) await smokeArabicMain(smoke, project.id);
-  if (project) await smokeArabicOtto(smoke, project.id);
-  if (project) await smokeArabicExchange(smoke, project.id, ARABIC_NAME);
+  // Each part leaves the plan's Select tool on, so the next one starts as a person would find it.
+  if (project) {
+    await smokeArabicPlan(smoke, project.id);
+    await selectTool(smoke, 'the plan in Arabic');
+    await smokeArabicBuilding(smoke, project.id);
+    await selectTool(smoke, 'the building in Arabic');
+    await smokeArabicMain(smoke, project.id);
+    await selectTool(smoke, "main's words in Arabic");
+    await smokeArabicOtto(smoke, project.id);
+    await selectTool(smoke, 'Otto in Arabic');
+    await smokeArabicExchange(smoke, project.id, ARABIC_NAME);
+    await selectTool(smoke, 'exports and imports in Arabic');
+    await smokeArabicProjectWalk(smoke, project.id, ARABIC_NAME);
+  }
 
   // The project leaves: its tab closes and it goes to the trash, so the sections after this one count the library they expect.
   if (project) {
@@ -277,6 +292,7 @@ async function smokeArabicLibrary(smoke: Smoke): Promise<void> {
     "the Arabic project's tab is closed and the project in the trash",
     await smoke.until(async () => (await smoke.count(`[data-testid=tab][data-type="project.editor"][data-title="${ARABIC_NAME}"]`)) === 0 && !host.projects.list().some((p) => p.name === ARABIC_NAME)),
   );
+  await smokeArabicFirstLaunch(smoke);
 }
 
 type Wall = Extract<Entity, { type: 'wall' }>;
@@ -364,7 +380,7 @@ async function smokeArabicPlan(smoke: Smoke, projectId: string): Promise<void> {
   await smoke.typeText('٦٠٠');
   const typed = await smoke.js<{ value: string; dir: string }>(`(() => { const el = document.querySelector('${tab} [data-testid=dynamic-input]'); return { value: el.value, dir: getComputedStyle(el).direction }; })()`);
   smoke.check('the length reads as typed, left to right', typed.value === '٣٦٠٠' && typed.dir === 'ltr', typed);
-  await smoke.shots('88-plan-typed-arabic');
+  await lookArabic(smoke, '88-plan-typed-arabic');
   const before = walls().length;
   await smoke.key('Return');
   const typedWall = () => walls()[before];
@@ -436,19 +452,19 @@ async function smokeArabicPlan(smoke: Smoke, projectId: string): Promise<void> {
     const nameInk = await inkIn(smoke, { x: name.x - 50, y: name.y - 18, width: 100, height: 16 });
     smoke.check("and so is the room's Arabic name", nameInk > 15, nameInk);
   }
-  await smoke.shots('89-plan-arabic');
+  await lookArabic(smoke, '89-plan-arabic');
 
   await smoke.click(`${tab} [data-testid=snap-menu-button]`);
   smoke.check('the snap menu speaks Arabic', (await smoke.waitFor(`${tab} [data-testid=snap-menu]`, 3000, 'نقاط النهاية')) && (await smoke.waitFor(`${tab} [data-testid=snap-menu]`, 3000, 'إظهار الشبكة')));
   smoke.check('with its grid spacing a left-to-right island', (await direction(smoke, `${tab} [data-testid=grid-spacing]`)) === 'ltr');
-  await smoke.shots('91-plan-snap-menu-arabic');
+  await lookArabic(smoke, '91-plan-snap-menu-arabic');
   await smoke.js(`document.querySelector('[data-testid=snap-menu]')?.previousElementSibling?.dispatchEvent(new MouseEvent('click', { bubbles: true }))`);
   await smoke.gone(`${tab} [data-testid=snap-menu]`);
   // The stair's options bar, the longest, and its hint on a one-level project.
   await smoke.js(`document.querySelector('${canvas}').focus()`);
   await smoke.key('S', ['shift']);
   smoke.check('Shift+S picks the stair, its options and hint in Arabic', (await smoke.until(async () => (await tool()) === 'stair')) && (await smoke.waitFor(`${tab} [data-testid=tool-options]`, 3000, 'درج')) && (await smoke.until(async () => (await hint())?.startsWith('يحتاج الدرج') === true)), await hint());
-  await smoke.shots('92-plan-stair-arabic');
+  await lookArabic(smoke, '92-plan-stair-arabic');
   await smoke.key('Escape');
   await smoke.until(async () => (await tool()) === 'select');
   await wait(100);
@@ -463,7 +479,7 @@ async function smokeArabicPlan(smoke: Smoke, projectId: string): Promise<void> {
   smoke.check('and its thickness field too', (await direction(smoke, `${tab} [data-testid=prop-thickness]`)) === 'ltr');
   smoke.check('the footer counts the selection in Arabic', await smoke.waitFor(`${tab} [data-testid=plan-selection]`, 3000, 'عنصر واحد محدد'));
   smoke.check('and its hint is Arabic', (await hint())?.startsWith('تم تحديد عنصر واحد') === true, await hint());
-  await smoke.shots('90-plan-properties-arabic');
+  await lookArabic(smoke, '90-plan-properties-arabic');
   await smoke.js(`document.querySelector('${canvas}').focus()`);
   await smoke.key('Escape');
 }
@@ -535,7 +551,7 @@ async function smokeArabicBuilding(smoke: Smoke, projectId: string): Promise<voi
     (await direction(smoke, `${tab} [data-testid=layer-opacity-value]`)) === 'ltr' && ((await smoke.js<string>(`document.querySelector('${tab} [data-testid=layer-visible]')?.getAttribute('aria-label') ?? ''`)) ?? '').startsWith('إخفاء'),
   );
   await smoke.js(`document.querySelector('${tab} [data-testid=project-left]').scrollTop = 0`);
-  await smoke.shots('93-levels-layers-arabic');
+  await lookArabic(smoke, '93-levels-layers-arabic');
 
   smoke.section('arabic: a warning');
   const walls = Object.values(doc().levelData[ground].entities).filter((e): e is Wall => e.type === 'wall');
@@ -556,7 +572,7 @@ async function smokeArabicBuilding(smoke: Smoke, projectId: string): Promise<voi
   smoke.check('the panel counts in Arabic, its tab too', (await smoke.waitFor(`${tab} [data-testid=warnings-count]`, 3000, 'تحذير')) && (await smoke.waitFor(`${tab} [data-testid=right-tab-warnings]`, 3000, 'التحذيرات')));
   const agents = (await run<{ warnings: { id: string; message: string }[] }>('rules.check')).warnings.find((w) => w.id === `${stair}:riser-high`);
   smoke.check('while agents still read the warning in English', agents?.message.startsWith('Stair: Risers of 375 mm are higher than') === true, agents);
-  await smoke.shots('94-warnings-arabic');
+  await lookArabic(smoke, '94-warnings-arabic');
 
   smoke.section('arabic: the catalog');
   await smoke.click(`${tab} [data-testid=right-tab-catalog]`);
@@ -571,7 +587,7 @@ async function smokeArabicBuilding(smoke: Smoke, projectId: string): Promise<voi
   const sofa = `${tab} [data-testid=catalog-card][data-ref="builtin:sofa-2"]`;
   smoke.check('shown by their Arabic names', (await smoke.text(`${sofa} [data-testid=catalog-card-name]`)) === 'أريكة بمقعدين', await smoke.text(`${sofa} [data-testid=catalog-card-name]`));
   smoke.check('with their sizes left to right', (await direction(smoke, `${sofa} [data-testid=catalog-card-caption]`)) === 'ltr');
-  await smoke.shots('95-catalog-arabic');
+  await lookArabic(smoke, '95-catalog-arabic');
 
   smoke.section('arabic: a piece placed');
   await smoke.click(sofa);
@@ -599,7 +615,7 @@ async function smokeArabicBuilding(smoke: Smoke, projectId: string): Promise<voi
     'and its material slots and their built-in materials too',
     (await smoke.waitFor(`${tab} [data-testid=item-model]`, 3000)) && (await smoke.js<boolean>(`(() => { const s = document.querySelector('${tab} [data-testid=item-slot-fabric]'); return !!s && s.closest('label').textContent.includes('القماش') && [...s.options].some((o) => o.textContent.includes('قماش فحمي')); })()`)),
   );
-  await smoke.shots('96-item-properties-arabic');
+  await lookArabic(smoke, '96-item-properties-arabic');
   await smoke.js(`document.querySelector('${canvas}').focus()`);
   await smoke.key('Escape');
 
@@ -613,14 +629,14 @@ async function smokeArabicBuilding(smoke: Smoke, projectId: string): Promise<voi
   smoke.check('the 3D canvas draws the building', await smoke.until(async () => Number(await sceneAttr(smoke, 'meshes')) > 0, 10_000));
   const option = await smoke.js<string>(`document.querySelector('${tab} [data-testid=scene-level] option[value="${ground}"]')?.textContent ?? ''`);
   smoke.check("its level select keeps each elevation left to right", option.includes(`${LRI}0 mm${PDI}`), option);
-  await smoke.shots('97-scene-arabic');
+  await lookArabic(smoke, '97-scene-arabic');
   await smoke.click(`${tab} [data-testid=center-tab-section]`);
   smoke.check(
     'the section speaks Arabic, its drawing never mirrored',
     (await smoke.waitFor(`${tab} [data-testid=section-ground]`, 3000, 'منسوب الأرض')) && (await smoke.waitFor(`${tab} [data-testid=level-contents]`, 3000, 'قطعة أثاث')) && (await direction(smoke, `${tab} [data-testid=section-view]`)) === 'ltr',
     await smoke.text(`${tab} [data-testid=level-contents]`),
   );
-  await smoke.shots('98-section-arabic');
+  await lookArabic(smoke, '98-section-arabic');
   await smoke.click(`${tab} [data-testid=center-tab-plan]`);
   await smoke.waitFor(canvas);
 
@@ -632,7 +648,7 @@ async function smokeArabicBuilding(smoke: Smoke, projectId: string): Promise<voi
     (await smoke.waitFor('[data-section=rules] h2', 3000, 'القواعد')) && (await smoke.waitFor('[data-section=rules]', 3000, 'أعلى قائمة')) && (await direction(smoke, '[data-testid=rule-maxRiser]')) === 'ltr' && (await direction(smoke, '[data-testid=rule-maxRampSlope]')) === 'ltr',
   );
   await smoke.js(`document.querySelector('[data-section=rules]').scrollIntoView({ block: 'start' })`);
-  await smoke.shots('99-settings-rules-arabic');
+  await lookArabic(smoke, '99-settings-rules-arabic');
   await smoke.click(`[data-testid=tab][data-type="project.editor"][data-title="${ARABIC_NAME}"]`);
   await smoke.until(() => smoke.js<boolean>(`document.querySelector('${tab} [data-testid=project-name]')?.value === ${JSON.stringify(ARABIC_NAME)}`));
 }
@@ -682,7 +698,7 @@ async function smokeArabicMain(smoke: Smoke, projectId: string): Promise<void> {
     (await smoke.text(`${newest} [data-testid=history-signature]`)) === 'أنت · إنشائية' && (await smoke.js<string>(`document.querySelector('${newest}')?.dataset.author ?? ''`)) === 'You',
     await smoke.text(`${newest} [data-testid=history-signature]`),
   );
-  await smoke.shots('100-history-labels-arabic');
+  await lookArabic(smoke, '100-history-labels-arabic');
 
   smoke.section('arabic: errors from main');
   const library = host.projects.info().path;
@@ -701,7 +717,7 @@ async function smokeArabicMain(smoke: Smoke, projectId: string): Promise<void> {
   smoke.check('an export into the library is refused with an Arabic toast', await smoke.waitFor(message, 10_000, 'لا يمكن حفظ الملفات المصدَّرة داخل مكتبة المشاريع'), await smoke.text(message));
   const translated = (await smoke.text(message)) ?? '';
   smoke.check('the library folder in it isolated left to right, no English detail under it', translated.includes(`${LRI}${library}${PDI}`) && (await smoke.count('[data-testid=toast-detail]')) === 0, translated);
-  await smoke.shots('101-error-toast-arabic');
+  await lookArabic(smoke, '101-error-toast-arabic');
   // The payload behind it: the English message as it always read (what agents get, without the phrase), and the phrase the toast showed.
   const refused = await host.invoke('export.plan', { path: inside, format: 'pdf' }, { caller: 'ui', projectId });
   smoke.check(
@@ -725,10 +741,35 @@ async function smokeArabicMain(smoke: Smoke, projectId: string): Promise<void> {
     (await smoke.waitFor(detail, 3000)) && /[A-Za-z]/.test((await smoke.text(detail)) ?? '') && (await direction(smoke, detail)) === 'ltr',
     { detail: await smoke.text(detail), direction: await direction(smoke, detail) },
   );
-  await smoke.shots('102-error-lead-arabic');
+  await lookArabic(smoke, '102-error-lead-arabic');
   await dismissToasts(smoke);
   await fs.rm(blocker, { force: true });
 }
 
 /** Any Arabic letter. */
 const ARABIC = /[\u0600-\u06ff]/;
+
+/** Dispatches a key as an Arabic keyboard layout sends it (`key` an Arabic letter or sign, `code` the physical key), with Ctrl. */
+const arabicCtrlKey = (smoke: Smoke, key: string, code: string) =>
+  smoke.js(`document.body.dispatchEvent(new KeyboardEvent('keydown', { key: ${JSON.stringify(key)}, code: ${JSON.stringify(code)}, ctrlKey: true, bubbles: true, cancelable: true }))`);
+
+/**
+ * The shell's shortcuts on an Arabic keyboard layout (milestone 12, step 8): Ctrl+K writes ن there and Ctrl+,
+ * writes و, and both still do what they say (`latinKey`). Electron's input events always come from a Latin
+ * layout, so the keys are dispatched as the Arabic layout sends them.
+ */
+async function smokeArabicShortcuts(smoke: Smoke): Promise<void> {
+  smoke.section('arabic: shortcuts on an Arabic keyboard');
+  await smoke.click('[data-testid=tab][data-type="shell.home"]');
+  await arabicCtrlKey(smoke, 'ن', 'KeyK');
+  smoke.check('Ctrl+K on an Arabic layout (ن) opens the palette', await smoke.waitFor('[data-testid=palette-input]', 3000));
+  await smoke.key('Escape');
+  await smoke.gone('[data-testid=palette]');
+  await arabicCtrlKey(smoke, 'و', 'Comma');
+  smoke.check('Ctrl+, on an Arabic layout (و) opens Settings', await smoke.waitFor('[data-testid=tab][data-type="settings.main"][aria-selected=true]', 3000));
+  await smoke.click('[data-testid=tab][data-type="shell.home"]');
+  await arabicCtrlKey(smoke, 'ى', 'KeyN');
+  smoke.check('Ctrl+N on an Arabic layout (ى) asks for a new project', await smoke.waitFor('x-dialog-host form input', 3000));
+  await smoke.click('x-dialog-host button', 'إلغاء');
+  await smoke.gone('x-dialog-host form input');
+}

@@ -9,6 +9,7 @@ export { arCommandTitles } from './ar/commands';
 export type { Message, MessageParams, PluralForms } from './message';
 export * from './text';
 export * from './phrase';
+export * from './keys';
 
 /**
  * The languages the app speaks. English is the source: its catalog (`./en`) defines every key, and

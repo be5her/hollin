@@ -1,4 +1,4 @@
-import { t, add, arrowHeadLines, breakLinePoints, connectorRole, deriveConnector, deriveLevels, normalize, perp, polygonBox, polygonContains, polygonEdgeDistance, resolvePath, scale, sub, walkPoints, walkTangent, type Box, type Connector, type ConnectorGeometry, type ConnectorRole, type DerivedLevel, type Path, type Polygon, type ProjectDoc, type RuleLimits, type Seg, type Vec2 } from '@studio/core';
+import { t, add, arrowHeadLines, breakLinePoints, connectorRole, deriveConnector, deriveLevels, normalize, perp, polygonBox, polygonContains, polygonEdgeDistance, resolvePath, scale, sub, walkLabelPlacement, walkPoints, walkTangent, type Box, type Connector, type ConnectorGeometry, type ConnectorRole, type DerivedLevel, type Path, type Polygon, type ProjectDoc, type RuleLimits, type Seg, type Vec2 } from '@studio/core';
 import { tracePolygon, traceSegments } from './draw';
 import type { RenderFrame, TextOp } from './render';
 import { withAlpha } from './theme';
@@ -98,7 +98,7 @@ export function drawConnector(ctx: CanvasRenderingContext2D, pc: PlanConnector, 
   for (const poly of g.footprint) tracePolygon(ctx, poly);
   ctx.stroke();
   ctx.lineWidth = px(frame, 1);
-  const label = (text: string, at: Vec2) => texts.push({ text, at, screenPx: 11, color: faint ? withAlpha(color, 0.5) : color, align: 'center', baseline: 'middle', mono: true });
+  const label = (text: string, at: Vec2, align: CanvasTextAlign = 'center') => texts.push({ text, at, screenPx: 11, color: faint ? withAlpha(color, 0.5) : color, align, baseline: 'middle', mono: true });
 
   switch (g.kind) {
     case 'stair': {
@@ -195,7 +195,7 @@ function railSegs(path: Path): Seg[] {
 }
 
 /** The walk line with an arrow: up from the start (to the cut, when there is one) or down from the top to the start; a dot at the start and a label. */
-function drawWalkArrow(ctx: CanvasRenderingContext2D, frame: RenderFrame, segs: readonly Seg[], total: number, way: 'up' | 'down', cut: number | null, label: (text: string, at: Vec2) => void, extra: string | null): void {
+function drawWalkArrow(ctx: CanvasRenderingContext2D, frame: RenderFrame, segs: readonly Seg[], total: number, way: 'up' | 'down', cut: number | null, label: (text: string, at: Vec2, align?: CanvasTextAlign) => void, extra: string | null): void {
   const end = way === 'up' ? (cut ?? total) : total;
   const pts = walkPoints(segs, 0, end);
   if (pts.length < 2) return;
@@ -210,8 +210,13 @@ function drawWalkArrow(ctx: CanvasRenderingContext2D, frame: RenderFrame, segs: 
   ctx.fillStyle = ctx.strokeStyle;
   ctx.fill();
   const n = perp(walkTangent(segs, way === 'up' ? 0 : total));
-  label(way === 'up' ? t('tools.canvas.up') : t('tools.canvas.down'), add(startDot, scale(n, px(frame, 14))));
-  if (extra) label(extra, sub(startDot, scale(n, px(frame, 14))));
+  // Placed as the exports place them (`walkLabelPlacement`): centred 14 px from the dot, or, Arabic or too wide, from a gap reading away from it.
+  const beside = (value: string, side: 1 | -1) => {
+    const { at, align } = walkLabelPlacement(startDot, n, side, value, px(frame, 14 / 1.27));
+    label(value, at, align);
+  };
+  beside(way === 'up' ? t('tools.canvas.up') : t('tools.canvas.down'), 1);
+  if (extra) beside(extra, -1);
 }
 
 /** A connector's outline traced for the selection: its footprint. */

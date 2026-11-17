@@ -108,7 +108,7 @@
   @if (derived(); as d) {
     <div class="mt-1 rounded-md bg-surface/60 border border-edge px-2.5 py-2 text-xs flex flex-col gap-0.5" data-testid="connector-derived">
       @for (line of d.lines; track $index) {
-        <div class="font-mono">{{ line }}</div>
+        <div class="font-mono rtl:font-sans">{{ line }}</div>
       }
       @for (b of d.broken; track $index) {
         <div class="text-warning" data-testid="connector-broken">{{ b }}</div>

@@ -18,7 +18,7 @@ export const decor = {
   'decor.noPicture': 'لا صورة بعد',
   'decor.size2': '\u2066{w} × {d}\u2069',
   'decor.size3': '\u2066{w} × {d} × {h}\u2069',
-  'decor.tooltip': '\u2068{name}\u2069 · {size}',
+  'decor.tooltip': '\u2068{name}\u2069 · \u2066{size}\u2069',
   'decor.tooltip.imported': '{text} · مستورد',
   'decor.tooltip.projectOnly': '{text} · في هذا المشروع فقط',
   'decor.menu.remove': 'إزالة من الكتالوج',

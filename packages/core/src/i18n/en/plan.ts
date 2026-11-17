@@ -30,6 +30,8 @@ export const plan = {
   'plan.tool.dimension': 'Dimension (L)',
   'plan.tool.label': 'Label (T)',
   'plan.level': 'Level',
+  /** A level in the switcher: its name and elevation (a native option, so the Arabic isolates the elevation). */
+  'plan.levelOption': '{name} · {elevation}',
   'plan.reference': 'Reference level',
   'plan.reference.none': 'No reference',
   'plan.reference.below': 'Level below',

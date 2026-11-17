@@ -1,4 +1,5 @@
 import { Injector, Service, inject, runInInjectionContext, untracked } from '@angular/core';
+import { latinKey } from '@studio/core';
 import { AppState, Dialogs, HostBridge, I18n, TabsState, Theme, Toasts, UiActions, type Tab, type UIAction } from '@studio/ui';
 import { modules } from './modules';
 
@@ -111,10 +112,14 @@ export class ShellActions {
     this.tabs.activate(tabs[(index + step + tabs.length) % tabs.length].id);
   }
 
-  /** Global keyboard shortcuts. Editors handle their own keys first and stop propagation. */
+  /**
+   * Global keyboard shortcuts. Editors handle their own keys first and stop propagation. The keys are read
+   * from the physical key on a layout that writes another script (`latinKey`): Ctrl+K on an Arabic keyboard
+   * writes ن, and still opens the palette.
+   */
   handleShortcut(e: KeyboardEvent): void {
     if (!(e.ctrlKey || e.metaKey) || e.defaultPrevented) return;
-    const key = e.key.toLowerCase();
+    const key = latinKey(e).toLowerCase();
     const run = (id: string) => {
       if (this.actions.run(id)) e.preventDefault();
     };

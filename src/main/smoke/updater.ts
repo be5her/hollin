@@ -1,3 +1,4 @@
+import type { Phrase } from '@studio/core';
 import { UpdaterBase, type CheckOutcome } from '../update-state';
 
 /** What the next checks and downloads do. */
@@ -47,7 +48,8 @@ export class SmokeUpdater extends UpdaterBase {
     return this.held !== null;
   }
 
-  unsupported(reason: string | null): void {
+  /** A build without a feed, and why: plain text, or a phrase as `updateSupport` gives it (shown in the interface's language). */
+  unsupported(reason: string | Phrase | null): void {
     this.setUnsupported(reason);
   }
 

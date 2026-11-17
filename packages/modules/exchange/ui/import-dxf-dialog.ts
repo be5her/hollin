@@ -1,6 +1,7 @@
 import { Component, computed, inject, input, linkedSignal } from '@angular/core';
 import { FormField, form, max, maxLength, min, required, validate } from '@angular/forms/signals';
 import { Button, Checkbox, I18n, Input, Label, Select, Units, type DialogComponent } from '@studio/ui';
+import { isMessageKey } from '@studio/core';
 
 /** What `import.dxf.probe` returns. */
 export interface DxfProbe {
@@ -72,7 +73,9 @@ export class ImportDxfDialog implements DialogComponent<ImportDxfData, ImportDxf
     const { units, insUnits, measurement } = this.data().probe;
     if (insUnits === null) return this.t(measurement === 0 ? 'exchange.import.inches' : 'exchange.import.notStated');
     if (insUnits === 0) return this.t('exchange.import.unitless');
-    return units ?? this.t('exchange.import.unknown', { code: insUnits });
+    // The unit's name in the interface's language (the probe's `units` is core's English name, for agents).
+    const key = `exchange.import.unit.${insUnits}`;
+    return isMessageKey(key) ? this.t(key) : (units ?? this.t('exchange.import.unknown', { code: insUnits }));
   });
   /** The drawing's extent in mm at the scale in the field, as the display units show lengths. */
   protected readonly extent = computed(() => {

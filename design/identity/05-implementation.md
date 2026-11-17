@@ -127,6 +127,8 @@ Other colour literals that are not under test but should move with the palette: 
 
 ## 3. Fonts
 
+(Milestone 12 added the Arabic faces the same way: `IBMPlexSansArabic-Regular`, `-Medium`, `-Bold.woff2` and `MarkaziText[wght].woff2` with their OFL texts in `src/renderer/src/fonts/`, an Arabic `unicode-range` on each `@font-face`, and IBM Plex Sans Arabic Regular as a TrueType file in `resources/fonts/` for the PDF; `docs/i18n.md` > Fonts.)
+
 ### 3a. Files
 
 No variable build of Alegreya Sans exists: the upstream repository ships `fonts/otf`, `fonts/ttf` and `fonts/webfonts` only (checked through the GitHub contents API), its last release `v2.008` (2018-03-13) has no assets, and Google Fonts serves 14 static TTFs. IBM Plex Mono is static by design. Fraunces is variable with the four axes the decisions need.

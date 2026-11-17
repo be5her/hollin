@@ -1,3 +1,4 @@
+<ng-template #fieldName let-field>@if (i18n.language() === 'en') {{{ field.label }}} @else {<code class="font-mono text-xs bidi-ltr">{{ field.key }}</code>}</ng-template>
 @if (open()) {
   <div class="fixed inset-0 z-40 bg-black/40 flex items-start justify-center pt-[12vh]" (mousedown)="close()">
     <div class="w-[580px] max-w-[92vw] rounded-[10px] border border-edge bg-canvas shadow-[var(--shadow-pop)] overflow-hidden" (mousedown)="$event.stopPropagation()" data-testid="palette">
@@ -5,14 +6,16 @@
         <form class="p-4 flex flex-col gap-3" (submit)="submit($event)" data-testid="palette-form" [attr.data-command]="p.command.id">
           <div>
             <h2 class="heading-panel text-fg">{{ i18n.commandTitle(p.command) }}</h2>
-            <p class="text-xs text-muted mt-0.5" dir="ltr">{{ p.command.description }}</p>
+            @if (i18n.language() === 'en') {
+              <p class="text-xs text-muted mt-0.5" dir="ltr">{{ p.command.description }}</p>
+            }
           </div>
           @for (field of p.fields; track field.key; let first = $first) {
             <div>
               @if (field.kind === 'boolean') {
-                <label class="flex items-center gap-2 text-sm"><input xCheckbox type="checkbox" [formField]="flagsForm[field.key]" />{{ field.label }}</label>
+                <label class="flex items-center gap-2 text-sm"><input xCheckbox type="checkbox" [formField]="flagsForm[field.key]" /><ng-container *ngTemplateOutlet="fieldName; context: { $implicit: field }" /></label>
               } @else {
-                <label xLabel [attr.for]="'palette-' + field.key">{{ field.label }}@if (field.required) {<span class="text-danger"> *</span>}</label>
+                <label xLabel [attr.for]="'palette-' + field.key"><ng-container *ngTemplateOutlet="fieldName; context: { $implicit: field }" />@if (field.required) {<span class="text-danger"> *</span>}</label>
                 @if (field.kind === 'enum') {
                   <select xSelect class="w-full" [id]="'palette-' + field.key" [formField]="valuesForm[field.key]">
                     @if (!field.required) {
@@ -28,8 +31,8 @@
                   <input xInput [id]="'palette-' + field.key" [formField]="valuesForm[field.key]" [xAutofocus]="first" [attr.inputmode]="field.kind === 'number' ? 'decimal' : null" />
                 }
               }
-              @if (field.description) {
-                <p class="text-[11px] text-muted mt-1">{{ field.description }}</p>
+              @if (field.description && i18n.language() === 'en') {
+                <p class="text-[11px] text-muted mt-1" dir="ltr">{{ field.description }}</p>
               }
             </div>
           }
