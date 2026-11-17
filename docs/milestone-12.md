@@ -182,3 +182,10 @@ A read-only review of `git diff origin/main..HEAD` (correctness, both directions
 - **The audit** passes text marked as another language (`[lang]:not([lang|=ar])`) and SVG text marked `data-user-text`; a word people wrote excuses only its own element; hover-revealed controls' labels are audited.
 - **Smoke:** 1464 checks. One run in four stopped at the known renderer stall (`inkIn` after "the room fits into view" in the Arabic plan part: two animation frames never came; the harness failed it after 30 s as step 8 made it do); the same step passed in the other runs, nothing in this change touches it. If it recurs, look at what keeps the window from compositing at that point rather than at the check.
 - **Left as decided or noted:** B12's list of what stays in the old language after a switch is documented, not changed; the English smoke has no check of the MCP port's validation toast (the review assumed one).
+
+### The stall, explained
+
+- The run that stops with "two animation frames never came" (four times in this milestone, each at a different step, never twice in a row) was the smoke window being minimised while the owner worked at the machine: Chromium draws nothing for a minimised window, so a check that waits for a frame times out. It was never the app, the fonts or a missing wait.
+- `Smoke.openWindow` now logs when the window is minimised or hidden or the screen is locked, and `Smoke.js`'s timeout names that as the reason. Leave the window open during a run (behind other windows is fine).
+- A way to run the smoke without the window coming to the front (shown inactive, or placed off the desktop) would spare the owner the interruption; it is a change to how every section is driven and belongs in its own pull request.
+
