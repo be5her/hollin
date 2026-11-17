@@ -2,6 +2,7 @@ import type { RuleLimits } from '../config';
 import { deriveLevels, type DerivedLevel } from '../doc/derive';
 import type { Connector, ProjectDoc } from '../doc/schema';
 import { StudioError } from '../errors';
+import type { Phrase } from '../i18n';
 import { bulgeOf, type Path, type Vertex } from './path';
 import { add, angleOf, cross, distance, normalize, perp, roundMm, scale, sub, type Vec2 } from './vec';
 
@@ -145,7 +146,7 @@ export function stairAxisFrom(form: Pick<StairIntent, 'shape' | 'from' | 'to' | 
 }
 
 const levelOf = (levels: DerivedLevel[], id: string, what: string): DerivedLevel => levels.find((l) => l.id === id) ?? fail(`No level ${id} for the ${what}`);
-const fail = (message: string): never => {
+const fail = (message: string | Phrase): never => {
   throw new StudioError('INVALID_INPUT', message);
 };
 
@@ -157,13 +158,13 @@ export function connectorFromIntent(intent: ConnectorIntent, doc: Pick<ProjectDo
     case 'stair': {
       const bottom = levelOf(levels, intent.bottomLevelId, 'bottom of the stair');
       const top = levelOf(levels, intent.topLevelId, 'top of the stair');
-      const axis = stairAxisFrom(intent, top.elevation - bottom.elevation, limits) ?? fail(intent.shape === 'spiral' ? 'A spiral stair needs its first step away from its centre' : intent.shape === 'l' || intent.shape === 'winder' ? 'An L stair needs its end off both axes through its start' : 'A stair needs two different points');
+      const axis = stairAxisFrom(intent, top.elevation - bottom.elevation, limits) ?? fail({ key: intent.shape === 'spiral' ? 'errors.connector.spiralStart' : intent.shape === 'l' || intent.shape === 'winder' ? 'errors.connector.lEnd' : 'errors.connector.stairPoints' });
       return { ...name, kind: 'stair', shape: intent.shape, bottom: { levelId: bottom.id, offset: 0 }, top: { levelId: top.id, offset: 0 }, axis, width: intent.width ?? DEFAULT_STAIR_WIDTH, riser: {}, tread: {}, handrails: { left: true, right: true } };
     }
     case 'ramp': {
       const bottom = levelOf(levels, intent.bottomLevelId, 'bottom of the ramp');
       const top = levelOf(levels, intent.topLevelId, 'top of the ramp');
-      if (distance(intent.from, intent.to) < 1) fail('A ramp needs two different points');
+      if (distance(intent.from, intent.to) < 1) fail({ key: 'errors.connector.rampPoints' });
       return { ...name, kind: 'ramp', bottom: { levelId: bottom.id, offset: 0 }, top: { levelId: top.id, offset: 0 }, axis: open([{ p: intent.from }, { p: intent.to }]), width: intent.width ?? DEFAULT_RAMP_WIDTH, maxSlope: intent.maxSlope ?? limits.maxRampSlope };
     }
     case 'elevator': {
@@ -171,13 +172,13 @@ export function connectorFromIntent(intent: ConnectorIntent, doc: Pick<ProjectDo
       const to = levelOf(levels, intent.toLevelId, 'highest stop');
       const [low, high] = from.elevation <= to.elevation ? [from.elevation, to.elevation] : [to.elevation, from.elevation];
       const stops = doc.building.stack.map((id) => levels.find((l) => l.id === id)!).filter((l) => l && l.elevation >= low && l.elevation <= high);
-      if (stops.length < 2) fail('An elevator needs two stacked levels to stop at');
+      if (stops.length < 2) fail({ key: 'errors.connector.elevatorStops' });
       return { ...name, kind: 'elevator', at: intent.at, rotation: intent.rotation ?? 0, shaft: intent.shaft ?? { ...DEFAULT_SHAFT }, car: intent.car ?? { ...DEFAULT_CAR }, stops: stops.map((l) => ({ levelId: l.id, door: intent.door ?? 'front' })) };
     }
     case 'escalator': {
       const bottom = levelOf(levels, intent.bottomLevelId, 'bottom of the escalator');
       const top = levelOf(levels, intent.topLevelId, 'top of the escalator');
-      if (top.elevation <= bottom.elevation) fail('An escalator needs its top level above its bottom level');
+      if (top.elevation <= bottom.elevation) fail({ key: 'errors.connector.escalatorLevels' });
       return { ...name, kind: 'escalator', bottom: { levelId: bottom.id, offset: 0 }, top: { levelId: top.id, offset: 0 }, at: intent.at, direction: intent.direction ?? 0, width: intent.width ?? DEFAULT_ESCALATOR_WIDTH };
     }
   }

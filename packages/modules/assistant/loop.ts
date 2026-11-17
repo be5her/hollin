@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { isImageResult, splitImageResult, type ErrorPayload } from '@studio/core';
+import { agentPayload, isImageResult, splitImageResult, type ErrorPayload } from '@studio/core';
 
 /*
  * The agent loop: one user turn, as many model rounds as the model needs. Each round streams a
@@ -39,7 +39,7 @@ export interface LoopOptions {
 
 /** A tool outcome as the content of its `tool_result` block. */
 export function toolResultContent(outcome: ToolOutcome): Anthropic.ToolResultBlockParam['content'] {
-  if (!outcome.ok) return JSON.stringify(outcome.error);
+  if (!outcome.ok) return JSON.stringify(agentPayload(outcome.error));
   if (outcome.output === 'image' && isImageResult(outcome.result)) {
     const { image, rest } = splitImageResult(outcome.result);
     return [

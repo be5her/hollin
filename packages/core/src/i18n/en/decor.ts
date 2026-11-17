@@ -81,4 +81,6 @@ export const decor = {
   'decor.slot.hob': 'hob',
   'decor.slot.sink': 'sink',
   'decor.slot.leaf': 'leaf',
+  /** An item whose model is missing (neither the catalog nor the project has it). */
+  'decor.missingModel': 'Missing model',
 } as const;

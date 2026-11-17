@@ -5,7 +5,7 @@ import type { CatalogApi } from './decor/catalog';
 import type { Author, DocPatch, EditContext, HistoryInfo, HistoryState, LastTouched } from './doc/engine';
 import { StudioError } from './errors';
 import type { ProjectDoc } from './doc/schema';
-import type { Language, TextDirection } from './i18n';
+import { currentLanguage, isMessageKey, translate, type Language, type MessageKey, type Phrase, type TextDirection } from './i18n';
 import type { LibraryInfo, ListQuery, OpenProject, ProjectSummary, SaveStatus, SnapshotInfo } from './projects';
 
 /** Who is calling a command. Each caller gets the mutating gate its own way (see CommandRegistry). */
@@ -63,6 +63,24 @@ export function authorFrom(ctx: Pick<CommandContext, 'caller' | 'agent'>): Autho
 }
 
 /**
+ * A stored author label (a snapshot's `createdBy`, written in English by `authorFrom` or as `App`) as
+ * people read it in `language`. English shows it as it is; agents read the stored text.
+ */
+export function authorText(label: string, language: Language = currentLanguage()): string {
+  if (language === 'en') return label;
+  const tr = (key: MessageKey, params?: Record<string, string>) => translate(language, key, params);
+  const agent = (name: string) => (name === 'unknown agent' ? tr('defaults.author.unknownAgent') : name);
+  if (label === 'You') return tr('edit.author.user');
+  if (label === 'App') return tr('defaults.author.app');
+  if (label === 'Assistant') return tr('defaults.author.assistant');
+  const assistant = /^Assistant \((.+)\)$/.exec(label);
+  if (assistant) return tr('defaults.author.assistantModel', { name: assistant[1] });
+  const mcp = /^via MCP: (.+)$/.exec(label);
+  if (mcp) return tr('defaults.author.mcp', { name: agent(mcp[1]) });
+  return label;
+}
+
+/**
  * Refuses an edit addressed by index (a vertex, a field read from a copy) when the record changed
  * since the caller looked at it: `baseSeq` is the change number the caller's copy had. Call it inside
  * the edit, where it runs in the project's edit queue. A reload (new epoch) counts as a change.
@@ -70,11 +88,12 @@ export function authorFrom(ctx: Pick<CommandContext, 'caller' | 'agent'>): Autho
 export function assertUnchanged(ctx: CommandContext, id: string, what: string, baseSeq?: number, epoch?: number): void {
   if (baseSeq === undefined || !ctx.project) return;
   const current = ctx.project.history();
-  if (epoch !== undefined && epoch !== current.epoch) throw new StudioError('CONFLICT', 'The project was reloaded since you looked at it; nothing was changed. Try again.', { kind: 'stale', epoch: current.epoch });
+  if (epoch !== undefined && epoch !== current.epoch) throw new StudioError('CONFLICT', { key: 'errors.stale.reloaded' }, { kind: 'stale', epoch: current.epoch });
   const last = ctx.project.lastTouched(id);
   if (last && last.seq > baseSeq) {
-    const by = last.author.kind === 'user' ? 'you' : last.author.kind === 'assistant' ? `the assistant (${last.author.name})` : `via MCP: ${last.author.name}`;
-    throw new StudioError('CONFLICT', `The ${what} was changed by ${by} meanwhile; nothing was changed. Look again and retry.`, { kind: 'stale', seq: last.seq, by: last.author });
+    const by: Phrase = last.author.kind === 'user' ? { key: 'errors.stale.byYou' } : last.author.kind === 'assistant' ? { key: 'errors.stale.byAssistant', params: { name: last.author.name } } : { key: 'errors.stale.byMcp', params: { name: last.author.name } };
+    const noun = `tools.noun.${what}`;
+    throw new StudioError('CONFLICT', { key: 'errors.stale.changed', params: { what: isMessageKey(noun) ? { key: noun } : what, by } }, { kind: 'stale', seq: last.seq, by: last.author });
   }
 }
 
@@ -203,8 +222,10 @@ export interface UpdateState {
   notes?: string;
   /** Download progress, 0 to 100. */
   progress?: number;
-  /** The error, or why this build cannot update. */
+  /** The error, or why this build cannot update, in English (what agents read). */
   message?: string;
+  /** The same as a phrase, for Settings to show in the interface's language (an error's own English detail rides in it as a parameter). */
+  text?: Phrase;
   /** When a check last reached the feed (ISO time). */
   checkedAt?: string;
   /** The last check was the one the app runs at startup, not one the user asked for. */
@@ -304,7 +325,10 @@ export interface McpStatus {
   running: boolean;
   port: number;
   url: string;
+  /** Why the server is not running, in English (what `mcp.status` gives agents). */
   error?: string;
+  /** The same as a phrase, for Settings to show in the interface's language. */
+  errorText?: Phrase;
 }
 
 /** One call an agent made to the MCP server, as listed in Settings. */

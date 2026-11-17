@@ -12,7 +12,7 @@ const fullPath = z.string().min(1).refine((p) => nodePath.isAbsolute(p), 'path m
 
 function currentId(ctx: CommandContext, id?: string): string {
   const target = id ?? ctx.host.projects.current()?.id;
-  if (!target) throw new StudioError('NO_PROJECT', 'No project is open. Name one with `id`, or open one first.');
+  if (!target) throw new StudioError('NO_PROJECT', { key: 'errors.library.noOpenProject' });
   return target;
 }
 

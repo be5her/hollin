@@ -7,19 +7,28 @@ import type { MessageParams } from './message';
  * English text agents read is made from it once (`phraseText` with `ENGLISH_PHRASE`).
  *
  * A parameter is plain text (a name someone wrote, shown as it is), a number, a length in millimetres
- * (`{ mm }`), a range of lengths (`{ mmRange }`), or another phrase, translated in turn.
+ * (`{ mm }`), a range of lengths (`{ mmRange }`), a command (`{ command: { id, title } }`, shown by its
+ * title in the language), or another phrase, translated in turn.
  */
 export interface Phrase {
   key: MessageKey;
   params?: Readonly<Record<string, PhraseParam>>;
 }
 
-export type PhraseParam = string | number | { readonly mm: number } | { readonly mmRange: readonly [number, number] } | Phrase;
+export type PhraseParam =
+  | string
+  | number
+  | { readonly mm: number }
+  | { readonly mmRange: readonly [number, number] }
+  | { readonly command: { readonly id: string; readonly title: string } }
+  | Phrase;
 
 /** How a phrase becomes text: the translation of a key, and a length (mm) as it is shown. */
 export interface PhraseFormat {
   translate: (key: MessageKey, params?: MessageParams) => string;
   length: (mm: number) => string;
+  /** A command's title; its English title (the one it was defined with) when left out. */
+  command?: (command: { id: string; title: string }) => string;
 }
 
 /** A length as core writes it into English messages for agents: millimetres to a tenth. */
@@ -42,6 +51,7 @@ export function phraseText(phrase: Phrase, format: PhraseFormat): string {
     if (typeof value === 'string' || typeof value === 'number') params[name] = value;
     else if ('mm' in value) params[name] = format.length(value.mm);
     else if ('mmRange' in value) params[name] = rangeText(format.length(value.mmRange[0]), format.length(value.mmRange[1]));
+    else if ('command' in value) params[name] = format.command ? format.command(value.command) : value.command.title;
     else params[name] = phraseText(value, format);
   }
   return format.translate(phrase.key, params);

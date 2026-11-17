@@ -1,6 +1,6 @@
 import { Component, computed, inject, input, linkedSignal, untracked } from '@angular/core';
 import { FormField, form } from '@angular/forms/signals';
-import type { SnapshotInfo } from '@studio/core';
+import { authorText, type SnapshotInfo } from '@studio/core';
 import { Button, Dialogs, HostBridge, I18n, Icon, Input, Label, OpenProjects, TextArea, Toasts, invokeResource, relativeTime } from '@studio/ui';
 import { Camera, RotateCcw, X } from 'lucide';
 import { splitTags } from './library-actions';
@@ -36,7 +36,7 @@ interface Details {
           <div class="flex items-center gap-2 px-3 py-2 text-xs" data-testid="snapshot-item" [attr.data-name]="s.name" [attr.data-kind]="s.kind">
             <span class="flex-1 min-w-0">
               <span class="block truncate" dir="auto" [class.text-muted]="s.kind === 'auto'">{{ s.name }}</span>
-              <span class="block text-[10px] text-muted"><bdi>{{ s.kind === 'auto' ? t('library.details.automatic') : s.createdBy }}</bdi> · {{ ago(s.createdAt) }}</span>
+              <span class="block text-[10px] text-muted"><bdi>{{ s.kind === 'auto' ? t('library.details.automatic') : author(s.createdBy) }}</bdi> · {{ ago(s.createdAt) }}</span>
             </span>
             <button xButton size="sm" variant="ghost" [icon]="icons.RotateCcw" iconClass="size-3.5 rtl:-scale-x-100" (click)="restore(s)" data-testid="snapshot-restore">{{ t('library.details.restore') }}</button>
             <button xButton size="sm" variant="ghost" [icon]="icons.X" (click)="remove(s)" [attr.aria-label]="t('library.details.deleteSnapshot', { name: s.name })" data-testid="snapshot-delete"></button>
@@ -70,6 +70,11 @@ export class ProjectDetailsPanel {
 
   protected ago(iso: string): string {
     return relativeTime(iso, Date.now(), this.i18n.language());
+  }
+
+  /** Who took a snapshot, as stored ("You", "via MCP: …"), in the language of the moment. */
+  protected author(createdBy: string): string {
+    return authorText(createdBy, this.i18n.language());
   }
 
   protected async saveDetails(): Promise<void> {

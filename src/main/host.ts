@@ -2,12 +2,15 @@ import path from 'node:path';
 import {
   BRANDING,
   CommandRegistry,
+  ENGLISH_PHRASE,
   StudioError,
+  phraseText,
   languageDirection,
   resolveLanguage,
   setLanguage,
   toErrorPayload,
   toolInputSchema,
+  type Phrase,
   type Caller,
   type ErrorPayload,
   type GlobalConfig,
@@ -82,7 +85,7 @@ export class Host {
   readonly secrets: SecretStore;
   readonly api: HostApi;
   private mcp: RunningMcpServer | null = null;
-  private mcpError: string | undefined;
+  private mcpError: Phrase | undefined;
   private readonly calls: McpCallEntry[] = [];
   private service: ProjectService | null = null;
   /** The resolved language: `setLanguage` is called with it, and `language.changed` announces a change. */
@@ -90,7 +93,7 @@ export class Host {
 
   /** The project library and the open projects; available once `start` has run. */
   get projects(): ProjectService {
-    if (!this.service) throw new StudioError('INTERNAL', 'The project library is not open yet');
+    if (!this.service) throw new StudioError('INTERNAL', { key: 'errors.library.notOpenYet' });
     return this.service;
   }
 
@@ -245,7 +248,7 @@ export class Host {
 
   mcpStatus(): McpStatus {
     const { port } = this.config.get().mcp;
-    return { running: this.mcp !== null, port, url: `http://127.0.0.1:${port}/mcp`, ...(this.mcpError ? { error: this.mcpError } : {}) };
+    return { running: this.mcp !== null, port, url: `http://127.0.0.1:${port}/mcp`, ...(this.mcpError ? { error: phraseText(this.mcpError, ENGLISH_PHRASE), errorText: this.mcpError } : {}) };
   }
 
   mcpCalls(): McpCallEntry[] {
@@ -276,8 +279,8 @@ export class Host {
     } catch (err) {
       this.mcp = null;
       const code = (err as NodeJS.ErrnoException).code;
-      this.mcpError = code === 'EADDRINUSE' ? `Port ${port} is already in use. Choose another port.` : (err as Error).message;
-      console.error(`[host] MCP server failed to start on port ${port}: ${this.mcpError}`);
+      this.mcpError = code === 'EADDRINUSE' ? { key: 'settings.mcp.portInUse', params: { port } } : { key: 'settings.mcp.failed', params: { detail: (err as Error).message } };
+      console.error(`[host] MCP server failed to start on port ${port}: ${phraseText(this.mcpError, ENGLISH_PHRASE)}`);
     }
     this.emit('mcp.status', this.mcpStatus());
   }

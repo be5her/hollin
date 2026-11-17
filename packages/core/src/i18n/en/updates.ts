@@ -22,6 +22,18 @@ export const updates = {
   'updates.state.unsupported': 'Updates are not available in this build: {reason}',
   'updates.state.noFeed': 'no update feed',
 
+  /** Why a build cannot update, after "Updates are not available in this build: ". */
+  'updates.reason.development': 'this is a development run',
+  'updates.reason.noFeed': 'this build has no update feed (only release builds have one)',
+  'updates.reason.notInstalled': 'the app is not running from its AppImage or an installed package',
+  'updates.reason.unsignedMac': 'this macOS build is not signed, and macOS installs updates only into a signed app',
+  /** A failed check, download or install: the error's own English message (shown as it is in English). */
+  'updates.error.detail': '{detail}',
+  'updates.error.checkFailed': 'The update check failed.',
+  'updates.error.downloadFailed': 'The download failed.',
+  'updates.error.installFailed': 'The update could not be installed.',
+  'updates.error.installFailedWith': 'The update could not be installed: {detail}',
+
   'updates.toast.ready': 'Version {version} is ready to install',
   'updates.toast.settings': 'Settings',
 } as const;

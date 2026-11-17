@@ -79,4 +79,5 @@ export const decor = {
   'decor.slot.hob': 'سطح الطهي',
   'decor.slot.sink': 'الحوض',
   'decor.slot.leaf': 'الدرفة',
+  'decor.missingModel': 'نموذج مفقود',
 } satisfies Record<keyof typeof source, Message>;

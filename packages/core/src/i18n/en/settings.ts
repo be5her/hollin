@@ -87,4 +87,7 @@ export const settings = {
   'settings.licences.title': 'Licences',
   'settings.licences.note': 'The fonts are bundled under their licences. The icons are Lucide (ISC; some derived from Feather, MIT).',
   'settings.licences.font': 'Font',
+  /** Why the MCP server did not start. `failed` is the system's own (English) message. */
+  'settings.mcp.portInUse': 'Port {port} is already in use. Choose another port.',
+  'settings.mcp.failed': '{detail}',
 } as const;

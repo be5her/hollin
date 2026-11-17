@@ -3,7 +3,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { app } from 'electron';
 import { AppImageUpdater, autoUpdater, type AppUpdater, type ProgressInfo } from 'electron-updater';
-import { UpdaterBase, installAfterStop, macSignedFromCodesign, messageOf, plainNotes, updateSupport, type CheckOutcome, type Updater } from './update-state';
+import type { Phrase } from '@studio/core';
+import { UpdaterBase, installAfterStop, macSignedFromCodesign, messageOf, plainNotes, said, updateSupport, type CheckOutcome, type Updater } from './update-state';
 
 export interface CreateUpdaterOptions {
   /** Where the time of the last check is kept (the host's data folder). */
@@ -51,7 +52,7 @@ class ElectronUpdater extends UpdaterBase {
 
   constructor(
     private readonly options: CreateUpdaterOptions,
-    reason: string | null,
+    reason: Phrase | null,
     private readonly devConfig: boolean,
     private readonly appImage: boolean,
   ) {
@@ -124,7 +125,7 @@ class ElectronUpdater extends UpdaterBase {
   private installFailed(err: unknown): void {
     if (!this.installing) return;
     this.installing = false;
-    this.set({ ...this.status(), state: 'error', message: `The update could not be installed: ${messageOf(err, 'unknown error')}` });
+    this.set({ ...this.status(), state: 'error', ...said({ key: 'updates.error.installFailedWith', params: { detail: messageOf(err, 'unknown error') } }) });
     app.relaunch();
     app.quit();
   }

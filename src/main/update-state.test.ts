@@ -1,10 +1,13 @@
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import type { HostEventMessage, UpdateState } from '@studio/core';
+import { ENGLISH_PHRASE, phraseText, type HostEventMessage, type Phrase, type UpdateState } from '@studio/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Host } from './host';
 import { UpdaterBase, installAfterStop, macSignedFromCodesign, plainNotes, scheduleChecks, startupCheckDue, updateSupport, type CheckOutcome, type SupportProbe } from './update-state';
+
+/** Why a build cannot update, as the English the state's `message` carries. */
+const why = (reason: Phrase | null) => (reason ? phraseText(reason, ENGLISH_PHRASE) : reason);
 
 let dir: string;
 beforeEach(async () => {
@@ -49,11 +52,11 @@ describe('updateSupport', () => {
   const files = (present: Record<string, string>): Pick<SupportProbe, 'exists' | 'read'> => ({ exists: (f) => f in present, read: (f) => present[f] });
   const base = { resourcesPath: '/app/resources', appPath: '/app/resources/app.asar' };
   it('needs a packaged build or a dev-app-update.yml in development', () => {
-    expect(updateSupport({ ...base, packaged: false, platform: 'win32', ...files({}) }).reason).toMatch(/development/);
+    expect(why(updateSupport({ ...base, packaged: false, platform: 'win32', ...files({}) }).reason)).toMatch(/development/);
     expect(updateSupport({ ...base, packaged: false, platform: 'win32', ...files({ '/app/resources/app.asar/dev-app-update.yml': '' }) })).toEqual({ reason: null, devConfig: true, appImage: false });
   });
   it('needs the app-update.yml a release build carries', () => {
-    expect(updateSupport({ ...base, packaged: true, platform: 'win32', ...files({}) }).reason).toMatch(/no update feed/);
+    expect(why(updateSupport({ ...base, packaged: true, platform: 'win32', ...files({}) }).reason)).toMatch(/no update feed/);
     expect(updateSupport({ ...base, packaged: true, platform: 'win32', ...files({ '/app/resources/app-update.yml': '' }) })).toEqual({ reason: null, devConfig: false, appImage: false });
   });
   it('on Linux, an AppImage wins over a package-type file it may carry, which is then never read', () => {
@@ -64,17 +67,17 @@ describe('updateSupport', () => {
     // Without APPIMAGE the same files are an installed deb.
     expect(updateSupport(probe)).toEqual({ reason: null, devConfig: false, appImage: false });
     expect(read).toHaveBeenCalledOnce();
-    expect(updateSupport({ ...probe, read: () => 'snap' }).reason).toMatch(/AppImage or an installed package/);
+    expect(why(updateSupport({ ...probe, read: () => 'snap' }).reason)).toMatch(/AppImage or an installed package/);
   });
   it('on Linux, an AppImage or an installed deb, rpm or pacman package', () => {
     const feed = { '/app/resources/app-update.yml': '' };
-    expect(updateSupport({ ...base, packaged: true, platform: 'linux', ...files(feed) }).reason).toMatch(/AppImage/);
+    expect(why(updateSupport({ ...base, packaged: true, platform: 'linux', ...files(feed) }).reason)).toMatch(/AppImage/);
     expect(updateSupport({ ...base, packaged: true, platform: 'linux', appImage: '/home/u/App.AppImage', ...files(feed) }).reason).toBeNull();
     expect(updateSupport({ ...base, packaged: true, platform: 'linux', ...files({ ...feed, '/app/resources/package-type': 'deb\n' }) }).reason).toBeNull();
   });
   it('on macOS, only a signed app', () => {
     const feed = files({ '/app/resources/app-update.yml': '' });
-    expect(updateSupport({ ...base, packaged: true, platform: 'darwin', macSigned: () => false, ...feed }).reason).toMatch(/not signed/);
+    expect(why(updateSupport({ ...base, packaged: true, platform: 'darwin', macSigned: () => false, ...feed }).reason)).toMatch(/not signed/);
     expect(updateSupport({ ...base, packaged: true, platform: 'darwin', macSigned: () => true, ...feed }).reason).toBeNull();
   });
 });

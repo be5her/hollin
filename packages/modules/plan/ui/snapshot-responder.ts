@@ -1,5 +1,5 @@
 import { DOCUMENT, Service, inject, untracked } from '@angular/core';
-import { DEFAULT_RULE_LIMITS, type HostEvents, type ProjectDoc } from '@studio/core';
+import { DEFAULT_RULE_LIMITS, ENGLISH_PHRASE, phraseText, type HostEvents, type Phrase, type ProjectDoc } from '@studio/core';
 import { AppState, HostBridge, ProjectDocs, Units } from '@studio/ui';
 import { DARK_SCENE_THEME, DARK_THEME, LIGHT_SCENE_THEME, LIGHT_THEME, SnapshotSizeError, loadPlanFonts, renderBuildingToPng, renderLevelToPng } from '@studio/viewport';
 import { PlanGeometry } from './plan-geometry';
@@ -29,7 +29,7 @@ export class SnapshotResponder {
   }
 
   private async answer(request: HostEvents['view.snapshot.request']): Promise<void> {
-    let reply: { id: string; png?: string; error?: string; code?: 'NOT_FOUND' | 'UNAVAILABLE' };
+    let reply: { id: string; png?: string; error?: string; i18n?: Phrase; code?: 'NOT_FOUND' | 'UNAVAILABLE' };
     try {
       const doc = await this.docFor(request.projectId);
       const createCanvas = (width: number, height: number) => {
@@ -47,8 +47,9 @@ export class SnapshotResponder {
         request.view === '3d'
           ? await renderBuildingToPng(doc, { width, height, createCanvas, limits, theme: dark ? DARK_SCENE_THEME : LIGHT_SCENE_THEME, transparent, azimuth: request.azimuth, elevation: request.elevation, mode: request.display, levelId: request.levelId, explode: request.explode, lighting: request.lighting })
           : renderLevelToPng(doc, request.levelId, { width, height, createCanvas, limits, theme: dark ? DARK_THEME : LIGHT_THEME, transparent, units: untracked(this.units.settings), cache: this.geometry.cache });
-      const nothing = request.view === '3d' ? 'Nothing is built in 3D yet: the building has no walls, slabs, columns or connectors.' : `Nothing is drawn on level ${doc.levels[request.levelId]?.name ?? request.levelId} yet.`;
-      reply = png ? { id: request.id, png } : { id: request.id, error: nothing };
+      // Why there is no picture: the English agents read, and its phrase for the interface.
+      const nothing: Phrase = request.view === '3d' ? { key: 'errors.snapshot.nothing3d' } : { key: 'errors.snapshot.nothingOnLevel', params: { name: doc.levels[request.levelId]?.name ?? request.levelId } };
+      reply = png ? { id: request.id, png } : { id: request.id, error: phraseText(nothing, ENGLISH_PHRASE), i18n: nothing };
     } catch (err) {
       reply = { id: request.id, error: err instanceof Error ? err.message : String(err), ...(err instanceof SnapshotSizeError ? { code: 'UNAVAILABLE' as const } : {}) };
     }
@@ -63,7 +64,7 @@ export class SnapshotResponder {
       const doc = untracked(state)?.doc;
       if (doc) return doc;
       const error = untracked(this.docs.errors)[projectId];
-      if (error) throw new Error(error);
+      if (error) throw new Error(error.message);
       if (Date.now() > deadline) throw new Error('The project document did not arrive in time.');
       await new Promise((resolve) => setTimeout(resolve, 50));
     }

@@ -30,12 +30,12 @@ export class HostBridge {
 
   /**
    * Run a host command. `projectId` defaults to the project on screen; pass `null` to run a global
-   * command without one. Throws StudioError with the host's code and message.
+   * command without one. Throws StudioError with the host's code, message and phrase (`i18n`).
    */
   async invoke<T = unknown>(id: string, input: unknown = {}, projectId?: string | null): Promise<T> {
     const project = projectId === undefined ? untracked(this.app.activeProjectId) : projectId;
     const res = await this.bridge.invoke(id, input, project);
-    if (!res.ok) throw new StudioError(res.error.code, res.error.message, res.error.details);
+    if (!res.ok) throw StudioError.fromPayload(res.error);
     return res.result as T;
   }
 

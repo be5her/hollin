@@ -19,12 +19,21 @@ import {
   type CatalogEntry,
   type CommandContext,
   type Op,
+  catalogName,
+  currentLanguage,
+  t,
 } from '@studio/core';
 import { z } from 'zod';
 
 const levelId = z.string().describe('Level id, from building_get');
 const Point = z.tuple([z.number(), z.number()]).describe('[x, y] in mm, y up');
 const Size = z.tuple([z.number().positive(), z.number().positive(), z.number().positive()]);
+
+/**
+ * A material as a finish's History label names it: its reference in English (`builtin:oak`, as the
+ * labels always read), its name in another language (a built-in's translated name, a paint's colour).
+ */
+const materialInLabel = (ref: string): string => (currentLanguage() === 'en' ? ref : catalogName(ref, ref.replace(/^paint:/, '')));
 
 const fold = (text: string) => text.normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase();
 
@@ -171,7 +180,7 @@ export const decorModule = defineModule({
       handler: async ({ target, material }, ctx) => {
         if (material !== null) checkMaterial(material, 'material');
         const doc = ctx.project!.doc;
-        const what = material ?? 'nothing';
+        const what = material === null ? t('labels.finish.nothing') : materialInLabel(material);
         type Face = { wallId: string; side: 'left' | 'right' };
         const paintFaces = (tx: { doc: typeof doc; apply: (ops: Op[]) => void }, faces: Face[]) => {
           for (const face of faces) {
@@ -186,7 +195,7 @@ export const decorModule = defineModule({
         if ('wallId' in target) {
           const wall = requireEntity(doc, target.wallId);
           if (wall.type !== 'wall') throw new StudioError('INVALID_INPUT', `${target.wallId} is a ${wall.type}, not a wall`);
-          await editProject(ctx, `Finish wall (${target.side}): ${what}`, (tx) => paintFaces(tx, [target]));
+          await editProject(ctx, t(`labels.finish.wall.${target.side}`, { what }), (tx) => paintFaces(tx, [target]));
           return { changed: [target] };
         }
         const room = requireEntity(doc, target.roomId);
@@ -194,11 +203,11 @@ export const decorModule = defineModule({
         if (target.surface === 'walls') {
           const entities = doc.levelData[room.levelId].entities;
           const faces = wallSidesFacing(entities, deriveLevelGeometry(entities).rooms.values(), room.id);
-          if (!faces.length) throw new StudioError('INVALID_INPUT', `No wall faces look into "${room.name}" (is it enclosed?)`);
-          await editProject(ctx, `Finish the walls of ${room.name}: ${what}`, (tx) => paintFaces(tx, faces));
+          if (!faces.length) throw new StudioError('INVALID_INPUT', { key: 'errors.decor.noFaces', params: { name: room.name } });
+          await editProject(ctx, t('labels.finish.walls', { name: room.name, what }), (tx) => paintFaces(tx, faces));
           return { changed: faces };
         }
-        await editProject(ctx, `Finish the ${target.surface} of ${room.name}: ${what}`, (tx) => {
+        await editProject(ctx, t(`labels.finish.${target.surface}`, { name: room.name, what }), (tx) => {
           const current = tx.doc.levelData[room.levelId].entities[room.id] as typeof room;
           const finish = { ...(current.finish ?? {}) };
           if (material) finish[target.surface as 'floor' | 'ceiling'] = material;
@@ -230,10 +239,10 @@ export const decorModule = defineModule({
         const doc = ctx.project!.doc;
         requireLevel(doc, input.levelId);
         if (!input.layerId && !Object.values(doc.layers).some((l) => l.levelId === input.levelId && l.kind === 'decor')) {
-          throw new StudioError('INVALID_INPUT', `Level "${doc.levels[input.levelId].name}" has no decor layer for lights; add one with plan_layer_add`);
+          throw new StudioError('INVALID_INPUT', { key: 'errors.layer.noDecorForLights', params: { name: doc.levels[input.levelId].name } });
         }
         if (input.kind !== 'spot' && (input.target || input.angle)) throw new StudioError('INVALID_INPUT', 'Only a spot takes `target` and `angle`');
-        const { result } = await editProject(ctx, `Add ${input.kind} light`, (tx) => {
+        const { result } = await editProject(ctx, t(`labels.light.${input.kind}`), (tx) => {
           const entity = {
             type: 'light' as const,
             kind: input.kind,
@@ -275,7 +284,7 @@ export const decorModule = defineModule({
         const doc = ctx.project!.doc;
         requireLevel(doc, input.levelId);
         if (!input.layerId && !Object.values(doc.layers).some((l) => l.levelId === input.levelId && l.kind === 'decor')) {
-          throw new StudioError('INVALID_INPUT', `Level "${doc.levels[input.levelId].name}" has no decor layer for furniture; add one with plan_layer_add`);
+          throw new StudioError('INVALID_INPUT', { key: 'errors.layer.noDecorForFurniture', params: { name: doc.levels[input.levelId].name } });
         }
         const model = await resolveModel(ctx, input.ref);
         for (const [slot, ref] of Object.entries(input.materials ?? {})) {
@@ -283,7 +292,7 @@ export const decorModule = defineModule({
           checkMaterial(ref, `materials.${slot}`);
         }
         const scale = input.scale ?? (input.size ? ([0, 1, 2].map((k) => input.size![k] / Math.max(1e-6, model.size[k])) as [number, number, number]) : [1, 1, 1]);
-        const { result } = await editProject(ctx, `Place ${input.name ?? model.name}`, (tx) => {
+        const { result } = await editProject(ctx, t('labels.place', { name: input.name ?? catalogName(input.ref, model.name) }), (tx) => {
           const ops: Op[] = [];
           if (model.register && !tx.doc.assets[model.register.id]) ops.push({ t: 'ins', c: 'asset', id: model.register.id, v: model.register });
           const entity = {

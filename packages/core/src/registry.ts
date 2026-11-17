@@ -57,7 +57,7 @@ export class CommandRegistry {
     const { command } = entry;
 
     if (command.scope === 'project' && !ctx.project) {
-      throw new StudioError('NO_PROJECT', `"${id}" needs an open project. Open or create one first.`);
+      throw new StudioError('NO_PROJECT', { key: 'errors.registry.noProject', params: { command: id } });
     }
 
     const parsed = command.input.safeParse(rawInput ?? {});
@@ -87,7 +87,7 @@ async function authorize(meta: CommandMeta, input: unknown, ctx: CommandContext)
     throw new StudioError('MUTATION_BLOCKED', `"${meta.id}" needs the user's confirmation, which this host cannot ask for.`);
   }
   const allowed = await ctx.host.confirmMutation({ command: meta, input, caller: ctx.caller, agent: ctx.agent });
-  if (!allowed) throw new StudioError('MUTATION_DECLINED', `The user declined "${meta.title}".`);
+  if (!allowed) throw new StudioError('MUTATION_DECLINED', { key: 'errors.registry.declined', params: { title: { command: { id: meta.id, title: meta.title } } } });
 }
 
 function toMeta({ module, command }: Registered): CommandMeta {

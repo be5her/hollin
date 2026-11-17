@@ -1,6 +1,7 @@
 import type { Asset, Entity } from '../doc/schema';
 import { polygonArea, type Polygon } from '../geometry/polygon';
 import { DEG } from '../geometry/vec';
+import { t } from '../i18n';
 import type { Vec3 } from '../solids/mesh';
 import { builtinRecipe, type Recipe } from './builtin';
 import { recipeDetails, recipeOutline } from './recipes';
@@ -37,6 +38,7 @@ const rect = (w: number, d: number): Polygon => [
 ];
 
 /** A stand-in for a model the project cannot resolve (a registry entry lost by hand): a half-metre cube. */
+/** A model the item names but neither the catalog nor the project has; named in the language of the moment where it is returned. */
 const MISSING: ItemModel = { name: 'Missing model', size: [500, 500, 500], outline: [rect(500, 500)], details: [], slots: [], offset: [0, 0, 0] };
 
 /**
@@ -65,7 +67,7 @@ export function itemModel(ref: string, assets: Readonly<Record<string, Asset>>, 
       };
     }
   }
-  return MISSING;
+  return { ...MISSING, name: t('decor.missingModel') };
 }
 
 /** An item's size as placed: its model's size times its scale, mm (always positive). */

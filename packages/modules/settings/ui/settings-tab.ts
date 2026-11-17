@@ -1,7 +1,7 @@
 import { NgComponentOutlet, NgTemplateOutlet } from '@angular/common';
 import { Component, ElementRef, afterRenderEffect, computed, effect, inject, input, linkedSignal, signal, untracked } from '@angular/core';
 import { FormField, form, max, min, required } from '@angular/forms/signals';
-import { AI_MODELS, AI_PROVIDERS, BRANDING, CLAUDE_CODE_EFFORTS, CLAUDE_CODE_MODEL_ALIASES, LANGUAGES, clientSnippets, defaultConfig, isMessageKey, type AiProvider, type ClientSnippet, type LanguagePreference, type AssistantStatus, type ClaudeCodeEffort, type ConfigPatch, type GlobalConfig, type McpCallEntry, type ThemePreference, type UnitSettings } from '@studio/core';
+import { AI_MODELS, AI_PROVIDERS, BRANDING, CLAUDE_CODE_EFFORTS, CLAUDE_CODE_MODEL_ALIASES, LANGUAGES, clientSnippets, defaultConfig, isMessageKey, mmText, type AiProvider, type ClientSnippet, type LanguagePreference, type AssistantStatus, type ClaudeCodeEffort, type ConfigPatch, type GlobalConfig, type McpCallEntry, type ThemePreference, type UnitSettings } from '@studio/core';
 import { AppMark, AppState, Badge, Button, Checkbox, Dialogs, HostBridge, I18n, Icon, Input, Label, OttoMark, SETTINGS_LATE, Select, SettingsSections, Theme, Toasts, Wordmark, agentSignature, effortLabel, invokeResource, ottoModelLabel, providerLabel, type Tab, type TabComponent } from '@studio/ui';
 import { Copy, KeyRound, RefreshCw, Trash2 } from 'lucide';
 import { LicencesDialog } from './licences-dialog';
@@ -87,6 +87,11 @@ export class SettingsTab implements TabComponent {
   protected readonly fontCredits = FONT_CREDITS;
   protected readonly config = this.app.config;
   protected readonly mcp = this.app.mcpStatus;
+  /** Why the MCP server is not running, in the language of the moment (its English message when it carries no phrase). */
+  protected readonly mcpError = computed(() => {
+    const status = this.mcp();
+    return status?.errorText ? this.i18n.phrase(status.errorText, mmText) : (status?.error ?? '');
+  });
   /** Sections other modules add, e.g. the library's location (after Units) and Updates (before About). */
   private readonly allSections = inject(SettingsSections).sections;
   protected readonly sections = computed(() => this.allSections().filter((s) => s.order < SETTINGS_LATE));

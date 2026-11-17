@@ -47,7 +47,7 @@
         >{{ t('settings.mcp.port') }}<input xInput type="number" dir="ltr" class="w-24" [formField]="settings.port" (blur)="savePort()" (keydown.enter)="savePort()" data-testid="settings-mcp-port"
       /></label>
       <span class="text-xs" [class]="mcp()?.running ? 'text-success' : 'text-danger'" data-testid="settings-mcp-state">{{
-        mcp()?.running ? t('settings.mcp.running') : (mcp()?.error ?? t('settings.mcp.stopped'))
+        mcp()?.running ? t('settings.mcp.running') : mcpError() || t('settings.mcp.stopped')
       }}</span>
       @if (mcp()?.error && config()?.mcp?.enabled) {
         <button xButton size="sm" (click)="restartMcp()">{{ t('settings.mcp.retry') }}</button>

@@ -1,9 +1,14 @@
 import { Component, computed, effect, inject, linkedSignal, signal, untracked } from '@angular/core';
 import { FormField, form } from '@angular/forms/signals';
-import type { UpdateState } from '@studio/core';
+import { mmText, phraseText, type UpdateState } from '@studio/core';
 import { AppState, Button, Checkbox, HostBridge, I18n, Toasts, injectHostEvent, type Translate } from '@studio/ui';
 import { Download, RefreshCw, RotateCw } from 'lucide';
 import { UpdateNotices } from './update-notices';
+
+/** What the state says (an error, why it cannot update): its phrase in the language `t` speaks, else its English message. */
+function said(s: UpdateState, t: Translate): string | undefined {
+  return s.text ? phraseText(s.text, { translate: t, length: mmText }) : s.message;
+}
 
 /** The line under Updates for each state, in the language `t` speaks; `at` writes a date. */
 export function updateLine(s: UpdateState | undefined, at: (iso: string) => string, t: Translate): string {
@@ -22,9 +27,9 @@ export function updateLine(s: UpdateState | undefined, at: (iso: string) => stri
     case 'ready':
       return t('updates.state.ready', { version: s.version ?? '' });
     case 'error':
-      return s.message ?? t('updates.state.error');
+      return said(s, t) ?? t('updates.state.error');
     case 'unsupported':
-      return t('updates.state.unsupported', { reason: s.message ?? t('updates.state.noFeed') });
+      return t('updates.state.unsupported', { reason: said(s, t) ?? t('updates.state.noFeed') });
   }
 }
 

@@ -6,6 +6,7 @@ import type { CatalogApi } from '../decor/catalog';
 import { ASSET_FILE } from '../decor/refs';
 import type { ProjectDoc } from '../doc/schema';
 import { StudioError } from '../errors';
+import { currentLanguage, intlLocale, t } from '../i18n';
 import type { LibraryInfo, ListQuery, OpenProject, ProjectSummary, SaveStatus, SnapshotInfo } from '../projects';
 import type { EditResult, HostApi, ProjectApi, ProjectsApi } from '../types';
 import { WriteQueue, readJsonFile, renameWithRetry, writeJsonAtomic } from './atomic-write';
@@ -191,7 +192,7 @@ export class ProjectService implements ProjectsApi {
     if (doc.meta.id !== id) doc = { ...doc, meta: { ...doc.meta, id } };
     if (read.migratedFrom !== undefined) {
       // Keep the project as it was before upgrading it.
-      await this.library.createSnapshot(id, doc, { name: `Before upgrading from format ${read.migratedFrom}`, kind: 'auto', createdBy: 'App' });
+      await this.library.createSnapshot(id, doc, { name: t('defaults.snapshot.beforeUpgrade', { format: read.migratedFrom }), kind: 'auto', createdBy: 'App' });
       saved = await writeProjectDir(dir, doc, saved);
     }
     const session = new ProjectSession(dir, doc, saved, {
@@ -246,7 +247,7 @@ export class ProjectService implements ProjectsApi {
   }
 
   async focus(id: string | null): Promise<void> {
-    if (id !== null && !this.sessions.has(id)) throw new StudioError('NOT_FOUND', `Project ${id} is not open`);
+    if (id !== null && !this.sessions.has(id)) throw new StudioError('NOT_FOUND', { key: 'errors.project.notOpen', params: { id } });
     if (this.activeId === id) return;
     this.activeId = id;
     await this.remember();
@@ -258,7 +259,7 @@ export class ProjectService implements ProjectsApi {
       ...(patch.description !== undefined ? { description: patch.description.trim() } : {}),
       ...(patch.tags !== undefined ? { tags: [...new Set(patch.tags.map((t) => t.trim()).filter(Boolean))] } : {}),
     };
-    if (clean.name === '') throw new StudioError('INVALID_INPUT', 'name: A project needs a name');
+    if (clean.name === '') throw new StudioError('INVALID_INPUT', { key: 'errors.project.nameRequired' });
     const session = this.sessions.get(id);
     if (!session) return this.library.updateMeta(id, clean);
     // Project details belong to the library, not the design: no undo step.
@@ -271,7 +272,7 @@ export class ProjectService implements ProjectsApi {
 
   async duplicate(id: string, name?: string): Promise<ProjectSummary> {
     const source = this.library.require(id, { trashed: false });
-    return this.readingFolder(id, () => this.library.duplicate(id, name?.trim() || `${source.name} copy`));
+    return this.readingFolder(id, () => this.library.duplicate(id, name?.trim() || t('defaults.copy', { name: source.name })));
   }
 
   /** Runs `read` on a project's folder; for an open project after saving it and while no save can start. */
@@ -306,7 +307,7 @@ export class ProjectService implements ProjectsApi {
 
   private requireOpen(id: string): ProjectSession {
     const session = this.sessions.get(id);
-    if (!session) throw new StudioError('NOT_FOUND', `Project ${id} is not open`);
+    if (!session) throw new StudioError('NOT_FOUND', { key: 'errors.project.notOpen', params: { id } });
     return session;
   }
 
@@ -327,7 +328,7 @@ export class ProjectService implements ProjectsApi {
   }
 
   async createSnapshot(id: string, name: string, createdBy: string, kind: 'named' | 'auto' = 'named'): Promise<SnapshotInfo> {
-    return this.library.createSnapshot(id, await this.currentDoc(id), { name: name.trim() || 'Snapshot', kind, createdBy });
+    return this.library.createSnapshot(id, await this.currentDoc(id), { name: name.trim() || t('defaults.snapshot.named'), kind, createdBy });
   }
 
   /**
@@ -336,10 +337,10 @@ export class ProjectService implements ProjectsApi {
    */
   async restoreSnapshot(id: string, snapshotId: string, by: string): Promise<{ restored: SnapshotInfo; backup: SnapshotInfo }> {
     const restored = (await this.library.listSnapshots(id)).find((s) => s.id === snapshotId);
-    if (!restored) throw new StudioError('NOT_FOUND', `No snapshot ${snapshotId}`);
+    if (!restored) throw new StudioError('NOT_FOUND', { key: 'errors.library.noSnapshot', params: { id: snapshotId } });
     const snapshot = await this.library.readSnapshot(id, snapshotId);
     const current = await this.currentDoc(id);
-    const backup = await this.library.createSnapshot(id, current, { name: `Before restoring "${restored.name}"`, kind: 'auto', createdBy: by });
+    const backup = await this.library.createSnapshot(id, current, { name: t('defaults.snapshot.beforeRestore', { name: restored.name }), kind: 'auto', createdBy: by });
     const next: ProjectDoc = { ...snapshot, meta: { ...current.meta } };
     const session = this.sessions.get(id);
     if (session) {
@@ -387,14 +388,14 @@ export class ProjectService implements ProjectsApi {
   async moveLibrary(target: string, mode: 'move' | 'adopt'): Promise<LibraryInfo> {
     const from = path.resolve(this.library.root);
     const to = path.resolve(target);
-    if (to === from) throw new StudioError('CONFLICT', 'The library is already in that folder.');
-    if (to.startsWith(`${from}${path.sep}`)) throw new StudioError('INVALID_INPUT', 'The new folder cannot be inside the current library.');
+    if (to === from) throw new StudioError('CONFLICT', { key: 'errors.library.sameFolder' });
+    if (to.startsWith(`${from}${path.sep}`)) throw new StudioError('INVALID_INPUT', { key: 'errors.library.insideCurrent' });
     const hasLibrary = Boolean(await readJsonFile(path.join(to, 'library.json')).catch(() => undefined));
-    if (mode === 'adopt' && !hasLibrary) throw new StudioError('NOT_FOUND', `There is no library in ${to}.`);
+    if (mode === 'adopt' && !hasLibrary) throw new StudioError('NOT_FOUND', { key: 'errors.library.noLibraryThere', params: { folder: to } });
     if (mode === 'move') {
       const entries = await fs.readdir(to).catch(() => null);
       if (entries && entries.length > 0) {
-        throw new StudioError('CONFLICT', hasLibrary ? 'That folder already holds a library. Use it instead of moving this one.' : 'Choose an empty folder for the library.');
+        throw new StudioError('CONFLICT', { key: hasLibrary ? 'errors.library.holdsLibrary' : 'errors.library.notEmpty' });
       }
     }
 
@@ -412,7 +413,7 @@ export class ProjectService implements ProjectsApi {
         await check.open();
         const after = check.list({}).length + check.list({ trashed: true }).length;
         await check.close();
-        if (after !== before) throw new StudioError('INTERNAL', `The copy lists ${after} projects instead of ${before}; the library was not moved.`);
+        if (after !== before) throw new StudioError('INTERNAL', { key: 'errors.library.copyMismatch', params: { after, before } });
         await fs.rm(to, { recursive: true, force: true });
         await renameWithRetry(staging, to);
       } catch (err) {
@@ -440,7 +441,7 @@ export class ProjectService implements ProjectsApi {
   /** The document, its change number and history, as the renderer's mirror loads it. */
   docState(id: string) {
     const engine = this.engines.get(id);
-    if (!engine) throw new StudioError('NOT_FOUND', `Project ${id} is not open`);
+    if (!engine) throw new StudioError('NOT_FOUND', { key: 'errors.project.notOpen', params: { id } });
     return { projectId: id, doc: engine.doc, seq: engine.seq, epoch: engine.epoch, history: engine.history() };
   }
 
@@ -450,12 +451,14 @@ export class ProjectService implements ProjectsApi {
    */
   async edit<T>(id: string, author: Author, label: string, fn: (tx: EditContext) => T | Promise<T>, options: { coalesce?: string; dryRun?: boolean; command?: string } = {}): Promise<EditResult<T>> {
     const engine = this.engines.get(id);
-    if (!engine) throw new StudioError('NOT_FOUND', `Project ${id} is not open`);
+    if (!engine) throw new StudioError('NOT_FOUND', { key: 'errors.project.notOpen', params: { id } });
     return this.edits.run(id, async () => {
       if (!options.dryRun && !this.snapshotted.has(id)) {
         this.snapshotted.add(id);
-        const when = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date());
-        await this.library.createSnapshot(id, engine.doc, { name: `Before editing (${when})`, kind: 'auto', createdBy: 'App' }).catch((err: Error) => console.warn(`[projects] could not take the session snapshot of ${id}: ${err.message}`));
+        // English keeps the system's date format, as it always had; another language writes the date its own way (Western digits).
+        const language = currentLanguage();
+        const when = new Intl.DateTimeFormat(language === 'en' ? undefined : intlLocale(language), { dateStyle: 'medium', timeStyle: 'short' }).format(new Date());
+        await this.library.createSnapshot(id, engine.doc, { name: t('defaults.snapshot.beforeEditing', { when }), kind: 'auto', createdBy: 'App' }).catch((err: Error) => console.warn(`[projects] could not take the session snapshot of ${id}: ${err.message}`));
       }
       return engine.transact(label, author, fn, options);
     });
@@ -473,7 +476,7 @@ export class ProjectService implements ProjectsApi {
     const id = session.id;
     const engine = () => {
       const e = this.engines.get(id);
-      if (!e) throw new StudioError('NOT_FOUND', `Project ${id} is not open`);
+      if (!e) throw new StudioError('NOT_FOUND', { key: 'errors.project.notOpen', params: { id } });
       return e;
     };
     return {
@@ -534,7 +537,7 @@ export class ProjectService implements ProjectsApi {
       const open = this.sessions.get(hint);
       if (open) return this.api(open);
       const summary = this.library.get(hint);
-      if (!summary || summary.trashedAt) throw new StudioError('NOT_FOUND', summary ? `Project "${summary.name}" is in the trash` : `No project with id ${hint}`);
+      if (!summary || summary.trashedAt) throw new StudioError('NOT_FOUND', summary ? { key: 'errors.project.inTrash', params: { name: summary.name } } : { key: 'errors.library.noProject', params: { id: hint } });
       await this.open(hint, { focus: false });
       return this.api(this.sessions.get(hint)!);
     }

@@ -54,7 +54,7 @@ export const editModule = defineModule({
       input: z.object({ id: z.string().min(1) }),
       handler: async ({ id }, ctx) => {
         const changed = ctx.project!.changed?.(id);
-        if (!changed) throw new StudioError('NOT_FOUND', `No change ${id} in the history`);
+        if (!changed) throw new StudioError('NOT_FOUND', { key: 'errors.history.noChange', params: { id } });
         return changed;
       },
     }),

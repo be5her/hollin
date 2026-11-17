@@ -1,6 +1,7 @@
 import { DOCUMENT, Service, computed, inject, signal } from '@angular/core';
 import {
   catalogName,
+  errorLine,
   categoryName,
   commandTitle,
   intlLocale,
@@ -55,7 +56,10 @@ export class I18n {
   readonly categoryName = (category: string): string => categoryName(category, this.language());
 
   /** A phrase (a rule warning, a broken limit) in the current language, its lengths in `length`'s units. */
-  readonly phrase = (phrase: Phrase, length: (mm: number) => string): string => phraseText(phrase, { translate: this.t, length });
+  readonly phrase = (phrase: Phrase, length: (mm: number) => string): string => phraseText(phrase, { translate: this.t, length, command: this.commandTitle });
+
+  /** An error as one line in the current language: its translation, or its code's lead before the English message (`errorLine`). */
+  readonly error = (err: unknown): string => errorLine(err, this.language());
 
   /** Load the language main resolved; the shell calls it before the first render. */
   async load(): Promise<void> {

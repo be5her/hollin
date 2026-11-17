@@ -1,14 +1,30 @@
+import { LANGUAGES, t, translate, type MessageKey } from '../i18n';
 import { newId } from '../ids';
 import { FORMAT_VERSION, LAYER_KINDS, type Layer, type LayerKind, type Level, type ProjectDoc } from './schema';
 
 export const DEFAULT_LEVEL_HEIGHT = 3000;
 export const DEFAULT_SLAB_THICKNESS = 200;
 
-export const LAYER_NAMES: Record<LayerKind, string> = { structure: 'Structure', interior: 'Interior', decor: 'Decor' };
+/** A layer kind's default name, in the language of the moment: "Structure", "Interior", "Decor". */
+export function layerName(kind: LayerKind): string {
+  return t(`defaults.layer.${kind}`);
+}
+
+/**
+ * The first numbered default (`key` with `{n}`, "Level 2", "Room 3") whose number no name in `taken`
+ * uses in any language, written in the language of the moment. Checking every language keeps the
+ * numbering going after a switch: a level named "Level 1" in English still takes 1 when Arabic adds the next.
+ */
+export function nextNumberedName(key: MessageKey, taken: Iterable<string>): string {
+  const names = new Set([...taken].map((name) => name.toLowerCase()));
+  for (let n = 1; ; n++) {
+    if (LANGUAGES.every((l) => !names.has(translate(l.id, key, { n }).toLowerCase()))) return t(key, { n });
+  }
+}
 
 /** The three layers every new level starts with. */
 export function defaultLayers(levelId: string): Layer[] {
-  return LAYER_KINDS.map((kind, order) => ({ id: newId('lay'), levelId, kind, name: LAYER_NAMES[kind], order, visible: true, locked: false, opacity: 1 }));
+  return LAYER_KINDS.map((kind, order) => ({ id: newId('lay'), levelId, kind, name: layerName(kind), order, visible: true, locked: false, opacity: 1 }));
 }
 
 export interface NewProjectInput {
@@ -24,7 +40,7 @@ export interface NewProjectInput {
 /** A new project: one ground floor at elevation 0 with its three layers, and nothing drawn yet. */
 export function newProjectDoc(input: NewProjectInput): ProjectDoc {
   const now = input.now ?? new Date().toISOString();
-  const level: Level = { id: newId('lvl'), name: 'Ground floor', slabThickness: DEFAULT_SLAB_THICKNESS, place: { k: 'stack', height: DEFAULT_LEVEL_HEIGHT } };
+  const level: Level = { id: newId('lvl'), name: t('defaults.level.ground'), slabThickness: DEFAULT_SLAB_THICKNESS, place: { k: 'stack', height: DEFAULT_LEVEL_HEIGHT } };
   const layers = defaultLayers(level.id);
   return {
     formatVersion: FORMAT_VERSION,

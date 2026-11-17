@@ -185,6 +185,9 @@ export const tools = {
   /** What a one-item paste names, by entity type or connector kind. */
   'tools.noun.wall': 'wall',
   'tools.noun.opening': 'opening',
+  /** An opening by its kind, in the History label a command writes ("Add door"). */
+  'tools.noun.door': 'door',
+  'tools.noun.window': 'window',
   'tools.noun.column': 'column',
   'tools.noun.slab': 'slab',
   'tools.noun.void': 'void',

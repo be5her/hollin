@@ -14,7 +14,8 @@ describe('the catalogs', () => {
   });
 
   it('name keys by area in camel case', () => {
-    for (const key of keys) expect(key, key).toMatch(/^[a-z][A-Za-z0-9]*(\.[A-Za-z0-9-]+)+$/);
+    // An error code keeps its own spelling in its lead's key (`errors.code.NOT_FOUND`).
+    for (const key of keys) expect(key, key).toMatch(/^[a-z][A-Za-z0-9]*(\.[A-Za-z0-9-]+)+$|^errors\.code\.[A-Z_]+$/);
   });
 
   it('keep plural messages plural, with the forms Arabic needs', () => {

@@ -42,7 +42,10 @@ export class ProjectTab implements TabComponent {
     return id ? (this.openProjects.projects().find((p) => p.id === id) ?? null) : null;
   });
   protected readonly docState = computed(() => this.docs.read(this.projectId()));
-  protected readonly loadError = computed(() => this.docs.errors()[this.projectId() ?? '']);
+  protected readonly loadError = computed(() => {
+    const error = this.docs.errors()[this.projectId() ?? ''];
+    return error ? this.i18n.error(error) : null;
+  });
   protected readonly left = computed(() => this.panels.panels().filter((p) => p.side === 'left'));
   protected readonly centers = computed(() => this.panels.panels().filter((p) => p.side === 'center'));
   /** The main view: the one chosen for this project, else the first registered (the plan). */

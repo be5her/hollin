@@ -1,10 +1,12 @@
 import { Service, signal } from '@angular/core';
-import { t, toErrorPayload } from '@studio/core';
+import { errorText, t } from '@studio/core';
 
 export interface Toast {
   id: number;
   kind: 'info' | 'success' | 'error';
   message: string;
+  /** An untranslated error's English message, under its translated lead (`message`), shown left to right. */
+  detail?: string;
   /** A button on the toast (Show, for an exported file), which also dismisses it. */
   action?: ToastAction;
 }
@@ -23,9 +25,9 @@ export class Toasts {
   readonly toasts = this.list.asReadonly();
 
   /** Show a notice; one with an action stays as long as an error, so there is time to use it. */
-  notify(message: string, kind: Toast['kind'] = 'info', action?: ToastAction): void {
+  notify(message: string, kind: Toast['kind'] = 'info', action?: ToastAction, detail?: string): void {
     const id = ++this.seq;
-    this.list.update((toasts) => [...toasts, { id, kind, message, ...(action ? { action } : {}) }]);
+    this.list.update((toasts) => [...toasts, { id, kind, message, ...(detail ? { detail } : {}), ...(action ? { action } : {}) }]);
     setTimeout(() => this.dismiss(id), kind === 'error' || action ? 6000 : 3000);
   }
 
@@ -35,9 +37,14 @@ export class Toasts {
     toast.action?.run();
   }
 
-  /** Show what went wrong, whatever was thrown. */
+  /**
+   * Show what went wrong, whatever was thrown, in the language of the moment: the error's own text when
+   * it carries a translation (or the interface is English), else the translated lead for its code with
+   * the English message under it (`errorText`).
+   */
   error(err: unknown): void {
-    this.notify(toErrorPayload(err).message, 'error');
+    const { text, detail } = errorText(err);
+    this.notify(text, 'error', undefined, detail);
   }
 
   dismiss(id: number): void {

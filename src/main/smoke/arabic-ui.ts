@@ -1,4 +1,6 @@
-import type { Entity, ProjectSummary } from '@studio/core';
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
+import { agentPayload, type Entity, type ProjectSummary } from '@studio/core';
 import { wait, type Smoke } from './harness';
 import { canvas, canvasAttr, tab, view } from './plan-canvas';
 import { sceneAttr } from './scene-canvas';
@@ -260,6 +262,7 @@ async function smokeArabicLibrary(smoke: Smoke): Promise<void> {
 
   if (project) await smokeArabicPlan(smoke, project.id);
   if (project) await smokeArabicBuilding(smoke, project.id);
+  if (project) await smokeArabicMain(smoke, project.id);
 
   // The project leaves: its tab closes and it goes to the trash, so the sections after this one count the library they expect.
   if (project) {
@@ -629,3 +632,99 @@ async function smokeArabicBuilding(smoke: Smoke, projectId: string): Promise<voi
   await smoke.click(`[data-testid=tab][data-type="project.editor"][data-title="${ARABIC_NAME}"]`);
   await smoke.until(() => smoke.js<boolean>(`document.querySelector('${tab} [data-testid=project-name]')?.value === ${JSON.stringify(ARABIC_NAME)}`));
 }
+
+/** Dismisses every toast (their close buttons are named in the interface's language). */
+const dismissToasts = (smoke: Smoke) => smoke.js(`[...document.querySelectorAll('x-toast-host button[aria-label]')].forEach((b) => b.click())`);
+
+/**
+ * What main writes, in Arabic (milestone 12, step 5): the default names of the project made in Arabic
+ * (its ground floor and layers, the level added in Arabic) on the Levels and Layers panels and the level
+ * switcher; an edit made through a command, labelled and signed in Arabic in History; an error main
+ * translates shown as an Arabic toast, an untranslated one as the code's Arabic lead over its English
+ * message left to right (agents and the English interface still read the message as it was); and the
+ * native save picker asked with an Arabic title.
+ */
+async function smokeArabicMain(smoke: Smoke, projectId: string): Promise<void> {
+  const { host } = smoke;
+  const run = <T = unknown>(id: string, input: unknown = {}) => smoke.run<T>(id, input, { projectId });
+  const doc = () => host.projects.session(projectId)!.doc;
+  const ground = doc().building.groundLevelId;
+
+  smoke.section('arabic: default names');
+  const levels = Object.values(doc().levels).map((l) => l.name);
+  const layers = Object.values(doc().layers).filter((l) => l.levelId === ground).sort((a, b) => a.order - b.order).map((l) => l.name);
+  smoke.check('the project made in Arabic has an Arabic ground floor, and the level added in Arabic an Arabic name', levels.includes('الطابق الأرضي') && levels.includes('الطابق 1'), levels);
+  smoke.check('its layers carry the Arabic default names', layers.join('|') === 'إنشائية|داخلية|ديكور', layers);
+  const rowNames = () => smoke.js<string[]>(`[...document.querySelectorAll('${tab} [data-testid=level-row-name]')].map((e) => e.textContent.trim())`);
+  smoke.check('the Levels panel shows them', await smoke.until(async () => (await rowNames()).includes('الطابق الأرضي') && (await rowNames()).includes('الطابق 1')), await rowNames());
+  const layerNames = () => smoke.js<string[]>(`[...document.querySelectorAll('${tab} [data-testid=layer-name]')].map((e) => e.textContent.trim())`);
+  smoke.check('so does the Layers panel', await smoke.until(async () => (await layerNames()).join('|') === 'إنشائية|داخلية|ديكور'), await layerNames());
+  const switcher = await smoke.js<string>(`document.querySelector('${tab} [data-testid=plan-level] option[value="${ground}"]')?.textContent ?? ''`);
+  smoke.check('and the level switcher', switcher.includes('الطابق الأرضي'), switcher);
+
+  smoke.section('arabic: History written in Arabic');
+  const walls = Object.values(doc().levelData[ground].entities).filter((e): e is Wall => e.type === 'wall');
+  const xs = walls.flatMap((w) => w.path.v.map((v) => v.p[0]));
+  const ys = walls.flatMap((w) => w.path.v.map((v) => v.p[1]));
+  // A wall below the room, through the command the Wall tool uses: a user edit.
+  await run('plan.wall.add', { levelId: ground, from: [Math.min(...xs), Math.min(...ys) - 2000], to: [Math.max(...xs), Math.min(...ys) - 2000] });
+  const history = await run<{ undo: { label: string; author: { kind: string; name: string } }[] }>('edit.history');
+  smoke.check('the edit is labelled in Arabic, the author kept as data', history.undo[0]?.label === 'إضافة جدار' && history.undo[0].author.kind === 'user' && history.undo[0].author.name === 'You', history.undo[0]);
+  await smoke.click(`${tab} [data-testid=right-tab-history]`);
+  const newest = `${tab} [data-testid=history-item][data-newest=true]`;
+  smoke.check('History lists it with its Arabic label', await smoke.waitFor(`${newest}[data-label="إضافة جدار"]`, 3000), await smoke.text(`${tab} [data-testid=history-list]`));
+  smoke.check(
+    'signed in Arabic with its layer (the Arabic default name), while data-author stays English',
+    (await smoke.text(`${newest} [data-testid=history-signature]`)) === 'أنت · إنشائية' && (await smoke.js<string>(`document.querySelector('${newest}')?.dataset.author ?? ''`)) === 'You',
+    await smoke.text(`${newest} [data-testid=history-signature]`),
+  );
+  await smoke.shots('100-history-labels-arabic');
+
+  smoke.section('arabic: errors from main');
+  const library = host.projects.info().path;
+  const inside = path.join(library, 'plan.pdf');
+  await dismissToasts(smoke);
+  await smoke.click(`${tab} [data-testid=exchange-export]`);
+  await smoke.waitFor('[data-testid=export-format-pdf]');
+  await smoke.click('[data-testid=export-format-pdf]');
+  const asked = smoke.dialogs.asked.length;
+  smoke.nextDialogPath(inside);
+  await smoke.click('[data-testid=export-confirm]');
+  smoke.check('the save picker is asked once', await smoke.until(() => smoke.dialogs.asked.length === asked + 1));
+  const save = smoke.dialogs.asked.at(-1);
+  smoke.check('with an Arabic title and an Arabic filter name', save?.kind === 'pickSavePath' && ARABIC.test(save.options.title ?? '') && ARABIC.test(save.options.filters?.[0]?.name ?? ''), save);
+  const message = '[data-testid=toast-message]';
+  smoke.check('an export into the library is refused with an Arabic toast', await smoke.waitFor(message, 10_000, 'لا يمكن حفظ الملفات المصدَّرة داخل مكتبة المشاريع'), await smoke.text(message));
+  const translated = (await smoke.text(message)) ?? '';
+  smoke.check('the library folder in it isolated left to right, no English detail under it', translated.includes(`${LRI}${library}${PDI}`) && (await smoke.count('[data-testid=toast-detail]')) === 0, translated);
+  await smoke.shots('101-error-toast-arabic');
+  // The payload behind it: the English message as it always read (what agents get, without the phrase), and the phrase the toast showed.
+  const refused = await host.invoke('export.plan', { path: inside, format: 'pdf' }, { caller: 'ui', projectId });
+  smoke.check(
+    'the error keeps its English message for agents, the phrase beside it',
+    !refused.ok && refused.error.message === `Exports cannot be written inside the project library (${library}); choose another folder.` && refused.error.i18n?.key === 'errors.exchange.insideLibrary' && !('i18n' in agentPayload(refused.error)),
+    refused,
+  );
+
+  // A file where the export's folder would be: writing under it fails with the system's own (English) error, which main does not translate.
+  const blocker = path.join(host.opts.userDataDir, 'arabic-blocker');
+  await fs.writeFile(blocker, 'not a folder');
+  await dismissToasts(smoke);
+  await smoke.click(`${tab} [data-testid=exchange-export]`);
+  await smoke.waitFor('[data-testid=export-confirm]');
+  smoke.nextDialogPath(path.join(blocker, 'plan.pdf'));
+  await smoke.click('[data-testid=export-confirm]');
+  const detail = '[data-testid=toast-detail]';
+  smoke.check('an untranslated error shows the Arabic lead for its code', await smoke.waitFor(message, 10_000, 'حدث خطأ غير متوقع.'), await smoke.text(message));
+  smoke.check(
+    'with its English message under it, left to right',
+    (await smoke.waitFor(detail, 3000)) && /[A-Za-z]/.test((await smoke.text(detail)) ?? '') && (await direction(smoke, detail)) === 'ltr',
+    { detail: await smoke.text(detail), direction: await direction(smoke, detail) },
+  );
+  await smoke.shots('102-error-lead-arabic');
+  await dismissToasts(smoke);
+  await fs.rm(blocker, { force: true });
+}
+
+/** Any Arabic letter. */
+const ARABIC = /[\u0600-\u06ff]/;

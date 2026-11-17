@@ -4,8 +4,11 @@ import { building } from './building';
 import { builtin } from './builtin';
 import { common } from './common';
 import { decor } from './decor';
+import { defaults } from './defaults';
 import { edit } from './edit';
+import { errors } from './errors';
 import { exchange } from './exchange';
+import { labels } from './labels';
 import { library } from './library';
 import { plan } from './plan';
 import { rules } from './rules';
@@ -29,4 +32,7 @@ export const ar: Record<MessageKey, Message> = {
   ...rules,
   ...decor,
   ...builtin,
+  ...errors,
+  ...labels,
+  ...defaults,
 };

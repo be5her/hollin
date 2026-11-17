@@ -61,7 +61,7 @@ Nothing in the library: the files go where `path` says, which may not be inside 
 
 ## Verified by
 
-In Arabic, `src/main/smoke/arabic-ui.ts` opens the export dialog from the project tab's toolbar (Arabic labels and levels hint, the 3D line with its angle in an isolate, Cancel; screenshot `85-export-arabic`).
+In Arabic, `src/main/smoke/arabic-ui.ts` also exports into the library from the dialog: the save picker is asked with an Arabic title and filter, the refusal shows as an Arabic toast with the folder isolated left to right while the payload keeps the English message for agents (screenshot `101-error-toast-arabic`), and an export under a file fails with the system's English error under the Arabic lead `حدث خطأ غير متوقع.` (screenshot `102-error-lead-arabic`). It also opens the export dialog from the project tab's toolbar (Arabic labels and levels hint, the 3D line with its angle in an isolate, Cancel; screenshot `85-export-arabic`).
 
 Since milestone 11 step 6 the print palette and the title block changed (the wordmark, Helvetica Bold as a third font in the PDF, the DXF colour indices); the independent readers checked them again on 2026-10-31 (below). In the SVG the wordmark is one text with its full stop as a `tspan`, so the stop follows the name in whatever font the reader draws; the PDF places the two runs measured in Helvetica Bold. `colors.test.ts` pins the palette and the indices, `paper.test.ts` the block's layout, `svg.test.ts` its rect and texts in mm, `pdf.test.ts` its content stream, fonts and xref.
 

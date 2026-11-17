@@ -105,5 +105,14 @@ export function t(key: MessageKey, params?: MessageParams): string {
   return translate(current, key, params);
 }
 
+/**
+ * An entity type or connector kind as a History label names it ("wall", "stair": `tools.noun.*`), in
+ * the process's language; anything else as it is. The English noun is the type itself.
+ */
+export function nounOf(type: string): string {
+  const key = `tools.noun.${type}`;
+  return isMessageKey(key) ? t(key) : type;
+}
+
 /** English with lengths in millimetres as core writes them: the text agents read of a `Phrase` (a warning's `message`). */
 export const ENGLISH_PHRASE: PhraseFormat = { translate: (key, params) => translate('en', key, params), length: mmText };

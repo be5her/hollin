@@ -92,7 +92,7 @@ export function hostCommands(host: Host) {
       hidden: true,
       input: z.object({}),
       handler: async () => {
-        if (!host.config.get().mcp.enabled) throw new StudioError('CONFLICT', 'The MCP server is turned off in Settings.');
+        if (!host.config.get().mcp.enabled) throw new StudioError('CONFLICT', { key: 'errors.mcp.off' });
         await host.startMcp();
         return host.mcpStatus();
       },

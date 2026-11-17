@@ -41,9 +41,9 @@ const sha = (text: string) => createHash('sha256').update(text).digest('hex').sl
  */
 export async function readProjectDir(dir: string, options: { removeStrays?: boolean } = {}): Promise<ReadResult> {
   const raw = await readJsonFile(path.join(dir, PROJECT_FILE)).catch((err: Error) => {
-    throw new StudioError('INVALID_INPUT', `project.json could not be read: ${err.message}`);
+    throw new StudioError('INVALID_INPUT', { key: 'errors.project.unreadable', params: { reason: err.message } });
   });
-  if (raw === undefined) throw new StudioError('NOT_FOUND', `No project in ${dir}`);
+  if (raw === undefined) throw new StudioError('NOT_FOUND', { key: 'errors.project.noneInFolder', params: { folder: dir } });
   const { project: migrated, from, migrated: wasMigrated } = migrateProject(raw);
   const project = parseProjectFile(migrated);
   const warnings: string[] = [];

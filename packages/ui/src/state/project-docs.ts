@@ -1,5 +1,5 @@
 import { Service, computed, inject, signal, untracked, type Signal } from '@angular/core';
-import { applyPatch, toErrorPayload, type DocPatch, type HistoryState, type ProjectDoc } from '@studio/core';
+import { applyPatch, toErrorPayload, type DocPatch, type ErrorPayload, type HistoryState, type ProjectDoc } from '@studio/core';
 import { HostBridge } from '../host/host-bridge';
 
 export interface DocState {
@@ -21,7 +21,7 @@ export class ProjectDocs {
   private readonly host = inject(HostBridge);
   private readonly states = signal<Record<string, DocState>>({});
   private readonly loading = new Map<string, Patch[]>();
-  readonly errors = signal<Record<string, string>>({});
+  readonly errors = signal<Record<string, ErrorPayload>>({});
 
   constructor() {
     this.host.on('doc.patched', (patch) => this.patched(patch));
@@ -63,7 +63,7 @@ export class ProjectDocs {
       this.states.update((all) => ({ ...all, [projectId]: state }));
       this.errors.update(({ [projectId]: _gone, ...rest }) => rest);
     } catch (err) {
-      this.errors.update((all) => ({ ...all, [projectId]: toErrorPayload(err).message }));
+      this.errors.update((all) => ({ ...all, [projectId]: toErrorPayload(err) }));
     } finally {
       this.loading.delete(projectId);
     }

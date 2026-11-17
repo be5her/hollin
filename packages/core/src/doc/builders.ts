@@ -1,13 +1,14 @@
 import { StudioError } from '../errors';
+import { t, type Phrase } from '../i18n';
 import { newId } from '../ids';
-import { DEFAULT_LEVEL_HEIGHT, DEFAULT_SLAB_THICKNESS, LAYER_NAMES, defaultLayers } from './defaults';
+import { DEFAULT_LEVEL_HEIGHT, DEFAULT_SLAB_THICKNESS, defaultLayers, layerName, nextNumberedName } from './defaults';
 import { deriveLevels, elevationChange } from './derive';
 import type { Op } from './ops';
 import { pruneAnchors, resolveDimension, untiedFields } from '../geometry/dimensions';
 import { remapRefs } from './refs';
 import { CONNECTOR_PREFIX, ENTITY_LAYER, ENTITY_PREFIX, LAYER_KINDS, type Connector, type Entity, type Layer, type LayerKind, type Level, type ProjectDoc } from './schema';
 
-const fail = (code: 'NOT_FOUND' | 'CONFLICT' | 'INVALID_INPUT', message: string): never => {
+const fail = (code: 'NOT_FOUND' | 'CONFLICT' | 'INVALID_INPUT', message: string | Phrase): never => {
   throw new StudioError(code, message);
 };
 
@@ -41,11 +42,7 @@ export interface AddLevelInput {
 }
 
 function defaultLevelName(doc: ProjectDoc, basement: boolean): string {
-  const names = new Set(Object.values(doc.levels).map((l) => l.name.toLowerCase()));
-  for (let n = 1; ; n++) {
-    const name = basement ? `Basement ${n}` : `Level ${n}`;
-    if (!names.has(name.toLowerCase())) return name;
-  }
+  return nextNumberedName(basement ? 'defaults.level.basement' : 'defaults.level.numbered', Object.values(doc.levels).map((l) => l.name));
 }
 
 function stackIndexFor(doc: ProjectDoc, position: LevelPosition = 'top'): number {
@@ -70,8 +67,8 @@ export function addLevelOps(doc: ProjectDoc, input: AddLevelInput = {}): { ops: 
   const ops: Op[] = [];
   if (input.offsetFrom) {
     requireLevel(doc, input.offsetFrom.levelId);
-    if (!doc.building.stack.includes(input.offsetFrom.levelId)) fail('INVALID_INPUT', 'A mezzanine must be placed from a stacked level');
-    const name = input.name ?? 'Mezzanine';
+    if (!doc.building.stack.includes(input.offsetFrom.levelId)) fail('INVALID_INPUT', { key: 'errors.level.mezzanineHost' });
+    const name = input.name ?? t('defaults.level.mezzanine');
     ops.push({ t: 'ins', c: 'level', id, v: { id, name, slabThickness, place: { k: 'offset', hostLevelId: input.offsetFrom.levelId, offset: input.offsetFrom.offset, height } } });
   } else {
     const index = stackIndexFor(doc, input.position);
@@ -106,9 +103,9 @@ export function updateLevelOps(doc: ProjectDoc, levelId: string, input: UpdateLe
   if (input.slabThickness !== undefined) set['slabThickness'] = input.slabThickness;
   if (input.height !== undefined) set['place'] = { ...level.place, height: input.height };
   if (input.hostLevelId !== undefined && !(level.place.k === 'offset' && level.place.hostLevelId === input.hostLevelId)) {
-    if (level.place.k !== 'offset') fail('INVALID_INPUT', 'Only a mezzanine can change its host; reorder stacked levels instead');
+    if (level.place.k !== 'offset') fail('INVALID_INPUT', { key: 'errors.level.onlyMezzanineRehosts' });
     requireLevel(doc, input.hostLevelId);
-    if (!doc.building.stack.includes(input.hostLevelId)) fail('INVALID_INPUT', 'A mezzanine must be placed from a stacked level');
+    if (!doc.building.stack.includes(input.hostLevelId)) fail('INVALID_INPUT', { key: 'errors.level.mezzanineHost' });
     const derived = deriveLevels(doc);
     const elevation = derived.find((l) => l.id === levelId)!.elevation;
     const host = derived.find((l) => l.id === input.hostLevelId)!;
@@ -118,7 +115,7 @@ export function updateLevelOps(doc: ProjectDoc, levelId: string, input: UpdateLe
   }
   if (Object.keys(set).length) ops.push({ t: 'upd', c: 'level', id: levelId, set });
   if (input.ground) {
-    if (!doc.building.stack.includes(levelId)) fail('INVALID_INPUT', 'Only a stacked level can be the ground level');
+    if (!doc.building.stack.includes(levelId)) fail('INVALID_INPUT', { key: 'errors.level.groundStacked' });
     const elevation = deriveLevels(doc).find((l) => l.id === levelId)!.elevation;
     ops.push({ t: 'upd', c: 'building', id: 'building', set: { groundLevelId: levelId, datum: elevation } });
   }
@@ -144,7 +141,7 @@ export function updateLevelOps(doc: ProjectDoc, levelId: string, input: UpdateLe
 export function moveLevelOps(doc: ProjectDoc, levelId: string, toIndex: number): Op[] {
   requireLevel(doc, levelId);
   const stack = doc.building.stack.filter((id) => id !== levelId);
-  if (stack.length === doc.building.stack.length) fail('INVALID_INPUT', 'Only stacked levels can be reordered; move a mezzanine by changing its host or offset');
+  if (stack.length === doc.building.stack.length) fail('INVALID_INPUT', { key: 'errors.level.reorderStacked' });
   stack.splice(Math.max(0, Math.min(toIndex, stack.length)), 0, levelId);
   return [{ t: 'upd', c: 'building', id: 'building', set: { stack } }];
 }
@@ -158,8 +155,8 @@ export function removeLevelOps(doc: ProjectDoc, levelId: string): Op[] {
   const level = requireLevel(doc, levelId);
   const { stack, groundLevelId } = doc.building;
   const hosted = Object.values(doc.levels).filter((l) => l.place.k === 'offset' && l.place.hostLevelId === levelId);
-  if (hosted.length) fail('CONFLICT', `Remove or re-host ${hosted.map((l) => `"${l.name}"`).join(', ')} first: ${hosted.length === 1 ? 'it is' : 'they are'} placed from this level.`);
-  if (stack.length === 1 && stack[0] === levelId) fail('CONFLICT', 'A building needs at least one level.');
+  if (hosted.length) fail('CONFLICT', { key: 'errors.level.hosted', params: { count: hosted.length, names: hosted.map((l) => `"${l.name}"`).join(', ') } });
+  if (stack.length === 1 && stack[0] === levelId) fail('CONFLICT', { key: 'errors.level.last' });
   const ops: Op[] = [];
   for (const e of Object.values(doc.levelData[levelId]?.entities ?? {})) ops.push({ t: 'del', c: 'entity', id: e.id, lv: levelId });
   // Things on other levels that run up to this one stop at their own level (a shaft, whose span is required, at its own ceiling).
@@ -242,7 +239,7 @@ export function levelRemovalImpact(doc: ProjectDoc, levelId: string): LevelRemov
  */
 export function duplicateLevelOps(doc: ProjectDoc, levelId: string, input: { name?: string } = {}): { ops: Op[]; levelId: string } {
   const source = requireLevel(doc, levelId);
-  if (source.place.k !== 'stack') fail('INVALID_INPUT', 'Mezzanines cannot be duplicated yet; add a new one instead');
+  if (source.place.k !== 'stack') fail('INVALID_INPUT', { key: 'errors.level.duplicateMezzanine' });
   const id = newId('lvl');
   const map = new Map<string, string>([[levelId, id]]);
   const layers = layersOf(doc, levelId);
@@ -252,7 +249,7 @@ export function duplicateLevelOps(doc: ProjectDoc, levelId: string, input: { nam
   const stack = [...doc.building.stack];
   stack.splice(stack.indexOf(levelId) + 1, 0, id);
   const ops: Op[] = [
-    { t: 'ins', c: 'level', id, v: { ...source, id, name: input.name ?? `${source.name} copy` } },
+    { t: 'ins', c: 'level', id, v: { ...source, id, name: input.name ?? t('defaults.copy', { name: source.name }) } },
     { t: 'upd', c: 'building', id: 'building', set: { stack } },
   ];
   for (const l of layers) {
@@ -279,7 +276,7 @@ export function addLayerOps(doc: ProjectDoc, input: { levelId: string; kind: Lay
     id,
     levelId: input.levelId,
     kind: input.kind,
-    name: input.name ?? (sameKind ? `${LAYER_NAMES[input.kind]} ${sameKind + 1}` : LAYER_NAMES[input.kind]),
+    name: input.name ?? (sameKind ? t('defaults.layer.numbered', { name: layerName(input.kind), n: sameKind + 1 }) : layerName(input.kind)),
     order: (existing[existing.length - 1]?.order ?? -1) + 1,
     visible: true,
     locked: false,
@@ -292,7 +289,7 @@ export function addLayerOps(doc: ProjectDoc, input: { levelId: string; kind: Lay
 export function removeLayerOps(doc: ProjectDoc, layerId: string, withEntities = false): Op[] {
   const layer = doc.layers[layerId] ?? fail('NOT_FOUND', `No layer ${layerId}`);
   const held = Object.values(doc.levelData[layer.levelId]?.entities ?? {}).filter((e) => e.layerId === layerId);
-  if (held.length && !withEntities) fail('CONFLICT', `Layer "${layer.name}" holds ${held.length} item${held.length === 1 ? '' : 's'}; move them or remove them with the layer.`);
+  if (held.length && !withEntities) fail('CONFLICT', { key: 'errors.layer.holds', params: { name: layer.name, count: held.length } });
   return [...deleteEntitiesOps(doc, held.map((e) => e.id)), { t: 'del', c: 'layer', id: layerId }];
 }
 

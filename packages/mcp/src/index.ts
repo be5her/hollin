@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { localhostHostValidation, localhostOriginValidation, toNodeHandler } from '@modelcontextprotocol/node';
 import { McpServer, createMcpHandler } from '@modelcontextprotocol/server';
-import { DESIGN_GUIDELINES, ProjectDocSchema, StudioError, isImageResult, splitImageResult, toErrorPayload, toolNameFor, type AssistantCaller, type CommandMeta, type CommandRegistry, type HostApi, type McpCallEntry, type ProjectApi } from '@studio/core';
+import { DESIGN_GUIDELINES, agentPayload, ProjectDocSchema, StudioError, isImageResult, splitImageResult, toErrorPayload, toolNameFor, type AssistantCaller, type CommandMeta, type CommandRegistry, type HostApi, type McpCallEntry, type ProjectApi } from '@studio/core';
 import { z } from 'zod';
 import { SESSION_HEADER, agentLabel, identifyAgent, rpcMessages, type McpAgent } from './agent';
 
@@ -181,7 +181,8 @@ export function buildMcpServer(opts: McpServerOptions, scope: CallScope): McpSer
           }
           return { content: [{ type: 'text' as const, text: JSON.stringify(result ?? null, null, 2) }] };
         } catch (err) {
-          const payload = toErrorPayload(err);
+          // Agents read the English message; the interface's phrase (`i18n`) is not theirs.
+          const payload = agentPayload(toErrorPayload(err));
           if (!(err instanceof StudioError)) console.error(`[mcp] ${meta.id} failed`, err);
           opts.onCall?.({ tool: meta.id, agent, caller, projectId, ok: false, error: payload.code, durationMs: performance.now() - started, at: new Date().toISOString() });
           return { content: [{ type: 'text' as const, text: JSON.stringify(payload, null, 2) }], isError: true };
@@ -254,7 +255,7 @@ export async function startMcpServer(opts: McpServerOptions): Promise<RunningMcp
   const httpServer: Server = createServer((req, res) => {
     handle(req, res).catch((err) => {
       console.error('[mcp] request failed', err);
-      if (!res.headersSent) json(res, 500, { error: toErrorPayload(err) });
+      if (!res.headersSent) json(res, 500, { error: agentPayload(toErrorPayload(err)) });
       else res.end();
     });
   });

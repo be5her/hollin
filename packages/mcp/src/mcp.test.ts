@@ -47,6 +47,16 @@ function registry(): CommandRegistry {
           throw new StudioError('NOT_FOUND', 'nothing here');
         },
       }),
+      defineCommand({
+        id: 'test.lost',
+        title: 'Lost',
+        description: 'Fails with an error the interface translates.',
+        scope: 'global',
+        input: z.object({}),
+        handler: async () => {
+          throw new StudioError('NOT_FOUND', { key: 'errors.library.noProject', params: { id: 'prj_x' } });
+        },
+      }),
     ],
   });
   return r;
@@ -115,7 +125,7 @@ describe('MCP server over HTTP', () => {
     expect(text(await client.callTool({ name: 'test_where', arguments: { projectId: 'prj_a' } }))).toEqual({ project: 'prj_b', agent: 'claude-code 9.9.9', caller: 'assistant' });
     const declined = await client.callTool({ name: 'test_wipe', arguments: {} });
     expect(declined.isError).toBe(true);
-    expect(text(declined)).toMatchObject({ code: 'MUTATION_DECLINED' });
+    expect(text(declined)).toEqual({ code: 'MUTATION_DECLINED', message: 'The user declined "Wipe".' });
     expect(text(await client.callTool({ name: 'test_wipe', arguments: {} }))).toBe('wiped');
     expect(asked).toEqual([
       { command: 'test.wipe', caller: 'assistant', insideRun: true },
@@ -144,7 +154,7 @@ describe('MCP server over HTTP', () => {
 
       const { tools } = await client.listTools();
       const names = tools.map((t) => t.name).sort();
-      expect(names).toEqual(['test_add', 'test_edit', 'test_fail', 'test_picture', 'test_where', 'test_wipe']);
+      expect(names).toEqual(['test_add', 'test_edit', 'test_fail', 'test_lost', 'test_picture', 'test_where', 'test_wipe']);
       const wipe = tools.find((t) => t.name === 'test_wipe')!;
       expect(wipe.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: true });
       expect(wipe.description).toContain('Gated');
@@ -165,6 +175,11 @@ describe('MCP server over HTTP', () => {
       expect(failed.isError).toBe(true);
       expect(text(failed)).toEqual({ code: 'NOT_FOUND', message: 'nothing here' });
 
+      // An error the interface shows translated reaches agents exactly as before: the English message, no phrase.
+      const lost = await client.callTool({ name: 'test_lost', arguments: {} });
+      expect(lost.isError).toBe(true);
+      expect(text(lost)).toEqual({ code: 'NOT_FOUND', message: 'No project with id prj_x' });
+
       const blocked = await client.callTool({ name: 'test_wipe', arguments: {} });
       expect(text(blocked)).toMatchObject({ code: 'MUTATION_BLOCKED' });
 
@@ -174,6 +189,7 @@ describe('MCP server over HTTP', () => {
         ['test.where', true, 'test-agent 1.2.3'],
         ['test.where', false, 'test-agent 1.2.3'],
         ['test.fail', false, 'test-agent 1.2.3'],
+        ['test.lost', false, 'test-agent 1.2.3'],
         ['test.wipe', false, 'test-agent 1.2.3'],
       ]);
       expect(calls[3].error).toBe('NOT_FOUND');

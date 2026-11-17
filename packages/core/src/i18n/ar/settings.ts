@@ -87,4 +87,6 @@ export const settings = {
   'settings.licences.title': 'التراخيص',
   'settings.licences.note': 'الخطوط مضمّنة وفق تراخيصها. الأيقونات من Lucide (ISC؛ وبعضها مشتق من Feather، MIT).',
   'settings.licences.font': 'الخط',
+  'settings.mcp.portInUse': 'المنفذ {port} مستخدم بالفعل. اختر منفذًا آخر.',
+  'settings.mcp.failed': 'تعذّر تشغيل خادم MCP: \u2066{detail}\u2069',
 } satisfies Record<keyof typeof source, Message>;
