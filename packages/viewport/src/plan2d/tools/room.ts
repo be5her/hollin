@@ -1,4 +1,4 @@
-import { cavityAt, formatArea, labelPoint, type Cavity, type Vec2 } from '@studio/core';
+import { t, cavityAt, formatArea, labelPoint, type Cavity, type Vec2 } from '@studio/core';
 import { tracePolygon } from '../draw';
 import { drawScreenText, type RenderFrame } from '../render';
 import { withAlpha } from '../theme';
@@ -32,7 +32,7 @@ export class RoomTool implements Tool {
   }
 
   hint(): string {
-    return this.hover ? 'Click to make this space a room · V: select' : 'Move into a space enclosed by walls (or dividers) · V: select';
+    return t(this.hover ? 'tools.room.hover' : 'tools.room.idle');
   }
 
   draw(ctx: CanvasRenderingContext2D, frame: RenderFrame): void {

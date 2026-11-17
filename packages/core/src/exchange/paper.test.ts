@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BRANDING } from '../branding';
-import { PAGE_MARGIN, TITLE_BLOCK, TITLE_BLOCK_ACCENT, drawingArea, fitText, textWidthEm, titleBlock, winAnsi } from './paper';
+import { setLanguage } from '../i18n';
+import { PAGE_MARGIN, TITLE_BLOCK, TITLE_BLOCK_ACCENT, drawingArea, fitText, sheetDate, textWidthEm, titleBlock, winAnsi } from './paper';
 
 const widthMm = (t: { text: string; size: number }) => textWidthEm(winAnsi(t.text)) * t.size;
 const room = TITLE_BLOCK.width - 6;
@@ -63,5 +64,49 @@ describe('the title block', () => {
     const [left, right] = [420 - 10 - TITLE_BLOCK.width, 420 - 10];
     for (const t of block.texts) expect(t.at[0] + (t.align === 'left' ? widthMm(t) : 0)).toBeLessThanOrEqual(right - 3 + 1e-9);
     expect(block.texts.every((t) => t.at[0] >= left)).toBe(true);
+  });
+});
+
+describe('the title block in Arabic', () => {
+  it('writes the scale in the language and mirrors the layout inside the block', () => {
+    setLanguage('ar');
+    try {
+      const block = titleBlock(420, { title: 'بيت الأُسرة', levelName: 'الطابق الأرضي', scale: 50, date: '17 نوفمبر 2026' });
+      const [x0, x1] = [420 - 10 - TITLE_BLOCK.width, 420 - 10];
+      const by = (text: string) => block.texts.find((t) => t.text === text)!;
+      expect(by('المقياس 1:50')).toMatchObject({ at: [x1 - 3, 10 + 2.8], align: 'right', direction: 'rtl' });
+      expect(by('الطابق الأرضي')).toMatchObject({ at: [x1 - 3, 10 + 24 - 13], align: 'right' });
+      expect(by('17 نوفمبر 2026')).toMatchObject({ at: [x0 + 3, 10 + 2.8], align: 'left', direction: 'rtl' });
+      expect(by('بيت الأُسرة')).toMatchObject({ at: [x0 + 3, 10 + 24 - 6], align: 'left' });
+      // The wordmark, a Latin name, ends 3 mm inside the right edge, its full stop after it.
+      const name = by(BRANDING.productName);
+      const stop = block.texts.find((t) => t.stop)!;
+      expect(name.align).toBe('left');
+      expect(stop.at[0]).toBeGreaterThan(name.at[0]);
+      expect(stop.at[0] + textWidthEm(winAnsi('.'), false, true) * stop.size).toBeCloseTo(x1 - 3, 9);
+      // The block's frame does not move.
+      expect(block.lines).toEqual(titleBlock(420, { title: 'House', levelName: 'Ground', scale: 50, direction: 'ltr' }).lines);
+    } finally {
+      setLanguage('en');
+    }
+    expect(titleBlock(420, { title: 'House', levelName: 'Ground', scale: 50 }).texts.find((t) => t.text.startsWith('Scale'))?.text).toBe('Scale 1:50');
+  });
+
+  it('dates a sheet in the language: YYYY-MM-DD in English, the month by name in Arabic with Western digits', () => {
+    const day = new Date(2026, 10, 7);
+    expect(sheetDate(day, 'en')).toBe('2026-11-07');
+    expect(sheetDate(day, 'ar')).toBe('7 نوفمبر 2026');
+  });
+
+  it('measures and cuts a name with the measure it is given', () => {
+    // A face twice as wide as Helvetica shrinks it sooner.
+    const wide = (text: string, size: number) => 2 * textWidthEm(winAnsi(text)) * size;
+    expect(fitText('House', 4, room).size).toBe(4);
+    expect(fitText('House', 4, 10, wide).size).toBeLessThan(fitText('House', 4, 10).size);
+    // An Arabic name cut by its own widths: shorter, with an ellipsis, inside the room.
+    const perChar = (text: string, size: number) => [...text].length * size * 0.5;
+    const cut = fitText('بيت الأسرة على شاطئ البحر الأبيض المتوسط', 4, 20, perChar);
+    expect(cut.text.endsWith('…')).toBe(true);
+    expect(perChar(cut.text, cut.size)).toBeLessThanOrEqual(20);
   });
 });

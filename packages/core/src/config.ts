@@ -28,6 +28,8 @@ export type ClaudeCodeEffort = (typeof CLAUDE_CODE_EFFORTS)[number];
 const SECTIONS = {
   appearance: z.object({
     theme: z.enum(['system', 'light', 'dark']),
+    /** The app's language; `system` follows the operating system's when it is one the app speaks (`LANGUAGES` in i18n), English otherwise. */
+    language: z.enum(['system', 'en', 'ar']),
   }),
   units: z.object({
     /** Display system. Lengths are always stored in millimetres. */
@@ -137,7 +139,7 @@ export type ThemePreference = GlobalConfig['appearance']['theme'];
 export type ConfigPatch = { [K in keyof GlobalConfig]?: Partial<GlobalConfig[K]> };
 
 const DEFAULTS: GlobalConfig = {
-  appearance: { theme: 'system' },
+  appearance: { theme: 'system', language: 'system' },
   units: { system: 'metric', metricUnit: 'mm', imperialStyle: 'ft-in', precision: 0, fraction: 16 },
   mcp: { enabled: true, port: BRANDING.defaultMcpPort, allowMutations: false },
   ai: { model: DEFAULT_AI_MODEL, provider: 'api', claudeCodePath: '', claudeCodeModel: '', claudeCodeEffort: '' },

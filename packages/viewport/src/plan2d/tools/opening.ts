@@ -1,5 +1,6 @@
-import { fitOpening, formatLength, nearestPoint, openingFrame, type Coordinate, type Entity, type Vec2 } from '@studio/core';
-import { drawOpeningSymbol, drawScreenText, type RenderFrame } from '../render';
+import { t, fitOpening, formatLength, nearestPoint, openingFrame, type Coordinate, type Entity, type Vec2 } from '@studio/core';
+import { latinKey } from '../keys';
+import { drawOpeningSymbol, drawScreenText, interfaceDirection, type RenderFrame } from '../render';
 import type { Tool, ToolHost, ToolPointer } from './tool';
 
 type Wall = Extract<Entity, { type: 'wall' }>;
@@ -49,7 +50,7 @@ export class OpeningTool implements Tool {
 
   key(e: KeyboardEvent): boolean {
     if (this.id !== 'door') return false;
-    const key = e.key.toLowerCase();
+    const key = latinKey(e).toLowerCase();
     if (key === 'f') {
       this.side = this.side === 'left' ? 'right' : 'left';
       this.host.invalidate();
@@ -83,10 +84,9 @@ export class OpeningTool implements Tool {
   }
 
   hint(): string {
-    const what = this.id === 'door' ? 'door' : 'window';
-    if (!this.hover) return `Move over a wall to place a ${what} · V: select`;
-    if (!this.hover.fits) return `No room for the ${what} on this wall`;
-    return `Click to place the ${what} · type a distance from the wall's start${this.id === 'door' ? ' · F: flip side · H: flip hinge' : ''}`;
+    if (!this.hover) return t(this.id === 'door' ? 'tools.door.hover' : 'tools.window.hover');
+    if (!this.hover.fits) return t(this.id === 'door' ? 'tools.door.noRoom' : 'tools.window.noRoom');
+    return t(this.id === 'door' ? 'tools.door.place' : 'tools.window.place');
   }
 
   draw(ctx: CanvasRenderingContext2D, frame: RenderFrame): void {
@@ -96,7 +96,7 @@ export class OpeningTool implements Tool {
     const color = hover.fits ? frame.theme.selection : frame.theme.warning;
     drawOpeningSymbol(ctx, frame, hover.wall, opening, color, true);
     const f = openingFrame(hover.wall, opening);
-    drawScreenText(ctx, frame, { text: `${formatLength(hover.along, frame.units)} from the start`, at: f.center, screenPx: 11, color, align: 'center', baseline: 'bottom', dy: -14, mono: true });
+    drawScreenText(ctx, frame, { text: t('tools.opening.fromStart', { length: formatLength(hover.along, frame.units) }), direction: interfaceDirection(), at: f.center, screenPx: 11, color, align: 'center', baseline: 'bottom', dy: -14, mono: true });
   }
 
   // ---------- internals ----------

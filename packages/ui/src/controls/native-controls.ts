@@ -16,7 +16,7 @@ export class Input {}
   selector: 'textarea[xTextarea]',
   host: {
     class:
-      'w-full rounded-md border border-edge bg-surface px-2.5 py-2 text-sm text-fg placeholder:text-muted/70 font-mono focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/30 disabled:opacity-50',
+      'w-full rounded-md border border-edge bg-surface px-2.5 py-2 text-sm text-fg placeholder:text-muted/70 font-mono rtl:font-sans focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/30 disabled:opacity-50',
     spellcheck: 'false',
   },
 })

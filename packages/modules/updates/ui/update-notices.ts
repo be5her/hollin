@@ -1,6 +1,6 @@
 import { DestroyRef, Service, inject } from '@angular/core';
 import type { UpdateState } from '@studio/core';
-import { HostBridge, TabsState, Toasts } from '@studio/ui';
+import { HostBridge, I18n, TabsState, Toasts } from '@studio/ui';
 
 /**
  * The update toasts, wherever the user is: a version found by the startup check (with Settings, which
@@ -12,6 +12,7 @@ export class UpdateNotices {
   private readonly host = inject(HostBridge);
   private readonly tabs = inject(TabsState);
   private readonly toasts = inject(Toasts);
+  private readonly t = inject(I18n).t;
   private started = false;
   private last: UpdateState['state'] | null = null;
 
@@ -25,7 +26,7 @@ export class UpdateNotices {
   /** Opens Settings at the Updates section. */
   openSettings(): void {
     const data = { key: 'settings', section: 'updates' };
-    const tab = this.tabs.open({ type: 'settings.main', title: 'Settings', data }, { singletonKey: 'settings.main:settings' });
+    const tab = this.tabs.open({ type: 'settings.main', title: 'Settings', titleKey: 'shell.tab.settings', data }, { singletonKey: 'settings.main:settings' });
     this.tabs.update(tab.id, { data });
   }
 
@@ -43,9 +44,9 @@ export class UpdateNotices {
     this.last = state.state;
     if (state.state === previous) return;
     if (state.state === 'available' && state.scheduled) {
-      this.toasts.notify(`Version ${state.version} is available`, 'info', { label: 'Settings', run: () => this.openSettings() });
+      this.toasts.notify(this.t('updates.state.available', { version: state.version ?? '' }), 'info', { label: this.t('updates.toast.settings'), run: () => this.openSettings() });
     } else if (state.state === 'ready') {
-      this.toasts.notify(`Version ${state.version} is ready to install`, 'success', { label: 'Restart and install', run: () => void this.install() });
+      this.toasts.notify(this.t('updates.toast.ready', { version: state.version ?? '' }), 'success', { label: this.t('updates.install'), run: () => void this.install() });
     }
   }
 }

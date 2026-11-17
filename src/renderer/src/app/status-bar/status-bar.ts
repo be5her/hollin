@@ -1,34 +1,34 @@
 import { Component, computed, inject } from '@angular/core';
-import { AppState, Icon, OpenProjects, ProjectView, relativeTime } from '@studio/ui';
+import { AppState, I18n, Icon, OpenProjects, ProjectView, relativeTime } from '@studio/ui';
 import { CircleAlert, Moon, Plug, Ruler, Sun } from 'lucide';
 import { ShellActions } from '../shell-actions';
 
-/** The project and its save state on the left; units, Otto's state, the MCP server and the theme on the right. */
+/** The project and its save state at the start; units, Otto's state, the MCP server and the theme at the end. */
 @Component({
   selector: 'footer[xStatusBar]',
   imports: [Icon],
   template: `
     @if (project(); as p) {
-      <span class="truncate max-w-80 text-fg/80" data-testid="status-project">{{ p.name }}</span>
+      <span class="truncate max-w-80 text-fg/80" dir="auto" data-testid="status-project">{{ p.name }}</span>
       <span class="flex items-center gap-1" data-testid="status-save" [attr.data-state]="p.save.state" [class.text-danger]="p.save.state === 'failed'">
         @switch (p.save.state) {
           @case ('saved') {
-            Saved {{ savedAgo() }}
+            {{ t('shell.status.saved', { ago: savedAgo() }) }}
           }
           @case ('failed') {
-            <svg [xIcon]="icons.CircleAlert" class="size-3"></svg>Not saved
+            <svg [xIcon]="icons.CircleAlert" class="size-3"></svg>{{ t('shell.status.notSaved') }}
           }
           @default {
-            Saving…
+            {{ t('shell.status.saving') }}
           }
         }
       </span>
     } @else {
-      <span data-testid="status-project">No project open</span>
+      <span data-testid="status-project">{{ t('shell.status.noProject') }}</span>
     }
     <div class="flex-1"></div>
-    <button type="button" class="flex items-center gap-1 hover:text-fg" title="Display units" data-testid="status-units" (click)="shell.openSettings('units')">
-      <svg [xIcon]="icons.Ruler" class="size-3"></svg>{{ unitsLabel() }}
+    <button type="button" class="flex items-center gap-1 hover:text-fg" [title]="t('shell.status.units')" data-testid="status-units" (click)="shell.openSettings('units')">
+      <svg [xIcon]="icons.Ruler" class="size-3"></svg><span class="bidi-ltr">{{ unitsLabel() }}</span>
     </button>
     @if (otto(); as o) {
       <button type="button" class="flex items-center gap-1 hover:text-fg max-w-72" [title]="o.text" [attr.aria-label]="o.text" aria-live="polite" data-testid="status-otto" [attr.data-state]="o.state" (click)="openOtto()">
@@ -36,12 +36,16 @@ import { ShellActions } from '../shell-actions';
         <span class="truncate">{{ o.text }}</span>
       </button>
     }
-    <button type="button" class="flex items-center gap-1 hover:text-fg" [title]="mcp()?.error ?? 'MCP server'" data-testid="status-mcp" (click)="shell.openSettings('mcp')">
+    <button type="button" class="flex items-center gap-1 hover:text-fg" [title]="mcp()?.error ?? t('shell.status.mcp')" data-testid="status-mcp" (click)="shell.openSettings('mcp')">
       <svg [xIcon]="icons.Plug" class="size-3"></svg>
       <span class="size-1.5 rounded-full" [class]="mcp()?.running ? 'bg-success' : 'bg-danger'"></span>
-      MCP {{ mcp()?.running ? ':' + mcp()?.port : 'off' }}
+      @if (mcp()?.running) {
+        <span class="bidi-ltr">MCP :{{ mcp()?.port }}</span>
+      } @else {
+        MCP {{ t('shell.status.mcpOff') }}
+      }
     </button>
-    <button type="button" class="hover:text-fg" title="Toggle theme" aria-label="Toggle theme" data-testid="status-theme" (click)="shell.toggleTheme()">
+    <button type="button" class="hover:text-fg" [title]="t('shell.status.theme')" [attr.aria-label]="t('shell.status.theme')" data-testid="status-theme" (click)="shell.toggleTheme()">
       <svg [xIcon]="theme() === 'dark' ? icons.Sun : icons.Moon" class="size-3"></svg>
     </button>
   `,
@@ -55,6 +59,8 @@ import { ShellActions } from '../shell-actions';
 export class StatusBar {
   private readonly app = inject(AppState);
   private readonly view = inject(ProjectView);
+  private readonly i18n = inject(I18n);
+  protected readonly t = this.i18n.t;
   protected readonly shell = inject(ShellActions);
   /** Otto's state in the project on screen, published by the assistant module. */
   protected readonly otto = this.app.assistant;
@@ -65,7 +71,7 @@ export class StatusBar {
   protected readonly project = inject(OpenProjects).current;
   protected readonly savedAgo = computed(() => {
     const save = this.project()?.save;
-    return save?.state === 'saved' ? relativeTime(save.savedAt) : '';
+    return save?.state === 'saved' ? relativeTime(save.savedAt, Date.now(), this.i18n.language()) : '';
   });
   /** Opens the project's Otto tab, or Settings > Assistant while Otto cannot work. */
   protected openOtto(): void {

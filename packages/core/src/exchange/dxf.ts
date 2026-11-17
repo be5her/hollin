@@ -1,3 +1,5 @@
+import { hasRtl } from '../i18n/text';
+import { stripBidiControls } from './arabic-shape';
 import type { DrawingColor, DrawingFill, DrawingLayer, DrawingSegment, DrawingStroke, DrawingText, PlanDrawing } from './drawing';
 import { CAP_HEIGHT } from './paper';
 
@@ -7,7 +9,16 @@ import { CAP_HEIGHT } from './paper';
  * positive counter-clockwise, as in the model's paths), texts as single-line TEXT (group 40 the cap
  * height, 0.72 of the font size the other writers use), poché and marks as solid HATCH. The tables, blocks and objects are the minimum AutoCAD and LibreCAD need to open a file.
  * Lines end with LF; non-ASCII characters are written as \U+XXXX.
+ *
+ * Arabic (and any right-to-left) text is written in logical order, as typed, without the bidi controls
+ * (isolates, marks): CAD programs shape and order it themselves. Such texts take the `Arabic` text style
+ * (Arial, a TrueType face with Arabic letters, which the default `txt` shape font lacks); the style is
+ * only there when a text uses it. Layer names are the drawing's English names, identifiers other programs
+ * filter on.
  */
+
+/** The text style right-to-left texts take, and its font. */
+export const DXF_ARABIC_STYLE = { name: 'Arabic', font: 'arial.ttf' } as const;
 
 export interface DxfOptions {
   /** The drawing scale's denominator (100 for 1:100): dash lengths, given on paper, become model lengths by it. Default 100. */
@@ -35,10 +46,10 @@ export function dxfNumber(v: number): string {
   return s === '-0' || s === '' ? '0' : s;
 }
 
-/** A string as DXF stores it: one line, ASCII, anything else as \U+XXXX. */
+/** A string as DXF stores it: one line, ASCII, anything else as \U+XXXX; the bidi controls (isolates, marks), which CAD programs would print, left out. */
 export function dxfString(value: string): string {
   let out = '';
-  for (const ch of value.replace(/[\r\n]+/g, ' ')) {
+  for (const ch of stripBidiControls(value.replace(/[\r\n]+/g, ' '))) {
     const code = ch.codePointAt(0)!;
     if (code >= 32 && code < 127) out += ch;
     else if (code <= 0xffff) out += `\\U+${code.toString(16).toUpperCase().padStart(4, '0')}`;
@@ -255,17 +266,22 @@ export function drawingToDxf(drawing: PlanDrawing, options: DxfOptions = {}): st
   for (const layer of drawing.layers) layerRecord(names.get(layer)!, layerHandles.get(layer)!, DXF_COLORS[layer.color]);
   t.pair(0, 'ENDTAB');
 
-  table('STYLE', h.styleTable, 1);
-  record('STYLE', h.standard, h.styleTable, 'AcDbTextStyleTableRecord');
-  t.pair(2, 'Standard');
-  t.pair(70, 0);
-  t.num(40, 0);
-  t.num(41, 1);
-  t.num(50, 0);
-  t.pair(71, 0);
-  t.num(42, 2.5);
-  t.pair(3, 'txt');
-  t.pair(4, '');
+  // A second style, with a TrueType face that has Arabic letters, when a text needs it.
+  const arabic = drawing.layers.some((l) => l.primitives.some((p) => p.type === 'text' && hasRtl(p.text))) ? handle() : null;
+  table('STYLE', h.styleTable, arabic ? 2 : 1);
+  const styles: [string, string, string][] = [[h.standard, 'Standard', 'txt'], ...(arabic ? [[arabic, DXF_ARABIC_STYLE.name, DXF_ARABIC_STYLE.font] as [string, string, string]] : [])];
+  for (const [own, name, font] of styles) {
+    record('STYLE', own, h.styleTable, 'AcDbTextStyleTableRecord');
+    t.pair(2, name);
+    t.pair(70, 0);
+    t.num(40, 0);
+    t.num(41, 1);
+    t.num(50, 0);
+    t.pair(71, 0);
+    t.num(42, 2.5);
+    t.pair(3, font);
+    t.pair(4, '');
+  }
   t.pair(0, 'ENDTAB');
 
   table('VIEW', h.viewTable, 0);
@@ -428,7 +444,7 @@ export function drawingToDxf(drawing: PlanDrawing, options: DxfOptions = {}): st
     e.num(40, x.height * CAP_HEIGHT);
     e.pair(1, dxfString(x.text));
     if (x.rotation) e.num(50, x.rotation);
-    e.pair(7, 'Standard');
+    e.pair(7, hasRtl(x.text) ? DXF_ARABIC_STYLE.name : 'Standard');
     if (halign) e.pair(72, halign);
     e.point(11, x.at);
     e.pair(100, 'AcDbText');

@@ -1,13 +1,13 @@
 import { promises as fs, writeSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { BRANDING, type HostEventMessage } from '@studio/core';
+import { BRANDING, errorLine, t, type HostEventMessage } from '@studio/core';
 import type { Cipher } from '@studio/core/node';
 import { BrowserWindow, app, dialog, safeStorage, shell } from 'electron';
 import { Host } from './host';
 import { CHANNELS, registerIpc } from './ipc';
 import { handleLibraryProtocol, registerLibraryScheme } from './library-protocol';
-import { installMenu } from './menu';
+import { buildMenu, installMenu } from './menu';
 import { scheduleChecks, startupCheckDue } from './update-state';
 import { createUpdater } from './updater';
 import { createMainWindow, setTitleBarColors } from './window';
@@ -77,7 +77,8 @@ const packageArg = (argv: string[]) => argv.find((a) => a.toLowerCase().endsWith
 async function importFromShell(file: string): Promise<void> {
   if (!host) return;
   const outcome = await host.invoke('project.import', { path: file, open: true }, { caller: 'ui' });
-  if (!outcome.ok) dialog.showErrorBox('Could not import the project', outcome.error.message);
+  // In the app's language: the error's translation, or its code's lead before the English message.
+  if (!outcome.ok) dialog.showErrorBox(t('errors.dialog.importFailed'), errorLine(outcome.error));
 }
 
 async function main(): Promise<void> {
@@ -131,9 +132,18 @@ async function main(): Promise<void> {
     // Smoke runs check autosave without waiting the full interval.
     autosave: smoke ? { debounceMs: 150, maxWaitMs: 1000 } : undefined,
     updater,
+    // The language 'system' follows: the OS's, or STUDIO_LANG in development; the smoke always runs in English.
+    systemLocale: smoke ? 'en-US' : (dev && process.env.STUDIO_LANG) || app.getLocale(),
+    // The fonts the exports embed: electron-builder copies resources/fonts next to the app (extraResources).
+    fontsDir: app.isPackaged ? path.join(process.resourcesPath, 'fonts') : path.join(app.getAppPath(), 'resources', 'fonts'),
   });
   registerIpc(host);
   await host.start();
+  // The macOS menu speaks the app's language, resolved by now, and follows a switch.
+  buildMenu();
+  host.onEvent((message) => {
+    if (message.event === 'language.changed') buildMenu();
+  });
   handleLibraryProtocol(host);
 
   if (smoke) {

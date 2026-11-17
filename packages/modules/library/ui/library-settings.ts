@@ -1,6 +1,6 @@
 import { Component, inject, signal } from '@angular/core';
-import type { LibraryInfo } from '@studio/core';
-import { Button, Dialogs, HostBridge, Icon, Toasts, invokeResource } from '@studio/ui';
+import { mmText, type LibraryInfo, type Phrase } from '@studio/core';
+import { Button, Dialogs, HostBridge, I18n, Icon, Toasts, invokeResource } from '@studio/ui';
 import { FolderInput, RefreshCw, TriangleAlert } from 'lucide';
 
 /** Settings > Library: where the projects live, and moving them. */
@@ -8,16 +8,16 @@ import { FolderInput, RefreshCw, TriangleAlert } from 'lucide';
   selector: 'x-library-settings',
   imports: [Button, Icon],
   template: `
-    <p class="text-xs text-muted mb-3">All projects live in one library folder that the app manages. Move it, for example, to a drive that is backed up.</p>
+    <p class="text-xs text-muted mb-3">{{ t('library.settings.note') }}</p>
     @if (info.value(); as lib) {
       <div class="flex items-center gap-2">
-        <code class="flex-1 text-xs font-mono bg-surface border border-edge rounded-md px-2 py-1.5 truncate" data-testid="library-path" [title]="lib.path">{{ lib.path }}</code>
-        <button xButton size="sm" [icon]="icons.FolderInput" [loading]="busy()" (click)="move()" data-testid="library-move">Move…</button>
-        <button xButton size="sm" variant="ghost" [icon]="icons.RefreshCw" (click)="reindex()" title="Rebuild the project list from the folders on disk">Rescan</button>
+        <code class="flex-1 text-xs font-mono bg-surface border border-edge rounded-md px-2 py-1.5 truncate text-start" dir="ltr" data-testid="library-path" [title]="lib.path">{{ lib.path }}</code>
+        <button xButton size="sm" [icon]="icons.FolderInput" [loading]="busy()" (click)="move()" data-testid="library-move">{{ t('library.settings.move') }}</button>
+        <button xButton size="sm" variant="ghost" [icon]="icons.RefreshCw" (click)="reindex()" [title]="t('library.settings.rescanHint')" data-testid="library-rescan">{{ t('library.settings.rescan') }}</button>
       </div>
-      <p class="text-[11px] text-muted mt-1">{{ lib.projects }} project{{ lib.projects === 1 ? '' : 's' }}, {{ lib.trashed }} in the trash{{ lib.isDefault ? ' · default location' : '' }}</p>
+      <p class="text-[11px] text-muted mt-1" data-testid="library-count">{{ t('library.settings.count', { count: lib.projects, trashed: lib.trashed }) }}@if (lib.isDefault) {<span> · {{ t('library.settings.default') }}</span>}</p>
       @if (lib.warning) {
-        <p class="flex items-start gap-1.5 text-xs text-warning mt-2"><svg [xIcon]="icons.TriangleAlert" class="size-3.5 shrink-0 mt-px"></svg>{{ lib.warning }}</p>
+        <p class="flex items-start gap-1.5 text-xs text-warning mt-2" data-testid="library-warning"><svg [xIcon]="icons.TriangleAlert" class="size-3.5 shrink-0 mt-px"></svg>{{ warningText(lib) }}</p>
       }
     }
   `,
@@ -28,33 +28,40 @@ export class LibrarySettings {
   private readonly toasts = inject(Toasts);
 
   protected readonly icons = { FolderInput, RefreshCw, TriangleAlert };
+  private readonly i18n = inject(I18n);
+  protected readonly t = this.i18n.t;
   protected readonly info = invokeResource<LibraryInfo>('library.info', () => ({}), { projectId: null, refreshOnEvents: ['library.changed'] });
   protected readonly busy = signal(false);
 
+  /** A location warning in the interface's language (its English text when it carries no phrase). */
+  protected warningText(w: { warning: string | null; warningText?: Phrase | null }): string {
+    return w.warningText ? this.i18n.phrase(w.warningText, mmText) : (w.warning ?? '');
+  }
+
   protected async move(): Promise<void> {
     try {
-      const { path } = await this.host.invoke<{ path: string | null }>('app.pickFolder', { title: 'Choose a folder for the library' }, null);
+      const { path } = await this.host.invoke<{ path: string | null }>('app.pickFolder', { title: this.t('library.settings.pick') }, null);
       if (!path) return;
-      const check = await this.host.invoke<{ empty: boolean; hasLibrary: boolean; warning: string | null }>('library.checkFolder', { path }, null);
+      const check = await this.host.invoke<{ empty: boolean; hasLibrary: boolean; warning: string | null; warningText: Phrase | null }>('library.checkFolder', { path }, null);
       let mode: 'move' | 'adopt' = 'move';
       if (check.hasLibrary) {
-        const ok = await this.dialogs.confirm({ title: 'Use the library in that folder?', message: 'That folder already holds a library. The app will switch to it; the current library stays where it is.', confirmLabel: 'Use it' });
+        const ok = await this.dialogs.confirm({ title: this.t('library.settings.adoptTitle'), message: this.t('library.settings.adoptMessage'), confirmLabel: this.t('library.settings.adoptConfirm') });
         if (!ok) return;
         mode = 'adopt';
       } else if (!check.empty) {
-        this.toasts.notify('Choose an empty folder for the library.', 'error');
+        this.toasts.notify(this.t('library.settings.notEmpty'), 'error');
         return;
       } else {
         const ok = await this.dialogs.confirm({
-          title: 'Move the library?',
-          message: `${check.warning ? `${check.warning} ` : ''}Open projects are saved and reopened. The old folder is removed once the copy is checked.`,
-          confirmLabel: 'Move',
+          title: this.t('library.settings.moveTitle'),
+          message: `${check.warning ? `${this.warningText(check)} ` : ''}${this.t('library.settings.moveMessage')}`,
+          confirmLabel: this.t('library.settings.moveConfirm'),
         });
         if (!ok) return;
       }
       this.busy.set(true);
       await this.host.invoke('library.move', { path, mode }, null);
-      this.toasts.notify(mode === 'move' ? 'Library moved' : 'Switched library', 'success');
+      this.toasts.notify(this.t(mode === 'move' ? 'library.settings.moved' : 'library.settings.switched'), 'success');
     } catch (err) {
       this.toasts.error(err);
     } finally {
@@ -65,7 +72,8 @@ export class LibrarySettings {
   protected async reindex(): Promise<void> {
     try {
       const { projects, models } = await this.host.invoke<{ projects: number; models: number }>('library.reindex', {}, null);
-      this.toasts.notify(`Found ${projects} project${projects === 1 ? '' : 's'} and ${models} imported model${models === 1 ? '' : 's'}`, 'success');
+      const found = { projects: this.t('library.settings.foundProjects', { count: projects }), models: this.t('library.settings.foundModels', { count: models }) };
+      this.toasts.notify(this.t('library.settings.found', found), 'success');
     } catch (err) {
       this.toasts.error(err);
     }

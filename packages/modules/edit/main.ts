@@ -14,8 +14,10 @@ export const editModule = defineModule({
       input: z.object({}),
       handler: async (_input, ctx) => {
         const project = ctx.project!;
-        const { seq, epoch } = project.history();
-        return { projectId: project.id, doc: project.doc, seq, epoch, history: project.history() };
+        const { seq, epoch, undo, redo } = project.history();
+        // The newest step each way, as every `doc.patched` carries it (`HistoryState`): the full lists would make a
+        // freshly opened project's Undo look enabled, titled "Undo undefined".
+        return { projectId: project.id, doc: project.doc, seq, epoch, history: { undo: undo[0] ?? null, redo: redo[0] ?? null } };
       },
     }),
     defineCommand({
@@ -54,7 +56,7 @@ export const editModule = defineModule({
       input: z.object({ id: z.string().min(1) }),
       handler: async ({ id }, ctx) => {
         const changed = ctx.project!.changed?.(id);
-        if (!changed) throw new StudioError('NOT_FOUND', `No change ${id} in the history`);
+        if (!changed) throw new StudioError('NOT_FOUND', { key: 'errors.history.noChange', params: { id } });
         return changed;
       },
     }),

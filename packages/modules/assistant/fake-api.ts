@@ -3,8 +3,10 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 /*
  * A stand-in for the Claude API, for the unit tests and the smoke test: it answers `POST /v1/messages`
  * with scripted turns streamed as server-sent events in the shape the SDK expects, and records every
- * request body so a test can check what the assistant sent (tool results, images, the key header).
- * It never knows real model behaviour; a test queues the turns it wants.
+ * request body so a test can check what the assistant sent (tool results, images, the key header, the
+ * system prompt with its language instruction: `system(i)`). A turn's text may be in any language: it
+ * streams word by word, Arabic as English. It never knows real model behaviour; a test queues the turns
+ * it wants.
  */
 
 export interface FakeToolCall {
@@ -24,6 +26,8 @@ export interface FakeTurn {
   error?: { status: number; type: string; message: string };
   /** Holds the answer until `release()`, so a test can look at the app while the model is "thinking". */
   hold?: boolean;
+  /** Streams the first half of the text's words, then holds the rest until `release()`: a reply caught mid-stream. */
+  holdMidway?: boolean;
 }
 
 export interface FakeRequest {
@@ -79,6 +83,13 @@ export class FakeClaude {
     this.queue.length = 0;
     this.requests.length = 0;
     this.release();
+  }
+
+  /** The system prompt request `index` carried, as its text blocks (the stable part first, then the live context), so a test can see what the model was told. */
+  system(index: number): { text: string; cache_control?: unknown }[] {
+    const system = this.requests[index]?.body.system;
+    if (typeof system === 'string') return [{ text: system }];
+    return Array.isArray(system) ? (system as { type: string; text: string; cache_control?: unknown }[]).filter((b) => b.type === 'text').map(({ text, cache_control }) => ({ text, ...(cache_control ? { cache_control } : {}) })) : [];
   }
 
   /** How many answers a `hold` is keeping back. */
@@ -172,7 +183,12 @@ export class FakeClaude {
     if (turn.text) {
       write(res, 'content_block_start', { type: 'content_block_start', index, content_block: { type: 'text', text: '' } });
       // Word by word, so the UI really streams.
-      for (const piece of turn.text.match(/\S+\s*|\s+/g) ?? [turn.text]) write(res, 'content_block_delta', { type: 'content_block_delta', index, delta: { type: 'text_delta', text: piece } });
+      const pieces = turn.text.match(/\S+\s*|\s+/g) ?? [turn.text];
+      const midway = turn.holdMidway ? Math.ceil(pieces.length / 2) : -1;
+      for (const [i, piece] of pieces.entries()) {
+        if (i === midway) await new Promise<void>((resolve) => this.holds.push(resolve));
+        write(res, 'content_block_delta', { type: 'content_block_delta', index, delta: { type: 'text_delta', text: piece } });
+      }
       write(res, 'content_block_stop', { type: 'content_block_stop', index });
       index++;
     }

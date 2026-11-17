@@ -26,6 +26,16 @@ export function hostCommands(host: Host) {
       }),
     }),
     defineCommand({
+      id: 'app.language',
+      title: 'App language',
+      description:
+        "The language the app's interface is in: `language` ('en' or 'ar'), its text `direction` ('ltr' or 'rtl'), the `preference` stored in Settings ('system', 'en' or 'ar') and the operating system's `systemLocale` that 'system' follows. Names you give rooms, levels, labels and layers read best in the user's language.",
+      scope: 'global',
+      readOnly: true,
+      input: z.object({}),
+      handler: async () => host.languageState(),
+    }),
+    defineCommand({
       id: 'config.get',
       title: 'Read settings',
       description: 'Returns the app settings: appearance, display units and precision, MCP server, assistant model. Secrets are never included.',
@@ -82,7 +92,7 @@ export function hostCommands(host: Host) {
       hidden: true,
       input: z.object({}),
       handler: async () => {
-        if (!host.config.get().mcp.enabled) throw new StudioError('CONFLICT', 'The MCP server is turned off in Settings.');
+        if (!host.config.get().mcp.enabled) throw new StudioError('CONFLICT', { key: 'errors.mcp.off' });
         await host.startMcp();
         return host.mcpStatus();
       },

@@ -4,6 +4,23 @@ Every notable change to the app, newest first. The format follows [Keep a Change
 
 ## [Unreleased]
 
+## [0.3.0-beta.1] - 2026-11-18
+
+A preview of 0.3.0: Hollin in Arabic. Turn on Settings > Updates > *Get beta versions* to be offered this beta and the ones after it.
+
+### Added
+- Arabic. Settings > Appearance > Language offers English and العربية, or follows the system (the default); the switch is immediate, no restart. In Arabic the whole app reads right to left: the shell, every panel, dialog, menu and toast, the plan's tool hints and the words it draws, the command palette (searched in Arabic or English, with or without the hamza), History, warnings, errors and the update notices. The plan and the 3D view are never mirrored, and lengths, versions and paths keep reading left to right inside Arabic text.
+- Otto converses in Arabic: write to it in Arabic and it answers in Arabic (a conversation can switch between Arabic and English line by line), and it names the rooms, levels, labels and History steps it draws in your language.
+- Arabic names in exports: PDF embeds an Arabic face and shapes the text, SVG writes it right to left in the Arabic face, DXF keeps it; the title block follows the language. DXF files from an Arabic AutoCAD (code page 1256) import with their Arabic layer names and text.
+- Numbers typed on an Arabic keyboard: Arabic-Indic digits, the Arabic decimal separator and the Arabic unit names (مم، سم، م) are read wherever a length, an angle, a coordinate or a number is typed (the export's pixel sizes, the DXF import's scale and origin and the MCP port included).
+- Shortcuts work on an Arabic keyboard layout (Ctrl+K, Ctrl+, , Ctrl+Z and the tool letters go by the key, not the letter it writes).
+- Two bundled faces for Arabic: IBM Plex Sans Arabic for text and Markazi Text for headings.
+
+### Fixed
+- A project just opened showed Undo as available, titled "Undo undefined", until its first change.
+- Leaving the Furniture tool no longer arms it again when the plan comes back from the 3D view or the section.
+- The elevator tool's size fields are no longer cut off when its options bar is full.
+
 ## [0.2.0] - 2026-11-07
 
 The first stable version: everything in 0.2.0-beta.1, and Otto now reads images you paste into the chat.

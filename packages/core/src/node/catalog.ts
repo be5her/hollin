@@ -131,7 +131,7 @@ export class Catalog {
   /** Reads and measures a stored model file. */
   private async describe(file: string, known: CatalogModel | undefined): Promise<CatalogModel> {
     const bytes = new Uint8Array(await fs.readFile(this.modelPath(file)));
-    if (sha256(bytes) !== MODEL_FILE.exec(file)![1]) throw new StudioError('INVALID_INPUT', `${file} does not match its checksum`);
+    if (sha256(bytes) !== MODEL_FILE.exec(file)![1]) throw new StudioError('INVALID_INPUT', { key: 'errors.catalog.checksum', params: { file } });
     const info = inspectGlb(bytes);
     const thumb = await fs.stat(this.thumbnailPath(file)).catch(() => null);
     return {
@@ -170,10 +170,10 @@ export class Catalog {
    */
   async importModel(source: string): Promise<{ model: CatalogModel; added: boolean }> {
     const ext = path.extname(source).toLowerCase();
-    if (ext !== '.glb' && ext !== '.gltf') throw new StudioError('INVALID_INPUT', 'Import a .glb file (or a .gltf with its data embedded).');
+    if (ext !== '.glb' && ext !== '.gltf') throw new StudioError('INVALID_INPUT', { key: 'errors.model.format' });
     const stat = await fs.stat(source).catch(() => null);
-    if (!stat?.isFile()) throw new StudioError('NOT_FOUND', `No file at ${source}`);
-    if (stat.size > MAX_MODEL_BYTES) throw new StudioError('INVALID_INPUT', `The model is larger than ${MAX_MODEL_BYTES / 1024 / 1024} MB.`);
+    if (!stat?.isFile()) throw new StudioError('NOT_FOUND', { key: 'errors.file.missing', params: { path: source } });
+    if (stat.size > MAX_MODEL_BYTES) throw new StudioError('INVALID_INPUT', { key: 'errors.model.tooLarge', params: { mb: MAX_MODEL_BYTES / 1024 / 1024 } });
     const raw = new Uint8Array(await fs.readFile(source));
     let glb: Uint8Array;
     if (ext === '.gltf') {
@@ -181,7 +181,7 @@ export class Catalog {
       try {
         json = JSON.parse(new TextDecoder().decode(raw)) as GltfJson;
       } catch {
-        throw new StudioError('INVALID_INPUT', 'Not a usable glTF model: the file is not valid JSON');
+        throw new StudioError('INVALID_INPUT', { key: 'errors.model.notJson' });
       }
       inspectGltf(json, null);
       glb = gltfToGlb(json);
@@ -216,7 +216,7 @@ export class Catalog {
   }
 
   async removeModel(file: string): Promise<void> {
-    if (!this.index.has(file)) throw new StudioError('NOT_FOUND', `The catalog has no model ${file}`);
+    if (!this.index.has(file)) throw new StudioError('NOT_FOUND', { key: 'errors.catalog.noModel', params: { file } });
     await this.queue.run(`model:${file}`, async () => {
       await fs.rm(this.modelPath(file), { force: true });
       await fs.rm(this.thumbnailPath(file), { force: true });
@@ -228,7 +228,7 @@ export class Catalog {
 
   async setThumbnail(file: string, png: Uint8Array): Promise<CatalogModel> {
     const model = this.index.get(file);
-    if (!model) throw new StudioError('NOT_FOUND', `The catalog has no model ${file}`);
+    if (!model) throw new StudioError('NOT_FOUND', { key: 'errors.catalog.noModel', params: { file } });
     if (png.length < 8 || png[0] !== 0x89 || png[1] !== 0x50 || png[2] !== 0x4e || png[3] !== 0x47) throw new StudioError('INVALID_INPUT', 'The thumbnail must be a PNG image');
     await this.queue.run(`thumb:${file}`, () => writeFileAtomic(this.thumbnailPath(file), png, { fsync: false }));
     const next = { ...model, thumbnail: createHash('sha1').update(png).digest('hex').slice(0, 10) };
@@ -245,9 +245,9 @@ export class Catalog {
     const there = await fs.readFile(target).catch(() => null);
     if (there && sha256(new Uint8Array(there)) === file.slice(0, 64)) return;
     const bytes = await fs.readFile(this.modelPath(file)).catch(() => null);
-    if (!bytes) throw new StudioError('NOT_FOUND', `The catalog has no model ${file}`);
+    if (!bytes) throw new StudioError('NOT_FOUND', { key: 'errors.catalog.noModel', params: { file } });
     const data = new Uint8Array(bytes);
-    if (sha256(data) !== file.slice(0, 64)) throw new StudioError('INVALID_INPUT', `The catalog's copy of ${file} is damaged`);
+    if (sha256(data) !== file.slice(0, 64)) throw new StudioError('INVALID_INPUT', { key: 'errors.catalog.damaged', params: { file } });
     await this.queue.run(`asset:${target}`, () => writeFileAtomic(target, data));
   }
 }

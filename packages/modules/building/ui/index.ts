@@ -10,17 +10,17 @@ import { SectionView } from './section-view';
 /** The building's levels and layers in the project tab, and two main views of the whole building: a section through it and the building in 3D. */
 export const buildingUI = defineModuleUI({
   id: 'building',
-  title: 'Building',
+  title: 'building.title',
   icon: Building2,
   order: 10,
   availability: 'project',
   tabs: {},
   setup: () => {
     const panels = inject(ProjectPanels);
-    panels.register({ id: 'levels', title: 'Levels', side: 'left', order: 10, component: LevelsPanel });
-    panels.register({ id: 'layers', title: 'Layers', side: 'left', order: 20, component: LayersPanel });
-    panels.register({ id: 'section', title: 'Section', side: 'center', order: 100, component: SectionView });
-    panels.register({ id: '3d', title: '3D', side: 'center', order: 150, component: SceneView });
-    inject(SettingsSections).register({ id: 'rules', title: 'Rules', order: 20, component: RulesSettings });
+    panels.register({ id: 'levels', title: 'building.panel.levels', side: 'left', order: 10, component: LevelsPanel });
+    panels.register({ id: 'layers', title: 'building.panel.layers', side: 'left', order: 20, component: LayersPanel });
+    panels.register({ id: 'section', title: 'building.panel.section', side: 'center', order: 100, component: SectionView });
+    panels.register({ id: '3d', title: 'building.panel.3d', side: 'center', order: 150, component: SceneView });
+    inject(SettingsSections).register({ id: 'rules', title: 'building.settings.rules', order: 20, component: RulesSettings });
   },
 });

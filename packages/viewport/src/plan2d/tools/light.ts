@@ -1,4 +1,4 @@
-import type { Vec2 } from '@studio/core';
+import { t, type Vec2 } from '@studio/core';
 import { drawLightSymbol, drawScreenText, type RenderFrame } from '../render';
 import type { Tool, ToolHost, ToolPointer } from './tool';
 
@@ -37,7 +37,7 @@ export class LightTool implements Tool {
 
   hint(): string {
     const o = this.host.options().light;
-    return `Click where the ${o.kind === 'area' ? 'area light' : o.kind === 'spot' ? 'spot' : 'light'} goes (${o.intensity} lm, ${o.height} mm above the floor; the options set them) · Escape: done`;
+    return t(o.kind === 'area' ? 'tools.light.area' : o.kind === 'spot' ? 'tools.light.spot' : 'tools.light.point', { lumens: o.intensity, height: o.height });
   }
 
   draw(ctx: CanvasRenderingContext2D, frame: RenderFrame): void {

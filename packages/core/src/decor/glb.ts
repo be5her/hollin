@@ -83,7 +83,7 @@ export interface ModelInfo {
 }
 
 function bad(message: string): never {
-  throw new StudioError('INVALID_INPUT', `Not a usable glTF model: ${message}`);
+  throw new StudioError('INVALID_INPUT', { key: 'errors.model.unusable', params: { reason: message } });
 }
 
 /** The JSON and binary chunks of a GLB file, checked for structure. */

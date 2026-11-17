@@ -1,21 +1,26 @@
 import { Directive, ElementRef, inject, input, output, signal } from '@angular/core';
+import { I18n } from '../i18n/i18n';
 import { Units } from '../state/units';
 
 /**
  * A text input holding a length in the user's units: `<input xInput xLength [formField]="f.thickness" (commit)="…" />`.
  * While typing, text that is not a length marks the field invalid (`aria-invalid`, a red border;
- * read `#t.invalid()` with `#t="xLength"` to show a message). On blur or Enter a valid value is
+ * read `#len.invalid()` with `#len="xLength"` to show a message; never name it `t`, which would hide the
+ * translate function). On blur or Enter a valid value is
  * emitted in millimetres, once, when it differs from what the field held when it got focus; an
- * invalid one is put back. With `allowEmpty`, an empty field emits null.
+ * invalid one is put back. With `allowEmpty`, an empty field emits null. Lengths read left to right in
+ * every language (`dir="ltr"`, so `3600 mm` never shows as `mm 3600`), and digits typed on an Arabic
+ * keyboard are read as they are (`parseLength` takes them).
  */
 @Directive({
   selector: 'input[xLength]',
   exportAs: 'xLength',
   host: {
+    dir: 'ltr',
     '[attr.aria-invalid]': 'invalid() ? "true" : null',
     '[class.!border-danger]': 'invalid()',
     '[class.!ring-danger/30]': 'invalid()',
-    '[attr.title]': 'invalid() ? "Not a length (try 3200, 3.2m or 10\' 6\\")" : null',
+    '[attr.title]': 'invalid() ? t("common.lengthInvalid") : null',
     '(focus)': 'focused()',
     '(input)': 'typed()',
     '(blur)': 'left()',
@@ -25,6 +30,7 @@ import { Units } from '../state/units';
 export class LengthInput {
   private readonly el = inject<ElementRef<HTMLInputElement>>(ElementRef);
   private readonly units = inject(Units);
+  protected readonly t = inject(I18n).t;
 
   /** An empty field is allowed and means "none" (null). */
   readonly allowEmpty = input(false);
@@ -69,14 +75,15 @@ export class LengthInput {
   }
 }
 
-/** The same for an angle in degrees: `<input xInput xAngle (commit)="…" />`. */
+/** The same for an angle in degrees: `<input xInput xAngle (commit)="…" />`, left to right as well. */
 @Directive({
   selector: 'input[xAngle]',
   exportAs: 'xAngle',
   host: {
+    dir: 'ltr',
     '[attr.aria-invalid]': 'invalid() ? "true" : null',
     '[class.!border-danger]': 'invalid()',
-    '[attr.title]': 'invalid() ? "Not an angle (try 45 or 30°)" : null',
+    '[attr.title]': 'invalid() ? t("common.angleInvalid") : null',
     '(focus)': 'focused()',
     '(input)': 'typed()',
     '(blur)': 'left()',
@@ -86,6 +93,7 @@ export class LengthInput {
 export class AngleInput {
   private readonly el = inject<ElementRef<HTMLInputElement>>(ElementRef);
   private readonly units = inject(Units);
+  protected readonly t = inject(I18n).t;
 
   readonly commit = output<number>();
   readonly invalid = signal(false);

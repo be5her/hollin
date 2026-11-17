@@ -2,12 +2,15 @@ import { promises as fs } from 'node:fs';
 import { createServer } from 'node:net';
 import path from 'node:path';
 import type { ErrorCode, HostEventMessage, HostEventName } from '@studio/core';
-import type { BrowserWindow } from 'electron';
+import { powerMonitor, type BrowserWindow } from 'electron';
 import type { Host, InvokeOptions } from '../host';
 import { smokeDialogs } from './dialogs';
 import type { SmokeUpdater } from './updater';
 
 export const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/** How long a script in the page may take before `Smoke.js` gives up on it (the slowest, a PDF's fonts and frames, take a few seconds). */
+const JS_TIMEOUT_MS = 30_000;
 
 /** A port nothing listens on right now, so the smoke run never meets an app that is already running. */
 export function freePort(): Promise<number> {
@@ -38,6 +41,7 @@ export class Smoke {
   readonly events: HostEventMessage[] = [];
   private win: BrowserWindow | null = null;
   readonly consoleErrors: string[] = [];
+  private screenLocked = false;
 
   constructor(
     readonly host: Host,
@@ -105,6 +109,20 @@ export class Smoke {
     win.webContents.on('console-message', (event) => {
       if (event.level === 'error') this.consoleErrors.push(event.message);
     });
+    // A renderer that crashes or stops answering under load is said so in the log, and a crash fails the run.
+    win.webContents.on('render-process-gone', (_event, details) => this.check(`the renderer is still there (it is gone: ${details.reason}, exit code ${details.exitCode})`, false));
+    win.on('unresponsive', () => console.log('[smoke] the window stopped responding'));
+    win.on('responsive', () => console.log('[smoke] the window responds again'));
+    // Chromium draws no frame for a minimised or hidden window or behind a locked screen (the switches in
+    // index.ts only cover a window other windows hide), so every check that waits for a frame then times out.
+    // Said here when it happens and again in the timeout, so the failure names its cause.
+    win.on('minimize', () => console.log('[smoke] the window was minimised: it draws nothing until it is restored, so checks that wait for a frame will fail. Leave it open (behind other windows is fine) until the run ends.'));
+    win.on('hide', () => console.log('[smoke] the window was hidden: it draws nothing until it is shown again.'));
+    powerMonitor.on('lock-screen', () => {
+      this.screenLocked = true;
+      console.log('[smoke] the screen was locked: the window may stop drawing until it is unlocked.');
+    });
+    powerMonitor.on('unlock-screen', () => (this.screenLocked = false));
     await new Promise<void>((resolve, reject) => {
       win.webContents.once('did-finish-load', () => resolve());
       win.webContents.once('did-fail-load', (_e, code, description) => reject(new Error(`renderer failed to load: ${code} ${description}`)));
@@ -117,13 +135,36 @@ export class Smoke {
     return this.win;
   }
 
+  /** What a script that never settled was most likely waiting on: a window that cannot draw is the usual cause, and it is the machine's doing, not the app's. */
+  private whyNoAnswer(): string {
+    const win = this.win;
+    if (!win || win.isDestroyed()) return ' (the window is gone)';
+    const reasons = [
+      ...(win.webContents.isCrashed() ? ['the renderer is gone'] : []),
+      ...(win.isMinimized() ? ['the window is minimised and draws no frames: restore it and run again'] : []),
+      ...(!win.isVisible() ? ['the window is hidden and draws no frames'] : []),
+      ...(this.screenLocked ? ['the screen is locked, which can stop the window drawing'] : []),
+    ];
+    return reasons.length ? ` (${reasons.join('; ')})` : '';
+  }
+
   closeWindow(): void {
     if (this.win && !this.win.isDestroyed()) this.win.destroy();
     this.win = null;
   }
 
-  js<T = unknown>(code: string): Promise<T> {
-    return this.window.webContents.executeJavaScript(code) as Promise<T>;
+  /**
+   * Runs code in the page and returns its result. A script that never settles (a promise waiting on a frame
+   * the renderer never draws, a renderer that is gone) throws after `timeoutMs` instead of hanging the run:
+   * the run then fails with the script's first line, and the sections after it are not reached.
+   */
+  js<T = unknown>(code: string, timeoutMs = JS_TIMEOUT_MS): Promise<T> {
+    const wc = this.window.webContents;
+    let timer: NodeJS.Timeout | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`smoke.js timed out after ${timeoutMs} ms${this.whyNoAnswer()}: ${code.trim().split('\n')[0].slice(0, 160)}`)), timeoutMs);
+    });
+    return Promise.race([wc.executeJavaScript(code) as Promise<T>, timeout]).finally(() => clearTimeout(timer));
   }
 
   /** True once the selector matches an element (whose text contains `text`, if given). */

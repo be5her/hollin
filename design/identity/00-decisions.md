@@ -15,7 +15,7 @@ A clean sheet on a desk, drawn by two authors. The paper, the ink walls, the gra
 ## 3. Look (from Craft, unchanged)
 
 - **Palette:** the full light and dark tables in Concept 1 §e, every `--*`, `--plan-*` and `--scene-*` variable. Light is warm paper (`#f6f1e8`), dark is the desk under the lamp (`#1d1a17`). Terracotta `#b9552f` / `#e07c50` is the accent and the selection colour. Dimensions indigo, snap moss, warning ochre, room wash sage at ~18 % alpha, decor umber.
-- **Type:** Alegreya Sans (body 13/18, labels 11/14, italic for times and states), IBM Plex Mono (every number, unit, id, coordinate, key cap), Fraunces (wordmark, panel and dialog titles, Home and empty-moment headings only). All three bundled as variable OFL files.
+- **Type:** Alegreya Sans (body 13/18, labels 11/14, italic for times and states), IBM Plex Mono (every number, unit, id, coordinate, key cap), Fraunces (wordmark, panel and dialog titles, Home and empty-moment headings only). All three bundled as variable OFL files. Arabic (milestone 12): IBM Plex Sans Arabic in Alegreya Sans' roles and Markazi Text in Fraunces' (headings), each after its Latin partner with an Arabic `unicode-range`; numbers stay in Plex Mono (`01-brand.md` §d, `docs/i18n.md` > Fonts).
 - **Icons:** Lucide at 18 px, **1.6 px stroke** (16 px in cards and rows).
 - **Radii:** controls 6 px, cards and panels 8 px, chips, badges and key caps 4 px, dialogs and the palette 10 px, the app icon tile 22 % of its side.
 - **Edges, not shadows:** 1 px `--edge` borders; a dialog or popover gets one soft shadow at most (`0 8px 24px` of ink at 12 %).

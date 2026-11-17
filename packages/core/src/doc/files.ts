@@ -50,7 +50,7 @@ export function parseProjectFile(raw: unknown): ProjectFile {
   const result = ProjectFileSchema.safeParse(raw);
   if (!result.success) {
     const issues = result.error.issues.slice(0, 5).map((i) => `${i.path.join('.') || '<root>'}: ${i.message}`);
-    throw new StudioError('INVALID_INPUT', `project.json is not valid: ${issues.join('; ')}`, issues);
+    throw new StudioError('INVALID_INPUT', { key: 'errors.project.invalidFile', params: { issues: issues.join('; ') } }, issues);
   }
   return result.data;
 }
@@ -72,15 +72,15 @@ const MIGRATIONS: Record<number, Migration> = {
  * refused, never rewritten: parsing would drop fields this version does not know.
  */
 export function migrateProject(raw: unknown): { project: Record<string, unknown>; from: number; migrated: boolean } {
-  if (!raw || typeof raw !== 'object') throw new StudioError('INVALID_INPUT', 'project.json is not an object');
+  if (!raw || typeof raw !== 'object') throw new StudioError('INVALID_INPUT', { key: 'errors.project.notObject' });
   let project = raw as Record<string, unknown>;
   const from = typeof project.formatVersion === 'number' ? project.formatVersion : 0;
   if (from > FORMAT_VERSION) {
-    throw new StudioError('UNSUPPORTED_VERSION', `This project was saved by a newer version of the app (format ${from}; this version reads up to ${FORMAT_VERSION}). Update the app to open it.`);
+    throw new StudioError('UNSUPPORTED_VERSION', { key: 'errors.project.newerFormat', params: { format: from, max: FORMAT_VERSION } });
   }
   for (let v = from; v < FORMAT_VERSION; v++) {
     const step = MIGRATIONS[v];
-    if (!step) throw new StudioError('UNSUPPORTED_VERSION', `No migration from format ${v}.`);
+    if (!step) throw new StudioError('UNSUPPORTED_VERSION', { key: 'errors.project.noMigration', params: { format: v } });
     project = { ...step(project), formatVersion: v + 1 };
   }
   return { project, from, migrated: from !== FORMAT_VERSION };

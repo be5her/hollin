@@ -1,6 +1,6 @@
 import { NgComponentOutlet } from '@angular/common';
 import { Component, inject } from '@angular/core';
-import { TabsState } from '@studio/ui';
+import { I18n, TabsState } from '@studio/ui';
 import { resolveTabComponent } from '../modules';
 
 /**
@@ -16,7 +16,7 @@ import { resolveTabComponent } from '../modules';
         @if (component(tab.type); as tabComponent) {
           <ng-container *ngComponentOutlet="tabComponent; inputs: { tab }" />
         } @else {
-          <div class="p-4 text-sm text-muted">No view for tab type "{{ tab.type }}".</div>
+          <div class="p-4 text-sm text-muted">{{ t('shell.tab.noView', { type: tab.type }) }}</div>
         }
       </div>
     }
@@ -25,5 +25,6 @@ import { resolveTabComponent } from '../modules';
 })
 export class TabContent {
   protected readonly tabs = inject(TabsState);
+  protected readonly t = inject(I18n).t;
   protected readonly component = resolveTabComponent;
 }

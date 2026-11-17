@@ -8,6 +8,8 @@ import {
   StudioError,
   assetFileOf,
   buildingToGlb,
+  currentLanguage,
+  decodeDxfBytes,
   defineCommand,
   defineModule,
   drawingToDxf,
@@ -24,11 +26,12 @@ import {
   planDrawing,
   readDxf,
   readPngHeader,
+  sheetDate,
   svgLayout,
-  today,
   UnitSettingsSchema,
   type DxfFile,
   type PlanDrawing,
+  t,
 } from '@studio/core';
 import { writeFileAtomic } from '@studio/core/node';
 import { z } from 'zod';
@@ -44,8 +47,8 @@ const RENDER_TIMEOUT = 60_000;
 export function checkedPng(base64: string, width: number, height: number): Buffer {
   const bytes = Buffer.from(base64, 'base64');
   const header = readPngHeader(bytes);
-  if (!header) throw new StudioError('UNAVAILABLE', 'The window did not answer with a PNG image.');
-  if (header.width !== width || header.height !== height) throw new StudioError('UNAVAILABLE', `The window could draw only ${header.width} × ${header.height} px, not the ${width} × ${height} asked for; ask for a smaller image.`);
+  if (!header) throw new StudioError('UNAVAILABLE', { key: 'errors.exchange.noPng' });
+  if (header.width !== width || header.height !== height) throw new StudioError('UNAVAILABLE', { key: 'errors.exchange.tooBig', params: { drawnWidth: header.width, drawnHeight: header.height, width, height } });
   return bytes;
 }
 
@@ -84,7 +87,7 @@ export function isInside(path: string, root: string, platform: string = process.
 
 /** Refuses an export path inside the project library, whose folders the library owns (a file there could be taken for, or clobber, a project's own). */
 export function checkOutsideLibrary(path: string, libraryRoot: string, platform?: string): void {
-  if (isInside(path, libraryRoot, platform)) throw new StudioError('INVALID_INPUT', `Exports cannot be written inside the project library (${libraryRoot}); choose another folder.`);
+  if (isInside(path, libraryRoot, platform)) throw new StudioError('INVALID_INPUT', { key: 'errors.exchange.insideLibrary', params: { folder: libraryRoot } });
 }
 
 /** The files of a several-file export that are there already (a single file's path was confirmed by whoever named it). */
@@ -94,31 +97,53 @@ export async function existingFiles(paths: readonly string[]): Promise<string[]>
   return paths.filter((_, i) => found[i]);
 }
 
+/** The face a PDF embeds for Arabic text (IBM Plex Sans Arabic Regular, OFL), in the app's resources (`resources/fonts`). */
+export const ARABIC_FONT_FILE = 'IBMPlexSansArabic-Regular.ttf';
+
+let arabicFontCache: { path: string; bytes: Uint8Array } | null = null;
+
+/**
+ * The Arabic face's bytes from the host's fonts folder, read once; undefined when the host has none or the
+ * file cannot be read, so a Latin PDF is written all the same and an Arabic one fails with
+ * `errors.exchange.noArabicFont` naming the file.
+ */
+export async function arabicFont(dir: string | undefined): Promise<{ path: string; bytes?: Uint8Array }> {
+  const path = dir ? nodePath.join(dir, ARABIC_FONT_FILE) : ARABIC_FONT_FILE;
+  if (arabicFontCache?.path === path) return arabicFontCache;
+  if (!dir) return { path };
+  try {
+    arabicFontCache = { path, bytes: new Uint8Array(await fs.readFile(path)) };
+    return arabicFontCache;
+  } catch {
+    return { path };
+  }
+}
+
 /** The largest DXF `import.dxf` and `import.dxf.probe` read: past it the file is refused before reading. */
 export const MAX_DXF_BYTES = 200 * 1024 * 1024;
 
 /**
  * Reads a DXF file for import: an absolute path (INVALID_INPUT otherwise), NOT_FOUND when missing,
- * refused when larger than `maxBytes` (200 MB), decoded as UTF-8 (a BOM dropped by the reader), or as
- * Latin-1 when it is not valid UTF-8 (older ANSI files); a binary DXF or a file without sections is refused.
+ * refused when larger than `maxBytes` (200 MB), decoded as UTF-8 when it is (a BOM dropped), else in the code
+ * page its `$DWGCODEPAGE` names (`ANSI_1256` Arabic, the other ANSI pages; Windows-1252 otherwise) by
+ * `decodeDxfBytes`; a binary DXF or a file without sections is refused.
  */
 export async function readDxfFile(path: string, maxBytes = MAX_DXF_BYTES): Promise<DxfFile> {
   if (!nodePath.isAbsolute(path)) throw new StudioError('INVALID_INPUT', 'path must be a full (absolute) file path.');
   let bytes: Buffer;
   try {
     const { size } = await fs.stat(path);
-    if (size > maxBytes) throw new StudioError('INVALID_INPUT', `${nodePath.basename(path)} is ${Math.round(size / 1024 / 1024)} MB; DXF files over ${Math.round(maxBytes / 1024 / 1024)} MB are not imported.`);
+    if (size > maxBytes) throw new StudioError('INVALID_INPUT', { key: 'errors.dxf.tooLarge', params: { name: nodePath.basename(path), size: Math.round(size / 1024 / 1024), max: Math.round(maxBytes / 1024 / 1024) } });
     bytes = await fs.readFile(path);
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code;
-    if (code === 'ENOENT' || code === 'ENOTDIR') throw new StudioError('NOT_FOUND', `No file at ${path}.`);
-    if (code === 'EISDIR') throw new StudioError('INVALID_INPUT', `${path} is a folder, not a DXF file.`);
+    if (code === 'ENOENT' || code === 'ENOTDIR') throw new StudioError('NOT_FOUND', { key: 'errors.dxf.missing', params: { path } });
+    if (code === 'EISDIR') throw new StudioError('INVALID_INPUT', { key: 'errors.dxf.folder', params: { path } });
     throw err;
   }
-  if (bytes.subarray(0, 18).toString('latin1') === 'AutoCAD Binary DXF') throw new StudioError('INVALID_INPUT', 'This is a binary DXF; save it as an ASCII DXF and import that.');
-  let text = bytes.toString('utf8');
-  if (text.includes('\uFFFD')) text = bytes.toString('latin1');
-  if (!/^\s*0\s*\r?\n\s*SECTION\s*$/m.test(text.slice(0, 4096).replace(/^\uFEFF/, ''))) throw new StudioError('INVALID_INPUT', `${nodePath.basename(path)} is not a DXF file (no SECTION at its start).`);
+  if (bytes.subarray(0, 18).toString('latin1') === 'AutoCAD Binary DXF') throw new StudioError('INVALID_INPUT', { key: 'errors.dxf.binary' });
+  const { text } = decodeDxfBytes(bytes);
+  if (!/^\s*0\s*\r?\n\s*SECTION\s*$/m.test(text.slice(0, 4096).replace(/^\uFEFF/, ''))) throw new StudioError('INVALID_INPUT', { key: 'errors.dxf.notDxf', params: { name: nodePath.basename(path) } });
   return readDxf(text);
 }
 
@@ -168,13 +193,15 @@ export const exchangeModule = defineModule({
         const drawings: PlanDrawing[] = levelIds.map((id) => planDrawing(doc, id, { units, limits: rules, layers: input.layers }));
         const scale = input.fit ? ('fit' as const) : input.scale;
         const title = input.title ? project.name : undefined;
-        const date = today();
+        // The sheet's date in the interface's language (YYYY-MM-DD in English).
+        const date = sheetDate(new Date(), currentLanguage());
         const files: { path: string; levelId?: string; bytes: number }[] = [];
         const levels: { levelId: string; name: string; scale: number; fits: boolean }[] = [];
 
         if (input.format === 'pdf') {
           const pages = drawings.map((drawing) => ({ drawing, title }));
-          const options = { page: input.page, orientation: input.orientation, scale, date, deflate: (bytes: Uint8Array) => deflateSync(bytes) };
+          const font = await arabicFont(ctx.host.fontsDir);
+          const options = { page: input.page, orientation: input.orientation, scale, date, deflate: (bytes: Uint8Array) => deflateSync(bytes), arabicFont: font.bytes, arabicFontName: font.path };
           const data = drawingToPdf(pages, options);
           await writeFileAtomic(input.path, data);
           files.push({ path: input.path, bytes: data.length });
@@ -184,7 +211,7 @@ export const exchangeModule = defineModule({
           const existing = input.overwrite ? [] : await existingFiles(paths);
           if (existing.length) {
             const names = existing.map((p) => nodePath.basename(p));
-            throw new StudioError('CONFLICT', `These files are there already: ${names.join(', ')}. Export again with overwrite: true to replace them.`, { existing });
+            throw new StudioError('CONFLICT', { key: 'errors.exchange.exists', params: { names: names.join(', ') } }, { existing });
           }
           for (const [i, drawing] of drawings.entries()) {
             let data: string;
@@ -322,7 +349,7 @@ export const exchangeModule = defineModule({
         const project = ctx.project!;
         const levelId = lv ?? project.doc.building.groundLevelId;
         if (!project.doc.levels[levelId]) throw new StudioError('NOT_FOUND', `No level ${levelId} in this project. building_get lists the levels.`);
-        const { result } = await editProject(ctx, `Import ${nodePath.basename(path)}`, (tx) => {
+        const { result } = await editProject(ctx, t('labels.import', { name: nodePath.basename(path) }), (tx) => {
           const imported = dxfToOps(file, tx.doc, levelId, options);
           if (imported.ops.length) tx.apply(imported.ops);
           return imported;

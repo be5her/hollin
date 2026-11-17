@@ -2,6 +2,7 @@ import { defaultConfig, deriveLevels, emptyBox, entitiesOnLevel, parseCoordinate
 import { defaultCamera, fitBox, panBy, sameCamera, screenToWorld, visibleBox, worldToScreen, zoomAt, type Camera, type Size } from './camera';
 import { planConnectors, type PlanConnector } from './connectors';
 import { LevelGeometryCache } from './geometry-cache';
+import { latinKey } from './keys';
 import { sameVertex, type VertexRef } from './grips';
 import { hitTest, marqueeSelect, type Hit } from './hit';
 import { highlightAnimating, highlightOpacity, type PlanHighlight } from './highlights';
@@ -28,6 +29,14 @@ export type UnderlayMode = 'none' | 'below' | 'above';
 
 /** The user asked the system for less motion: Otto's fades are cuts. */
 const reducedMotion = (): boolean => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/** The keys that open the dynamic input while a tool waits for a point. */
+const TYPED_START = /^[0-9@.+\-\u0660-\u0669\u06f0-\u06f9\u066b]$/;
+
+/** A key event as a tool reads it, with the Latin letter of the physical key (`latinKey`) in `key`. */
+function withKey(e: KeyboardEvent, key: string): KeyboardEvent {
+  return { key, code: e.code, shiftKey: e.shiftKey, ctrlKey: e.ctrlKey, metaKey: e.metaKey, altKey: e.altKey, repeat: e.repeat, preventDefault: () => e.preventDefault() } as KeyboardEvent;
+}
 
 /** How far from an outline a click still hits, in CSS pixels. */
 const HIT_PX = 6;
@@ -313,6 +322,16 @@ export class Plan2dEditor {
       this.activeTool = this.tools[id];
     }
     this.callbacks.onToolChange?.(id, this.activeTool.hint());
+    this.invalidate();
+  }
+
+  /**
+   * The interface language changed: the tool's hint is asked for again (the host shows it in the
+   * footer) and the plan is drawn again, since its words (UP, a room that is not enclosed) follow the
+   * process language.
+   */
+  languageChanged(): void {
+    this.announceTool();
     this.invalidate();
   }
 
@@ -681,13 +700,16 @@ export class Plan2dEditor {
       return;
     }
     // The tool first (it may take Ctrl combinations such as Ctrl+C); the shell only sees what is left.
-    if (this.activeTool.key?.(e)) {
+    // On a non-Latin layout the tool sees the Latin letter of the physical key.
+    const key = latinKey(e);
+    if (this.activeTool.key?.(key === e.key ? e : withKey(e, key))) {
       this.announceTool();
       e.preventDefault();
       return;
     }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
-    if (/^[0-9@.+-]$/.test(e.key) && this.activeTool.acceptsTyped?.() && this.callbacks.onDynamicInput) {
+    // A digit starts a typed length or coordinate: Latin, Arabic-Indic or Persian, or the Arabic decimal separator.
+    if (TYPED_START.test(e.key) && this.activeTool.acceptsTyped?.() && this.callbacks.onDynamicInput) {
       this.callbacks.onDynamicInput({ char: e.key, screen: this.lastScreen ?? [this.size.width / 2, this.size.height / 2] });
       e.preventDefault();
       return;
@@ -701,52 +723,52 @@ export class Plan2dEditor {
     } else if (e.key === 'PageUp' || e.key === 'PageDown') {
       this.callbacks.onLevelStep?.(e.key === 'PageUp' ? 1 : -1);
       e.preventDefault();
-    } else if (e.shiftKey && (e.key === 'S' || e.key === 'R' || e.key === 'L' || e.key === 'E')) {
-      this.setTool(e.key === 'S' ? 'stair' : e.key === 'R' ? 'ramp' : e.key === 'L' ? 'ladder' : 'escalator');
+    } else if (e.shiftKey && (key === 'S' || key === 'R' || key === 'L' || key === 'E')) {
+      this.setTool(key === 'S' ? 'stair' : key === 'R' ? 'ramp' : key === 'L' ? 'ladder' : 'escalator');
       e.preventDefault();
-    } else if (e.key === 'e' || e.key === 'E') {
+    } else if (key === 'e' || key === 'E') {
       this.setTool('elevator');
       e.preventDefault();
-    } else if (e.key === 'c' || e.key === 'C') {
+    } else if (key === 'c' || key === 'C') {
       this.setTool('column');
       e.preventDefault();
-    } else if (e.key === 'i' || e.key === 'I') {
+    } else if (key === 'i' || key === 'I') {
       this.setTool('item');
       e.preventDefault();
-    } else if (e.key === 'g' || e.key === 'G') {
+    } else if (key === 'g' || key === 'G') {
       this.setTool('light');
       e.preventDefault();
-    } else if (e.key === 'v' || e.key === 'V') {
+    } else if (key === 'v' || key === 'V') {
       this.setTool('select');
       e.preventDefault();
-    } else if (e.key === 'w' || e.key === 'W') {
+    } else if (key === 'w' || key === 'W') {
       this.setTool('wall');
       e.preventDefault();
-    } else if (e.key === 'd' || e.key === 'D') {
+    } else if (key === 'd' || key === 'D') {
       this.setTool('door');
       e.preventDefault();
-    } else if (e.key === 'n' || e.key === 'N') {
+    } else if (key === 'n' || key === 'N') {
       this.setTool('window');
       e.preventDefault();
-    } else if (e.key === 'r' || e.key === 'R') {
+    } else if (key === 'r' || key === 'R') {
       this.setTool('room');
       e.preventDefault();
-    } else if (e.key === 's' || e.key === 'S') {
+    } else if (key === 's' || key === 'S') {
       this.setTool('separator');
       e.preventDefault();
-    } else if (e.key === 'p' || e.key === 'P') {
+    } else if (key === 'p' || key === 'P') {
       this.setTool('shape');
       e.preventDefault();
-    } else if (e.key === 'k' || e.key === 'K') {
+    } else if (key === 'k' || key === 'K') {
       this.setTool('rectangle');
       e.preventDefault();
-    } else if (e.key === 'o' || e.key === 'O') {
+    } else if (key === 'o' || key === 'O') {
       this.setTool('circle');
       e.preventDefault();
-    } else if (e.key === 'l' || e.key === 'L') {
+    } else if (key === 'l' || key === 'L') {
       this.setTool('dimension');
       e.preventDefault();
-    } else if (e.key === 't' || e.key === 'T') {
+    } else if (key === 't' || key === 'T') {
       this.setTool('label');
       e.preventDefault();
     }

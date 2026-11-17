@@ -1,6 +1,7 @@
 import type { RuleLimits } from '../config';
 import { deriveLevels, type DerivedLevel } from '../doc/derive';
 import type { Connector, ProjectDoc } from '../doc/schema';
+import { ENGLISH_PHRASE, phraseText, type Phrase } from '../i18n';
 import { segmentIntersections } from './intersect';
 import { offsetPath, segmentsToPath } from './offset';
 import { resolvePath, segmentLength, segmentPoint, segmentTangent, trim, type Path, type Seg } from './path';
@@ -31,7 +32,10 @@ export type ConnectorRule =
 /** A limit a connector breaks. `value` and `limit` are in mm, or percent for slopes. */
 export interface RuleBreak {
   rule: ConnectorRule;
+  /** In English, for agents: `text` as English writes it. */
   message: string;
+  /** What is broken, as its catalog key and parameters (`rules.break.*`), for the user's language and units. */
+  text: Phrase;
   value?: number;
   limit?: number;
 }
@@ -147,7 +151,8 @@ const ESCALATOR_ANGLE = (30 * Math.PI) / 180;
 /** The flat run at each end of an escalator, mm. */
 export const ESCALATOR_LANDING = 1200;
 const ESCALATOR_STEP = 400;
-const mm = (v: number) => `${Math.round(v * 10) / 10} mm`;
+/** A broken limit from its text: the English message agents read is made from it. */
+const breaks = (rule: ConnectorRule, text: Phrase, numbers: { value?: number; limit?: number } = {}): RuleBreak => ({ rule, message: phraseText(text, ENGLISH_PHRASE), text, ...numbers });
 
 // ---------- walking along an axis ----------
 
@@ -295,7 +300,7 @@ function deriveStair(c: Extract<Connector, { kind: 'stair' }>, bottom: number, t
   const winder = c.shape === 'winder';
   const split = winder ? { flights: walk.total > 1 ? ([[0, walk.total]] as [number, number][]) : [], landings: [] as [number, number][] } : splitFlights(walk, corners, width);
 
-  if (rise <= 0) broken.push({ rule: 'inverted', message: `Its top is not above its bottom (it rises ${mm(rise)}).`, value: rise, limit: 0 });
+  if (rise <= 0) broken.push(breaks('inverted', { key: 'rules.break.inverted', params: { rise: { mm: rise } } }, { value: rise, limit: 0 }));
   const maxRiser = c.riser.maxHeight ?? limits.maxRiser;
   const minTread = c.tread.minDepth ?? limits.minTread;
   const risers = Math.max(2, c.riser.count ?? Math.ceil(Math.max(rise, 0) / maxRiser - 1e-9));
@@ -303,7 +308,7 @@ function deriveStair(c: Extract<Connector, { kind: 'stair' }>, bottom: number, t
   const lengths = split.flights.map(([a, b]) => b - a);
   const treadsTotal = risers - split.flights.length;
   const treadCounts = apportion(lengths, Math.max(0, treadsTotal));
-  if (treadsTotal < split.flights.length) broken.push({ rule: 'too-few-risers', message: `${risers} risers are too few for ${split.flights.length} flights.`, value: risers, limit: split.flights.length * 2 });
+  if (treadsTotal < split.flights.length) broken.push(breaks('too-few-risers', { key: 'rules.break.tooFewRisers', params: { risers, flights: split.flights.length } }, { value: risers, limit: split.flights.length * 2 }));
 
   const flights: Flight[] = split.flights.map(([from, to], i) => ({ from, to, treads: treadCounts[i], risers: treadCounts[i] + 1, tread: treadCounts[i] ? (to - from) / treadCounts[i] : 0 }));
   const treadDepth = flights.length ? Math.min(...flights.map((f) => (f.treads ? f.tread : Infinity))) : 0;
@@ -351,19 +356,19 @@ function deriveStair(c: Extract<Connector, { kind: 'stair' }>, bottom: number, t
   const cutAlong = cutRiser < risers && treads[cutRiser - 1] ? treads[cutRiser - 1].along : null;
 
   if (rise > 0) {
-    if (riserHeight > maxRiser + 0.05) broken.push({ rule: 'riser-high', message: `Risers of ${mm(riserHeight)} are higher than ${mm(maxRiser)}.`, value: riserHeight, limit: maxRiser });
-    if (riserHeight < limits.minRiser - 0.05) broken.push({ rule: 'riser-low', message: `Risers of ${mm(riserHeight)} are lower than ${mm(limits.minRiser)}.`, value: riserHeight, limit: limits.minRiser });
-    if (Number.isFinite(treadDepth) && treadDepth < minTread - 0.05) broken.push({ rule: 'tread-short', message: `Treads of ${mm(treadDepth)} are shallower than ${mm(minTread)}.`, value: treadDepth, limit: minTread });
+    if (riserHeight > maxRiser + 0.05) broken.push(breaks('riser-high', { key: 'rules.break.riserHigh', params: { height: { mm: riserHeight }, limit: { mm: maxRiser } } }, { value: riserHeight, limit: maxRiser }));
+    if (riserHeight < limits.minRiser - 0.05) broken.push(breaks('riser-low', { key: 'rules.break.riserLow', params: { height: { mm: riserHeight }, limit: { mm: limits.minRiser } } }, { value: riserHeight, limit: limits.minRiser }));
+    if (Number.isFinite(treadDepth) && treadDepth < minTread - 0.05) broken.push(breaks('tread-short', { key: 'rules.break.treadShort', params: { depth: { mm: treadDepth }, limit: { mm: minTread } } }, { value: treadDepth, limit: minTread }));
     const step = 2 * riserHeight + treadDepth;
     if (Number.isFinite(step) && (step < limits.comfortMin - 0.05 || step > limits.comfortMax + 0.05)) {
       const limit = step < limits.comfortMin ? limits.comfortMin : limits.comfortMax;
-      broken.push({ rule: 'comfort', message: `2 × riser + tread is ${mm(step)}, outside ${limits.comfortMin}–${limits.comfortMax} mm.`, value: step, limit });
+      broken.push(breaks('comfort', { key: 'rules.break.comfort', params: { step: { mm: step }, range: { mmRange: [limits.comfortMin, limits.comfortMax] } } }, { value: step, limit }));
     }
   }
-  if (width < limits.minStairWidth - 0.05) broken.push({ rule: 'too-narrow', message: `It is ${mm(width)} wide, narrower than ${mm(limits.minStairWidth)}.`, value: width, limit: limits.minStairWidth });
+  if (width < limits.minStairWidth - 0.05) broken.push(breaks('too-narrow', { key: 'rules.break.tooNarrow', params: { width: { mm: width }, limit: { mm: limits.minStairWidth } } }, { value: width, limit: limits.minStairWidth }));
   const mismatch = shapeMismatch(c.shape, walk, corners);
-  if (mismatch) broken.push({ rule: 'shape-mismatch', message: mismatch });
-  if (segmentsSelfIntersect(walk.segs)) broken.push({ rule: 'self-intersecting', message: 'Its walk line crosses itself.' });
+  if (mismatch) broken.push(breaks('shape-mismatch', mismatch));
+  if (segmentsSelfIntersect(walk.segs)) broken.push(breaks('self-intersecting', { key: 'rules.break.walkCrosses' }));
 
   return {
     kind: 'stair',
@@ -406,21 +411,21 @@ function treadLine(walk: Walk, along: number, width: number, corners: { along: n
   return corners[i].turn > 0 ? { a: inner, b: outer } : { a: outer, b: inner };
 }
 
-function shapeMismatch(shape: Extract<Connector, { kind: 'stair' }>['shape'], walk: Walk, corners: { turn: number }[]): string | null {
+function shapeMismatch(shape: Extract<Connector, { kind: 'stair' }>['shape'], walk: Walk, corners: { turn: number }[]): Phrase | null {
   const arcs = walk.segs.some((s) => s.k !== 'line');
   const turned = Math.abs(corners.reduce((sum, c) => sum + c.turn, 0)) / (Math.PI / 180);
   switch (shape) {
     case 'straight':
-      return corners.length || arcs ? 'A straight stair runs along one straight line, but its walk line turns.' : null;
+      return corners.length || arcs ? { key: 'rules.break.straightTurns' } : null;
     case 'l':
-      return corners.length === 1 ? null : `An L stair turns once, but its walk line turns ${corners.length} times.`;
+      return corners.length === 1 ? null : { key: 'rules.break.lTurns', params: { count: corners.length } };
     case 'u':
-      return corners.length === 2 && Math.abs(turned - 180) < 15 ? null : 'A U stair turns back on itself in two corners.';
+      return corners.length === 2 && Math.abs(turned - 180) < 15 ? null : { key: 'rules.break.uTurns' };
     case 'winder':
-      return corners.length ? null : 'A winder stair needs a corner to wind around.';
+      return corners.length ? null : { key: 'rules.break.winderCorner' };
     case 'curved':
     case 'spiral':
-      return arcs ? null : `A ${shape} stair follows an arc, but its walk line is straight.`;
+      return arcs ? null : { key: shape === 'curved' ? 'rules.break.curvedStraight' : 'rules.break.spiralStraight' };
   }
 }
 
@@ -434,9 +439,9 @@ function deriveRamp(c: Extract<Connector, { kind: 'ramp' }>, bottom: number, top
   const run = split.flights.reduce((sum, [a, b]) => sum + (b - a), 0);
   const slope = run > 0 ? (rise / run) * 100 : Infinity;
   const broken: RuleBreak[] = [];
-  if (rise <= 0) broken.push({ rule: 'inverted', message: `Its top is not above its bottom (it rises ${mm(rise)}).`, value: rise, limit: 0 });
-  else if (slope > c.maxSlope + 0.005) broken.push({ rule: 'too-steep', message: `Its slope of ${slope.toFixed(1)} % is steeper than ${c.maxSlope} %.`, value: slope, limit: c.maxSlope });
-  if (segmentsSelfIntersect(walk.segs)) broken.push({ rule: 'self-intersecting', message: 'Its axis crosses itself.' });
+  if (rise <= 0) broken.push(breaks('inverted', { key: 'rules.break.inverted', params: { rise: { mm: rise } } }, { value: rise, limit: 0 }));
+  else if (slope > c.maxSlope + 0.005) broken.push(breaks('too-steep', { key: 'rules.break.tooSteep', params: { slope: slope.toFixed(1), limit: c.maxSlope } }, { value: slope, limit: c.maxSlope }));
+  if (segmentsSelfIntersect(walk.segs)) broken.push(breaks('self-intersecting', { key: 'rules.break.axisCrosses' }));
   // Landings sit at the height the slope has reached.
   const landings: Landing[] = split.landings.map(([from, to]) => {
     const before = split.flights.filter(([, b]) => b <= from + 1e-6).reduce((sum, [a, b]) => sum + (b - a), 0);
@@ -459,7 +464,7 @@ function rect(origin: Vec2, along: Vec2, length: number, width: number): Polygon
 function deriveLadder(c: Extract<Connector, { kind: 'ladder' }>, bottom: number, top: number): LadderGeometry {
   const rise = top - bottom;
   const broken: RuleBreak[] = [];
-  if (rise <= 0) broken.push({ rule: 'inverted', message: `Its top is not above its bottom (it rises ${mm(rise)}).`, value: rise, limit: 0 });
+  if (rise <= 0) broken.push(breaks('inverted', { key: 'rules.break.inverted', params: { rise: { mm: rise } } }, { value: rise, limit: 0 }));
   const along = direction(c.direction);
   const run = rise > 0 ? rise / Math.tan((c.angle * Math.PI) / 180) : 0;
   const side = scale(perp(along), c.width / 2);
@@ -478,7 +483,7 @@ function deriveLadder(c: Extract<Connector, { kind: 'ladder' }>, bottom: number,
 function deriveEscalator(c: Extract<Connector, { kind: 'escalator' }>, bottom: number, top: number): EscalatorGeometry {
   const rise = top - bottom;
   const broken: RuleBreak[] = [];
-  if (rise <= 0) broken.push({ rule: 'inverted', message: `Its top is not above its bottom (it rises ${mm(rise)}).`, value: rise, limit: 0 });
+  if (rise <= 0) broken.push(breaks('inverted', { key: 'rules.break.inverted', params: { rise: { mm: rise } } }, { value: rise, limit: 0 }));
   const along = direction(c.direction);
   const inclined = rise > 0 ? rise / Math.tan(ESCALATOR_ANGLE) : 0;
   const run = inclined + 2 * ESCALATOR_LANDING;
@@ -515,14 +520,14 @@ function deriveElevator(c: Extract<Connector, { kind: 'elevator' }>, levels: Rea
   for (const s of c.stops) {
     const level = levels.get(s.levelId);
     if (!level) continue;
-    if (level.placement !== 'stack') broken.push({ rule: 'stop-off-stack', message: `It stops at "${level.name}", a mezzanine that is not on the level stack.` });
+    if (level.placement !== 'stack') broken.push(breaks('stop-off-stack', { key: 'rules.break.stopOffStack', params: { level: level.name } }));
     stops.push({ levelId: s.levelId, elevation: level.elevation, side: s.door, door: doorOf(s.door) });
   }
   stops.sort((a, b) => a.elevation - b.elevation);
   for (let i = 1; i < stops.length; i++) {
-    if (Math.abs(stops[i].elevation - stops[i - 1].elevation) < 1) broken.push({ rule: 'stops-same-elevation', message: `Two of its stops are at the same elevation (${mm(stops[i].elevation)}).`, value: stops[i].elevation });
+    if (Math.abs(stops[i].elevation - stops[i - 1].elevation) < 1) broken.push(breaks('stops-same-elevation', { key: 'rules.break.stopsSameElevation', params: { elevation: { mm: stops[i].elevation } } }, { value: stops[i].elevation }));
   }
-  if (c.car.w > c.shaft.w || c.car.d > c.shaft.d) broken.push({ rule: 'car-too-big', message: `Its car (${mm(c.car.w)} × ${mm(c.car.d)}) does not fit its shaft (${mm(c.shaft.w)} × ${mm(c.shaft.d)}).` });
+  if (c.car.w > c.shaft.w || c.car.d > c.shaft.d) broken.push(breaks('car-too-big', { key: 'rules.break.carTooBig', params: { carW: { mm: c.car.w }, carD: { mm: c.car.d }, shaftW: { mm: c.shaft.w }, shaftD: { mm: c.shaft.d } } }));
   const bottom = stops.length ? stops[0].elevation : NaN;
   const top = stops.length ? stops[stops.length - 1].elevation : NaN;
   return { kind: 'elevator', id: c.id, bottom, top, rise: top - bottom, footprint: [shaft], broken, shaft, car, stops };

@@ -53,8 +53,13 @@ export async function smokeAssistantClaudeCode(smoke: Smoke, duplexId: string): 
       return state.status === 'idle' && !state.stopping;
     }, 30_000);
     await smoke.gone(`${panel} [data-testid=assistant-stop]`, 3000);
+    // Main may say idle before the window has the state that enables the composer (under load a click on the still
+    // disabled Send was lost once): wait for the window too, then for the message to show.
+    await smoke.until(() => smoke.js<boolean>(`!document.querySelector('${panel} [data-testid=assistant-input]')?.disabled`), 30_000);
     await smoke.fill(`${panel} [data-testid=assistant-input]`, text);
+    await smoke.until(() => smoke.js<boolean>(`!document.querySelector('${panel} [data-testid=assistant-send]')?.disabled`), 30_000);
     await smoke.click(`${panel} [data-testid=assistant-send]`);
+    await smoke.waitFor(`${panel} [data-testid=assistant-item][data-kind=user]`, 10_000, text);
   };
   const openSettings = async () => {
     await smoke.click('[data-testid=titlebar-settings]');

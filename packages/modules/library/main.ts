@@ -12,7 +12,7 @@ const fullPath = z.string().min(1).refine((p) => nodePath.isAbsolute(p), 'path m
 
 function currentId(ctx: CommandContext, id?: string): string {
   const target = id ?? ctx.host.projects.current()?.id;
-  if (!target) throw new StudioError('NO_PROJECT', 'No project is open. Name one with `id`, or open one first.');
+  if (!target) throw new StudioError('NO_PROJECT', { key: 'errors.library.noOpenProject' });
   return target;
 }
 
@@ -188,7 +188,8 @@ export const libraryModule = defineModule({
       handler: async ({ path }) => {
         const entries = await fs.readdir(path).catch(() => null);
         const hasLibrary = Boolean(await fs.stat(nodePath.join(path, 'library.json')).catch(() => null));
-        return { exists: entries !== null, empty: !entries || entries.length === 0, hasLibrary, warning: syncedFolderWarning(path) };
+        const synced = syncedFolderWarning(path);
+        return { exists: entries !== null, empty: !entries || entries.length === 0, hasLibrary, warning: synced?.message ?? null, warningText: synced?.text ?? null };
       },
     }),
     defineCommand({

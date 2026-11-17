@@ -2,15 +2,25 @@ import path from 'node:path';
 import {
   BRANDING,
   CommandRegistry,
+  ENGLISH_PHRASE,
   StudioError,
+  phraseText,
+  languageDirection,
+  resolveLanguage,
+  setLanguage,
   toErrorPayload,
   toolInputSchema,
+  type Phrase,
   type Caller,
   type ErrorPayload,
+  type GlobalConfig,
   type HostApi,
   type HostEventMessage,
   type HostEventName,
   type HostEvents,
+  type Language,
+  type LanguagePreference,
+  type TextDirection,
   type McpCallEntry,
   type McpStatus,
   type ModuleMain,
@@ -40,6 +50,21 @@ export interface HostOptions {
   autosave?: { debounceMs?: number; maxWaitMs?: number };
   /** In-app updates: electron-updater in the app (`updater.ts`), a scripted one in the smoke; absent in tests. */
   updater?: Updater;
+  /**
+   * The operating system's locale (Electron's `app.getLocale()`), which `appearance.language: 'system'` follows.
+   * The smoke passes `en-US`, so it runs in English on any machine; `STUDIO_LANG` overrides it in development.
+   */
+  systemLocale?: string;
+  /** The fonts the exports embed (`resources/fonts`, or `fonts` in the packaged app's resources). */
+  fontsDir?: string;
+}
+
+/** What `app.language` answers: the language the app speaks now, its direction, what Settings stores and the OS locale it follows. */
+export interface LanguageState {
+  language: Language;
+  direction: TextDirection;
+  preference: LanguagePreference;
+  systemLocale: string;
 }
 
 export interface InvokeOptions {
@@ -62,13 +87,15 @@ export class Host {
   readonly secrets: SecretStore;
   readonly api: HostApi;
   private mcp: RunningMcpServer | null = null;
-  private mcpError: string | undefined;
+  private mcpError: Phrase | undefined;
   private readonly calls: McpCallEntry[] = [];
   private service: ProjectService | null = null;
+  /** The resolved language: `setLanguage` is called with it, and `language.changed` announces a change. */
+  private language: Language = 'en';
 
   /** The project library and the open projects; available once `start` has run. */
   get projects(): ProjectService {
-    if (!this.service) throw new StudioError('INTERNAL', 'The project library is not open yet');
+    if (!this.service) throw new StudioError('INTERNAL', { key: 'errors.library.notOpenYet' });
     return this.service;
   }
 
@@ -79,12 +106,17 @@ export class Host {
 
   constructor(readonly opts: HostOptions) {
     const host = this;
-    this.config = new ConfigStore(path.join(opts.userDataDir, 'config.json'), (config) => this.emit('config.changed', { config }));
+    this.config = new ConfigStore(path.join(opts.userDataDir, 'config.json'), (config) => {
+      this.emit('config.changed', { config });
+      this.applyLanguage(config);
+    });
+    this.applyLanguage(this.config.get());
     this.secrets = new SecretStore(path.join(opts.userDataDir, 'secrets.json'), opts.cipher);
     this.api = {
       version: opts.version,
       platform: opts.platform,
       dataDir: opts.userDataDir,
+      fontsDir: opts.fontsDir,
       config: {
         get: () => this.config.get(),
         update: (patch) => this.config.update(patch),
@@ -127,6 +159,7 @@ export class Host {
 
   async start(): Promise<void> {
     const config = await this.config.load();
+    this.applyLanguage(config);
     await this.secrets.load();
     for (const mod of this.registry.listModules()) {
       try {
@@ -179,6 +212,24 @@ export class Host {
     await Promise.all([this.config.idle(), this.secrets.idle(), this.opts.updater?.idle()]);
   }
 
+  /** The language the app speaks, and what it was resolved from (`app.language`). */
+  languageState(): LanguageState {
+    const preference = this.config.get().appearance.language;
+    return { language: this.language, direction: languageDirection(this.language), preference, systemLocale: this.opts.systemLocale ?? '' };
+  }
+
+  /**
+   * Resolves `appearance.language` against the system locale, makes it the process language (`t` in
+   * main reads it) and announces it when it changed. Runs at construction, at start and on every config change.
+   */
+  private applyLanguage(config: GlobalConfig): void {
+    const language = resolveLanguage(config.appearance.language, this.opts.systemLocale);
+    setLanguage(language);
+    if (language === this.language) return;
+    this.language = language;
+    this.emit('language.changed', { language, direction: languageDirection(language) });
+  }
+
   /** Runs a command for the UI (or the smoke test) and never throws: the outcome crosses IPC as data. */
   async invoke(id: string, input: unknown, options: InvokeOptions): Promise<InvokeOutcome> {
     try {
@@ -200,7 +251,7 @@ export class Host {
 
   mcpStatus(): McpStatus {
     const { port } = this.config.get().mcp;
-    return { running: this.mcp !== null, port, url: `http://127.0.0.1:${port}/mcp`, ...(this.mcpError ? { error: this.mcpError } : {}) };
+    return { running: this.mcp !== null, port, url: `http://127.0.0.1:${port}/mcp`, ...(this.mcpError ? { error: phraseText(this.mcpError, ENGLISH_PHRASE), errorText: this.mcpError } : {}) };
   }
 
   mcpCalls(): McpCallEntry[] {
@@ -231,8 +282,8 @@ export class Host {
     } catch (err) {
       this.mcp = null;
       const code = (err as NodeJS.ErrnoException).code;
-      this.mcpError = code === 'EADDRINUSE' ? `Port ${port} is already in use. Choose another port.` : (err as Error).message;
-      console.error(`[host] MCP server failed to start on port ${port}: ${this.mcpError}`);
+      this.mcpError = code === 'EADDRINUSE' ? { key: 'settings.mcp.portInUse', params: { port } } : { key: 'settings.mcp.failed', params: { detail: (err as Error).message } };
+      console.error(`[host] MCP server failed to start on port ${port}: ${phraseText(this.mcpError, ENGLISH_PHRASE)}`);
     }
     this.emit('mcp.status', this.mcpStatus());
   }

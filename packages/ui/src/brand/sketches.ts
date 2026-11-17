@@ -33,12 +33,13 @@ export class HouseDoodle {
 
 /**
  * The pencil sketch of one room for the empty moments (first launch, the empty project): walls, a door swing,
- * a window, a 4 000 mm dimension and the terracotta pencil, in the plan's colours so both themes follow.
+ * a window, a 4 000 mm dimension and the terracotta pencil, in the plan's colours so both themes follow. A drawing
+ * never mirrors: it is left to right in every language, so its dimension reads `4 000 mm`, not `mm 000 4`.
  */
 @Component({
   selector: 'x-room-sketch',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { class: 'block', 'aria-hidden': 'true' },
+  host: { class: 'block', 'aria-hidden': 'true', dir: 'ltr' },
   template: `
     <svg viewBox="0 0 240 150" width="100%" height="100%" class="block" focusable="false">
       <g fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="stroke: var(--fg)">

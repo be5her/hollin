@@ -4,7 +4,8 @@ import { drawingBounds, planDrawing, type DrawingLayer, type PlanDrawing } from 
 import { drawingHouse } from './house.fixture';
 import { BRANDING } from '../branding';
 import { PAGE_MARGIN, TITLE_BLOCK, paperSize } from './paper';
-import { drawingToSvg, svgLayout, xmlEscape } from './svg';
+import { drawingToSvg, svgLayout, svgTextParts, xmlEscape } from './svg';
+import { setLanguage } from '../i18n';
 
 /** Every tag opened is closed, in order (self-closing ones aside); comments and the XML declaration skipped. */
 function balanced(xml: string): boolean {
@@ -181,5 +182,58 @@ describe('drawingToSvg', () => {
     const svg = drawingToSvg(drawing);
     expect(svg).toMatch(/fill-rule="evenodd"/);
     expect(svg).toMatch(/fill-opacity="0\.\d+"/);
+  });
+
+  describe('Arabic', () => {
+    const text = (value: string, align: 'left' | 'center' | 'right', extra: { mono?: boolean; direction?: 'ltr' | 'rtl' } = {}) =>
+      drawingToSvg(drawingOf([{ type: 'text', at: [0, 0], text: value, height: 200, rotation: 0, align, baseline: 'middle', ...extra }]));
+    /** The <text> element of a drawing of one text. */
+    const element = (svg: string) => /<text [^>]*>.*?<\/text>/.exec(svg.slice(svg.indexOf('<g id="layer-')))![0];
+
+    it('reads an Arabic text right to left, anchored where the drawing put it', () => {
+      // left: the text starts at the anchor and runs right, so its right-to-left start is the far (right) end.
+      expect(element(text('غرفة المعيشة', 'left'))).toMatch(/text-anchor="end" direction="rtl"/);
+      expect(element(text('غرفة المعيشة', 'right'))).toMatch(/text-anchor="start" direction="rtl"/);
+      expect(element(text('غرفة المعيشة', 'center'))).toMatch(/text-anchor="middle" direction="rtl"/);
+      expect(element(text('غرفة المعيشة', 'center'))).toContain('>غرفة المعيشة</text>');
+      // The Arabic face after the Latin one, for this text only.
+      expect(element(text('غرفة المعيشة', 'center'))).toContain(`font-family="'Alegreya Sans', 'IBM Plex Sans Arabic', Helvetica, Arial, sans-serif"`);
+      expect(element(text('صعود', 'center', { mono: true }))).toContain(`'IBM Plex Mono', 'IBM Plex Sans Arabic'`);
+    });
+
+    it('keeps a mixed left-to-right text as it was, with the Arabic face', () => {
+      const el = element(text('Bedroom غرفة', 'left'));
+      expect(el).toMatch(/text-anchor="start" fill=/);
+      expect(el).not.toContain('direction=');
+      expect(el).toContain('>Bedroom غرفة</text>');
+    });
+
+    it('writes measurements in an Arabic text as left-to-right spans and drops the bidi controls', () => {
+      expect(element(text('الطابق الأرضي · 3600 mm', 'center'))).toContain('>الطابق الأرضي · <tspan direction="ltr" unicode-bidi="embed">3600 mm</tspan></text>');
+      // The Arabic interface's not-enclosed sentence: the isolates go, the direction says rtl.
+      const sentence = element(text('⁨Kitchen⁩ · غير مغلقة', 'left', { direction: 'rtl' }));
+      expect(sentence).toContain('>Kitchen · غير مغلقة</text>');
+      expect(sentence).toMatch(/text-anchor="end" direction="rtl"/);
+      expect(/[⁦-⁩‎‏]/.test(sentence)).toBe(false);
+      // A Latin-only text is written exactly as before.
+      expect(svgTextParts('Living', 'left', false)).toEqual({ family: "'Alegreya Sans', Helvetica, Arial, sans-serif", anchor: 'start', dir: '', content: 'Living' });
+    });
+
+    it('lays the title block out right to left in an Arabic interface: the level and the scale at the right, in Arabic', () => {
+      setLanguage('ar');
+      try {
+        const svg = drawingToSvg({ ...drawingOf([]), levelName: 'الطابق الأرضي' }, { title: 'بيت', date: '17 نوفمبر 2026', page: 'A3' });
+        const block = svg.slice(svg.indexOf('<g id="title-block"'));
+        // A3 landscape: the block runs from x 320 to 410 mm.
+        expect(block).toMatch(/<text x="407" [^>]*text-anchor="start" direction="rtl"[^>]*>الطابق الأرضي<\/text>/);
+        expect(block).toMatch(/<text x="407" [^>]*text-anchor="start" direction="rtl"[^>]*>المقياس 1:100<\/text>/);
+        expect(block).toMatch(/<text x="323" [^>]*text-anchor="end" direction="rtl"[^>]*>17 نوفمبر 2026<\/text>/);
+        expect(block).toMatch(/<text x="323" [^>]*text-anchor="end" direction="rtl"[^>]*>بيت<\/text>/);
+        // The wordmark stays a Latin name, at the top right.
+        expect(block).toMatch(new RegExp(`<text x="3[89][\\d.]+" [^>]*font-weight="700" text-anchor="start"[^>]*>${BRANDING.productName}<tspan`));
+      } finally {
+        setLanguage('en');
+      }
+    });
   });
 });

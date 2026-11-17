@@ -58,6 +58,33 @@ export function drawingHouse() {
   return { doc, ground, upper, ids: { ...ids, stair: stair.id, lift: lift.id } };
 }
 
+/**
+ * The exchange house named in Arabic, as a person writing Arabic names it: its project and levels, the rooms
+ * (one with a number, one with a mark), the entrance label with a measurement and brackets, and a label in
+ * both scripts. The not-enclosed room of the shape (a seed outside every space) says so in the sentence the
+ * interface composes.
+ */
+export function arabicHouse() {
+  const base = drawingHouse();
+  const doc = structuredClone(base.doc) as ProjectDoc;
+  const ids = base.ids as Record<string, string>;
+  doc.meta.name = 'بيت الأُسرة';
+  doc.levels[base.ground].name = 'الطابق الأرضي';
+  doc.levels[base.upper].name = 'الطابق الأول';
+  const ground = doc.levelData[base.ground].entities;
+  const rename = (id: string, set: Record<string, unknown>) => Object.assign(ground[id] as object, set);
+  rename(ids.living, { name: 'غرفة المعيشة' });
+  rename(ids.kitchen, { name: 'مطبخ 2' });
+  rename(ids.label, { text: 'المدخل (الرئيسي) · 3600 mm' });
+  const layerId = (ground[ids.label] as { layerId: string }).layerId;
+  ground['lbl_mixed000000000'] = { id: 'lbl_mixed000000000', type: 'label', layerId, text: 'Bedroom غرفة النوم', at: [6500, 7200], size: 250, rotation: 0 } as never;
+  ground['lbl_marks000000000'] = { id: 'lbl_marks000000000', type: 'label', layerId, text: 'غُرفة الأهلي لا', at: [6500, 8000], size: 250, rotation: 30 } as never;
+  ground['rom_outside0000000'] = { id: 'rom_outside0000000', type: 'room', layerId, name: 'مخزن', boundary: { k: 'detect', seed: [11000, 4000] } } as never;
+  const upper = doc.levelData[base.upper].entities;
+  Object.assign(upper[Object.keys(upper).find((k) => (upper[k] as { type: string }).type === 'room')!] as object, { name: 'بسطة الدرج' });
+  return { ...base, doc };
+}
+
 export const TABLE_FILE = `${'a'.repeat(64)}.glb`;
 export const TABLE_REF = `asset:${TABLE_FILE}`;
 export const PAINT = 'paint:#aabbcc';

@@ -1,13 +1,16 @@
 import { Component, ElementRef, afterRenderEffect, computed, effect, inject, linkedSignal, signal, untracked, viewChild } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { FormField, form } from '@angular/forms/signals';
-import { commandScore, type CommandMeta } from '@studio/core';
-import { AppState, Autofocus, Button, Checkbox, HostBridge, Input, Kbd, Label, Select, TextArea, Toasts, UiActions } from '@studio/ui';
+import { commandScore, commandTitle, foldForSearch, isMessageKey, latinKey, translate, type CommandMeta, type MessageParams } from '@studio/core';
+import { AppState, Autofocus, Button, Checkbox, HostBridge, I18n, Input, Kbd, Label, Select, TextArea, Toasts, UiActions } from '@studio/ui';
 import { buildInput, formFields, initialValues, type FormFieldSpec } from './command-form';
 
 interface PaletteItem {
   key: string;
-  /** What the search matches against. */
+  /** What the search matches against: the English title and its keywords, as before the app spoke another language. */
   value: string;
+  /** In another language, the title as shown, folded (`foldForSearch`), which the search matches too. */
+  local?: string;
   title: string;
   shortcut?: string;
   /** Shown on the right for host commands. */
@@ -21,13 +24,17 @@ interface PaletteGroup {
 }
 
 /**
- * Ctrl+K: every UI action that applies, plus every non-hidden host command. Typing filters and ranks
- * them fuzzily; arrows (or Ctrl+N/P, Ctrl+J/K) move, Enter runs, Escape closes. A command that needs
+ * Ctrl+K: every UI action that applies, plus every non-hidden host command, titled in the app's language
+ * (`commandTitle` for commands). Typing filters and ranks them fuzzily against the English title (and
+ * keywords, description, id) and, in another language, the shown title folded with `foldForSearch`; arrows (or Ctrl+N/P, Ctrl+J/K) move, Enter runs, Escape closes. A command that needs
  * input opens a small form generated from its schema.
  */
 @Component({
   selector: 'x-command-palette',
-  imports: [Autofocus, Button, Checkbox, FormField, Input, Kbd, Label, Select, TextArea],
+  // A command's form is its schema, written for agents in English: in English a field is named by its words and the
+  // descriptions are shown; in another language the title is translated, a field is named by its key, as code, and
+  // the English descriptions are left out.
+  imports: [Autofocus, Button, Checkbox, FormField, Input, Kbd, Label, NgTemplateOutlet, Select, TextArea],
   templateUrl: './command-palette.html',
   styleUrl: './command-palette.css',
   host: { class: 'contents' },
@@ -38,6 +45,8 @@ export class CommandPalette {
   private readonly toasts = inject(Toasts);
   private readonly actions = inject(UiActions);
   private readonly list = viewChild<ElementRef<HTMLDivElement>>('list');
+  protected readonly i18n = inject(I18n);
+  protected readonly t = this.i18n.t;
 
   protected readonly open = this.app.paletteOpen;
   /** Starts empty every time the palette opens. */
@@ -53,17 +62,28 @@ export class CommandPalette {
 
   private readonly groups = computed<PaletteGroup[]>(() => {
     if (!this.open()) return [];
+    const language = this.i18n.language();
+    const english = language === 'en';
+    // An action's title and group are message keys (or plain text); a placeholder value may be a key too.
+    const inLanguage = (lang: typeof language, text: string, params?: MessageParams): string => {
+      if (!isMessageKey(text)) return text;
+      const filled = params && Object.fromEntries(Object.entries(params).map(([k, v]) => [k, typeof v === 'string' && isMessageKey(v) ? translate(lang, v) : v]));
+      return translate(lang, text, filled);
+    };
     const actions = this.actions.actions();
     const byGroup = new Map<string, PaletteItem[]>();
     for (const a of actions.filter((x) => !x.when || x.when())) {
+      const title = inLanguage(language, a.title, a.titleParams);
       const item: PaletteItem = {
         key: `action:${a.id}`,
-        value: `${a.title} ${a.keywords?.join(' ') ?? ''} ${a.description ?? ''}`.trim(),
-        title: a.title,
+        value: `${inLanguage('en', a.title, a.titleParams)} ${a.keywords?.join(' ') ?? ''} ${a.description ?? ''}`.trim(),
+        local: english ? undefined : foldForSearch(title),
+        title,
         shortcut: a.shortcut,
         run: () => void a.run(),
       };
-      byGroup.set(a.group, [...(byGroup.get(a.group) ?? []), item]);
+      const group = inLanguage(language, a.group);
+      byGroup.set(group, [...(byGroup.get(group) ?? []), item]);
     }
     const groups = [...byGroup.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([heading, items]) => ({ heading, items }));
     // A UI action with the same id as a host command wraps it with proper feedback, so the raw command steps aside.
@@ -71,11 +91,12 @@ export class CommandPalette {
     const commands = this.app.commands().filter((c) => !c.hidden && (c.scope === 'global' || hasProject) && !actions.some((a) => a.id === c.id));
     if (commands.length) {
       groups.push({
-        heading: 'Commands',
+        heading: this.t('shell.palette.commands'),
         items: commands.map((c) => ({
           key: `command:${c.id}`,
           value: `${c.title} ${c.id} ${c.description}`.trim(),
-          title: c.noInput ? c.title : `${c.title}…`,
+          local: english ? undefined : foldForSearch(commandTitle(c, language)),
+          title: c.noInput ? commandTitle(c, language) : `${commandTitle(c, language)}…`,
           commandId: c.id,
           run: () => void this.runCommand(c),
         })),
@@ -88,9 +109,11 @@ export class CommandPalette {
   protected readonly shown = computed<PaletteGroup[]>(() => {
     const search = this.search();
     if (!search) return this.groups();
+    const folded = foldForSearch(search);
+    const score = (item: PaletteItem) => Math.max(commandScore(item.value, search), item.local ? commandScore(item.local, folded) : 0);
     return this.groups()
       .map((group) => {
-        const scored = group.items.map((item) => ({ item, score: commandScore(item.value, search) })).filter((s) => s.score > 0);
+        const scored = group.items.map((item) => ({ item, score: score(item) })).filter((s) => s.score > 0);
         scored.sort((a, b) => b.score - a.score);
         return { group: { heading: group.heading, items: scored.map((s) => s.item) }, best: scored[0]?.score ?? 0 };
       })
@@ -151,7 +174,8 @@ export class CommandPalette {
   protected keydown(event: KeyboardEvent): void {
     if (this.pending() || event.defaultPrevented || event.isComposing) return;
     const vim = event.ctrlKey;
-    switch (event.key) {
+    // Ctrl+N/J and Ctrl+P/K by the physical key, so they work on an Arabic keyboard layout too.
+    switch (vim ? latinKey(event) : event.key) {
       case 'n':
       case 'j':
         if (vim) this.step(event, 1);
@@ -226,7 +250,7 @@ export class CommandPalette {
     try {
       const result = await this.host.invoke(command.id, input);
       const text = typeof result === 'string' ? result : JSON.stringify(result);
-      this.toasts.notify(`${command.title}: ${text.length > 160 ? `${text.slice(0, 160)}…` : text}`, 'success');
+      this.toasts.notify(`${commandTitle(command, untracked(this.i18n.language))}: ${text.length > 160 ? `${text.slice(0, 160)}…` : text}`, 'success');
       return true;
     } catch (err) {
       this.toasts.error(err);

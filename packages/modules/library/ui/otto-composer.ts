@@ -1,19 +1,13 @@
 import { Component, Service, computed, inject, signal, untracked } from '@angular/core';
 import { FormField, disabled, form } from '@angular/forms/signals';
-import type { AssistantStatus, OpenProject } from '@studio/core';
-import { AssistantDrafts, Button, HostBridge, OttoMark, ProjectView, Spinner, TabsState, TextArea, Toasts, invokeResource } from '@studio/ui';
+import { nameFromSentence as nameFrom, t, type AssistantStatus, type MessageKey, type OpenProject } from '@studio/core';
+import { AssistantDrafts, Button, HostBridge, I18n, OttoMark, ProjectView, Spinner, TabsState, TextArea, Toasts, invokeResource } from '@studio/ui';
 import { Settings2 } from 'lucide';
 import { ProjectsSync } from './projects-sync';
 
-/** A project name from the first words of the sentence: up to the first comma or full stop, at most 48 characters. */
+/** A project name from the first words of the sentence, in any script (core's `nameFromSentence`), or the untitled name in the language of the moment. */
 export function nameFromSentence(sentence: string): string {
-  const head = sentence.trim().split(/[,.;:!?\n]/)[0]?.trim() ?? '';
-  let name = head;
-  if (name.length > 48) {
-    const cut = name.slice(0, 48);
-    name = cut.slice(0, cut.lastIndexOf(' ') > 20 ? cut.lastIndexOf(' ') : 48).trim();
-  }
-  return name ? name[0].toUpperCase() + name.slice(1) : 'Untitled project';
+  return nameFrom(sentence, t('library.untitled'));
 }
 
 /**
@@ -93,29 +87,30 @@ export function ottoCanWork(s: AssistantStatus | undefined | null): boolean {
   template: `
     <div class="flex items-center gap-2.5">
       <x-otto-mark size="24" label="Otto" />
-      <span class="text-[17px] leading-[22px] font-medium tracking-[-0.005em] text-fg">Start with Otto</span>
+      <span class="text-[17px] leading-[22px] font-medium tracking-[-0.005em] text-fg">{{ t('library.composer.title') }}</span>
     </div>
-    <p class="text-[13px] leading-[18px] text-fg/70">Describe the place and Otto drafts the ground floor: rooms, walls and doors, in millimetres you can change.</p>
+    <p class="text-[13px] leading-[18px] text-fg/70">{{ t('library.composer.lead') }}</p>
     @if (drafting(); as d) {
-      <p class="flex-1 min-h-16 text-[13px] leading-[18px] italic text-fg line-clamp-3" data-testid="otto-composer-sentence">{{ d.text }}</p>
+      <p class="flex-1 min-h-16 text-[13px] leading-[18px] italic text-fg line-clamp-3" dir="auto" data-testid="otto-composer-sentence">{{ d.text }}</p>
       <div class="flex items-center justify-between gap-2" aria-live="polite">
-        <span class="inline-flex items-center gap-2 text-[12px] italic text-fg/70" data-testid="otto-composer-drafting"><svg xSpinner class="size-4 text-ai"></svg>Otto is drafting…</span>
-        <button xButton size="sm" variant="ghost" class="shrink-0" (click)="openDraft()" data-testid="otto-composer-open">Open</button>
+        <span class="inline-flex items-center gap-2 text-[12px] italic text-fg/70" data-testid="otto-composer-drafting"><svg xSpinner class="size-4 text-ai"></svg>{{ t('library.composer.drafting') }}</span>
+        <button xButton size="sm" variant="ghost" class="shrink-0" (click)="openDraft()" data-testid="otto-composer-open">{{ t('library.composer.open') }}</button>
       </div>
     } @else {
     <textarea
       xTextarea
       rows="3"
+      dir="auto"
       class="flex-1 min-h-16 resize-none !bg-canvas !font-sans !text-[13px] leading-[18px] placeholder:italic disabled:!bg-surface"
-      placeholder="A two-bedroom flat with an open kitchen, about 65 m², bathroom off the hall"
-      aria-label="Describe the place for Otto"
+      [placeholder]="t('library.composer.placeholder')"
+      [attr.aria-label]="t('library.composer.input')"
       [formField]="composer.sentence"
       (keydown.control.enter)="draft(); $event.preventDefault()"
       data-testid="otto-composer-input"
     ></textarea>
     @if (ready()) {
       <div class="flex items-center justify-between gap-2">
-        <span class="text-[11px] leading-[14px] text-fg/70">Otto asks before it deletes anything.</span>
+        <span class="text-[11px] leading-[14px] text-fg/70">{{ t('library.composer.rule') }}</span>
         <button
           type="button"
           class="inline-flex items-center justify-center h-8 px-3 rounded-md text-[13px] font-medium bg-ai text-ai-fg hover:bg-ai-hover active:bg-ai-hover transition-colors shrink-0 focus:outline-none focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-1 disabled:opacity-50 disabled:pointer-events-none"
@@ -123,20 +118,20 @@ export function ottoCanWork(s: AssistantStatus | undefined | null): boolean {
           (click)="draft()"
           data-testid="otto-composer-draft"
         >
-          Draft it
+          {{ t('library.composer.draft') }}
         </button>
       </div>
     } @else {
       <div class="flex items-center justify-between gap-2">
         <span class="text-[11px] leading-[14px] text-fg/70" data-testid="otto-composer-reason">{{ reason() }}</span>
-        <button xButton size="sm" variant="secondary" class="shrink-0" [icon]="icons.Settings2" (click)="setUp()" data-testid="otto-composer-setup">Set up Otto</button>
+        <button xButton size="sm" variant="secondary" class="shrink-0" [icon]="icons.Settings2" (click)="setUp()" data-testid="otto-composer-setup">{{ t('library.composer.setUp') }}</button>
       </div>
     }
     }
   `,
   host: {
-    class: 'flex flex-col gap-2.5 rounded-lg border border-l-[3px] border-l-ai bg-ai-tint p-[18px] text-left',
-    style: 'border-color: color-mix(in srgb, var(--ai) 35%, var(--edge)); border-left-color: var(--ai)',
+    class: 'flex flex-col gap-2.5 rounded-lg border border-s-[3px] border-s-ai bg-ai-tint p-[18px] text-start',
+    style: 'border-color: color-mix(in srgb, var(--ai) 35%, var(--edge)); border-inline-start-color: var(--ai)',
     'data-testid': 'otto-composer',
     '[attr.data-state]': "drafting() ? 'drafting' : status.value() ? (ready() ? 'idle' : 'setup') : 'loading'",
     '[attr.data-project]': 'drafting()?.projectId ?? null',
@@ -147,15 +142,15 @@ export class OttoComposer {
   private readonly toasts = inject(Toasts);
 
   protected readonly icons = { Settings2 };
+  protected readonly t = inject(I18n).t;
   protected readonly status = invokeResource<AssistantStatus>('assistant.status', () => ({}), { projectId: null, refreshOnEvents: ['secrets.changed', 'config.changed', 'mcp.status'] });
   /** The provider can work: a key for the API; Claude Code found, logged in, and the MCP server on. */
   protected readonly ready = computed(() => ottoCanWork(this.status.value()));
   protected readonly reason = computed(() => {
     const s = this.status.value();
-    if (!s || s.provider === 'api') return 'Otto needs a Claude API key, or your Claude Code.';
-    if (!s.claudeCode?.found) return 'Otto cannot find your Claude Code.';
-    if (s.claudeCode.loggedIn === false) return 'Your Claude Code is not logged in.';
-    return 'Otto reaches your Claude Code through the MCP server, which is off.';
+    const key: MessageKey =
+      !s || s.provider === 'api' ? 'library.composer.needsKey' : !s.claudeCode?.found ? 'library.composer.noClaudeCode' : s.claudeCode.loggedIn === false ? 'library.composer.loggedOut' : 'library.composer.mcpOff';
+    return this.t(key);
   });
   protected readonly busy = signal(false);
   /** The project Otto is drafting from the card's sentence, while that chat runs (kept while Home is not showing). */
@@ -188,6 +183,7 @@ export class OttoComposer {
   }
 
   protected setUp(): void {
-    this.tabs.open({ type: 'settings.main', title: 'Settings', data: { key: 'settings', section: 'ai' } }, { singletonKey: 'settings.main:settings' });
+    const settings = this.tabs.open({ type: 'settings.main', title: 'Settings', titleKey: 'shell.tab.settings', data: { key: 'settings', section: 'ai' } }, { singletonKey: 'settings.main:settings' });
+    this.tabs.update(settings.id, { data: { key: 'settings', section: 'ai' } });
   }
 }

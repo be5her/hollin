@@ -1,5 +1,6 @@
 import { arcGeometry, segmentLength, segmentPoint, segmentTangent, trim, type Seg } from './path';
 import { add, normalize, perp, scale, sub, type Vec2 } from './vec';
+import { hasRtl } from '../i18n/text';
 
 /*
  * The pure geometry of the plan's symbols, shared by the canvas (sizes in a few pixels' worth of
@@ -60,6 +61,20 @@ export function arrowHeadLines(tip: Vec2, dir: Vec2, length: number): [Vec2, Vec
     [tip, add(add(tip, back), side)],
     [tip, add(sub(tip, side), back)],
   ];
+}
+
+/**
+ * Where a word beside a walk line's start dot goes (UP/DN on one side, a stair's riser count on the other),
+ * for a text `size` high (the canvas's 11 px, the drawing's text height): centred `1.27 × size` from the dot
+ * when it fits there (`normal` is the walk's normal at the dot, `side` picks the side). An Arabic word (its
+ * width is only estimated here, and Arabic often runs wider) or one too wide to be centred without reaching
+ * the dot starts at a gap of `0.6 × size` instead and reads away from the dot. A walk that runs across the
+ * page puts the words above and below the dot, always centred. Shared by the canvas and the exports.
+ */
+export function walkLabelPlacement(dot: Vec2, normal: Vec2, side: 1 | -1, value: string, size: number): { at: Vec2; align: 'center' | 'left' | 'right' } {
+  const halfWidth = (value.length * size * 0.6) / 2;
+  if ((halfWidth <= size * 1.27 && !hasRtl(value)) || Math.abs(normal[0]) < Math.abs(normal[1])) return { at: add(dot, scale(normal, side * size * 1.27)), align: 'center' };
+  return { at: add(dot, scale(normal, side * size * 0.6)), align: side * normal[0] > 0 ? 'left' : 'right' };
 }
 
 /** The break line across a stair at a distance along it (where the plan cuts it): slanted across the flight with a zigzag in the middle, as a polyline. */

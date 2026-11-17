@@ -1,7 +1,7 @@
 import { NgTemplateOutlet } from '@angular/common';
 import { Component, computed, inject, input, untracked } from '@angular/core';
 import type { Author, HistoryInfo } from '@studio/core';
-import { AppState, Button, HostBridge, OttoMark, ProjectDocs, ProjectView, Toasts, invokeResource, relativeTime } from '@studio/ui';
+import { AppState, Button, HostBridge, I18n, OttoMark, ProjectDocs, ProjectView, Toasts, invokeResource, relativeTime } from '@studio/ui';
 import { PlanSelection } from '../../plan/ui/plan-selection';
 import { Redo2, Undo2 } from 'lucide';
 import { EditActions } from './edit-actions';
@@ -25,14 +25,14 @@ interface History {
   imports: [Button, NgTemplateOutlet, OttoMark],
   template: `
     <div class="flex items-center gap-1.5 h-10 px-3 border-b border-edge">
-      <button xButton size="sm" [icon]="icons.Undo2" [disabled]="!history.value()?.undo?.length" (click)="actions.undo(projectId())" data-testid="history-undo">Undo</button>
-      <button xButton size="sm" [icon]="icons.Redo2" [disabled]="!history.value()?.redo?.length" (click)="actions.redo(projectId())" data-testid="history-redo">Redo</button>
+      <button xButton size="sm" [icon]="icons.Undo2" iconClass="size-3.5 rtl:-scale-x-100" [disabled]="!history.value()?.undo?.length" (click)="actions.undo(projectId())" data-testid="history-undo">{{ t('edit.undo') }}</button>
+      <button xButton size="sm" [icon]="icons.Redo2" iconClass="size-3.5 rtl:-scale-x-100" [disabled]="!history.value()?.redo?.length" (click)="actions.redo(projectId())" data-testid="history-redo">{{ t('edit.redo') }}</button>
     </div>
     <ol class="flex flex-col py-1" data-testid="history-list">
       @for (entry of redo(); track entry.id) {
         <li class="grid grid-cols-[16px_minmax(0,1fr)] items-center gap-2.5 px-3 py-[7px] min-h-[38px] text-muted opacity-70 line-through" data-testid="history-redo-item">
           <ng-container *ngTemplateOutlet="glyph; context: { $implicit: entry.author }" />
-          <span class="truncate text-[13px] leading-[18px]">{{ entry.label }}</span>
+          <span class="truncate text-[13px] leading-[18px]" dir="auto">{{ entry.label }}</span>
         </li>
       }
       @if (pending(); as wait) {
@@ -40,7 +40,7 @@ interface History {
           <x-otto-mark size="16" />
           <span class="min-w-0">
             <span class="block truncate text-[13px] leading-[18px] text-fg">{{ wait.title }}</span>
-            <span class="block truncate text-[11px] leading-[14px] italic text-fg/70">Otto · waiting for your yes</span>
+            <span class="block truncate text-[11px] leading-[14px] italic text-fg/70">{{ t('edit.waiting') }}</span>
           </span>
         </li>
       }
@@ -49,8 +49,8 @@ interface History {
           class="relative grid grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-2.5 px-3 py-[7px] min-h-[38px] cursor-default select-none focus:outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
           [class]="entry.author.kind === 'assistant' ? 'bg-ai-tint hover:bg-[color-mix(in_srgb,var(--ai-tint)_50%,var(--elevated))]' : 'hover:bg-elevated'"
           tabindex="0"
-          [attr.aria-label]="entry.label + ', ' + signature(entry) + '. Enter selects it on the plan, double-click undoes down to it.'"
-          [title]="'Click to select what it changed; double-click to undo down to here'"
+          [attr.aria-label]="t('edit.entry', { label: entry.label, signature: signature(entry) })"
+          [title]="t('edit.entryHint')"
           (click)="select(entry)"
           (keydown.enter)="select(entry)"
           (dblclick)="undoTo(entry)"
@@ -61,18 +61,18 @@ interface History {
           [attr.data-author]="authorName(entry.author)"
         >
           @if (first) {
-            <span class="absolute left-0 inset-y-0 w-0.5 bg-accent" aria-hidden="true" data-testid="history-newest-bar"></span>
+            <span class="absolute start-0 inset-y-0 w-0.5 bg-accent" aria-hidden="true" data-testid="history-newest-bar"></span>
           }
           <ng-container *ngTemplateOutlet="glyph; context: { $implicit: entry.author }" />
           <span class="min-w-0">
-            <span class="block truncate text-[13px] leading-[18px] text-fg" [class.font-medium]="first">{{ entry.label }}</span>
+            <span class="block truncate text-[13px] leading-[18px] text-fg" dir="auto" [class.font-medium]="first">{{ entry.label }}</span>
             <span class="block truncate text-[11px] leading-[14px]" [class]="entry.author.kind === 'assistant' ? 'text-fg/70' : 'text-muted'" data-testid="history-signature">{{ signature(entry) }}</span>
           </span>
           <span class="text-[11px] italic whitespace-nowrap" [class]="entry.author.kind === 'assistant' ? 'text-fg/70' : 'text-muted'">{{ ago(entry.at) }}</span>
         </li>
       } @empty {
         @if (!redo().length && !pending()) {
-          <li class="px-3 py-2 text-[13px] leading-[18px] text-muted">No changes yet. Everything you, Otto or an agent change appears here and can be undone.</li>
+          <li class="px-3 py-2 text-[13px] leading-[18px] text-muted">{{ t('edit.empty') }}</li>
         }
       }
     </ol>
@@ -103,6 +103,8 @@ export class HistoryPanel {
   private readonly view = inject(ProjectView);
   private readonly selection = inject(PlanSelection);
   private readonly toasts = inject(Toasts);
+  private readonly i18n = inject(I18n);
+  protected readonly t = this.i18n.t;
 
   readonly projectId = input.required<string>();
   private readonly activeLevel = this.view.activeLevel(this.projectId, computed(() => this.docs.read(this.projectId())?.doc));
@@ -117,14 +119,19 @@ export class HistoryPanel {
     return otto?.projectId === this.projectId() ? otto.pending : null;
   });
 
-  /** Who made the change, as History names them: "You", "Otto", or "MCP · <client>". */
+  /** Who made the change, in English for `data-author`: "You", "Otto", or "MCP · <client>". */
   protected authorName(author: Author): string {
     return author.kind === 'user' ? 'You' : author.kind === 'assistant' ? 'Otto' : `MCP · ${author.name}`;
   }
 
+  /** Who made the change, as History shows them, in the language of the moment. */
+  private authorLabel(author: Author): string {
+    return author.kind === 'user' ? this.t('edit.author.user') : author.kind === 'assistant' ? 'Otto' : this.t('edit.author.mcp', { name: author.name });
+  }
+
   /** The meta line: author · layer · command id, as far as the entry carries them. */
   protected signature(entry: HistoryInfo): string {
-    const parts = [this.authorName(entry.author)];
+    const parts = [this.authorLabel(entry.author)];
     if (entry.layer) parts.push(entry.layer);
     if (entry.command && entry.author.kind !== 'user') parts.push(entry.command);
     return parts.join(' · ');
@@ -161,6 +168,6 @@ export class HistoryPanel {
   }
 
   protected ago(iso: string): string {
-    return relativeTime(iso);
+    return relativeTime(iso, Date.now(), this.i18n.language());
   }
 }

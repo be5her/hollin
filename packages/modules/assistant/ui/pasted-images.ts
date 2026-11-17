@@ -1,4 +1,4 @@
-import { CHAT_IMAGE_EDGE, CHAT_IMAGE_TYPES, MAX_CHAT_IMAGE_BYTES, type ChatImageInput, type ChatImageType } from '@studio/core';
+import { CHAT_IMAGE_EDGE, CHAT_IMAGE_TYPES, MAX_CHAT_IMAGE_BYTES, StudioError, type ChatImageInput, type ChatImageType } from '@studio/core';
 
 /*
  * Images pasted or dropped into Otto's composer, made ready for the model: an image the model reads
@@ -38,22 +38,22 @@ function readDataUrl(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(reader.error ?? new Error('Could not read the image.'));
+    reader.onerror = () => reject(new StudioError('INVALID_INPUT', { key: 'assistant.imageNotRead' }));
     reader.readAsDataURL(blob);
   });
 }
 
 function toBlob(canvas: HTMLCanvasElement, type: string, quality?: number): Promise<Blob> {
-  return new Promise((resolve, reject) => canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('Could not encode the image.'))), type, quality));
+  return new Promise((resolve, reject) => canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new StudioError('INTERNAL', { key: 'assistant.imageNotEncoded' }))), type, quality));
 }
 
-/** Reads, and when needed shrinks and re-encodes, one pasted image. Throws with a short reason when the file is no picture the window can decode. */
+/** Reads, and when needed shrinks and re-encodes, one pasted image. Throws with a short reason (a phrase, so the toast follows the language) when the file is no picture the window can decode. */
 export async function prepareImage(file: Blob): Promise<PreparedImage> {
   let bitmap: ImageBitmap;
   try {
     bitmap = await createImageBitmap(file);
   } catch {
-    throw new Error('That clipboard item is not an image Otto can read.');
+    throw new StudioError('INVALID_INPUT', { key: 'assistant.imageUnreadable' });
   }
   try {
     const { width, height } = bitmap;

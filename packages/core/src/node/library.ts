@@ -6,6 +6,7 @@ import { z } from 'zod';
 import type { ProjectDoc } from '../doc/schema';
 import type { ListQuery, ProjectSummary, SnapshotInfo } from '../projects';
 import { StudioError } from '../errors';
+import { foldForSearch, translate, type Phrase } from '../i18n';
 import { isId, newId } from '../ids';
 import { WriteQueue, readJsonFile, renameWithRetry, writeFileAtomic, writeJsonAtomic } from './atomic-write';
 import { Catalog } from './catalog';
@@ -50,7 +51,11 @@ export interface LockHolder {
   heartbeatAt: string;
 }
 
-const fold = (text: string) => text.normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase();
+/**
+ * Text folded for the project search and the tag filter: accents and Arabic marks dropped (NFKD, which also
+ * takes the hamza off أ إ آ ؤ ئ), then `foldForSearch` (ى as ي, ة as ه, Latin digits, no tatweel).
+ */
+const fold = (text: string): string => foldForSearch(text.normalize('NFKD').replace(/\p{M}/gu, ''));
 
 /**
  * The project library: one folder the app owns.
@@ -107,7 +112,7 @@ export class Library {
     }
     const marker = await readJsonFile<{ formatVersion?: number }>(path.join(this.root, 'library.json')).catch(() => undefined);
     if (marker?.formatVersion && marker.formatVersion > LIBRARY_FORMAT) {
-      throw new StudioError('UNSUPPORTED_VERSION', 'This library was created by a newer version of the app. Update the app to use it.');
+      throw new StudioError('UNSUPPORTED_VERSION', { key: 'errors.library.newer' });
     }
     if (!marker) await writeJsonAtomic(path.join(this.root, 'library.json'), { formatVersion: LIBRARY_FORMAT, createdWith: this.opts.appVersion ?? null });
     await fs.rm(this.stagingDir, { recursive: true, force: true }).catch(() => {});
@@ -250,9 +255,9 @@ export class Library {
 
   require(id: string, options: { trashed?: boolean } = {}): ProjectSummary {
     const summary = this.index.get(id);
-    if (!summary) throw new StudioError('NOT_FOUND', `No project with id ${id}`);
+    if (!summary) throw new StudioError('NOT_FOUND', { key: 'errors.library.noProject', params: { id } });
     if (options.trashed !== undefined && Boolean(summary.trashedAt) !== options.trashed) {
-      throw new StudioError('CONFLICT', options.trashed ? `"${summary.name}" is not in the trash` : `"${summary.name}" is in the trash; restore it first`);
+      throw new StudioError('CONFLICT', { key: options.trashed ? 'errors.library.notInTrash' : 'errors.library.trashed', params: { name: summary.name } });
     }
     return summary;
   }
@@ -289,7 +294,7 @@ export class Library {
 
   /** Writes a new project folder (staged, then moved into place) and lists it. */
   async create(doc: ProjectDoc): Promise<ProjectSummary> {
-    if (this.index.has(doc.meta.id)) throw new StudioError('CONFLICT', `A project with id ${doc.meta.id} already exists`);
+    if (this.index.has(doc.meta.id)) throw new StudioError('CONFLICT', { key: 'errors.library.exists', params: { id: doc.meta.id } });
     const staging = path.join(this.stagingDir, `new-${randomBytes(6).toString('hex')}`);
     await writeProjectDir(staging, doc);
     await renameWithRetry(staging, this.projectDir(doc.meta.id));
@@ -473,7 +478,7 @@ export class Library {
     this.require(id, { trashed: false });
     if (!isId(snapshotId)) throw new StudioError('INVALID_INPUT', `Not a snapshot id: ${snapshotId}`);
     const dir = path.join(this.snapshotsDir(id), snapshotId);
-    if (!(await fs.stat(dir).catch(() => null))) throw new StudioError('NOT_FOUND', `No snapshot ${snapshotId}`);
+    if (!(await fs.stat(dir).catch(() => null))) throw new StudioError('NOT_FOUND', { key: 'errors.library.noSnapshot', params: { id: snapshotId } });
     return (await readProjectDir(dir)).doc;
   }
 
@@ -481,7 +486,7 @@ export class Library {
     this.require(id, { trashed: false });
     if (!isId(snapshotId)) throw new StudioError('INVALID_INPUT', `Not a snapshot id: ${snapshotId}`);
     const dir = path.join(this.snapshotsDir(id), snapshotId);
-    if (!(await fs.stat(dir).catch(() => null))) throw new StudioError('NOT_FOUND', `No snapshot ${snapshotId}`);
+    if (!(await fs.stat(dir).catch(() => null))) throw new StudioError('NOT_FOUND', { key: 'errors.library.noSnapshot', params: { id: snapshotId } });
     await fs.rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
     this.opts.onChange?.('snapshots', id);
   }
@@ -552,12 +557,15 @@ function isAlive(pid: number): boolean {
   }
 }
 
-/** True when a folder is (or is inside) a cloud-synced location, where a library is at risk of conflicts. */
-export function syncedFolderWarning(folder: string): string | null {
+/**
+ * A warning when a folder is (or is inside) a cloud-synced location, where a library is at risk of conflicts:
+ * its English `message` (what agents read in `library.info`) and the phrase the renderer translates.
+ */
+export function syncedFolderWarning(folder: string): { message: string; text: Phrase } | null {
   const lower = path.resolve(folder).toLowerCase();
   const synced = [process.env.OneDrive, process.env.OneDriveConsumer, process.env.OneDriveCommercial].filter(Boolean).map((p) => path.resolve(p!).toLowerCase());
   if (synced.some((p) => lower === p || lower.startsWith(`${p}${path.sep}`)) || /[\\/](onedrive|dropbox|google drive|icloud ?drive|mobile documents)([\\/ -]|$)/i.test(lower)) {
-    return 'This folder is synced to the cloud. Sync services can hold files while the app writes them and can create conflicting copies when two computers use the library at once. Use the library from one computer at a time.';
+    return { message: translate('en', 'library.syncedWarning'), text: { key: 'library.syncedWarning' } };
   }
   return null;
 }

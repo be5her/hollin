@@ -5,7 +5,7 @@ import { CommandRegistry, testHost, type HostApi } from '@studio/core';
 import { ProjectService } from '@studio/core/node';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { mainModules } from '../main';
-import { checkedPng, existingFiles, fileSafe, isInside, levelPaths, readDxfFile } from './main';
+import { ARABIC_FONT_FILE, arabicFont, checkedPng, existingFiles, fileSafe, isInside, levelPaths, readDxfFile } from './main';
 
 /** The signature and an IHDR chunk saying width × height, RGBA: all `checkedPng` reads. */
 function pngHead(width: number, height: number): string {
@@ -117,5 +117,40 @@ describe('the export and import commands', () => {
     await expect(readDxfFile(file, 10)).rejects.toThrow(expect.objectContaining({ code: 'INVALID_INPUT', message: expect.stringContaining('are not imported') }));
     await expect(readDxfFile(file)).resolves.toBeTruthy();
     expect(await existingFiles([file])).toEqual([]);
+  });
+
+  it('embeds the Arabic face from the host fonts folder in a PDF with Arabic names, and fails without it while a Latin PDF is written', async () => {
+    const latin = nodePath.join(out, 'Latin.pdf');
+    await run('export.plan', { path: latin, format: 'pdf' });
+    expect((await fs.readFile(latin)).toString('latin1')).not.toContain('/Type0');
+    await run('plan.entity.add', { levelId: service.session(projectId)!.doc.building.groundLevelId, entity: { type: 'label', at: [0, 0], text: 'غرفة المعيشة' } });
+    // No fonts folder (as in these tests): the Arabic PDF is refused with the translated error naming the file.
+    await expect(run('export.plan', { path: nodePath.join(out, 'Arabic.pdf'), format: 'pdf' })).rejects.toMatchObject({ code: 'UNAVAILABLE', i18n: { key: 'errors.exchange.noArabicFont', params: { file: ARABIC_FONT_FILE } } });
+    expect(await existingFiles([nodePath.join(out, 'Arabic.pdf'), latin])).toEqual([latin]);
+    // With the repository's fonts folder, as the app has it.
+    Object.defineProperty(host, 'fontsDir', { value: nodePath.resolve('resources/fonts') });
+    expect((await arabicFont(host.fontsDir)).bytes?.length).toBeGreaterThan(100_000);
+    const arabic = nodePath.join(out, 'Arabic.pdf');
+    await run('export.plan', { path: arabic, format: 'pdf' });
+    const text = (await fs.readFile(arabic)).toString('latin1');
+    expect(text).toMatch(/\/Subtype \/Type0 \/BaseFont \/[A-Z]{6}\+IBMPlexSansArabic/);
+    expect(text).toContain('/FontFile2');
+    expect(text).toContain('/ToUnicode');
+  });
+
+  it('imports an ANSI_1256 DXF with its Arabic layer name and label', async () => {
+    const layer = 'مخطط قديم';
+    const label = 'غرفة الطعام';
+    const dxf = ['0', 'SECTION', '2', 'HEADER', '9', '$ACADVER', '1', 'AC1015', '9', '$DWGCODEPAGE', '3', 'ANSI_1256', '0', 'ENDSEC', '0', 'SECTION', '2', 'TABLES', '0', 'TABLE', '2', 'LAYER', '0', 'LAYER', '2', layer, '70', '0', '62', '7', '0', 'ENDTAB', '0', 'ENDSEC', '0', 'SECTION', '2', 'ENTITIES', '0', 'TEXT', '8', layer, '10', '1000', '20', '1000', '40', '250', '1', label, '0', 'LINE', '8', layer, '10', '0', '20', '0', '11', '3000', '21', '0', '0', 'ENDSEC', '0', 'EOF', ''].join('\r\n');
+    const decoder = new TextDecoder('windows-1256');
+    const table = new Map<string, number>();
+    for (let b = 0; b < 256; b++) table.set(decoder.decode(new Uint8Array([b])), b);
+    const file = nodePath.join(out, 'arabic.dxf');
+    await fs.writeFile(file, Buffer.from([...dxf].map((ch) => table.get(ch)!)));
+    const imported = await run<{ layers: { name: string; dxfLayer: string }[]; counts: { labels: number } }>('import.dxf', { path: file });
+    expect(imported.layers.map((l) => l.name)).toEqual([`DXF ${layer}`]);
+    expect(imported.counts.labels).toBe(1);
+    const doc = service.session(projectId)!.doc;
+    expect(Object.values(doc.levelData[doc.building.groundLevelId].entities).some((e) => e.type === 'label' && e.text === label)).toBe(true);
   });
 });

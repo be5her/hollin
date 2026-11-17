@@ -1,3 +1,5 @@
+import { t, toLatinDigits } from '@studio/core';
+
 /** A field of the palette's generated form, read from a command's JSON Schema. */
 export interface FormFieldSpec {
   key: string;
@@ -47,14 +49,14 @@ export function buildInput(fields: FormFieldSpec[], values: Record<string, strin
     const raw = (values[field.key] ?? '').trim();
     if (!raw) continue;
     if (field.kind === 'number') {
-      const n = Number(raw);
-      if (!Number.isFinite(n)) throw new Error(`${field.label} must be a number`);
+      const n = Number(toLatinDigits(raw));
+      if (!Number.isFinite(n)) throw new Error(t('shell.palette.notNumber', { field: field.label }));
       input[field.key] = n;
     } else if (field.kind === 'json') {
       try {
         input[field.key] = JSON.parse(raw);
       } catch {
-        throw new Error(`${field.label} must be valid JSON`);
+        throw new Error(t('shell.palette.notJson', { field: field.label }));
       }
     } else {
       input[field.key] = raw;

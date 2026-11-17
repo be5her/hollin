@@ -63,6 +63,45 @@
   font-display: swap;
   src: url('./fonts/Fraunces-Italic[SOFT,WONK,opsz,wght].ttf') format('truetype');
 }
+/*
+ * Arabic (docs/i18n.md): IBM Plex Sans Arabic for text and Markazi Text for headings (a soft, warm
+ * naskh beside Fraunces; it is drawn small on its body, hence size-adjust), limited to the Arabic
+ * blocks by unicode-range, so Latin keeps its faces inside Arabic text and the reverse.
+ * No italics: Arabic has none, and the browser must not slant these (font-synthesis-style below).
+ */
+@font-face {
+  font-family: 'IBM Plex Sans Arabic';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./fonts/IBMPlexSansArabic-Regular.woff2') format('woff2');
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC;
+}
+@font-face {
+  font-family: 'IBM Plex Sans Arabic';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('./fonts/IBMPlexSansArabic-Medium.woff2') format('woff2');
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC;
+}
+@font-face {
+  font-family: 'IBM Plex Sans Arabic';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('./fonts/IBMPlexSansArabic-Bold.woff2') format('woff2');
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC;
+}
+@font-face {
+  font-family: 'Markazi Text';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  size-adjust: 116%;
+  src: url('./fonts/MarkaziText[wght].woff2') format('woff2');
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC;
+}
 
 /*
  * Semantic colours: a clean sheet on a desk. Warm paper and ink, graphite for the secondary,
@@ -93,9 +132,9 @@
   --ai-hover: #733259;
   --ai-fg: #fbf6ee;
   --ai-tint: #f1e3ea;
-  --font-sans: 'Alegreya Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --font-mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Code', Consolas, monospace;
-  --font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
+  --font-sans: 'Alegreya Sans', 'IBM Plex Sans Arabic', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'IBM Plex Mono', 'IBM Plex Sans Arabic', ui-monospace, 'Cascadia Code', Consolas, monospace;
+  --font-display: 'Fraunces', 'Markazi Text', Georgia, 'Times New Roman', serif;
   /* The one soft shadow (dialogs, the palette, menus, toasts): ink at 12 %. */
   --shadow-pop: 0 8px 24px color-mix(in srgb, var(--fg) 12%, transparent);
   /* The plan canvas (read by @studio/viewport; keep as #rrggbb, alpha is applied in code). */
@@ -231,6 +270,27 @@ body {
 
 .app-no-drag {
   -webkit-app-region: no-drag;
+}
+
+/*
+ * A left-to-right island inside text of either direction (docs/i18n.md): a length, a path, an id, a
+ * shortcut, a version. Without it "3600 mm" reads "mm 3600" in an Arabic sentence.
+ */
+.bidi-ltr {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+/*
+ * Arabic is joined script: letter-spacing pulls its letters apart (the heading utilities and every
+ * tracking-* set some), and it has no italics, so nothing is slanted by synthesis. Unlayered and
+ * important, so it outranks the utilities and the components' own styles. `:lang(ar)` matches every
+ * element whose language is Arabic, inherited from `<html lang>`; a Latin-only mark (the wordmark, the
+ * product name on Home and in About) carries `lang="en"` and keeps its own tracking.
+ */
+:lang(ar) {
+  letter-spacing: normal !important;
+  font-synthesis-style: none;
 }
 
 /* Native select popups draw options on the OS colours; pin them to the theme so they stay readable in dark mode. */

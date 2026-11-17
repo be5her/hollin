@@ -15,6 +15,7 @@ export * from './geometry/path';
 export * from './geometry/vec';
 export * from './projects';
 export * from './errors';
+export * from './i18n';
 export * from './ids';
 export * from './input';
 export * from './mcp-snippets';

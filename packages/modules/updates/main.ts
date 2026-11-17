@@ -4,7 +4,7 @@ import { z } from 'zod';
 const NO_UPDATER: UpdateState = { state: 'unsupported', message: 'this host has no updater' };
 
 const updaterOf = (host: HostApi) => {
-  if (!host.updater) throw new StudioError('UNAVAILABLE', 'Updates are not available in this host.');
+  if (!host.updater) throw new StudioError('UNAVAILABLE', { key: 'errors.updates.unavailable' });
   return host.updater;
 };
 

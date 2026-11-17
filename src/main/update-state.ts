@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { StudioError, type UpdateState, type UpdaterApi } from '@studio/core';
+import { ENGLISH_PHRASE, StudioError, phraseText, type MessageKey, type Phrase, type UpdateState, type UpdaterApi } from '@studio/core';
 import { WriteQueue, writeJsonAtomic } from '@studio/core/node';
 
 /** The host's updater: the API commands see, plus waiting for its own writes when the host stops. */
@@ -73,10 +73,10 @@ export abstract class UpdaterBase implements Updater {
 
   constructor(
     private readonly stampFile: string | undefined,
-    unsupported: string | null,
+    unsupported: string | Phrase | null,
   ) {
     const checkedAt = stampFile ? readStamp(stampFile) : undefined;
-    this.current = unsupported ? { state: 'unsupported', message: unsupported } : { state: 'idle', ...(checkedAt ? { checkedAt } : {}) };
+    this.current = unsupported ? { state: 'unsupported', ...said(unsupported) } : { state: 'idle', ...(checkedAt ? { checkedAt } : {}) };
   }
 
   /** Asks the feed; resolves with the newer version or null. `beta`: pre-releases count too. */
@@ -116,8 +116,8 @@ export abstract class UpdaterBase implements Updater {
   }
 
   /** For a build that turns out unable to update (or, in the smoke, is scripted so). `null` makes it able again. */
-  protected setUnsupported(reason: string | null): void {
-    if (reason) this.restart({ state: 'unsupported', message: reason });
+  protected setUnsupported(reason: string | Phrase | null): void {
+    if (reason) this.restart({ state: 'unsupported', ...said(reason) });
     else if (this.current.state === 'unsupported') this.restart({ state: 'idle', ...(this.checkedAt ? { checkedAt: this.checkedAt } : {}) });
   }
 
@@ -137,14 +137,14 @@ export abstract class UpdaterBase implements Updater {
       this.set(found ? { state: 'available', version: found.version, ...(found.notes ? { notes: found.notes } : {}), checkedAt, scheduled } : { state: 'up-to-date', checkedAt, scheduled });
     } catch (err) {
       if (generation !== this.generation) return this.status();
-      this.set({ state: 'error', message: messageOf(err, 'The update check failed.'), scheduled, ...(previous ? { checkedAt: previous } : {}) });
+      this.set({ state: 'error', ...failure(err, 'updates.error.checkFailed'), scheduled, ...(previous ? { checkedAt: previous } : {}) });
     }
     return this.status();
   }
 
   download(): UpdateState {
     const found = this.current;
-    if (found.state !== 'available' || !found.version) throw new StudioError('CONFLICT', 'There is no update to download: check for updates first.');
+    if (found.state !== 'available' || !found.version) throw new StudioError('CONFLICT', { key: 'errors.updates.nothingToDownload' });
     const base: UpdateState = { state: 'downloading', version: found.version, ...(found.notes ? { notes: found.notes } : {}), ...(found.checkedAt ? { checkedAt: found.checkedAt } : {}) };
     this.set({ ...base, progress: 0 });
     const started = this.status();
@@ -162,7 +162,7 @@ export abstract class UpdaterBase implements Updater {
         if (current()) this.set({ ...base, state: 'ready', progress: 100 });
       },
       (err: unknown) => {
-        if (current()) this.set({ ...base, state: 'error', message: messageOf(err, 'The download failed.') });
+        if (current()) this.set({ ...base, state: 'error', ...failure(err, 'updates.error.downloadFailed') });
       },
     );
     return started;
@@ -171,12 +171,12 @@ export abstract class UpdaterBase implements Updater {
   install(): Promise<void> {
     // A second ask while one runs waits for that one: electron-updater would start the installer again.
     if (this.pendingInstall) return this.pendingInstall;
-    if (this.current.state !== 'ready') return Promise.reject(new StudioError('CONFLICT', 'No update is ready to install: download it first.'));
+    if (this.current.state !== 'ready') return Promise.reject(new StudioError('CONFLICT', { key: 'errors.updates.nothingToInstall' }));
     this.pendingInstall = (async () => {
       try {
         await this.apply();
       } catch (err) {
-        this.set({ ...this.current, state: 'error', message: messageOf(err, 'The update could not be installed.') });
+        this.set({ ...this.current, state: 'error', ...failure(err, 'updates.error.installFailed') });
       } finally {
         this.pendingInstall = null;
       }
@@ -192,6 +192,23 @@ function readStamp(file: string): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+/**
+ * A reason or an error as the state carries it: the English `message` (what agents read through
+ * `app.update.status`), and for words of our own their phrase (`text`), which Settings shows translated.
+ */
+export function said(reason: string | Phrase): Pick<UpdateState, 'message' | 'text'> {
+  return typeof reason === 'string' ? { message: reason } : { message: phraseText(reason, ENGLISH_PHRASE), text: reason };
+}
+
+/**
+ * What went wrong, for the status line: the error's own first line (English, from the network or
+ * electron-updater), shown in another language after a translated lead, or the fallback's words.
+ */
+export function failure(err: unknown, fallback: MessageKey): Pick<UpdateState, 'message' | 'text'> {
+  const first = messageOf(err, '');
+  return said(first ? { key: 'updates.error.detail', params: { detail: first } } : { key: fallback });
 }
 
 /** A short message for the status line: the error's first line, without electron-updater's appended stack or HTTP dump. */
@@ -224,15 +241,15 @@ export interface SupportProbe {
  * an AppImage (`APPIMAGE` set) or a deb, rpm or pacman package (`package-type`, written by
  * electron-builder's package targets); on macOS Squirrel.Mac installs only into a signed app.
  */
-export function updateSupport(probe: SupportProbe): { reason: string | null; devConfig: boolean; appImage: boolean } {
+export function updateSupport(probe: SupportProbe): { reason: Phrase | null; devConfig: boolean; appImage: boolean } {
   const join = (dir: string, name: string) => `${dir.replace(/[\/]+$/, '')}/${name}`;
-  const no = (reason: string, devConfig: boolean) => ({ reason, devConfig, appImage: false });
+  const no = (reason: MessageKey, devConfig: boolean) => ({ reason: { key: reason }, devConfig, appImage: false });
   let devConfig = false;
   if (!probe.packaged) {
-    if (!probe.exists(join(probe.appPath, 'dev-app-update.yml'))) return no('this is a development run', devConfig);
+    if (!probe.exists(join(probe.appPath, 'dev-app-update.yml'))) return no('updates.reason.development', devConfig);
     devConfig = true;
   } else if (!probe.exists(join(probe.resourcesPath, 'app-update.yml'))) {
-    return no('this build has no update feed (only release builds have one)', devConfig);
+    return no('updates.reason.noFeed', devConfig);
   }
   if (probe.platform === 'linux' && !devConfig) {
     // The AppImage first, before `package-type`: electron-builder packs the AppImage from the folder its
@@ -240,10 +257,10 @@ export function updateSupport(probe: SupportProbe): { reason: string | null; dev
     // read first it would make electron-updater install the AppImage's update through dpkg.
     if (probe.appImage) return { reason: null, devConfig, appImage: true };
     const packageType = probe.read(join(probe.resourcesPath, 'package-type'))?.trim();
-    if (!['deb', 'rpm', 'pacman'].includes(packageType ?? '')) return no('the app is not running from its AppImage or an installed package', devConfig);
+    if (!['deb', 'rpm', 'pacman'].includes(packageType ?? '')) return no('updates.reason.notInstalled', devConfig);
   }
   if (probe.platform === 'darwin' && probe.packaged && probe.macSigned && !probe.macSigned()) {
-    return no('this macOS build is not signed, and macOS installs updates only into a signed app', devConfig);
+    return no('updates.reason.unsignedMac', devConfig);
   }
   return { reason: null, devConfig, appImage: false };
 }

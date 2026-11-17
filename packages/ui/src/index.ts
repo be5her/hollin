@@ -2,6 +2,7 @@ export type { InvokeResult, StudioBridge } from './bridge';
 export * from './host/host-bridge';
 export * from './host/invoke-resource';
 export * from './format';
+export * from './i18n/i18n';
 export * from './state/app-state';
 export * from './state/open-projects';
 export * from './state/project-docs';

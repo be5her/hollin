@@ -94,8 +94,9 @@ export class ProjectsSync {
       this.offRecent?.();
       const entries: UIAction[] = recent.slice(0, 20).map((p) => ({
         id: `project.openRecent.${p.id}`,
-        title: `Open project: ${p.name}`,
-        group: 'Projects',
+        title: 'library.action.openRecent',
+        titleParams: { name: p.name },
+        group: 'common.group.projects',
         keywords: p.tags,
         run: () => this.openProject(p.id),
       }));

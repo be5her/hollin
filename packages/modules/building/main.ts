@@ -24,6 +24,8 @@ import {
   connectorFromIntent,
   isConnectorIntent,
   type ConnectorIntent,
+  nounOf,
+  t,
 } from '@studio/core';
 import { z } from 'zod';
 
@@ -125,7 +127,7 @@ export const buildingModule = defineModule({
         mezzanineOf: z.object({ levelId, offset: z.number().describe('mm above that level') }).optional(),
       }),
       handler: async (input, ctx) => {
-        const { result } = await editProject(ctx, `Add level${input.name ? ` "${input.name}"` : ''}`, (tx) => {
+        const { result } = await editProject(ctx, input.name ? t('labels.level.addNamed', { name: input.name }) : t('labels.level.add'), (tx) => {
           const { ops, levelId: id } = addLevelOps(tx.doc, { ...input, offsetFrom: input.mezzanineOf });
           tx.apply(ops);
           return id;
@@ -151,7 +153,7 @@ export const buildingModule = defineModule({
       }),
       handler: async ({ levelId: id, ...input }, ctx) => {
         const name = ctx.project!.doc.levels[id]?.name ?? id;
-        await editProject(ctx, `Change level "${name}"`, (tx) => tx.apply(updateLevelOps(tx.doc, id, input)), input.height !== undefined || input.elevation !== undefined ? { coalesce: `level-size:${id}` } : undefined);
+        await editProject(ctx, t('labels.level.change', { name }), (tx) => tx.apply(updateLevelOps(tx.doc, id, input)), input.height !== undefined || input.elevation !== undefined ? { coalesce: `level-size:${id}` } : undefined);
         return deriveLevels(ctx.project!.doc);
       },
     }),
@@ -164,7 +166,7 @@ export const buildingModule = defineModule({
       input: z.object({ levelId, name: z.string().trim().min(1).max(120).optional() }),
       handler: async ({ levelId: id, name }, ctx) => {
         const source = ctx.project!.doc.levels[id]?.name ?? id;
-        const { result } = await editProject(ctx, `Duplicate level "${source}"`, (tx) => {
+        const { result } = await editProject(ctx, t('labels.level.duplicate', { name: source }), (tx) => {
           const { ops, levelId: copy } = duplicateLevelOps(tx.doc, id, { name });
           tx.apply(ops);
           return copy;
@@ -180,7 +182,7 @@ export const buildingModule = defineModule({
       batchable: true,
       input: z.object({ levelId, index: z.number().int().min(0) }),
       handler: async ({ levelId: id, index }, ctx) => {
-        await editProject(ctx, `Move level "${ctx.project!.doc.levels[id]?.name ?? id}"`, (tx) => tx.apply(moveLevelOps(tx.doc, id, index)));
+        await editProject(ctx, t('labels.level.move', { name: ctx.project!.doc.levels[id]?.name ?? id }), (tx) => tx.apply(moveLevelOps(tx.doc, id, index)));
         return deriveLevels(ctx.project!.doc);
       },
     }),
@@ -202,7 +204,7 @@ export const buildingModule = defineModule({
       batchable: true,
       input: z.object({ levelId }),
       handler: async ({ levelId: id }, ctx) => {
-        await editProject(ctx, `Remove level "${ctx.project!.doc.levels[id]?.name ?? id}"`, (tx) => tx.apply(removeLevelOps(tx.doc, id)));
+        await editProject(ctx, t('labels.level.remove', { name: ctx.project!.doc.levels[id]?.name ?? id }), (tx) => tx.apply(removeLevelOps(tx.doc, id)));
         return deriveLevels(ctx.project!.doc);
       },
     }),
@@ -216,7 +218,7 @@ export const buildingModule = defineModule({
       input: z.object({ connector: z.union([ConnectorIntentSchema, NewConnectorSchema]).describe('A full connector record, or an intent form (see the description)') }),
       handler: async ({ connector }, ctx) => {
         const record = isConnectorIntent(connector as { kind: string } & Record<string, unknown>) ? connectorFromIntent(connector as ConnectorIntent, ctx.project!.doc, ctx.host.config.get().rules) : connector;
-        const { result } = await editProject(ctx, `Add ${connector.kind}`, (tx) => {
+        const { result } = await editProject(ctx, t('labels.add', { what: nounOf(connector.kind) }), (tx) => {
           const { ops, id } = addConnectorOps(record as unknown as Parameters<typeof addConnectorOps>[0]);
           tx.apply(ops);
           return id;
@@ -238,7 +240,7 @@ export const buildingModule = defineModule({
       }),
       handler: async ({ id, set, baseSeq, epoch }, ctx) => {
         const kind = ctx.project!.doc.connectors[id]?.kind ?? 'connector';
-        await editProject(ctx, `Change ${kind}`, (tx) => {
+        await editProject(ctx, t('labels.change', { what: nounOf(kind) }), (tx) => {
           assertUnchanged(ctx, id, kind, baseSeq, epoch);
           tx.apply(updateConnectorOps(tx.doc, id, set));
         });
@@ -255,7 +257,7 @@ export const buildingModule = defineModule({
       handler: async ({ id }, ctx) => {
         const kind = ctx.project!.doc.connectors[id]?.kind;
         if (!kind) throw new StudioError('NOT_FOUND', `No connector ${id}`);
-        await editProject(ctx, `Remove ${kind}`, (tx) => tx.apply(removeConnectorOps(tx.doc, id)));
+        await editProject(ctx, t('labels.remove', { what: nounOf(kind) }), (tx) => tx.apply(removeConnectorOps(tx.doc, id)));
         return { removed: id };
       },
     }),

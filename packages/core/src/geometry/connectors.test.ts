@@ -83,6 +83,13 @@ describe('stairs', () => {
     expect(rules(narrow)).toEqual(['too-narrow']);
   });
 
+  it('writes a comfort range set by hand exactly as it is set', () => {
+    const g = deriveConnector(stair(line([0, 0], [0, 3750]), { riser: { count: 12 } }), levels, { ...DEFAULT_RULE_LIMITS, comfortMin: 600.25, comfortMax: 640.125 }) as StairGeometry;
+    const comfort = g.broken.find((b) => b.rule === 'comfort')!;
+    // 2 × 250 + 340.9: the step to a tenth, the limits as they are.
+    expect(comfort.message).toBe('2 × riser + tread is 840.9 mm, outside 600.25–640.125 mm.');
+  });
+
   it('puts handrails 50 mm inside each side it asks for', () => {
     const g = derive(stair(line([0, 0], [0, 3750]), { handrails: { left: true, right: false } })) as StairGeometry;
     expect(g.handrails).toHaveLength(1);
@@ -174,7 +181,7 @@ describe('ramps, ladders, escalators', () => {
     expect(g.broken).toEqual([]);
     const steep = derive(ramp(line([0, 0], [0, 10000]), 'R'), low) as RampGeometry;
     expect(steep.slope).toBeCloseTo(10, 6);
-    expect(steep.broken).toEqual([{ rule: 'too-steep', message: 'Its slope of 10.0 % is steeper than 8.33 %.', value: 10, limit: 8.33 }]);
+    expect(steep.broken).toEqual([{ rule: 'too-steep', message: 'Its slope of 10.0 % is steeper than 8.33 %.', text: { key: 'rules.break.tooSteep', params: { slope: '10.0', limit: 8.33 } }, value: 10, limit: 8.33 }]);
   });
 
   it('leaves the landing at a ramp corner flat', () => {

@@ -1,5 +1,5 @@
-import type { Entity, Vec2 } from '@studio/core';
-import { drawEntityPreview, drawScreenText, type RenderFrame } from '../render';
+import { t, type Entity, type Vec2 } from '@studio/core';
+import { drawEntityPreview, drawScreenText, interfaceDirection, type RenderFrame } from '../render';
 import type { Tool, ToolHost, ToolPointer } from './tool';
 
 type Column = Extract<Entity, { type: 'column' }>;
@@ -41,7 +41,7 @@ export class ColumnTool implements Tool {
   hint(): string {
     const o = this.host.options().column;
     const size = o.shape === 'circle' ? `⌀ ${2 * o.r} mm` : `${o.w} × ${o.d} mm`;
-    return `Click where the column goes (${size}; the options set it) · V: select`;
+    return t('tools.column.place', { size });
   }
 
   draw(ctx: CanvasRenderingContext2D, frame: RenderFrame): void {
@@ -51,7 +51,7 @@ export class ColumnTool implements Tool {
     ctx.globalAlpha = 0.8;
     drawEntityPreview(ctx, column, frame);
     ctx.globalAlpha = 1;
-    if (column.span) drawScreenText(ctx, frame, { text: `up to ${this.host.levels().find((l) => l.id === column.span!.topLevelId)?.name ?? 'the level'}`, at: column.at, screenPx: 11, color: frame.theme.selection, align: 'center', baseline: 'bottom', dy: -10, mono: true });
+    if (column.span) drawScreenText(ctx, frame, { text: t('tools.column.upTo', { name: this.host.levels().find((l) => l.id === column.span!.topLevelId)?.name ?? t('tools.column.theLevel') }), direction: interfaceDirection(), at: column.at, screenPx: 11, color: frame.theme.selection, align: 'center', baseline: 'bottom', dy: -10, mono: true });
   }
 
   // ---------- internals ----------

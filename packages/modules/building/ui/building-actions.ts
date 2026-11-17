@@ -1,9 +1,7 @@
 import { Service, computed, inject, type Signal } from '@angular/core';
-import { deriveLevels, levelRemovalImpact, type DerivedLevel, type ProjectDoc } from '@studio/core';
-import { Dialogs, HostBridge, ProjectDocs, ProjectView, Toasts, Units, type FormDialogField } from '@studio/ui';
+import { deriveLevels, isMessageKey, levelRemovalImpact, type DerivedLevel, type ProjectDoc } from '@studio/core';
+import { Dialogs, HostBridge, I18n, ProjectDocs, ProjectView, Toasts, Units, type FormDialogField } from '@studio/ui';
 
-const KIND_NAMES: Record<string, string> = { stair: 'stair', ladder: 'ladder', ramp: 'ramp', elevator: 'elevator', escalator: 'escalator' };
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 /** The commands the building panels run, with errors shown as toasts. */
 @Service()
@@ -14,6 +12,7 @@ export class BuildingActions {
   private readonly docs = inject(ProjectDocs);
   private readonly view = inject(ProjectView);
   private readonly units = inject(Units);
+  private readonly t = inject(I18n).t;
 
   async run<T = unknown>(projectId: string, id: string, input: unknown): Promise<T | undefined> {
     try {
@@ -50,11 +49,11 @@ export class BuildingActions {
     const values = await this.dialogs.form({
       title,
       fields: [
-        { key: 'name', label: 'Name', value: '', validate: () => null },
-        this.lengthField('height', 'Floor to floor', 3000, true),
-        this.lengthField('slab', 'Slab', 200, false),
+        { key: 'name', label: this.t('building.levels.name'), value: '', validate: () => null },
+        this.lengthField('height', this.t('building.levels.height'), 3000, true),
+        this.lengthField('slab', this.t('building.levels.slab'), 200, false),
       ],
-      confirmLabel: 'Add level',
+      confirmLabel: this.t('building.add.confirm'),
     });
     if (!values) return;
     const name = values['name'].trim();
@@ -69,15 +68,15 @@ export class BuildingActions {
   async addMezzanine(projectId: string, host: DerivedLevel): Promise<void> {
     const offset = Math.round(host.height / 2);
     const values = await this.dialogs.form({
-      title: `Add a mezzanine in "${host.name}"`,
-      message: 'A mezzanine sits at an offset above a stacked level and moves with it.',
+      title: this.t('building.mezzanine.title', { name: host.name }),
+      message: this.t('building.mezzanine.message'),
       fields: [
-        { key: 'name', label: 'Name', value: `${host.name} mezzanine`, validate: (t) => (t.trim() ? null : 'Give it a name') },
-        this.lengthField('offset', 'Above the floor by', offset, false),
-        this.lengthField('height', 'Height', host.height - offset, true),
-        this.lengthField('slab', 'Slab', 200, false),
+        { key: 'name', label: this.t('building.levels.name'), value: this.t('building.mezzanine.defaultName', { name: host.name }), validate: (text) => (text.trim() ? null : this.t('building.mezzanine.nameRequired')) },
+        this.lengthField('offset', this.t('building.mezzanine.offset'), offset, false),
+        this.lengthField('height', this.t('building.mezzanine.height'), host.height - offset, true),
+        this.lengthField('slab', this.t('building.levels.slab'), 200, false),
       ],
-      confirmLabel: 'Add mezzanine',
+      confirmLabel: this.t('building.mezzanine.confirm'),
     });
     if (!values) return;
     const result = await this.run<{ id: string }>(projectId, 'building.level.add', {
@@ -95,10 +94,10 @@ export class BuildingActions {
     if (!doc || level.placement !== 'offset') return;
     const hosts = deriveLevels(doc).filter((l) => l.placement === 'stack').reverse();
     const values = await this.dialogs.form({
-      title: `Move "${level.name}"`,
-      message: "It keeps its elevation if the new level reaches it; otherwise it sits on that level's floor.",
-      fields: [{ key: 'host', label: 'Placed from', value: level.hostLevelId ?? '', options: hosts.map((l) => ({ value: l.id, label: `${l.name} (${this.units.length(l.elevation)})` })) }],
-      confirmLabel: 'Move',
+      title: this.t('building.rehost.title', { name: level.name }),
+      message: this.t('building.rehost.message'),
+      fields: [{ key: 'host', label: this.t('building.levels.placedFrom'), value: level.hostLevelId ?? '', options: hosts.map((l) => ({ value: l.id, label: this.t('building.rehost.option', { name: l.name, elevation: this.units.length(l.elevation) }) })) }],
+      confirmLabel: this.t('building.rehost.confirm'),
     });
     if (values && values['host'] !== level.hostLevelId) await this.setHost(projectId, level.id, values['host']);
   }
@@ -115,8 +114,8 @@ export class BuildingActions {
       mono: true,
       validate: (text) => {
         const value = this.units.parseLength(text);
-        if (value === null) return 'Not a length';
-        return positive ? (value > 0 ? null : 'Must be more than 0') : value >= 0 ? null : 'Cannot be negative';
+        if (value === null) return this.t('building.field.notLength');
+        return positive ? (value > 0 ? null : this.t('building.field.positive')) : value >= 0 ? null : this.t('building.field.notNegative');
       },
     };
   }
@@ -131,20 +130,25 @@ export class BuildingActions {
     const doc = this.docs.read(projectId)?.doc;
     if (!doc) return;
     const impact = levelRemovalImpact(doc, level.id);
-    if (impact.last) return void this.toasts.notify('A building needs at least one level.', 'error');
+    const t = this.t;
+    if (impact.last) return void this.toasts.notify(t('building.remove.last'), 'error');
     if (impact.blockedBy.length) {
-      const names = impact.blockedBy.map((l) => `"${l.name}"`).join(', ');
-      return void this.toasts.notify(`Move or remove ${names} first: ${impact.blockedBy.length === 1 ? 'it is' : 'they are'} placed from "${level.name}".`, 'error');
+      const names = impact.blockedBy.map((l) => t('building.remove.quoted', { name: l.name })).join(t('common.listSeparator'));
+      return void this.toasts.notify(t('building.remove.blocked', { names, level: level.name, count: impact.blockedBy.length }), 'error');
     }
+    const list = (items: string[]) => items.join(t('common.listSeparator'));
     const details: string[] = [];
-    const counts = Object.entries(impact.entities).map(([type, n]) => plural(n!, type));
-    if (counts.length) details.push(`Everything on it: ${counts.join(', ')}`);
-    if (impact.connectorsRemoved.length) details.push(`Removed with it: ${impact.connectorsRemoved.map((c) => c.name ?? KIND_NAMES[c.kind]).join(', ')}`);
-    if (impact.stopsDropped.length) details.push(`No longer stopping here: ${impact.stopsDropped.map((c) => c.name ?? 'elevator').join(', ')}`);
-    if (impact.spansCut) details.push(`Cut short to their own level: ${plural(impact.spansCut, 'column, shaft or void', 'columns, shafts or voids')} reaching up to it`);
+    const counts = Object.entries(impact.entities).map(([type, n]) => {
+      const key = `plan.count.${type}`;
+      return isMessageKey(key) ? t(key, { count: n! }) : `${n} ${type}s`;
+    });
+    if (counts.length) details.push(t('building.remove.everything', { list: list(counts) }));
+    if (impact.connectorsRemoved.length) details.push(t('building.remove.connectors', { list: list(impact.connectorsRemoved.map((c) => c.name ?? t(`tools.noun.${c.kind}`))) }));
+    if (impact.stopsDropped.length) details.push(t('building.remove.stops', { list: list(impact.stopsDropped.map((c) => c.name ?? t('tools.noun.elevator'))) }));
+    if (impact.spansCut) details.push(t('building.remove.spans', { count: impact.spansCut }));
     if (details.length) {
-      const moves = level.placement === 'offset' ? '' : level.isBasement ? ' Basements below it move up.' : ' Levels above it move down.';
-      const ok = await this.dialogs.confirm({ title: `Remove "${level.name}"?`, message: `You can undo this.${moves}`, details, danger: true, confirmLabel: 'Remove' });
+      const message = level.placement === 'offset' ? t('building.remove.undo') : level.isBasement ? t('building.remove.basementsMove') : t('building.remove.levelsMove');
+      const ok = await this.dialogs.confirm({ title: t('building.remove.title', { name: level.name }), message, details, danger: true, confirmLabel: t('building.remove.confirm') });
       if (!ok) return;
     }
     await this.run(projectId, 'building.level.remove', { levelId: level.id });

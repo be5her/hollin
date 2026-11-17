@@ -2,8 +2,8 @@ import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createInterface } from 'node:readline';
-import { StudioError, newId, type ChatImageInput, type ClaudeCodeStatus, type ErrorPayload } from '@studio/core';
-import type { LoopEvents, ToolOutcome } from './loop';
+import { ENGLISH_PHRASE, StudioError, newId, phraseText, type ChatImageInput, type ClaudeCodeStatus, type ErrorPayload, type MessageKey, type Phrase } from '@studio/core';
+import { ChatFailure, type LoopEvents, type ToolOutcome } from './loop';
 
 /*
  * The Claude Code provider: the user's own installed, logged-in Claude Code, driven as a subprocess
@@ -18,7 +18,22 @@ import type { LoopEvents, ToolOutcome } from './loop';
 export const MAX_TURNS = 25;
 /** Built-ins Claude Code is told not to use, on top of `--tools ""` which removes the built-in set altogether. */
 export const DISALLOWED_TOOLS = 'Bash,Edit,Write,Read,WebFetch,WebSearch';
-export const MCP_OFF_MESSAGE = 'The assistant with Claude Code works through the MCP server, which is off. Enable it in Settings or with the button in the chat.';
+/** Why Claude Code cannot be used while the MCP server is off, as `assistant.send` refuses it. */
+export const MCP_OFF: Phrase = { key: 'assistant.error.mcpOff' };
+
+/** What went wrong finding or asking Claude Code: the English people and agents read, and its phrase for the interface. */
+export interface ClaudeProblem {
+  error: string;
+  errorText: Phrase;
+}
+
+const problem = (key: MessageKey, params?: Phrase['params']): ClaudeProblem => {
+  const errorText: Phrase = params ? { key, params } : { key };
+  return { error: phraseText(errorText, ENGLISH_PHRASE), errorText };
+};
+
+/** A failed Claude Code run: the English the chat shows, a translated lead, and the English detail under it. */
+const failure = (message: string, key: MessageKey) => new ChatFailure(message, { phrase: { key }, detail: message });
 const STDERR_TAIL = 2000;
 /** When set to a file path, every line Claude Code prints (stdout and stderr) is appended to it: for looking at a conversation that went wrong. Never set in normal use. */
 const LOG_ENV = 'STUDIO_CLAUDE_CODE_LOG';
@@ -53,20 +68,20 @@ const isFile = (p: string): boolean => {
 /** Runs a JavaScript file (the smoke's fake, or an npm install's `cli.js`) with this executable as Node. */
 const asNodeScript = (script: string): ClaudeLaunch => ({ file: process.execPath, prefix: [script], env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, resolved: script });
 
-function launchFor(resolved: string): ClaudeLaunch | { error: string } {
+function launchFor(resolved: string): ClaudeLaunch | ClaudeProblem {
   const ext = path.extname(resolved).toLowerCase();
   if (ext === '.js' || ext === '.cjs' || ext === '.mjs') return asNodeScript(resolved);
   if (ext === '.cmd' || ext === '.bat') {
     // An npm install leaves a shell shim; its real entry sits next to it. Shims are never run through a shell.
     const cli = path.join(path.dirname(resolved), 'node_modules', '@anthropic-ai', 'claude-code', 'cli.js');
     if (isFile(cli)) return asNodeScript(cli);
-    return { error: `${resolved} is a shell shim without its cli.js next to it. Point Settings at the Claude Code executable, or install the native build with \`claude install\`.` };
+    return problem('assistant.claudeCode.shim', { path: resolved });
   }
   return { file: resolved, prefix: [], env: process.env, resolved };
 }
 
 /** Finds the Claude Code binary: the configured path, or `claude` on PATH (with PATHEXT on Windows). Never by image name. */
-export function findClaude(configured: string): ClaudeLaunch | { error: string } {
+export function findClaude(configured: string): ClaudeLaunch | ClaudeProblem {
   const win = process.platform === 'win32';
   const name = configured.trim() || 'claude';
   const exts = win ? (process.env['PATHEXT'] || '.EXE;.CMD;.BAT;.COM').split(';').filter(Boolean) : [];
@@ -88,7 +103,7 @@ export function findClaude(configured: string): ClaudeLaunch | { error: string }
       if (resolved) break;
     }
   }
-  if (!resolved) return { error: configured.trim() ? `Nothing runnable at ${name}.` : 'No `claude` on PATH. Install Claude Code, or set its path in Settings.' };
+  if (!resolved) return configured.trim() ? problem('assistant.claudeCode.nothingAt', { path: name }) : problem('assistant.claudeCode.notOnPath');
   return launchFor(resolved);
 }
 
@@ -104,19 +119,19 @@ const exec = (launch: ClaudeLaunch, args: string[]) =>
 export async function probeClaudeCode(configured: string): Promise<ClaudeCodeStatus> {
   const label = configured.trim() || 'claude';
   const launch = findClaude(configured);
-  if ('error' in launch) return { path: label, found: false, loggedIn: null, error: launch.error };
+  if ('error' in launch) return { path: label, found: false, loggedIn: null, ...launch };
   const version = await exec(launch, ['--version']);
-  if (!version.stdout.trim()) return { path: label, resolved: launch.resolved, found: true, loggedIn: null, error: `\`${launch.resolved} --version\` failed: ${version.stderr.trim() || `exit ${version.code}`}` };
+  if (!version.stdout.trim()) return { path: label, resolved: launch.resolved, found: true, loggedIn: null, ...problem('assistant.claudeCode.versionFailed', { path: launch.resolved, detail: version.stderr.trim() || `exit ${version.code}` }) };
   const auth = await exec(launch, ['auth', 'status', '--json']);
   let loggedIn: boolean | null = null;
-  let error: string | undefined;
+  let failed: ClaudeProblem | undefined;
   try {
     const parsed = JSON.parse(auth.stdout.trim()) as { loggedIn?: unknown };
     if (typeof parsed.loggedIn === 'boolean') loggedIn = parsed.loggedIn;
   } catch {
-    error = `\`claude auth status\` gave no answer${auth.stderr.trim() ? `: ${auth.stderr.trim()}` : ''}`;
+    failed = auth.stderr.trim() ? problem('assistant.claudeCode.authNoAnswerDetail', { detail: auth.stderr.trim() }) : problem('assistant.claudeCode.authNoAnswer');
   }
-  return { path: label, resolved: launch.resolved, found: true, version: version.stdout.trim().split(/\s+/)[0], loggedIn, ...(error ? { error } : {}) };
+  return { path: label, resolved: launch.resolved, found: true, version: version.stdout.trim().split(/\s+/)[0], loggedIn, ...(failed ?? {}) };
 }
 
 /** The user's own words and Claude Code's answers that a resumed session replayed before this turn. */
@@ -190,7 +205,7 @@ const AUTH_PATTERN = /not logged in|please run \/login|login expired|failed to a
 /** How a message carries the live context when it changed since the process was told it, and how a replayed message loses it again. */
 const CONTEXT_OPEN = '<app-context>';
 const CONTEXT_CLOSE = '</app-context>';
-const withContext = (context: string, text: string): string => `${CONTEXT_OPEN}\nThe project changed since you were last told about it; this is how it stands now.\n${context}\n${CONTEXT_CLOSE}\n\n${text}`;
+const withContext = (context: string, text: string): string => `${CONTEXT_OPEN}\nThe project or the user's settings changed since you were last told about them; this is how they stand now.\n${context}\n${CONTEXT_CLOSE}\n\n${text}`;
 const withoutContext = (text: string): string => (text.startsWith(CONTEXT_OPEN) && text.includes(CONTEXT_CLOSE) ? text.slice(text.indexOf(CONTEXT_CLOSE) + CONTEXT_CLOSE.length).replace(/^\s+/, '') : text);
 
 /** A stream-json user turn's content: the images as base64 image blocks (the Messages API's shape, which Claude Code passes on), then the text. */
@@ -299,7 +314,7 @@ export class ClaudeCodeProvider {
         const end = await this.turnOn(text, images);
         if (end === 'resume-failed' && attempt === 0 && resume) {
           events.session(null);
-          events.note(newId('msg'), 'The earlier Claude Code session could not be resumed; starting a new one.');
+          events.note(newId('msg'), { key: 'assistant.note.resumeFailed' });
           continue;
         }
         return;
@@ -324,9 +339,9 @@ export class ClaudeCodeProvider {
 
   private start(resume: string | null): void {
     const launch = findClaude(this.opts.configuredPath());
-    if ('error' in launch) throw new StudioError('UNAVAILABLE', launch.error);
+    if ('error' in launch) throw new StudioError('UNAVAILABLE', launch.errorText);
     const base = this.opts.mcpUrl();
-    if (!base) throw new StudioError('UNAVAILABLE', MCP_OFF_MESSAGE);
+    if (!base) throw new StudioError('UNAVAILABLE', MCP_OFF);
     fs.mkdirSync(this.opts.cwd, { recursive: true });
     const token = this.opts.tokens.issue();
     const url = `${base}?project=${encodeURIComponent(this.opts.projectId)}&assistant=${token}`;
@@ -371,7 +386,7 @@ export class ClaudeCodeProvider {
     this.textId = null;
     this.deltas = 0;
     this.toolNames.clear();
-    proc.on('error', (err) => this.ended(`Claude Code could not start: ${err.message}`));
+    proc.on('error', (err) => this.ended(`Claude Code could not start: ${err.message}`, 'assistant.error.claudeCodeStart'));
     // A write to a process that has just died reports through the write callback; without this listener the stream would throw.
     proc.stdin!.on('error', () => {});
     proc.on('exit', (code, signal) => this.ended(this.stopped ? null : `Claude Code exited (${signal ?? `code ${code}`})${this.stderrTail.trim() ? `: ${this.stderrTail.trim()}` : ''}`));
@@ -395,18 +410,18 @@ export class ClaudeCodeProvider {
       this.turn = { text, resolve, reject };
       const line = JSON.stringify({ type: 'user', message: { role: 'user', content: userBlocks(sent, images) } });
       this.proc!.stdin!.write(`${line}\n`, (err) => {
-        if (err) this.fail(`Could not write to Claude Code: ${err.message}`);
+        if (err) this.fail(`Could not write to Claude Code: ${err.message}`, 'assistant.error.claudeCodeExited');
       });
     });
   }
 
   /** Ends the pending turn and the process. */
-  private fail(message: string): void {
-    this.settle(new Error(message));
+  private fail(message: string, key: MessageKey): void {
+    this.settle(failure(message, key));
     this.stop();
   }
 
-  private settle(err: Error | null): void {
+  private settle(err: ChatFailure | null): void {
     const turn = this.turn;
     if (!turn) return;
     this.turn = null;
@@ -416,15 +431,16 @@ export class ClaudeCodeProvider {
     if (auth) this.events?.authFailure();
     // A resumed process that fails before its first answer with an error naming its session lost that session; the caller retries once without --resume. Any other failure keeps the session.
     if (this.resumed && !this.answered && !auth && sessionNotFound(`${err.message}\n${this.stderrTail}`, this.resumed)) return turn.resolve('resume-failed');
-    turn.reject(err);
+    // Logged out: the interface says so in its language, over Claude Code's own words.
+    turn.reject(auth ? failure(err.message, 'assistant.error.loggedOut') : err);
   }
 
-  private ended(message: string | null): void {
+  private ended(message: string | null, key: MessageKey = 'assistant.error.claudeCodeExited'): void {
     if (this.token) this.opts.tokens.revoke(this.token);
     this.token = null;
     this.proc = null;
     this.url = null;
-    this.settle(message === null ? (this.stopped ? new Error('stopped') : new Error('Claude Code exited before answering.')) : new Error(message));
+    this.settle(failure(message ?? (this.stopped ? 'stopped' : 'Claude Code exited before answering.'), key));
   }
 
   private onLine(line: string): void {
@@ -441,7 +457,7 @@ export class ClaudeCodeProvider {
         if (msg.subtype !== 'init') return;
         if (typeof msg.session_id === 'string') events.session(msg.session_id);
         const server = msg.mcp_servers?.find((s) => s.name === this.opts.serverName);
-        if (msg.mcp_servers && (!server || server.status !== 'connected')) this.fail(`Claude Code could not connect to the app's MCP server${server ? ` (${server.status})` : ''}.`);
+        if (msg.mcp_servers && (!server || server.status !== 'connected')) this.fail(`Claude Code could not connect to the app's MCP server${server ? ` (${server.status})` : ''}.`, 'assistant.error.claudeCodeMcp');
         return;
       }
       case 'stream_event': {
@@ -501,10 +517,10 @@ export class ClaudeCodeProvider {
       }
       case 'result': {
         if (!msg.is_error) this.answered = true;
-        if (msg.subtype === 'error_max_turns') events.note(newId('msg'), `Stopped after ${MAX_TURNS} rounds of tool calls. Send another message to go on.`);
+        if (msg.subtype === 'error_max_turns') events.note(newId('msg'), { key: 'assistant.note.rounds', params: { count: MAX_TURNS } });
         if (msg.is_error) {
           const detail = (Array.isArray(msg.errors) ? msg.errors.map(String).join('; ') : '') || (typeof msg.result === 'string' ? msg.result : '') || msg.subtype || 'Claude Code reported an error.';
-          this.settle(new Error(detail));
+          this.settle(failure(detail, 'assistant.error.claudeCode'));
         } else this.settle(null);
         return;
       }

@@ -55,6 +55,10 @@ import {
   updateConnectorOps,
   updateEntityOps,
   withPath,
+  isMessageKey,
+  nextNumberedName,
+  nounOf,
+  t,
   type CommandContext,
   type Connector,
   type Dimension,
@@ -90,14 +94,17 @@ const Stale = {
 const WhichSchema = z.union([z.literal('outer'), z.object({ hole: z.number().int().min(0) })]).default('outer').describe("Which path: a wall's own path or a region's outline ('outer'), or a region's hole");
 const PathEdit = { id: z.string(), which: WhichSchema, index: z.number().int().min(0), ...Stale };
 
+/** The History label of a path edit, "Move corner of {what}". */
+type PathLabel = 'labels.corner.move' | 'labels.corner.add' | 'labels.corner.remove' | 'labels.corner.round' | 'labels.corner.chamfer' | 'labels.corner.sharpen' | 'labels.segment.change';
+
 /**
  * Runs one path edit on an entity as a transaction, with the conflict check inside the edit queue.
  * `remap` says where each vertex of the outline went (null: removed), so dimensions tied to it follow.
  */
-async function editPath(ctx: CommandContext, input: { id: string; which: WhichPath; baseSeq?: number; epoch?: number }, label: string, change: (path: Path) => Path, remap?: (vertex: number) => number | null): Promise<Entity | Connector> {
+async function editPath(ctx: CommandContext, input: { id: string; which: WhichPath; baseSeq?: number; epoch?: number }, label: PathLabel, change: (path: Path) => Path, remap?: (vertex: number) => number | null): Promise<Entity | Connector> {
   if (isConnectorId(input.id)) return editConnectorAxis(ctx, input, label, change);
   const type = requireEntity(ctx.project!.doc, input.id).type;
-  await editProject(ctx, `${label} of ${type}`, (tx) => {
+  await editProject(ctx, t(label, { what: nounOf(type) }), (tx) => {
     assertUnchanged(ctx, input.id, type, input.baseSeq, input.epoch);
     const entity = requireEntity(tx.doc, input.id);
     const path = pathOfEntity(entity, input.which);
@@ -129,9 +136,9 @@ function requireConnector(doc: ProjectDoc, id: string): Connector {
 }
 
 /** A path edit on a stair's or ramp's axis: the same edits and conflict check as an entity's path. */
-async function editConnectorAxis(ctx: CommandContext, input: { id: string; which: WhichPath; baseSeq?: number; epoch?: number }, label: string, change: (path: Path) => Path): Promise<Connector> {
+async function editConnectorAxis(ctx: CommandContext, input: { id: string; which: WhichPath; baseSeq?: number; epoch?: number }, label: PathLabel, change: (path: Path) => Path): Promise<Connector> {
   const kind = requireConnector(ctx.project!.doc, input.id).kind;
-  await editProject(ctx, `${label} of ${kind}`, (tx) => {
+  await editProject(ctx, t(label, { what: nounOf(kind) }), (tx) => {
     assertUnchanged(ctx, input.id, kind, input.baseSeq, input.epoch);
     const connector = requireConnector(tx.doc, input.id);
     const path = connectorPath(connector);
@@ -158,7 +165,7 @@ export function wallPaths(input: { from?: Vec2; to?: Vec2; through?: Vec2; point
   } else if (input.points) {
     const pts = input.points;
     // Two points closed would be two walls on top of each other (unless arcs make a round wall).
-    if (input.closed && pts.length < 3 && !pts.some((c) => c.bulge)) throw new StudioError('INVALID_INPUT', 'A closed run of walls needs at least three points, or arcs');
+    if (input.closed && pts.length < 3 && !pts.some((c) => c.bulge)) throw new StudioError('INVALID_INPUT', { key: 'errors.plan.closedRun' });
     if (input.single) paths = [{ closed: input.closed, v: pts.map((c) => vertex(c.p, c.bulge)) }];
     else {
       paths = [];
@@ -171,11 +178,11 @@ export function wallPaths(input: { from?: Vec2; to?: Vec2; through?: Vec2; point
     }
   } else throw new StudioError('INVALID_INPUT', 'Give `from` and `to`, a list of `points`, or a `path`');
   for (const path of paths) {
-    if (path.v.length < 2) throw new StudioError('INVALID_INPUT', 'A wall needs at least two points');
-    if (path.closed && path.v.length < 3 && !path.v.some((v) => v.s?.k === 'arc')) throw new StudioError('INVALID_INPUT', 'A closed wall needs at least three points, or arcs');
+    if (path.v.length < 2) throw new StudioError('INVALID_INPUT', { key: 'errors.plan.wallPoints' });
+    if (path.closed && path.v.length < 3 && !path.v.some((v) => v.s?.k === 'arc')) throw new StudioError('INVALID_INPUT', { key: 'errors.plan.closedWall' });
     // A closed path's last segment runs back to the first point.
     const n = path.closed ? path.v.length : path.v.length - 1;
-    for (let i = 0; i < n; i++) if (distance(path.v[i].p, path.v[(i + 1) % path.v.length].p) < 1) throw new StudioError('INVALID_INPUT', 'Two consecutive wall points are at the same place');
+    for (let i = 0; i < n; i++) if (distance(path.v[i].p, path.v[(i + 1) % path.v.length].p) < 1) throw new StudioError('INVALID_INPUT', { key: 'errors.plan.wallSamePoint' });
   }
   return paths;
 }
@@ -188,8 +195,8 @@ const NewEntitySchema = z.discriminatedUnion(
 
 /** "Room N" with the first N no room on the level uses. */
 function nextRoomName(entities: Record<string, Entity>): string {
-  const names = new Set(Object.values(entities).filter((e) => e.type === 'room').map((e) => (e as { name: string }).name.toLowerCase()));
-  for (let n = 1; ; n++) if (!names.has(`room ${n}`)) return `Room ${n}`;
+  const names = Object.values(entities).filter((e) => e.type === 'room').map((e) => (e as { name: string }).name);
+  return nextNumberedName('defaults.room', names);
 }
 
 /** Large batches by agents are kept as an automatic snapshot first. */
@@ -255,7 +262,7 @@ async function runSteps(ctx: CommandContext, steps: z.infer<typeof StepSchema>[]
       }
     } catch (err) {
       const e = err as StudioError;
-      throw new StudioError(e.code ?? 'INTERNAL', `Step ${index + 1} (${step.command}) failed, so nothing was changed: ${e.message}`, e.details);
+      throw new StudioError(e.code ?? 'INTERNAL', { key: 'errors.plan.stepFailed', params: { step: index + 1, command: step.command, reason: e.i18n ?? e.message } }, e.details);
     }
   }
   return { results, ids: Object.fromEntries(refs) };
@@ -279,7 +286,7 @@ export function requestSnapshot(host: HostApi, request: SnapshotRequest, timeout
   const png = new Promise<string>((resolve, reject) => {
     const timer = setTimeout(() => {
       pendingSnapshots.delete(id);
-      reject(new StudioError('UNAVAILABLE', 'No window drew the snapshot in time: snapshots need the app window open.'));
+      reject(new StudioError('UNAVAILABLE', { key: 'errors.plan.noWindow' }));
     }, timeout);
     pendingSnapshots.set(id, { resolve, reject, timer });
   });
@@ -361,14 +368,20 @@ export const planModule = defineModule({
       description: 'The window returns the PNG a `view.snapshot.request` asked for, or why it could not draw it (`code`: NOT_FOUND when there is nothing to draw, the default; UNAVAILABLE when it cannot draw at that size).',
       scope: 'global',
       hidden: true,
-      input: z.object({ id: z.string(), png: z.string().optional(), error: z.string().optional(), code: z.enum(['NOT_FOUND', 'UNAVAILABLE']).optional() }),
-      handler: async ({ id, png, error, code }) => {
+      input: z.object({
+        id: z.string(),
+        png: z.string().optional(),
+        error: z.string().optional(),
+        i18n: z.object({ key: z.string(), params: z.record(z.string(), z.union([z.string(), z.number()])).optional() }).optional().describe('The error as a catalog phrase, for the interface'),
+        code: z.enum(['NOT_FOUND', 'UNAVAILABLE']).optional(),
+      }),
+      handler: async ({ id, png, error, i18n, code }) => {
         const waiting = pendingSnapshots.get(id);
         if (!waiting) return { taken: false };
         pendingSnapshots.delete(id);
         clearTimeout(waiting.timer);
         if (png) waiting.resolve(png);
-        else waiting.reject(new StudioError(code ?? 'NOT_FOUND', error ?? 'The snapshot could not be drawn.'));
+        else waiting.reject(new StudioError(code ?? 'NOT_FOUND', error ?? 'The snapshot could not be drawn.', undefined, i18n && isMessageKey(i18n.key) ? { key: i18n.key, ...(i18n.params ? { params: i18n.params } : {}) } : undefined));
         return { taken: true };
       },
     }),
@@ -380,7 +393,7 @@ export const planModule = defineModule({
       batchable: true,
       input: z.object({ levelId, kind: z.enum(LAYER_KINDS), name: z.string().trim().min(1).max(120).optional() }),
       handler: async (input, ctx) => {
-        const { result } = await editProject(ctx, `Add ${input.kind} layer`, (tx) => {
+        const { result } = await editProject(ctx, t(`labels.layer.add.${input.kind}`), (tx) => {
           const { ops, layerId: id } = addLayerOps(tx.doc, input);
           tx.apply(ops);
           return id;
@@ -398,7 +411,7 @@ export const planModule = defineModule({
       handler: async ({ layerId: id, ...set }, ctx) => {
         const layer = ctx.project!.doc.layers[id];
         if (!layer) throw new StudioError('NOT_FOUND', `No layer ${id}`);
-        const label = set.visible !== undefined ? `${set.visible ? 'Show' : 'Hide'} "${layer.name}"` : set.locked !== undefined ? `${set.locked ? 'Lock' : 'Unlock'} "${layer.name}"` : `Change layer "${layer.name}"`;
+        const label = t(set.visible !== undefined ? (set.visible ? 'labels.layer.show' : 'labels.layer.hide') : set.locked !== undefined ? (set.locked ? 'labels.layer.lock' : 'labels.layer.unlock') : 'labels.layer.change', { name: layer.name });
         await editProject(ctx, label, (tx) => tx.apply([{ t: 'upd', c: 'layer', id, set }]), set.opacity !== undefined ? { coalesce: `opacity:${id}` } : undefined);
         return ctx.project!.doc.layers[id];
       },
@@ -411,7 +424,7 @@ export const planModule = defineModule({
       batchable: true,
       input: z.object({ layerId, index: z.number().int().min(0) }),
       handler: async ({ layerId: id, index }, ctx) => {
-        await editProject(ctx, 'Reorder layers', (tx) => tx.apply(moveLayerOps(tx.doc, id, index)));
+        await editProject(ctx, t('labels.layer.reorder'), (tx) => tx.apply(moveLayerOps(tx.doc, id, index)));
         return { moved: id };
       },
     }),
@@ -424,7 +437,7 @@ export const planModule = defineModule({
       input: z.object({ layerId, withEntities: z.boolean().default(false) }),
       handler: async ({ layerId: id, withEntities }, ctx) => {
         const name = ctx.project!.doc.layers[id]?.name ?? id;
-        await editProject(ctx, `Remove layer "${name}"`, (tx) => tx.apply(removeLayerOps(tx.doc, id, withEntities)));
+        await editProject(ctx, t('labels.layer.remove', { name }), (tx) => tx.apply(removeLayerOps(tx.doc, id, withEntities)));
         return { removed: id };
       },
     }),
@@ -451,7 +464,7 @@ export const planModule = defineModule({
       }),
       handler: async (input, ctx) => {
         const paths = wallPaths(input);
-        const { result } = await editProject(ctx, paths.length === 1 ? 'Add wall' : `Add ${paths.length} walls`, (tx) =>
+        const { result } = await editProject(ctx, paths.length === 1 ? t('labels.add', { what: nounOf('wall') }) : t('labels.wall.addMany', { count: paths.length }), (tx) =>
           paths.map((path) => {
             const entity = { type: 'wall' as const, path, thickness: input.thickness, height: input.height ?? null, alignment: input.alignment };
             const { ops, id } = addEntityOps(tx.doc, { levelId: input.levelId, layerId: input.layerId, entity });
@@ -481,7 +494,7 @@ export const planModule = defineModule({
         style: z.string().min(1).max(200).optional(),
       }),
       handler: async (input, ctx) => {
-        const { result } = await editProject(ctx, `Add ${input.kind}`, (tx) => {
+        const { result } = await editProject(ctx, t('labels.add', { what: nounOf(input.kind) }), (tx) => {
           const wall = requireEntity(tx.doc, input.wallId);
           if (wall.type !== 'wall') throw new StudioError('INVALID_INPUT', `${input.wallId} is a ${wall.type}, not a wall`);
           const width = input.width ?? (input.kind === 'window' ? 1200 : 900);
@@ -491,7 +504,7 @@ export const planModule = defineModule({
           if (along === undefined) throw new StudioError('INVALID_INPUT', 'Give `along` (from the start of the wall) or `at` (a point near the wall)');
           const others = Object.values(tx.doc.levelData[wall.levelId].entities).filter((e): e is Opening => e.type === 'opening' && e.wallId === wall.id);
           const fit = fitOpening(wall, others, along, width);
-          if (!fit.fits) throw new StudioError('INVALID_INPUT', Number.isNaN(fit.along) ? `The ${input.kind} does not fit anywhere on this wall` : `The ${input.kind} does not fit at ${Math.round(along)} mm; the nearest place is ${Math.round(fit.along)} mm`, { gaps: fit.gaps, length: fit.length, nearest: fit.along });
+          if (!fit.fits) throw new StudioError('INVALID_INPUT', Number.isNaN(fit.along) ? { key: 'errors.plan.openingNowhere', params: { kind: { key: `errors.plan.${input.kind}` } } } : { key: 'errors.plan.openingAt', params: { kind: { key: `errors.plan.${input.kind}` }, at: Math.round(along), nearest: Math.round(fit.along) } }, { gaps: fit.gaps, length: fit.length, nearest: fit.along });
           const swing = input.kind === 'door' ? (input.swing ?? { hinge: 'start', side: 'left' }) : input.swing;
           const entity = { type: 'opening' as const, kind: input.kind, wallId: wall.id, along, width, height, sill, ...(swing ? { swing } : {}), ...(input.style ? { style: input.style } : {}) };
           const { ops, id } = addEntityOps(tx.doc, { levelId: wall.levelId, layerId: wall.layerId, entity });
@@ -510,7 +523,7 @@ export const planModule = defineModule({
       input: z.object({ levelId, layerId: layerId.optional(), seed: Point.optional(), region: RegionSchema.optional(), name: z.string().trim().min(1).max(120).optional(), number: z.string().max(20).optional() }),
       handler: async (input, ctx) => {
         if (!input.seed && !input.region) throw new StudioError('INVALID_INPUT', 'Give `seed` (a point inside the walls) or `region`');
-        const { result } = await editProject(ctx, 'Add room', (tx) => {
+        const { result } = await editProject(ctx, t('labels.room.add'), (tx) => {
           const name = input.name ?? nextRoomName(tx.doc.levelData[input.levelId]?.entities ?? {});
           const entity = { type: 'room' as const, name, ...(input.number ? { number: input.number } : {}), boundary: input.region ? { k: 'region' as const, region: input.region } : { k: 'detect' as const, seed: input.seed! } };
           const { ops, id } = addEntityOps(tx.doc, { levelId: input.levelId, layerId: input.layerId, entity });
@@ -528,7 +541,7 @@ export const planModule = defineModule({
       batchable: true,
       input: z.object({ levelId, minArea: z.number().min(0).default(500_000) }),
       handler: async ({ levelId: lv, minArea }, ctx) => {
-        const { result } = await editProject(ctx, 'Detect rooms', (tx) => {
+        const { result } = await editProject(ctx, t('labels.room.detect'), (tx) => {
           const entities = tx.doc.levelData[lv]?.entities ?? {};
           const geometry = deriveLevelGeometry(entities);
           const free = unclaimedCavities(geometry.cavities, geometry.rooms, entities, minArea).map((c) => ({ c, at: labelPoint(c.polygon, c.islands) })).sort((p, q) => q.at[1] - p.at[1] || p.at[0] - q.at[0]);
@@ -608,10 +621,10 @@ export const planModule = defineModule({
       handler: async (input, ctx) => {
         const path: Path | null = input.path ?? (input.points ? { closed: input.closed, v: input.points.map((c): Vertex => (c.bulge ? { p: c.p, s: { k: 'arc', bulge: c.bulge } } : { p: c.p })) } : null);
         if (!path) throw new StudioError('INVALID_INPUT', 'Give `points` or a `path`');
-        if (path.closed && path.v.length < 3 && !path.v.some((v) => v.s?.k === 'arc')) throw new StudioError('INVALID_INPUT', 'A closed shape needs at least three points, or arcs');
+        if (path.closed && path.v.length < 3 && !path.v.some((v) => v.s?.k === 'arc')) throw new StudioError('INVALID_INPUT', { key: 'errors.plan.closedShape' });
         const n = path.closed ? path.v.length : path.v.length - 1;
-        for (let i = 0; i < n; i++) if (distance(path.v[i].p, path.v[(i + 1) % path.v.length].p) < 1) throw new StudioError('INVALID_INPUT', 'Two consecutive points are at the same place');
-        const { result } = await editProject(ctx, 'Add shape', (tx) => {
+        for (let i = 0; i < n; i++) if (distance(path.v[i].p, path.v[(i + 1) % path.v.length].p) < 1) throw new StudioError('INVALID_INPUT', { key: 'errors.plan.samePoint' });
+        const { result } = await editProject(ctx, t('labels.shape.add'), (tx) => {
           const { ops, id } = addEntityOps(tx.doc, { levelId: input.levelId, layerId: input.layerId, entity: { type: 'shape', path, filled: input.filled, ...(input.name ? { name: input.name } : {}) } });
           tx.apply(ops);
           return id;
@@ -638,8 +651,8 @@ export const planModule = defineModule({
       }),
       handler: async (input, ctx) => {
         if (input.kind === 'angular' && !input.vertex) throw new StudioError('INVALID_INPUT', 'An angular dimension needs `vertex`');
-        if (input.kind !== 'angular' && distance(input.from, input.to) < 1) throw new StudioError('INVALID_INPUT', 'The two points are at the same place');
-        const { result } = await editProject(ctx, 'Add dimension', (tx) => {
+        if (input.kind !== 'angular' && distance(input.from, input.to) < 1) throw new StudioError('INVALID_INPUT', { key: 'errors.plan.dimensionSamePoint' });
+        const { result } = await editProject(ctx, t('labels.dimension.add'), (tx) => {
           const entity = { type: 'dimension' as const, kind: input.kind, from: input.from, to: input.to, offset: input.offset, ...(input.vertex ? { vertex: input.vertex } : {}), ...(input.anchors && (input.anchors.from || input.anchors.to) ? { anchors: input.anchors } : {}) };
           const { ops, id } = addEntityOps(tx.doc, { levelId: input.levelId, layerId: input.layerId, entity });
           tx.apply(ops);
@@ -690,8 +703,8 @@ export const planModule = defineModule({
         const connectorIds = ids.filter(isConnectorId);
         const connectors = connectorIds.map((id) => requireConnector(doc, id));
         const selected = ids.filter((id) => !isConnectorId(id)).map((id) => requireEntity(doc, id));
-        const what = ids.length === 1 ? (selected[0]?.type ?? connectors[0].kind) : `${ids.length} items`;
-        const label = copy ? `Copy ${what}` : rotate ? `Rotate ${what}` : mirror ? `Mirror ${what}` : nudge ? `Nudge ${what}` : `Move ${what}`;
+        const what = ids.length === 1 ? nounOf(selected[0]?.type ?? connectors[0].kind) : t('labels.items', { count: ids.length });
+        const label = t(copy ? 'labels.copy' : rotate ? 'labels.rotate' : mirror ? 'labels.mirror' : nudge ? 'labels.nudge' : 'labels.move', { what });
         const { result } = await editProject(
           ctx,
           label,
@@ -787,7 +800,7 @@ export const planModule = defineModule({
       batchable: true,
       input: z.object({ levelId, layerId: layerId.optional(), entity: NewEntitySchema }),
       handler: async ({ levelId: lv, layerId: layer, entity }, ctx) => {
-        const { result } = await editProject(ctx, `Add ${entity.type}`, (tx) => {
+        const { result } = await editProject(ctx, t('labels.add', { what: nounOf(entity.type) }), (tx) => {
           const { ops, id } = addEntityOps(tx.doc, { levelId: lv, layerId: layer, entity: entity as { type: Entity['type'] } });
           tx.apply(ops);
           return id;
@@ -805,7 +818,7 @@ export const planModule = defineModule({
       input: z.object({ id: z.string(), set: z.record(z.string(), z.unknown()).default({}), unset: z.array(z.string()).default([]), ...Stale }),
       handler: async ({ id, set, unset, baseSeq, epoch }, ctx) => {
         const entity = requireEntity(ctx.project!.doc, id);
-        await editProject(ctx, `Change ${entity.type}`, (tx) => {
+        await editProject(ctx, t('labels.change', { what: nounOf(entity.type) }), (tx) => {
           assertUnchanged(ctx, id, entity.type, baseSeq, epoch);
           const before = requireEntity(tx.doc, id);
           const level = tx.doc.levelData[before.levelId].entities;
@@ -841,7 +854,7 @@ export const planModule = defineModule({
       scope: 'project',
       batchable: true,
       input: z.object({ ...PathEdit, to: Point }),
-      handler: (input, ctx) => editPath(ctx, input, 'Move corner', (path) => moveVertex(path, input.index, input.to)),
+      handler: (input, ctx) => editPath(ctx, input, 'labels.corner.move', (path) => moveVertex(path, input.index, input.to)),
     }),
     defineCommand({
       id: 'plan.path.vertex.insert',
@@ -850,7 +863,7 @@ export const planModule = defineModule({
       scope: 'project',
       batchable: true,
       input: z.object({ ...PathEdit, at: Point }),
-      handler: (input, ctx) => editPath(ctx, input, 'Add corner', (path) => insertVertex(path, input.index, input.at), (v) => (v > input.index ? v + 1 : v)),
+      handler: (input, ctx) => editPath(ctx, input, 'labels.corner.add', (path) => insertVertex(path, input.index, input.at), (v) => (v > input.index ? v + 1 : v)),
     }),
     defineCommand({
       id: 'plan.path.vertex.remove',
@@ -859,7 +872,7 @@ export const planModule = defineModule({
       scope: 'project',
       batchable: true,
       input: z.object(PathEdit),
-      handler: (input, ctx) => editPath(ctx, input, 'Remove corner', (path) => removeVertex(path, input.index), (v) => (v === input.index ? null : v > input.index ? v - 1 : v)),
+      handler: (input, ctx) => editPath(ctx, input, 'labels.corner.remove', (path) => removeVertex(path, input.index), (v) => (v === input.index ? null : v > input.index ? v - 1 : v)),
     }),
     defineCommand({
       id: 'plan.path.segment.set',
@@ -868,7 +881,7 @@ export const planModule = defineModule({
       scope: 'project',
       batchable: true,
       input: z.object({ ...PathEdit, segment: z.union([z.object({ k: z.literal('line') }), z.object({ k: z.literal('arc'), bulge: z.number() }), z.object({ k: z.literal('arc'), through: Point })]) }),
-      handler: (input, ctx) => editPath(ctx, input, 'Change segment', (path) => setSegment(path, input.index, input.segment)),
+      handler: (input, ctx) => editPath(ctx, input, 'labels.segment.change', (path) => setSegment(path, input.index, input.segment)),
     }),
     defineCommand({
       id: 'plan.path.corner.set',
@@ -877,7 +890,7 @@ export const planModule = defineModule({
       scope: 'project',
       batchable: true,
       input: z.object({ ...PathEdit, corner: z.union([z.null(), z.object({ k: z.literal('fillet'), r: z.number().positive() }), z.object({ k: z.literal('chamfer'), d1: z.number().positive(), d2: z.number().positive().optional() })]) }),
-      handler: (input, ctx) => editPath(ctx, input, input.corner ? (input.corner.k === 'fillet' ? 'Round corner' : 'Chamfer corner') : 'Sharpen corner', (path) => setCorner(path, input.index, input.corner)),
+      handler: (input, ctx) => editPath(ctx, input, input.corner ? (input.corner.k === 'fillet' ? 'labels.corner.round' : 'labels.corner.chamfer') : 'labels.corner.sharpen', (path) => setCorner(path, input.index, input.corner)),
     }),
     defineCommand({
       id: 'plan.entity.delete',
@@ -888,8 +901,8 @@ export const planModule = defineModule({
       input: z.object({ ids: z.array(z.string()).min(1) }),
       handler: async ({ ids }, ctx) => {
         const doc = ctx.project!.doc;
-        const what = ids.length === 1 ? (isConnectorId(ids[0]) ? requireConnector(doc, ids[0]).kind : requireEntity(doc, ids[0]).type) : `${ids.length} items`;
-        const { result } = await editProject(ctx, `Delete ${what}`, (tx) => {
+        const what = ids.length === 1 ? nounOf(isConnectorId(ids[0]) ? requireConnector(doc, ids[0]).kind : requireEntity(doc, ids[0]).type) : t('labels.items', { count: ids.length });
+        const { result } = await editProject(ctx, t('labels.delete', { what }), (tx) => {
           const entityIds = ids.filter((id) => !isConnectorId(id));
           const ops = [...(entityIds.length ? deleteEntitiesOps(tx.doc, entityIds) : []), ...ids.filter(isConnectorId).flatMap((id) => removeConnectorOps(tx.doc, id))];
           tx.apply(ops);
@@ -908,7 +921,7 @@ export const planModule = defineModule({
       handler: async ({ label, steps, dryRun }, ctx) => {
         if (ctx.project!.batching) throw new StudioError('INVALID_INPUT', 'plan.apply cannot be nested');
         if (!dryRun && ctx.caller !== 'ui' && steps.length >= LARGE_BATCH) {
-          await ctx.host.projects.autoSnapshot?.(ctx.project!.id, `Before "${label}"`, authorFrom(ctx).label);
+          await ctx.host.projects.autoSnapshot?.(ctx.project!.id, t('defaults.snapshot.beforeBatch', { label }), authorFrom(ctx).label);
         }
         const { label: _display, ...author } = authorFrom(ctx);
         const outcome = await ctx.project!.edit(author, label, (tx) => runSteps(ctx, steps, tx), { dryRun, command: ctx.command ?? 'plan.apply' });

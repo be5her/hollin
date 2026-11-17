@@ -7,21 +7,21 @@ import { HistoryPanel } from './history-panel';
 /** Undo, redo and the history of changes. */
 export const editUI = defineModuleUI({
   id: 'edit',
-  title: 'History',
+  title: 'edit.title',
   icon: History,
   order: 30,
   availability: 'project',
   tabs: {},
   setup: () => {
-    inject(ProjectPanels).register({ id: 'history', title: 'History', side: 'right', order: 10, component: HistoryPanel });
+    inject(ProjectPanels).register({ id: 'history', title: 'edit.title', side: 'right', order: 10, component: HistoryPanel });
   },
   actions: (): UIAction[] => {
     const app = inject(AppState);
     const edit = inject(EditActions);
     const hasProject = () => untracked(app.activeProjectId) !== null;
     return [
-      { id: 'edit.undo', title: 'Undo', group: 'Edit', shortcut: 'Ctrl+Z', run: () => edit.undo(), when: hasProject },
-      { id: 'edit.redo', title: 'Redo', group: 'Edit', shortcut: 'Ctrl+Shift+Z', run: () => edit.redo(), when: hasProject },
+      { id: 'edit.undo', title: 'edit.undo', group: 'edit.group', shortcut: 'Ctrl+Z', run: () => edit.undo(), when: hasProject },
+      { id: 'edit.redo', title: 'edit.redo', group: 'edit.group', shortcut: 'Ctrl+Shift+Z', run: () => edit.redo(), when: hasProject },
     ];
   },
 });

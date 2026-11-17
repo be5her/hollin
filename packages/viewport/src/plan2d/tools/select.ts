@@ -1,4 +1,4 @@
-import { DEG, angleOf, connectorPath, cornerFrame, cornerFromGrip, distance, fitOpening, formatAngle, insertVertex, joinWalls, junctionNodes, junctionPatches, moveVertex, nearestPoint, normalize, offsetTowards, parseAngle, pathOfEntity, resolveCoordinate, resolveDimension, setCorner, setSegment, sub, transformConnector, transformEntity, wallBody, wallEnds, withConnectorPath, withPath, type Box, type Connector, type Coordinate, type Corner, type Dimension, type Entity, type Path, type Transform, type Vec2, type WhichPath } from '@studio/core';
+import { t, isMessageKey, type MessageKey, DEG, angleOf, connectorPath, cornerFrame, cornerFromGrip, distance, fitOpening, formatAngle, insertVertex, joinWalls, junctionNodes, junctionPatches, moveVertex, nearestPoint, normalize, offsetTowards, parseAngle, pathOfEntity, resolveCoordinate, resolveDimension, setCorner, setSegment, sub, transformConnector, transformEntity, wallBody, wallEnds, withConnectorPath, withPath, type Box, type Connector, type Coordinate, type Corner, type Dimension, type Entity, type Path, type Transform, type Vec2, type WhichPath } from '@studio/core';
 import type { SnapAnchor, TrackReference } from '../snap';
 
 type Opening = Extract<Entity, { type: 'opening' }>;
@@ -6,6 +6,7 @@ import type { PlanConnector } from '../connectors';
 import { tracePolygon } from '../draw';
 import { gripAt, gripsOf, gripsOfConnector, type Grip, type VertexRef } from '../grips';
 import { drawConnectorPreview, drawEntityPreview, drawGrips, drawScreenText, drawSelection, type RenderFrame } from '../render';
+import { latinKey } from '../keys';
 import { withAlpha } from '../theme';
 import type { Tool, ToolHost, ToolPointer } from './tool';
 
@@ -25,7 +26,6 @@ type Mode =
   | { k: 'grip-press'; id: string; grip: Grip; screen: Vec2; alt: boolean; clicks: number }
   | { k: 'grip-drag'; id: string; grip: Grip; cursor: Vec2; alt: boolean; joined: JoinedEnd[]; anchor?: SnapAnchor };
 
-const KIND_NAMES: Record<Connector['kind'], string> = { stair: 'Stair', ladder: 'Ladder', ramp: 'Ramp', elevator: 'Elevator', escalator: 'Escalator' };
 
 const DRAG_THRESHOLD_PX = 3;
 /** Wall ends this close to a dragged vertex move with it. */
@@ -183,7 +183,7 @@ export class SelectTool implements Tool {
   key(e: KeyboardEvent): boolean {
     const ids = [...this.host.selection()];
     const ctrl = e.ctrlKey || e.metaKey;
-    const key = e.key.toLowerCase();
+    const key = latinKey(e).toLowerCase();
     const vertex = this.host.vertex();
     if (ctrl && key === 'a') {
       this.host.select([...Object.keys(this.host.entities()), ...this.host.connectors().keys()]);
@@ -334,22 +334,22 @@ export class SelectTool implements Tool {
 
   hint(): string {
     const mode = this.mode;
-    if (mode.k === 'drag' && mode.slide) return 'Release to slide the opening here (over another wall: move it there)';
-    if (mode.k === 'drag') return mode.copy ? 'Release to copy here' : 'Release to move here · Ctrl: copy';
-    if (mode.k === 'marquee') return mode.end[0] >= mode.start[0] ? 'Window: what lies fully inside' : 'Crossing: what the box touches';
-    if (mode.k === 'rotate') return !mode.pivot ? 'Rotate: click the pivot' : !mode.reference ? 'Click a reference point' : 'Click the new direction · Ctrl: keep a copy';
-    if (mode.k === 'mirror') return !mode.a ? 'Mirror: click the first point of the axis' : 'Click the second point · Ctrl: keep a copy';
-    if (mode.k === 'grip-drag' && mode.grip.kind === 'rotate') return 'Release to turn the item to face here (15° steps hold; Alt: free) · or type an angle';
-    if (mode.k === 'grip-drag' && mode.grip.kind === 'corner') return 'Release to size the corner (or type the radius or distance) · onto the vertex: sharp';
-    if (mode.k === 'grip-drag' && this.host.entities()[mode.id]?.type === 'dimension') return mode.grip.kind === 'vertex' ? (mode.anchor ? 'Release to tie the point to this corner' : 'Release to move the point (on a wall or shape corner: tie it there)') : 'Release to place the dimension line here';
-    if (mode.k === 'grip-drag') return mode.grip.kind === 'vertex' ? (mode.joined.length ? `Release to move the corner (${mode.joined.length} joined end${mode.joined.length === 1 ? '' : 's'} follow) · Alt: detach` : 'Release to move the corner') : mode.alt ? 'Release to add a corner here' : 'Release to curve the segment through here · Alt: add a corner instead';
-    if (this.host.vertex()) return 'Corner selected · drag to move · F: round · C: chamfer · Delete: remove · Escape: back';
+    if (mode.k === 'drag' && mode.slide) return t('tools.select.slide');
+    if (mode.k === 'drag') return t(mode.copy ? 'tools.select.copyHere' : 'tools.select.moveHere');
+    if (mode.k === 'marquee') return t(mode.end[0] >= mode.start[0] ? 'tools.select.window' : 'tools.select.crossing');
+    if (mode.k === 'rotate') return t(!mode.pivot ? 'tools.select.rotatePivot' : !mode.reference ? 'tools.select.rotateReference' : 'tools.select.rotateDirection');
+    if (mode.k === 'mirror') return t(!mode.a ? 'tools.select.mirrorFirst' : 'tools.select.mirrorSecond');
+    if (mode.k === 'grip-drag' && mode.grip.kind === 'rotate') return t('tools.select.turnItem');
+    if (mode.k === 'grip-drag' && mode.grip.kind === 'corner') return t('tools.select.sizeCorner');
+    if (mode.k === 'grip-drag' && this.host.entities()[mode.id]?.type === 'dimension') return t(mode.grip.kind === 'vertex' ? (mode.anchor ? 'tools.select.tiePoint' : 'tools.select.movePoint') : 'tools.select.placeDimensionLine');
+    if (mode.k === 'grip-drag') return mode.grip.kind === 'vertex' ? (mode.joined.length ? t('tools.select.moveCornerJoined', { count: mode.joined.length }) : t('tools.select.moveCorner')) : t(mode.alt ? 'tools.select.addCorner' : 'tools.select.curve');
+    if (this.host.vertex()) return t('tools.select.corner');
     const n = this.host.selection().size;
     const connector = n === 1 ? this.host.connectors().get([...this.host.selection()][0]) : undefined;
-    if (connector) return connectorPath(connector.connector) ? `${KIND_NAMES[connector.connector.kind]} selected · drag to move · drag a grip to reshape its walk line · R: rotate · Shift+M: mirror · Delete` : `${KIND_NAMES[connector.connector.kind]} selected · drag to move · R: rotate · Shift+M: mirror · Delete`;
-    if (n === 1) return '1 selected · drag to move (Ctrl: copy) · drag a grip to reshape · click a corner to edit it (F: round · C: chamfer) · R: rotate · Shift+M: mirror · Delete';
-    if (n) return `${n} selected · drag to move (Ctrl: copy) · arrows: nudge · R: rotate · Shift+M: mirror · Delete`;
-    return 'Click to select · Shift: add · drag: window (→) or crossing (←) · W: draw walls';
+    if (connector) return t(connectorPath(connector.connector) ? 'tools.select.connectorPath' : 'tools.select.connector', { kind: t(`tools.connector.${connector.connector.kind}`) });
+    if (n === 1) return t('tools.select.one');
+    if (n) return t('tools.select.many', { count: n });
+    return t('tools.select.idle');
   }
 
   // ---------- drawing ----------
@@ -685,7 +685,7 @@ export class SelectTool implements Tool {
         return;
       }
       const steps = [{ id, which: grip.which, index: grip.index }, ...mode.joined.map((j) => ({ id: j.id, which: 'outer' as const, index: j.index }))].map((s) => ({ command: 'plan.path.vertex.move', input: { ...s, to, ...this.stale() } }));
-      void this.host.invoke('plan.apply', { label: 'Move corner', steps });
+      void this.host.invoke('plan.apply', { label: t('tools.history.moveCorner'), steps });
       return;
     }
     if (grip.kind === 'corner') {
@@ -808,7 +808,7 @@ export class SelectTool implements Tool {
     }
     if (!steps.length) return Promise.resolve();
     const what = ordered[0]?.type ?? clip.connectors?.[0]?.kind ?? 'item';
-    return this.host.invoke('plan.apply', { label: steps.length === 1 ? `Paste ${what}` : `Paste ${steps.length} items`, steps }).then((result) => {
+    return this.host.invoke('plan.apply', { label: steps.length === 1 ? t('tools.history.paste', { what: isMessageKey(`tools.noun.${what}`) ? t(`tools.noun.${what}` as MessageKey) : what }) : t('tools.history.pasteMany', { count: steps.length }), steps }).then((result) => {
       const r = result as { results?: { result?: { id?: string } }[] } | undefined;
       const ids = r?.results?.map((s) => s.result?.id).filter((id): id is string => Boolean(id)) ?? [];
       if (ids.length) this.host.select(ids);

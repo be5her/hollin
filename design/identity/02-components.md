@@ -14,9 +14,9 @@ The full palette tables are in `01-brand.md`; this document only needs these add
 :root {
   color-scheme: light;                       /* native selects, scrollbars and popups follow the theme */
   --ai: #8a3f6f; --ai-hover: #733259; --ai-fg: #fbf6ee; --ai-tint: #f1e3ea; --plan-ai: #8a3f6f;
-  --font-sans: 'Alegreya Sans', 'Segoe UI', system-ui, sans-serif;
-  --font-mono: 'IBM Plex Mono', ui-monospace, Consolas, monospace;
-  --font-display: 'Fraunces', Georgia, serif;
+  --font-sans: 'Alegreya Sans', 'Segoe UI', system-ui, sans-serif;     /* since milestone 12: 'IBM Plex Sans Arabic' after the Latin face */
+  --font-mono: 'IBM Plex Mono', ui-monospace, Consolas, monospace;     /* likewise: Arabic letters in a mono line come from Plex Sans Arabic */
+  --font-display: 'Fraunces', Georgia, serif;                          /* likewise 'Markazi Text', the Arabic headings */
   /* derived, never a new hue */
   --scrim: color-mix(in srgb, var(--fg) 32%, transparent);                 /* under dialogs and the palette */
   --shadow-pop: 0 8px 24px color-mix(in srgb, var(--fg) 12%, transparent); /* the one soft shadow: ink at 12 % */

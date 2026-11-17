@@ -5,6 +5,7 @@ import { newProjectDoc } from '../doc/defaults';
 import { applyPatch } from '../doc/ops';
 import type { ProjectDoc } from '../doc/schema';
 import { rectPath } from '../geometry/path';
+import { mmText, phraseText, translate, type PhraseFormat } from '../i18n';
 import { checkConnectorRules, checkLevelRules, checkRules } from './check';
 
 const limits = DEFAULT_RULE_LIMITS;
@@ -92,5 +93,28 @@ describe('checkRules', () => {
     expect(checkRules(d, limits)).toEqual([]);
     d = applyPatch(d, updateLevelOps(d, ground, { height: 4500 }));
     expect(checkRules(d, limits).map((w) => w.id.split(':')[1])).toContain('tread-short');
+  });
+
+  it('keeps each warning as a phrase: English for agents, the language and units of the moment for people', () => {
+    const { doc, ground, upper } = house();
+    const steep = addConnectorOps(stair(ground, upper, { riser: { count: 8 } }));
+    const warnings = checkConnectorRules(applyPatch(doc, steep.ops), limits);
+    const high = warnings.find((w) => w.id === `${steep.id}:riser-high`)!;
+    const comfort = warnings.find((w) => w.id === `${steep.id}:comfort`)!;
+    // The English message is the one agents always read, made from the phrase.
+    expect(high.message).toBe(`Stair: Risers of 375 mm are higher than ${limits.maxRiser} mm.`);
+    expect(comfort.message).toMatch(new RegExp(`, outside ${limits.comfortMin}–${limits.comfortMax} mm\.$`));
+    expect(high.text).toMatchObject({ key: 'rules.connector', params: { name: { key: 'rules.kind.stair' }, detail: { key: 'rules.break.riserHigh' } } });
+    // In Arabic, with the lengths in centimetres: translated, the lengths isolated left to right.
+    const [lri, pdi] = ['\u2066', '\u2069'];
+    const arabic: PhraseFormat = { translate: (key, params) => translate('ar', key, params), length: (mm) => `${mm / 10} cm` };
+    const text = phraseText(high.text, arabic);
+    expect(text).toContain('الدرج');
+    expect(text).toContain(`${lri}37.5 cm${pdi}`);
+    expect(phraseText(comfort.text, arabic)).toContain(`${lri}60–65 cm${pdi}`);
+    // A name someone gave stays as it is.
+    const named = checkConnectorRules(applyPatch(doc, addConnectorOps(stair(ground, upper, { riser: { count: 8 }, name: 'درج الحديقة' })).ops), limits);
+    expect(phraseText(named[0].text, arabic)).toContain('درج الحديقة');
+    expect(phraseText(named[0].text, { translate: (key, params) => translate('en', key, params), length: mmText })).toBe(named[0].message);
   });
 });

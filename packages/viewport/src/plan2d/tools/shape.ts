@@ -1,7 +1,8 @@
-import { DEG, bulgeThrough, circlePath, distance, formatAngle, formatLength, normalize, rectPath, resolveCoordinate, reversePath, segmentTangent, signedArea, sub, type Coordinate, type Path, type Vec2, type Vertex } from '@studio/core';
+import { t, DEG, bulgeThrough, circlePath, distance, formatAngle, formatLength, normalize, rectPath, resolveCoordinate, reversePath, segmentTangent, signedArea, sub, type Coordinate, type Path, type Vec2, type Vertex } from '@studio/core';
 import { tracePath } from '../draw';
 import { drawScreenText, type RenderFrame } from '../render';
 import { referenceFrom, type SnapResult, type TrackReference } from '../snap';
+import { latinKey } from '../keys';
 import { withAlpha } from '../theme';
 import type { Tool, ToolHost, ToolId, ToolPointer } from './tool';
 
@@ -98,7 +99,7 @@ export class ShapeTool implements Tool {
 
   key(e: KeyboardEvent): boolean {
     if (this.mode !== 'polyline' || !this.points.length) return false;
-    const key = e.key.toLowerCase();
+    const key = latinKey(e).toLowerCase();
     if (key === 'a') {
       this.arcNext = !this.arcNext;
       this.arcEnd = null;
@@ -137,13 +138,12 @@ export class ShapeTool implements Tool {
 
   hint(): string {
     const what = this.host.options().shape.kind;
-    const noun = what === 'shape' ? 'shape' : what;
-    if (this.mode === 'rectangle') return this.points.length ? `Click the opposite corner of the ${noun} (or type @width,height) · Escape: cancel` : `Click the first corner of a ${noun} · V: select`;
-    if (this.mode === 'circle') return this.points.length ? `Click a point on the ${noun}'s circle (or type the radius) · Escape: cancel` : `Click the centre of a round ${noun} · V: select`;
-    if (!this.points.length) return `Click the first point of a ${noun} · V: select`;
-    if (this.arcNext) return this.arcEnd ? 'Click a point the arc passes through' : 'Click the end of the arc · A: straight';
-    const close = what === 'shape' ? 'click the first point or C: close · Enter: end open' : 'click the first point, C or Enter: close';
-    return `Click the next point · A: arc · ${close} · Escape: cancel`;
+    const words = { noun: t(`tools.shape.noun.${what}`), the: t(`tools.shape.the.${what}`) };
+    if (this.mode === 'rectangle') return this.points.length ? t('tools.shape.rectNext', words) : t('tools.shape.rectStart', words);
+    if (this.mode === 'circle') return this.points.length ? t('tools.shape.circleNext', words) : t('tools.shape.circleStart', words);
+    if (!this.points.length) return t('tools.shape.start', words);
+    if (this.arcNext) return t(this.arcEnd ? 'tools.arc.through' : 'tools.arc.end');
+    return t(what === 'shape' ? 'tools.shape.nextOpen' : 'tools.shape.nextClosed');
   }
 
   draw(ctx: CanvasRenderingContext2D, frame: RenderFrame): void {

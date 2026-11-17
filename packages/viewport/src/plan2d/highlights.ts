@@ -3,6 +3,7 @@
  * edits, the renderer draws a halo, end nodes and one tag for them. Pure timing and wording here, so
  * the tests need no canvas.
  */
+import { t } from '@studio/core';
 
 /** One edit by Otto (a batch is one edit), with the entities and connectors it added or changed. */
 export interface PlanHighlight {
@@ -51,16 +52,16 @@ export function highlightAnimating(h: Pick<PlanHighlight, 'at' | 'clearedAt'>, n
   return age > HIGHLIGHT_HOLD_MS && age < HIGHLIGHT_LIFE_MS;
 }
 
-/** "now" under 10 s, then "20 s ago", then "1 min ago". */
+/** "now" under 10 s, then "20 s ago", then "1 min ago" (in the process language). */
 export function highlightAge(ageMs: number): string {
-  if (ageMs < 10_000) return 'now';
-  if (ageMs < 60_000) return `${Math.floor(ageMs / 10_000) * 10} s ago`;
-  return `${Math.floor(ageMs / 60_000)} min ago`;
+  if (ageMs < 10_000) return t('tools.canvas.ageNow');
+  if (ageMs < 60_000) return t('tools.canvas.ageSeconds', { count: Math.floor(ageMs / 10_000) * 10 });
+  return t('tools.canvas.ageMinutes', { count: Math.floor(ageMs / 60_000) });
 }
 
 /** The tag's words: `Otto · <label, cut at 36 characters> · <age>`. */
 export function highlightTag(label: string, ageMs: number): string {
-  const clean = label.trim() || 'an edit';
+  const clean = label.trim() || t('tools.canvas.anEdit');
   const cut = clean.length > 36 ? `${clean.slice(0, 35).trimEnd()}…` : clean;
-  return `Otto · ${cut} · ${highlightAge(ageMs)}`;
+  return t('tools.canvas.ottoTag', { label: cut, age: highlightAge(ageMs) });
 }

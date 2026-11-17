@@ -1,48 +1,48 @@
 <div class="max-w-6xl mx-auto w-full px-8 py-8 flex flex-col gap-5">
   <div class="flex items-center gap-3 flex-wrap">
-    <h1 class="heading-page text-fg mr-2" data-testid="library-heading">{{ showTrash() ? 'Trash' : 'Projects' }}</h1>
+    <h1 class="heading-page text-fg me-2" data-testid="library-heading">{{ showTrash() ? t('library.home.trash') : t('library.title') }}</h1>
     @if (!showTrash()) {
-      <button xButton variant="primary" [icon]="icons.Plus" (click)="actions.create()" data-testid="library-new">New project</button>
-      <button xButton [icon]="icons.Upload" (click)="actions.importProject()" data-testid="library-import">Import…</button>
+      <button xButton variant="primary" [icon]="icons.Plus" (click)="actions.create()" data-testid="library-new">{{ t('library.action.new') }}</button>
+      <button xButton [icon]="icons.Upload" (click)="actions.importProject()" data-testid="library-import">{{ t('library.home.import') }}</button>
     }
     <div class="flex-1"></div>
     @if (showTrash()) {
-      <button xButton variant="danger" [icon]="icons.Trash2" [disabled]="!info.value()?.trashed" (click)="emptyTrash()" data-testid="library-empty-trash">Empty trash</button>
-      <button xButton (click)="showTrash.set(false)" data-testid="library-back">Back to projects</button>
+      <button xButton variant="danger" [icon]="icons.Trash2" [disabled]="!info.value()?.trashed" (click)="emptyTrash()" data-testid="library-empty-trash">{{ t('library.home.emptyTrash') }}</button>
+      <button xButton (click)="showTrash.set(false)" data-testid="library-back">{{ t('library.home.back') }}</button>
     } @else {
-      <button xButton variant="ghost" [icon]="icons.Trash2" (click)="showTrash.set(true)" data-testid="library-trash">Trash ({{ info.value()?.trashed ?? 0 }})</button>
+      <button xButton variant="ghost" [icon]="icons.Trash2" (click)="showTrash.set(true)" data-testid="library-trash">{{ t('library.home.trashCount', { count: info.value()?.trashed ?? 0 }) }}</button>
     }
   </div>
 
   @if (info.value()?.lockedBy; as lock) {
     <div class="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs" data-testid="library-locked">
       <svg [xIcon]="icons.TriangleAlert" class="size-4 text-warning shrink-0"></svg>
-      <span>This library was also open in another copy of {{ productName }} (on {{ lock.host }}). Close the other copy before changing the same projects.</span>
+      <span>{{ t('library.home.locked', { product: productName, host: lock.host }) }}</span>
     </div>
   }
 
   @if (!showTrash() && !firstLaunch()) {
     <div class="flex items-center gap-2 flex-wrap">
       <div class="relative w-80">
-        <svg [xIcon]="icons.Search" class="size-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none"></svg>
-        <input xInput class="pl-8" placeholder="Search projects" [formField]="filterForm.query" data-testid="library-search" aria-label="Search projects" />
+        <svg [xIcon]="icons.Search" class="size-3.5 absolute start-2.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none"></svg>
+        <input xInput class="ps-8" dir="auto" [placeholder]="t('library.home.search')" [formField]="filterForm.query" data-testid="library-search" [attr.aria-label]="t('library.home.search')" />
       </div>
-      <select xSelect [formField]="filterForm.sort" aria-label="Sort" data-testid="library-sort">
-        <option value="recent">Last changed</option>
-        <option value="opened">Last opened</option>
-        <option value="name">Name</option>
-        <option value="created">Created</option>
+      <select xSelect [formField]="filterForm.sort" [attr.aria-label]="t('library.home.sort')" data-testid="library-sort">
+        <option value="recent">{{ t('library.sort.recent') }}</option>
+        <option value="opened">{{ t('library.sort.opened') }}</option>
+        <option value="name">{{ t('library.sort.name') }}</option>
+        <option value="created">{{ t('library.sort.created') }}</option>
       </select>
-      @for (t of tags.value() ?? []; track t.tag) {
+      @for (tagCount of tags.value() ?? []; track tagCount.tag) {
         <button
           type="button"
           class="inline-flex items-center gap-1 h-6 px-2 rounded border text-[11px] transition-colors"
-          [class]="selectedTags().includes(t.tag) ? 'border-accent bg-accent/10 text-fg' : 'border-edge text-muted hover:text-fg hover:bg-elevated'"
-          [attr.aria-pressed]="selectedTags().includes(t.tag)"
+          [class]="selectedTags().includes(tagCount.tag) ? 'border-accent bg-accent/10 text-fg' : 'border-edge text-muted hover:text-fg hover:bg-elevated'"
+          [attr.aria-pressed]="selectedTags().includes(tagCount.tag)"
           data-testid="library-tag"
-          (click)="toggleTag(t.tag)"
+          (click)="toggleTag(tagCount.tag)"
         >
-          {{ t.tag }} <span class="font-mono text-muted">{{ t.count }}</span>
+          <bdi>{{ tagCount.tag }}</bdi> <span class="font-mono text-muted">{{ tagCount.count }}</span>
         </button>
       }
     </div>
@@ -54,10 +54,10 @@
         <div class="border border-edge rounded-md divide-y divide-edge" data-testid="trash-list">
           @for (p of list; track p.id) {
             <div class="flex items-center gap-3 px-3 py-2 text-sm" data-testid="trash-item" [attr.data-name]="p.name" (contextmenu)="showMenu($event, p)">
-              <span class="flex-1 truncate">{{ p.name }}</span>
-              <span class="text-xs italic text-muted">Trashed {{ ago(p.trashedAt) }}</span>
-              <button xButton size="sm" [icon]="icons.ArchiveRestore" (click)="actions.restore(p)" data-testid="trash-restore">Restore</button>
-              <button xButton size="sm" variant="danger" (click)="actions.deleteForever(p)" data-testid="trash-delete">Delete</button>
+              <span class="flex-1 truncate" dir="auto">{{ p.name }}</span>
+              <span class="text-xs italic text-muted">{{ t('library.home.trashedAgo', { ago: ago(p.trashedAt) }) }}</span>
+              <button xButton size="sm" [icon]="icons.ArchiveRestore" (click)="actions.restore(p)" data-testid="trash-restore">{{ t('library.home.restore') }}</button>
+              <button xButton size="sm" variant="danger" (click)="actions.deleteForever(p)" data-testid="trash-delete">{{ t('library.home.delete') }}</button>
             </div>
           }
         </div>
@@ -69,7 +69,7 @@
           @for (p of list; track p.id) {
             <button
               type="button"
-              class="group relative flex flex-col justify-start text-left rounded-lg border border-edge bg-surface hover:border-accent/60 transition-colors overflow-hidden focus:outline-none focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-1"
+              class="group relative flex flex-col justify-start text-start rounded-lg border border-edge bg-surface hover:border-accent/60 transition-colors overflow-hidden focus:outline-none focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-1"
               data-testid="project-card"
               [attr.data-id]="p.id"
               [attr.data-name]="p.name"
@@ -84,27 +84,28 @@
                   <div class="absolute inset-0" [class]="ph.sheet" [attr.data-tint]="ph.tint" data-testid="project-placeholder">
                     <x-house-doodle class="absolute inset-0" [variant]="ph.doodle" />
                     <span
-                      class="absolute left-3.5 bottom-2.5 font-display italic font-medium text-[30px] leading-none tracking-[-0.01em] text-fg opacity-[.78]"
+                      class="absolute start-3.5 bottom-2.5 font-display italic font-medium text-[30px] leading-none tracking-[-0.01em] text-fg opacity-[.78]"
                       style="font-variation-settings: 'SOFT' 100, 'opsz' 36"
+                      dir="auto"
                       data-testid="project-initials"
                       >{{ ph.label }}</span
                     >
                   </div>
                 }
                 @if (ottoWorked(p)) {
-                  <span class="absolute right-2.5 top-2.5 rounded-[5px] ring-[1.5px] ring-surface leading-none" title="Otto has worked on this project" data-testid="project-otto-mark"><x-otto-mark size="14" [label]="'Otto has worked on ' + p.name" /></span>
+                  <span class="absolute end-2.5 top-2.5 rounded-[5px] ring-[1.5px] ring-surface leading-none" [title]="t('library.card.ottoWorked')" data-testid="project-otto-mark"><x-otto-mark size="14" [label]="t('library.card.ottoWorkedOn', { name: p.name })" /></span>
                 }
               </div>
               <div class="px-3 py-2.5">
-                <div class="text-[15px] leading-5 font-medium truncate" data-testid="project-card-name">{{ p.name }}</div>
+                <div class="text-[15px] leading-5 font-medium truncate" dir="auto" data-testid="project-card-name">{{ p.name }}</div>
                 <div class="flex gap-1.5 items-baseline mt-0.5 text-muted">
-                  <span class="text-xs italic">Edited {{ ago(p.updatedAt) }}</span><span class="text-xs">·</span
-                  ><span class="font-mono text-[11px]">{{ p.levelCount }} level{{ p.levelCount === 1 ? '' : 's' }}</span>
+                  <span class="text-xs italic">{{ t('library.card.edited', { ago: ago(p.updatedAt) }) }}</span><span class="text-xs">·</span
+                  ><span class="font-mono rtl:font-sans text-[11px]">{{ t('library.card.levels', { count: p.levelCount }) }}</span>
                 </div>
                 @if (p.tags.length) {
                   <div class="flex flex-wrap gap-1 mt-1.5">
                     @for (tag of p.tags; track tag) {
-                      <span class="inline-flex items-center h-[18px] px-1.5 rounded bg-elevated text-[11px] text-muted">{{ tag }}</span>
+                      <span class="inline-flex items-center h-[18px] px-1.5 rounded bg-elevated text-[11px] text-muted" dir="auto">{{ tag }}</span>
                     }
                   </div>
                 }
@@ -114,10 +115,10 @@
         </div>
       }
     } @else if (showTrash()) {
-      <x-empty-state title="The trash is empty" hint="Projects moved to the trash can be restored from here." />
+      <x-empty-state [title]="t('library.home.trashEmpty')" [hint]="t('library.home.trashEmptyHint')" />
     } @else if (filtering()) {
-      <x-empty-state title="No matching projects" hint="Try other words or tags.">
-        <button xButton size="sm" (click)="clearFilters()">Clear filters</button>
+      <x-empty-state [title]="t('library.home.noMatch')" [hint]="t('library.home.noMatchHint')">
+        <button xButton size="sm" (click)="clearFilters()">{{ t('library.home.clearFilters') }}</button>
       </x-empty-state>
     } @else {
       <x-first-launch />

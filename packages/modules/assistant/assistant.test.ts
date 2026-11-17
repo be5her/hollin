@@ -3,13 +3,14 @@ import { createServer } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { BRANDING, CommandRegistry, ConfigPatchSchema, defineCommand, newProjectDoc, testHost, type AssistantStatus, type ChatSnapshot, type ConfigPatch, type HostEventMessage, type McpStatus, type MutationRequest, type ProjectApi, type ProjectsApi, type ToolItem } from '@studio/core';
+import { BRANDING, CommandRegistry, ConfigPatchSchema, defineCommand, newProjectDoc, setLanguage, testHost, type AssistantStatus, type ChatSnapshot, type ConfigPatch, type HostEventMessage, type McpStatus, type MutationRequest, type ProjectApi, type ProjectsApi, type ToolItem } from '@studio/core';
 import { startMcpServer, type RunningMcpServer } from '@studio/mcp';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { findClaude, probeClaudeCode } from './claude-code';
 import { FakeClaude, unansweredToolUse } from './fake-api';
 import { assistantModule } from './main';
+import { languagePrompt } from './prompt';
 import { ANTHROPIC_KEY } from '../settings/main';
 
 /*
@@ -330,6 +331,99 @@ describe('assistant', () => {
     const call = { role: 'assistant' as const, content: [{ type: 'tool_use', id: 'toolu_1', name: 'x', input: {} }] };
     expect(unansweredToolUse([{ role: 'user', content: 'a' }, call, { role: 'user', content: 'b' }])).toContain('toolu_1');
     expect(unansweredToolUse([{ role: 'user', content: 'a' }, call, { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_1', content: '1' }] }])).toBeNull();
+  });
+});
+
+describe('the assistant in Arabic', () => {
+  afterEach(() => setLanguage('en'));
+
+  it('tells the model the interface language in the live context, the stable prefix unchanged', async () => {
+    const { run, host, idle } = setup();
+    await assistantModule.onStart!(host);
+    await host.secrets.set(ANTHROPIC_KEY, 'sk-test-key');
+    fake.script({ text: 'Hello.' }, { text: 'مرحبًا. أضفت غرفة المعيشة بعرض 3600 mm.' });
+    await run('assistant.send', { text: 'Hi' });
+    await idle();
+    setLanguage('ar');
+    await run('assistant.send', { text: 'أضف غرفة معيشة' });
+    const final = await idle();
+
+    const [english, arabic] = [fake.system(0), fake.system(1)];
+    // The stable part, with its cache breakpoint, is byte for byte the same whatever the language.
+    expect(english).toHaveLength(2);
+    expect(arabic[0]).toEqual(english[0]);
+    expect(english[0].cache_control).toEqual({ type: 'ephemeral' });
+    expect(english[0].text).not.toContain('interface language');
+    expect(english[1].text.endsWith(languagePrompt('en'))).toBe(true);
+    expect(arabic[1].text.endsWith(languagePrompt('ar'))).toBe(true);
+    expect(languagePrompt('en')).toContain("The user's interface language is English.");
+    expect(languagePrompt('en')).toContain('Answer in the language the user writes in; when a message has no words (only an image), answer in English.');
+    expect(languagePrompt('ar')).toContain("The user's interface language is Arabic.");
+    expect(languagePrompt('ar')).toContain('answer in Arabic');
+    expect(languagePrompt('ar')).toContain('Western digits');
+    expect(languagePrompt('ar')).toContain('Modern Standard Arabic');
+    // The user's Arabic goes to the model as written, and the reply streams back as written.
+    expect(fake.requests[1].body.messages.at(-1)).toEqual({ role: 'user', content: 'أضف غرفة معيشة' });
+    expect((final.items.at(-1) as { text: string }).text).toBe('مرحبًا. أضفت غرفة المعيشة بعرض 3600 mm.');
+  });
+
+  it('writes its notes and errors with phrases, the English text kept', async () => {
+    const { run, host, idle } = setup();
+    await assistantModule.onStart!(host);
+    await host.secrets.set(ANTHROPIC_KEY, 'sk-test-key');
+    setLanguage('ar');
+    fake.script({ text: 'جملة لم تكتمل', stop: 'max_tokens' });
+    await run('assistant.send', { text: 'اكتب كثيرًا' });
+    const cut = await idle();
+    expect(cut.items.at(-1)).toMatchObject({ kind: 'assistant', text: 'The reply was cut short by the length limit.', note: { key: 'assistant.note.maxTokens' } });
+    // What the model wrote carries no phrase: it stays as written.
+    expect(cut.items.at(-2)).not.toHaveProperty('note');
+
+    fake.script({ error: { status: 401, type: 'authentication_error', message: 'invalid x-api-key' } });
+    await run('assistant.send', { text: 'مرحبًا' });
+    const refused = await idle();
+    expect(refused.error).toBe('The Claude API refused the key. Check it in Settings.');
+    expect(refused.errorText).toEqual({ phrase: { key: 'assistant.error.keyRefused' } });
+
+    // The SDK retries a 529 and a 429 once: both attempts fail.
+    fake.script({ error: { status: 529, type: 'overloaded_error', message: 'Overloaded' } }, { error: { status: 529, type: 'overloaded_error', message: 'Overloaded' } });
+    await run('assistant.send', { text: 'مرحبًا' });
+    const busy = await idle();
+    expect(busy.error).toContain('The Claude API answered 529');
+    expect(busy.errorText).toEqual({ phrase: { key: 'assistant.error.overloaded' }, detail: busy.error });
+
+    fake.script({ error: { status: 429, type: 'rate_limit_error', message: 'slow down' } }, { error: { status: 429, type: 'rate_limit_error', message: 'slow down' } });
+    await run('assistant.send', { text: 'مرحبًا' });
+    expect((await idle()).errorText).toEqual({ phrase: { key: 'assistant.error.rateLimited' } });
+
+    fake.script({ error: { status: 400, type: 'invalid_request_error', message: 'Your credit balance is too low to access the Anthropic API.' } });
+    await run('assistant.send', { text: 'مرحبًا' });
+    expect((await idle()).errorText).toMatchObject({ phrase: { key: 'assistant.error.billing' }, detail: expect.stringContaining('credit balance') });
+
+    // A refusal from main carries its phrase to the window like any StudioError.
+    fake.script({ hold: true, text: 'later' });
+    await run('assistant.send', { text: 'أولًا' });
+    await expect(run('assistant.send', { text: 'ثانيًا' })).rejects.toMatchObject({ code: 'CONFLICT', message: 'The assistant is still working on the last message.', i18n: { key: 'assistant.error.busy' } });
+    fake.release();
+    await idle();
+    // The SDK's retries of the 529 and the 429 wait a moment each.
+  }, 30_000);
+
+  it('keeps a failed call\'s error, with its phrase, for the card', async () => {
+    const { run, host, idle } = setup();
+    await assistantModule.onStart!(host);
+    await host.secrets.set(ANTHROPIC_KEY, 'sk-test-key');
+    fake.script({ tools: [{ name: 'test_wipe', input: {} }] }, { text: 'تركته كما هو.' });
+    await run('assistant.send', { text: 'امسحه' });
+    for (let i = 0; i < 100 && (await run<ChatSnapshot>('assistant.state')).status !== 'waiting'; i++) await new Promise((r) => setTimeout(r, 25));
+    await run('assistant.confirm.reply', { id: (await run<ChatSnapshot>('assistant.state')).confirm!.id, allow: false });
+    const final = await idle();
+    const card = final.items.find((i) => i.kind === 'tool') as ToolItem;
+    expect(card.status).toBe('declined');
+    expect(card.error).toMatchObject({ code: 'MUTATION_DECLINED', i18n: { key: 'errors.registry.declined' } });
+    // The model still reads the English error, without the phrase.
+    const declined = (fake.requests[1].body.messages[2].content as unknown as { content: string }[])[0];
+    expect(JSON.parse(declined.content)).not.toHaveProperty('i18n');
   });
 });
 
@@ -680,6 +774,61 @@ describe('assistant with Claude Code', { timeout: 30_000 }, () => {
     // One process throughout, and the transcript shows the user's own words.
     expect(readLog().filter((e) => e.type === 'start')).toHaveLength(1);
     expect(final.items.map((i) => (i.kind === 'tool' ? i.name : i.text))).toEqual(['First', 'One.', 'Second', 'Two.', 'Third', 'Three.']);
+  });
+
+  it('tells Claude Code the interface language at start, and again with the next message after a switch', async () => {
+    try {
+      const t = await setupClaudeCode();
+      writeScript({ sessionId: 'sess-lang', messages: [[{ text: 'One.' }], [{ text: 'تمّ. أضفت غرفة المعيشة.' }], [{ text: 'ثلاثة.' }]] });
+      await t.run('assistant.send', { text: 'First' });
+      await t.idle();
+      const start = readLog().find((e) => e.type === 'start')!;
+      expect(start.systemPrompt).toContain(languagePrompt('en'));
+      expect(start.systemPrompt).not.toContain(languagePrompt('ar'));
+
+      setLanguage('ar');
+      await t.run('assistant.send', { text: 'أضف غرفة معيشة' });
+      const second = await t.idle();
+      await t.run('assistant.send', { text: 'وبعد؟' });
+      const final = await t.idle();
+      const messages = readLog().filter((e) => e.type === 'message').map((e) => e.text!);
+      // The switch reaches the running process with the next message (the appended system prompt, the cache's head, unchanged), and only then.
+      expect(messages[1].startsWith('<app-context>')).toBe(true);
+      expect(messages[1]).toContain(languagePrompt('ar'));
+      expect(messages[1].endsWith('</app-context>\n\nأضف غرفة معيشة')).toBe(true);
+      expect(messages[2]).toBe('وبعد؟');
+      expect(readLog().filter((e) => e.type === 'start')).toHaveLength(1);
+      expect(second.error).toBeNull();
+      expect(final.items.map((i) => (i.kind === 'tool' ? i.name : i.text))).toEqual(['First', 'One.', 'أضف غرفة معيشة', 'تمّ. أضفت غرفة المعيشة.', 'وبعد؟', 'ثلاثة.']);
+    } finally {
+      setLanguage('en');
+    }
+  });
+
+  it('says why Claude Code cannot run with phrases, the English kept', async () => {
+    const missing = await setupClaudeCode({ claudeCodePath: path.join(dir, 'nowhere', 'claude') });
+    const status = await missing.status();
+    expect(status.claudeCode).toMatchObject({ found: false, error: expect.stringContaining('Nothing runnable at'), errorText: { key: 'assistant.claudeCode.nothingAt' } });
+    await expect(missing.run('assistant.send', { text: 'مرحبًا' })).rejects.toMatchObject({ code: 'UNAVAILABLE', message: expect.stringContaining('Claude Code not found: Nothing runnable at'), i18n: { key: 'assistant.error.notFound' } });
+  });
+
+  it('notes a lost session with a phrase', async () => {
+    const t = await setupClaudeCode();
+    await t.host.projects.setUiState(t.project.id, { assistant: { provider: 'claude-code', sessionId: 'sess-gone', items: [] } });
+    await assistantModule.onProjectOpen!(t.project, t.host);
+    writeScript({ sessionId: 'sess-fresh', failResume: true, messages: [[{ text: 'Fresh.' }]] });
+    await t.run('assistant.send', { text: 'Hello' });
+    const final = await t.idle();
+    expect(final.items.find((i) => i.kind === 'assistant' && i.note)).toMatchObject({ text: 'The earlier Claude Code session could not be resumed; starting a new one.', note: { key: 'assistant.note.resumeFailed' } });
+  });
+
+  it('reports a failed Claude Code run as a translated lead over its own words', async () => {
+    const t = await setupClaudeCode();
+    writeScript({ sessionId: 'sess-f', messages: [[{ error: 'fake-claude: something broke' }]] });
+    await t.run('assistant.send', { text: 'Hello' });
+    const failed = await t.idle();
+    expect(failed.error).toBe('fake-claude: something broke');
+    expect(failed.errorText).toEqual({ phrase: { key: 'assistant.error.claudeCode' }, detail: 'fake-claude: something broke' });
   });
 
   it('refuses a model name that would read as a flag', async () => {

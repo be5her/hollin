@@ -4,6 +4,7 @@ import { FormField, form } from '@angular/forms/signals';
 import { Autofocus } from '../controls/autofocus';
 import { Button } from '../controls/button';
 import { Input, Label, Select, TextArea } from '../controls/native-controls';
+import { I18n } from '../i18n/i18n';
 import { DialogFocus } from './dialog-focus';
 import { Dialogs, type PendingDialog } from './dialogs';
 
@@ -16,6 +17,7 @@ import { Dialogs, type PendingDialog } from './dialogs';
 })
 export class DialogHost {
   private readonly dialogs = inject(Dialogs);
+  protected readonly t = inject(I18n).t;
 
   protected readonly pending = this.dialogs.pending;
   /** The open dialog as a one-item list, so each new dialog gets fresh fields (and focus). */

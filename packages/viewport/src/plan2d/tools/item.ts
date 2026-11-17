@@ -1,6 +1,7 @@
-import { itemFootprint, itemModel, type Vec2 } from '@studio/core';
+import { catalogName, t, itemFootprint, itemModel, modelName, type Vec2 } from '@studio/core';
 import { tracePolygon } from '../draw';
-import { drawScreenText, type RenderFrame } from '../render';
+import { latinKey } from '../keys';
+import { drawScreenText, interfaceDirection, type RenderFrame } from '../render';
 import { withAlpha } from '../theme';
 import type { Tool, ToolHost, ToolPointer } from './tool';
 
@@ -43,7 +44,7 @@ export class ItemTool implements Tool {
   }
 
   key(e: KeyboardEvent): boolean {
-    if (e.ctrlKey || e.metaKey || e.altKey || e.key.toLowerCase() !== 'r') return false;
+    if (e.ctrlKey || e.metaKey || e.altKey || latinKey(e).toLowerCase() !== 'r') return false;
     this.rotateBy(e.shiftKey ? -ITEM_TURN_STEP : ITEM_TURN_STEP);
     return true;
   }
@@ -65,8 +66,8 @@ export class ItemTool implements Tool {
 
   hint(): string {
     const o = this.host.options().item;
-    if (!o.ref) return 'Pick a model in the Catalog panel to place it · V: select';
-    return `Click to place ${o.name || 'the model'} (turned ${this.rotation}°) · R: turn 15° (Shift+R back, Shift+wheel) · Escape: done`;
+    if (!o.ref) return t('tools.item.none');
+    return t('tools.item.place', { name: o.name ? catalogName(o.ref, o.name) : t('tools.item.theModel'), angle: this.rotation });
   }
 
   draw(ctx: CanvasRenderingContext2D, frame: RenderFrame): void {
@@ -83,7 +84,7 @@ export class ItemTool implements Tool {
     ctx.fill('nonzero');
     ctx.stroke();
     ctx.setLineDash([]);
-    drawScreenText(ctx, frame, { text: `${o.name || model.name} · ${this.rotation}°`, at: this.cursor, screenPx: 11, color: frame.theme.selection, align: 'center', baseline: 'top', dy: 14, mono: true });
+    drawScreenText(ctx, frame, { text: t('tools.item.preview', { name: o.name ? catalogName(o.ref, o.name) : modelName(o.ref, model), angle: this.rotation }), direction: interfaceDirection(), at: this.cursor, screenPx: 11, color: frame.theme.selection, align: 'center', baseline: 'top', dy: 14, mono: true });
   }
 
   private rotateBy(degrees: number): void {

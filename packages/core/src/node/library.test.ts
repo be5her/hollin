@@ -8,7 +8,8 @@ import { newProjectDoc } from '../doc/defaults';
 import type { EditContext } from '../doc/engine';
 import { newId } from '../ids';
 import { testHost } from '../test-host';
-import { Library } from './library';
+import { setLanguage } from '../i18n';
+import { Library, syncedFolderWarning } from './library';
 import { unsafeEntryName } from './package';
 import { ProjectService } from './project-service';
 import { readProjectDir, writeProjectDir } from './project-store';
@@ -51,6 +52,13 @@ describe('Library', () => {
       { tag: 'pool', count: 1 },
     ]);
     expect(changes).toEqual(['created', 'created', 'created']);
+    // Arabic is found whatever the hamza, the diacritics or the letter forms people type.
+    await library.create(newProjectDoc({ name: 'منزل الأُسرة', description: 'شقّة على البحر', tags: ['سكنيّ'], now: '2026-04-01T00:00:00.000Z' }));
+    expect(library.list({ query: 'الاسره' }).map((p) => p.name)).toEqual(['منزل الأُسرة']);
+    expect(library.list({ query: 'شقه' }).map((p) => p.name)).toEqual(['منزل الأُسرة']);
+    expect(library.list({ query: 'منزل' }).map((p) => p.name)).toEqual(['منزل الأُسرة']);
+    expect(library.list({ tags: ['سكني'] }).map((p) => p.name)).toEqual(['منزل الأُسرة']);
+    expect(library.list({ query: 'الأسرى' })).toEqual([]);
   });
 
   it('rebuilds a missing or broken index from the folders, and drops projects that are gone', async () => {
@@ -448,5 +456,19 @@ describe('ProjectService', () => {
     await expect(svc.moveLibrary(path.join(root, 'nothing-here'), 'adopt')).rejects.toMatchObject({ code: 'NOT_FOUND' });
     await svc.stop();
     library = new Library(target);
+  });
+});
+
+describe('syncedFolderWarning', () => {
+  it('warns about a cloud-synced folder in English, with a phrase for the interface', () => {
+    setLanguage('ar');
+    try {
+      const warning = syncedFolderWarning(path.join(os.tmpdir(), 'Dropbox', 'Hollin'));
+      expect(warning?.message).toMatch(/^This folder is synced to the cloud\./);
+      expect(warning?.text).toEqual({ key: 'library.syncedWarning' });
+      expect(syncedFolderWarning(path.join(os.tmpdir(), 'Plans'))).toBeNull();
+    } finally {
+      setLanguage('en');
+    }
   });
 });

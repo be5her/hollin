@@ -1,4 +1,6 @@
 import type { Box, Vec2 } from '../geometry/vec';
+import { hasRtl, ltrIslands } from '../i18n/text';
+import { baseDirection, stripBidiControls } from './arabic-shape';
 import { PRINT_COLORS } from './colors';
 import type { DrawingColor, DrawingFill, DrawingLayer, DrawingStroke, DrawingText, PlanDrawing } from './drawing';
 import { PAGE_MARGIN, TITLE_BLOCK, baselineDrop, drawingArea, halfTurns, layoutPage, titleBlock, toPaper, type PageLayout, type PaperOrientation, type PaperSize } from './paper';
@@ -36,6 +38,26 @@ export function xmlEscape(value: string): string {
 
 const SANS_STACK = "'Alegreya Sans', Helvetica, Arial, sans-serif";
 const MONO_STACK = "'IBM Plex Mono', ui-monospace, Consolas, monospace";
+/** For a text with Arabic letters: the Arabic face after the Latin one, as in the app (a Latin-only text keeps the stacks above). */
+const SANS_STACK_ARABIC = "'Alegreya Sans', 'IBM Plex Sans Arabic', Helvetica, Arial, sans-serif";
+const MONO_STACK_ARABIC = "'IBM Plex Mono', 'IBM Plex Sans Arabic', ui-monospace, Consolas, monospace";
+
+/**
+ * A text's attributes and content for one that may hold Arabic: the font stack with the Arabic face, and for
+ * a right-to-left text `direction="rtl"` with the anchor that keeps it where the drawing put it (`start` is
+ * the right end of a right-to-left text: `left` maps to `end`). The bidi controls (isolates, marks) are
+ * dropped, since not every reader honours them, and a measurement in an Arabic line (`3600 mm`) is a
+ * left-to-right `tspan`, so it never reads `mm 3600`. A Latin-only text comes back as it was.
+ */
+export function svgTextParts(value: string, align: 'left' | 'center' | 'right', mono: boolean, direction?: 'ltr' | 'rtl'): { family: string; anchor: string; dir: string; content: string } {
+  const latinAnchor = align === 'left' ? 'start' : align === 'right' ? 'end' : 'middle';
+  if (!hasRtl(value) && !direction) return { family: mono ? MONO_STACK : SANS_STACK, anchor: latinAnchor, dir: '', content: xmlEscape(value) };
+  const text = stripBidiControls(value);
+  const rtl = (direction ?? baseDirection(value)) === 'rtl';
+  const anchor = rtl ? (align === 'left' ? 'end' : align === 'right' ? 'start' : 'middle') : latinAnchor;
+  const content = hasRtl(text) ? ltrIslands(text).map((p) => (p.ltr ? `<tspan direction="ltr" unicode-bidi="embed">${xmlEscape(p.text)}</tspan>` : xmlEscape(p.text))).join('') : xmlEscape(text);
+  return { family: hasRtl(text) ? (mono ? MONO_STACK_ARABIC : SANS_STACK_ARABIC) : mono ? MONO_STACK : SANS_STACK, anchor, dir: rtl ? ' direction="rtl"' : '', content };
+}
 
 const num = (v: number): string => {
   if (!Number.isFinite(v)) return '0';
@@ -111,10 +133,9 @@ export function drawingToSvg(drawing: PlanDrawing, options: SvgOptions = {}): st
     // The baseline lies `drop` below the anchor, along the text's own down direction.
     const x = p[0] + drop * Math.sin(r);
     const y = height - (p[1] - drop * Math.cos(r));
-    const anchor = t.align === 'left' ? 'start' : t.align === 'right' ? 'end' : 'middle';
+    const parts = svgTextParts(t.text, t.align, Boolean(t.mono), t.direction);
     const rotate = Math.abs(t.rotation) > 1e-9 ? ` transform="rotate(${num(-t.rotation)} ${num(x)} ${num(y)})"` : '';
-    const family = t.mono ? MONO_STACK : SANS_STACK;
-    return `<text x="${num(x)}" y="${num(y)}" font-size="${num(size)}" font-family="${family}" text-anchor="${anchor}" fill="${color(t.color, layer)}"${rotate}>${xmlEscape(t.text)}</text>`;
+    return `<text x="${num(x)}" y="${num(y)}" font-size="${num(size)}" font-family="${parts.family}" text-anchor="${parts.anchor}"${parts.dir} fill="${color(t.color, layer)}"${rotate}>${parts.content}</text>`;
   };
 
   const docTitle = options.title !== undefined ? `${options.title} - ${drawing.levelName}` : drawing.levelName;
@@ -149,10 +170,11 @@ export function drawingToSvg(drawing: PlanDrawing, options: SvgOptions = {}): st
     block.texts.forEach((t, i) => {
       if (t.stop) return;
       const weight = t.bold ? ' font-weight="700"' : '';
+      const parts = svgTextParts(t.text, t.align, false, t.direction);
       // The wordmark's full stop rides on the name's text, so it follows the name in whatever font the reader draws it with.
       const next = block.texts[i + 1];
       const stop = next?.stop ? `<tspan fill="${next.color ?? PRINT_COLORS.fg}">${xmlEscape(next.text)}</tspan>` : '';
-      out.push(`<text x="${num(t.at[0])}" y="${num(height - t.at[1])}" font-size="${num(t.size)}" font-family="${SANS_STACK}"${weight} text-anchor="${t.align === 'right' ? 'end' : 'start'}" fill="${t.color ?? PRINT_COLORS.fg}">${xmlEscape(t.text)}${stop}</text>`);
+      out.push(`<text x="${num(t.at[0])}" y="${num(height - t.at[1])}" font-size="${num(t.size)}" font-family="${parts.family}"${weight} text-anchor="${parts.anchor}"${parts.dir} fill="${t.color ?? PRINT_COLORS.fg}">${parts.content}${stop}</text>`);
     });
     out.push('</g>');
   }

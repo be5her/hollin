@@ -36,6 +36,14 @@ export class PlanTools {
     this.armed.update((all) => ({ ...all, [projectId]: { item, n: ++this.n } }));
   }
 
+  /**
+   * Ends placing a model (Escape, or another tool), so a plan view made again later (after the 3D view or the
+   * section) does not arm it once more.
+   */
+  disarmItem(projectId: string): void {
+    if (untracked(this.armed)[projectId]) this.armed.update((all) => ({ ...all, [projectId]: undefined }));
+  }
+
   armedItem(projectId: string): Signal<Armed | undefined> {
     return computed(() => this.armed()[projectId]);
   }

@@ -13,6 +13,7 @@
     "packages/viewport/src",
     "packages/modules/main.ts",
     "packages/modules/*/main.ts",
+    "packages/modules/*.test.ts",
     "packages/modules/*/*.test.ts"
   ]
 }

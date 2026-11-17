@@ -1,8 +1,10 @@
 import type { Asset, Entity } from '../doc/schema';
 import { polygonArea, type Polygon } from '../geometry/polygon';
 import { DEG } from '../geometry/vec';
+import { currentLanguage, translate, type Language } from '../i18n';
 import type { Vec3 } from '../solids/mesh';
 import { builtinRecipe, type Recipe } from './builtin';
+import { catalogName } from './catalog';
 import { recipeDetails, recipeOutline } from './recipes';
 import { parseRef } from './refs';
 
@@ -20,6 +22,8 @@ export interface ItemModel {
   /** The material slots it has. */
   slots: string[];
   recipe?: Recipe;
+  /** Set on the stand-in for a model neither the catalog nor the project has (`name` is then `Missing model`). */
+  missing?: true;
   /** An imported model's registry entry. */
   asset?: Asset & { file: string };
   /**
@@ -36,8 +40,11 @@ const rect = (w: number, d: number): Polygon => [
   [-w / 2, d / 2],
 ];
 
-/** A stand-in for a model the project cannot resolve (a registry entry lost by hand): a half-metre cube. */
-const MISSING: ItemModel = { name: 'Missing model', size: [500, 500, 500], outline: [rect(500, 500)], details: [], slots: [], offset: [0, 0, 0] };
+/**
+ * A stand-in for a model the project cannot resolve (a registry entry lost by hand): a half-metre cube. Its name
+ * is English, as agents read it (`plan.describe`, the glTF export); `modelName` translates it where it is drawn.
+ */
+const MISSING: ItemModel = { name: 'Missing model', size: [500, 500, 500], outline: [rect(500, 500)], details: [], slots: [], offset: [0, 0, 0], missing: true };
 
 /**
  * The model an item reference stands for: a built-in recipe, or an asset the project registers.
@@ -66,6 +73,11 @@ export function itemModel(ref: string, assets: Readonly<Record<string, Asset>>, 
     }
   }
   return MISSING;
+}
+
+/** The name people read for an item's model: a built-in's in the language, the missing stand-in's translated, an imported model's as it is. */
+export function modelName(ref: string, model: Pick<ItemModel, 'name' | 'missing'>, language: Language = currentLanguage()): string {
+  return model.missing ? translate(language, 'decor.missingModel') : catalogName(ref, model.name, language);
 }
 
 /** An item's size as placed: its model's size times its scale, mm (always positive). */

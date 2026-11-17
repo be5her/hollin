@@ -1,18 +1,21 @@
+<ng-template #fieldName let-field>@if (i18n.language() === 'en') {{{ field.label }}} @else {<code class="font-mono text-xs bidi-ltr">{{ field.key }}</code>}</ng-template>
 @if (open()) {
   <div class="fixed inset-0 z-40 bg-black/40 flex items-start justify-center pt-[12vh]" (mousedown)="close()">
     <div class="w-[580px] max-w-[92vw] rounded-[10px] border border-edge bg-canvas shadow-[var(--shadow-pop)] overflow-hidden" (mousedown)="$event.stopPropagation()" data-testid="palette">
       @if (pending(); as p) {
         <form class="p-4 flex flex-col gap-3" (submit)="submit($event)" data-testid="palette-form" [attr.data-command]="p.command.id">
           <div>
-            <h2 class="heading-panel text-fg">{{ p.command.title }}</h2>
-            <p class="text-xs text-muted mt-0.5">{{ p.command.description }}</p>
+            <h2 class="heading-panel text-fg">{{ i18n.commandTitle(p.command) }}</h2>
+            @if (i18n.language() === 'en') {
+              <p class="text-xs text-muted mt-0.5" dir="ltr">{{ p.command.description }}</p>
+            }
           </div>
           @for (field of p.fields; track field.key; let first = $first) {
             <div>
               @if (field.kind === 'boolean') {
-                <label class="flex items-center gap-2 text-sm"><input xCheckbox type="checkbox" [formField]="flagsForm[field.key]" />{{ field.label }}</label>
+                <label class="flex items-center gap-2 text-sm"><input xCheckbox type="checkbox" [formField]="flagsForm[field.key]" /><ng-container *ngTemplateOutlet="fieldName; context: { $implicit: field }" /></label>
               } @else {
-                <label xLabel [attr.for]="'palette-' + field.key">{{ field.label }}@if (field.required) {<span class="text-danger"> *</span>}</label>
+                <label xLabel [attr.for]="'palette-' + field.key"><ng-container *ngTemplateOutlet="fieldName; context: { $implicit: field }" />@if (field.required) {<span class="text-danger"> *</span>}</label>
                 @if (field.kind === 'enum') {
                   <select xSelect class="w-full" [id]="'palette-' + field.key" [formField]="valuesForm[field.key]">
                     @if (!field.required) {
@@ -23,27 +26,27 @@
                     }
                   </select>
                 } @else if (field.kind === 'json') {
-                  <textarea xTextarea rows="4" [id]="'palette-' + field.key" [formField]="valuesForm[field.key]" placeholder="JSON" [xAutofocus]="first"></textarea>
+                  <textarea xTextarea rows="4" [id]="'palette-' + field.key" [formField]="valuesForm[field.key]" placeholder="JSON" dir="ltr" [xAutofocus]="first"></textarea>
                 } @else {
                   <input xInput [id]="'palette-' + field.key" [formField]="valuesForm[field.key]" [xAutofocus]="first" [attr.inputmode]="field.kind === 'number' ? 'decimal' : null" />
                 }
               }
-              @if (field.description) {
-                <p class="text-[11px] text-muted mt-1">{{ field.description }}</p>
+              @if (field.description && i18n.language() === 'en') {
+                <p class="text-[11px] text-muted mt-1" dir="ltr">{{ field.description }}</p>
               }
             </div>
           }
           <div class="flex justify-end gap-2 pt-1">
-            <button xButton variant="ghost" (click)="back()">Back</button>
-            <button xButton variant="primary" type="submit" [loading]="running()" data-testid="palette-run">Run</button>
+            <button xButton variant="ghost" (click)="back()">{{ t('shell.palette.back') }}</button>
+            <button xButton variant="primary" type="submit" [loading]="running()" data-testid="palette-run">{{ t('shell.palette.run') }}</button>
           </div>
         </form>
       } @else {
-        <div class="palette" role="dialog" aria-label="Command palette" (keydown)="keydown($event)">
+        <div class="palette" role="dialog" [attr.aria-label]="t('shell.action.palette')" (keydown)="keydown($event)">
           <input
             xAutofocus
             class="palette-input"
-            placeholder="Type a command…"
+            [placeholder]="t('shell.palette.placeholder')"
             spellcheck="false"
             autocomplete="off"
             role="combobox"
@@ -53,7 +56,7 @@
             [value]="search()"
             (input)="typed($event)"
           />
-          <div #list class="palette-list" role="listbox" aria-label="Commands">
+          <div #list class="palette-list" role="listbox" [attr.aria-label]="t('shell.palette.commands')">
             @for (group of shown(); track group.heading) {
               <div role="presentation" data-group>
                 <div class="palette-heading" aria-hidden="true" data-heading>{{ group.heading }}</div>
@@ -70,17 +73,17 @@
                     >
                       <span class="flex-1">{{ item.title }}</span>
                       @if (item.shortcut) {
-                        <kbd xKbd>{{ item.shortcut }}</kbd>
+                        <kbd xKbd class="bidi-ltr">{{ item.shortcut }}</kbd>
                       }
                       @if (item.commandId) {
-                        <span class="text-[10px] font-mono text-muted">{{ item.commandId }}</span>
+                        <span class="text-[10px] font-mono text-muted bidi-ltr">{{ item.commandId }}</span>
                       }
                     </div>
                   }
                 </div>
               </div>
             } @empty {
-              <div class="palette-empty">No matching commands.</div>
+              <div class="palette-empty">{{ t('shell.palette.empty') }}</div>
             }
           </div>
         </div>

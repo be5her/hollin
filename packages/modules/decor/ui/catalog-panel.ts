@@ -1,65 +1,65 @@
 import { Component, computed, inject, input, signal } from '@angular/core';
 import { searchCatalog, type CatalogEntry } from '@studio/core';
-import { Button, ContextMenu, Dialogs, HostBridge, Icon, Input, ProjectDocs, Segment, Segmented, Toasts, Units, invokeResource } from '@studio/ui';
+import { Button, ContextMenu, Dialogs, HostBridge, I18n, Icon, Input, ProjectDocs, Segment, Segmented, Toasts, Units, invokeResource } from '@studio/ui';
 import { Import, Lamp, Search } from 'lucide';
 import { PlanTools } from '../../plan/ui/plan-tools';
 import { CatalogThumbnails } from './catalog-thumbnails';
 
 type Tab = 'item' | 'material';
 
-const CATEGORY_NAMES: Record<string, string> = { living: 'Living', dining: 'Dining', bedroom: 'Bedroom', kitchen: 'Kitchen', bathroom: 'Bathroom', office: 'Office', lighting: 'Lighting', outdoor: 'Outdoor', imported: 'Imported', paint: 'Paint', wood: 'Wood', tile: 'Tile', stone: 'Stone', concrete: 'Concrete', carpet: 'Carpet', brick: 'Brick', fabric: 'Fabric', metal: 'Metal', glass: 'Glass', ceramic: 'Ceramic', nature: 'Nature' };
-
 /**
  * The catalog in the project tab's right column: furniture (built-in, imported into the library,
  * or only in this project) and materials, with search, category chips and pictures. A click on a
  * model arms the plan's Furniture tool with it; Import… adds a model file to the library; a right
- * click on an imported model removes it from the catalog.
+ * click on an imported model removes it from the catalog. Built-ins and categories show by their
+ * names in the interface's language (`builtin.<id>`, `decor.category.<id>`), and a search matches
+ * them in every language (`searchCatalog`).
  */
 @Component({
   selector: 'x-catalog-panel',
   imports: [Button, Icon, Input, Segment, Segmented],
   template: `
     <x-segmented [(value)]="tab" class="px-2 shrink-0">
-      <button xSegment="item" data-testid="catalog-tab-item">Furniture</button>
-      <button xSegment="material" data-testid="catalog-tab-material">Materials</button>
+      <button xSegment="item" data-testid="catalog-tab-item">{{ t('decor.tab.item') }}</button>
+      <button xSegment="material" data-testid="catalog-tab-material">{{ t('decor.tab.material') }}</button>
     </x-segmented>
     <div class="flex items-center gap-1.5 px-3 pt-2.5 shrink-0">
       <div class="relative flex-1 min-w-0">
-        <svg [xIcon]="icons.Search" class="size-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-muted pointer-events-none"></svg>
-        <input xInput class="h-7 text-xs pl-7" placeholder="Search" [value]="query()" (input)="query.set($any($event.target).value)" aria-label="Search the catalog" data-testid="catalog-search" />
+        <svg [xIcon]="icons.Search" class="size-3.5 absolute start-2 top-1/2 -translate-y-1/2 text-muted pointer-events-none"></svg>
+        <input xInput class="h-7 text-xs ps-7" dir="auto" [placeholder]="t('decor.search')" [value]="query()" (input)="query.set($any($event.target).value)" [attr.aria-label]="t('decor.searchLabel')" data-testid="catalog-search" />
       </div>
       @if (tab() === 'item') {
-        <button xButton size="sm" [icon]="icons.Import" (click)="importModel()" data-testid="catalog-import">Import…</button>
+        <button xButton size="sm" [icon]="icons.Import" (click)="importModel()" data-testid="catalog-import">{{ t('decor.import') }}</button>
       }
     </div>
-    <div class="flex flex-wrap gap-1 px-3 pt-2 shrink-0" role="toolbar" aria-label="Categories">
-      <button type="button" class="chip" [class.chip-on]="!category()" (click)="category.set(null)" data-testid="catalog-category">All</button>
+    <div class="flex flex-wrap gap-1 px-3 pt-2 shrink-0" role="toolbar" [attr.aria-label]="t('decor.categories')">
+      <button type="button" class="chip" [class.chip-on]="!category()" (click)="category.set(null)" data-testid="catalog-category">{{ t('decor.category.all') }}</button>
       @for (c of categories(); track c) {
-        <button type="button" class="chip" [class.chip-on]="category() === c" (click)="category.set(category() === c ? null : c)" data-testid="catalog-category" [attr.data-category]="c">{{ categoryName(c) }}</button>
+        <button type="button" class="chip" [class.chip-on]="category() === c" (click)="category.set(category() === c ? null : c)" data-testid="catalog-category" [attr.data-category]="c">{{ i18n.categoryName(c) }}</button>
       }
     </div>
     @let list = shown();
     @if (!list.length) {
-      <div class="px-4 py-8 text-center text-xs text-muted" data-testid="catalog-empty">Nothing matches.</div>
+      <div class="px-4 py-8 text-center text-xs text-muted" data-testid="catalog-empty">{{ t('decor.empty') }}</div>
     }
     <ul class="grid grid-cols-2 gap-2 p-3 overflow-y-auto min-h-0" data-testid="catalog-grid">
       @for (e of list; track e.ref) {
         <li>
-          <button type="button" class="w-full flex flex-col rounded-md border bg-canvas text-left overflow-hidden transition-colors hover:border-accent" [class.border-accent]="armedRef() === e.ref" [class.border-edge]="armedRef() !== e.ref" [title]="tooltip(e)" (click)="pick(e)" (contextmenu)="menu($event, e)" data-testid="catalog-card" [attr.data-ref]="e.ref" [attr.data-source]="e.source">
+          <button type="button" class="w-full flex flex-col rounded-md border bg-canvas text-start overflow-hidden transition-colors hover:border-accent" [class.border-accent]="armedRef() === e.ref" [class.border-edge]="armedRef() !== e.ref" [title]="tooltip(e)" (click)="pick(e)" (contextmenu)="menu($event, e)" data-testid="catalog-card" [attr.data-ref]="e.ref" [attr.data-source]="e.source">
             <span class="aspect-square w-full flex items-center justify-center bg-surface">
               @if (thumb(e); as url) {
                 <img [src]="url" alt="" class="size-full object-contain" [class.p-1]="e.kind === 'item'" draggable="false" />
-              } @else {
-                <span class="text-[10px] text-muted">{{ e.kind === 'item' ? 'No picture yet' : '' }}</span>
+              } @else if (e.kind === 'item') {
+                <span class="text-[10px] text-muted">{{ t('decor.noPicture') }}</span>
               }
             </span>
-            <span class="px-2 pt-1 text-xs leading-tight line-clamp-2 flex items-center gap-1">
+            <span class="px-2 pt-1 text-xs leading-tight line-clamp-2 flex items-center gap-1" dir="auto" data-testid="catalog-card-name">
               @if (e.lamp) {
                 <svg [xIcon]="icons.Lamp" class="size-3 shrink-0 text-muted"></svg>
               }
-              {{ e.name }}
+              {{ name(e) }}
             </span>
-            <span class="px-2 pb-1.5 text-[10px] text-muted font-mono truncate">{{ caption(e) }}</span>
+            <span class="px-2 pb-1.5 text-[10px] text-muted font-mono truncate" dir="auto" data-testid="catalog-card-caption">{{ caption(e) }}</span>
           </button>
         </li>
       }
@@ -82,6 +82,8 @@ export class CatalogPanel {
   private readonly tools = inject(PlanTools);
   private readonly thumbnails = inject(CatalogThumbnails);
   private readonly units = inject(Units);
+  protected readonly i18n = inject(I18n);
+  protected readonly t = this.i18n.t;
 
   readonly projectId = input.required<string>();
 
@@ -101,8 +103,9 @@ export class CatalogPanel {
     return searchCatalog(list, this.query());
   });
 
-  protected categoryName(c: string): string {
-    return CATEGORY_NAMES[c] ?? c;
+  /** An entry's name in the interface's language: a built-in's from the catalog, an imported model's as it is. */
+  protected name(e: CatalogEntry): string {
+    return this.i18n.catalogName(e.ref, e.name);
   }
 
   protected thumb(e: CatalogEntry): string | null {
@@ -110,13 +113,15 @@ export class CatalogPanel {
   }
 
   protected caption(e: CatalogEntry): string {
-    if (e.kind === 'item' && e.size) return `${this.units.length(e.size[0])} × ${this.units.length(e.size[1])}`;
-    return this.categoryName(e.category);
+    const len = (mm: number) => this.units.length(mm);
+    if (e.kind === 'item' && e.size) return this.t('decor.size2', { w: len(e.size[0]), d: len(e.size[1]) });
+    return this.i18n.categoryName(e.category);
   }
 
   protected tooltip(e: CatalogEntry): string {
-    const size = e.size ? ` · ${this.units.length(e.size[0])} × ${this.units.length(e.size[1])} × ${this.units.length(e.size[2])}` : '';
-    return `${e.name}${size}${e.source === 'library' ? ' · imported' : e.source === 'project' ? ' · in this project only' : ''}`;
+    const len = (mm: number) => this.units.length(mm);
+    const text = e.size ? this.t('decor.tooltip', { name: this.name(e), size: this.t('decor.size3', { w: len(e.size[0]), d: len(e.size[1]), h: len(e.size[2]) }) }) : this.name(e);
+    return e.source === 'library' ? this.t('decor.tooltip.imported', { text }) : e.source === 'project' ? this.t('decor.tooltip.projectOnly', { text }) : text;
   }
 
   /** A model arms the plan's Furniture tool; a material arms painting (the plan's Paint tool, and clicks in 3D). */
@@ -127,15 +132,15 @@ export class CatalogPanel {
 
   protected menu(event: MouseEvent, e: CatalogEntry): void {
     if (e.source !== 'library') return;
-    this.contextMenu.open(event, [{ label: 'Remove from the catalog', danger: true, testId: 'catalog-remove', select: () => void this.remove(e) }]);
+    this.contextMenu.open(event, [{ label: this.t('decor.menu.remove'), danger: true, testId: 'catalog-remove', select: () => void this.remove(e) }]);
   }
 
   private async remove(e: CatalogEntry): Promise<void> {
-    const ok = await this.dialogs.confirm({ title: `Remove "${e.name}" from the catalog?`, message: 'Projects that use it keep their own copy.', danger: true, confirmLabel: 'Remove' });
+    const ok = await this.dialogs.confirm({ title: this.t('decor.remove.title', { name: e.name }), message: this.t('decor.remove.message'), danger: true, confirmLabel: this.t('decor.remove.confirm') });
     if (!ok) return;
     try {
       await this.host.invoke('catalog.remove', { ref: e.ref }, null);
-      this.toasts.notify(`Removed "${e.name}"`, 'success');
+      this.toasts.notify(this.t('decor.removed', { name: e.name }), 'success');
     } catch (err) {
       this.toasts.error(err);
     }
@@ -143,12 +148,12 @@ export class CatalogPanel {
 
   protected async importModel(): Promise<void> {
     try {
-      const picked = await this.host.invoke<{ path: string | null }>('app.pickFile', { title: 'Import a model', filters: [{ name: 'glTF model', extensions: ['glb', 'gltf'] }] }, null);
+      const picked = await this.host.invoke<{ path: string | null }>('app.pickFile', { title: this.t('decor.pick.title'), filters: [{ name: this.t('decor.pick.filter'), extensions: ['glb', 'gltf'] }] }, null);
       if (!picked.path) return;
       const entry = await this.host.invoke<CatalogEntry & { added: boolean }>('catalog.import', { path: picked.path }, null);
       this.tab.set('item');
       this.category.set(null);
-      this.toasts.notify(entry.added ? `Imported "${entry.name}"` : `"${entry.name}" is already in the catalog`, 'success');
+      this.toasts.notify(this.t(entry.added ? 'decor.imported' : 'decor.already', { name: entry.name }), 'success');
     } catch (err) {
       this.toasts.error(err);
     }

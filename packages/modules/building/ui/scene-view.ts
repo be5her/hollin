@@ -1,6 +1,6 @@
 import { DOCUMENT, Component, DestroyRef, ElementRef, afterNextRender, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
 import { DEFAULT_RULE_LIMITS, deriveLevelGeometry, deriveLevels, surfaceAt } from '@studio/core';
-import { AppState, Button, EmptyState, HostBridge, Icon, IconButton, ProjectDocs, ProjectView, Select, Toasts, Units } from '@studio/ui';
+import { AppState, Button, EmptyState, HostBridge, I18n, Icon, IconButton, ProjectDocs, ProjectView, Select, Toasts, Units } from '@studio/ui';
 import { Scene3dView, parseOrbit, readSceneTheme, type Orbit, type OrbitPreset, type Scene3dFrame, type SceneLighting, type SceneMode } from '@studio/viewport';
 import { Maximize, Moon, Sun } from 'lucide';
 import { PlanSelection } from '../../plan/ui/plan-selection';
@@ -15,18 +15,11 @@ interface View3dState {
   lighting?: SceneLighting;
 }
 
-const PRESETS: { id: OrbitPreset; label: string; title: string }[] = [
-  { id: 'iso', label: '3/4', title: 'From the south-west, above' },
-  { id: 'top', label: 'Top', title: 'From above, north up' },
-  { id: 'front', label: 'Front', title: 'From the south' },
-  { id: 'side', label: 'Side', title: 'From the east' },
-];
+/** The camera presets, labelled by `building.scene.preset.<id>` and titled by `building.scene.presetTitle.<id>`. */
+const PRESETS: OrbitPreset[] = ['iso', 'top', 'front', 'side'];
 
-const MODES: { id: SceneMode; label: string; title: string }[] = [
-  { id: 'all', label: 'All', title: 'Every level' },
-  { id: 'isolate', label: 'Isolate', title: 'The active level alone' },
-  { id: 'cutaway', label: 'Cutaway', title: 'The active level cut at the plan cut height, and the levels below it' },
-];
+/** What the view shows, labelled by `building.scene.mode.<id>` and titled by `building.scene.modeTitle.<id>`. */
+const MODES: SceneMode[] = ['all', 'isolate', 'cutaway'];
 
 /**
  * The whole building in 3D: every level at its elevation with its walls (openings cut), slabs,
@@ -55,6 +48,8 @@ export class SceneView {
   private readonly document = inject(DOCUMENT);
   private readonly destroyRef = inject(DestroyRef);
   protected readonly units = inject(Units);
+  protected readonly i18n = inject(I18n);
+  protected readonly t = this.i18n.t;
 
   readonly projectId = input.required<string>();
 
@@ -83,7 +78,7 @@ export class SceneView {
   /** The material a click paints with, while one is armed in the Catalog panel. */
   protected readonly paint = computed(() => this.planTools.armedPaint(this.projectId())());
 
-  /** Why there is no 3D view (no WebGL), or null. */
+  /** Why there is no 3D view (the error WebGL gave), or null. */
   protected readonly unavailable = signal<string | null>(null);
   /** True while the GPU has taken the WebGL context away; the view draws again when it is restored. */
   protected readonly contextLost = signal(false);
@@ -193,7 +188,7 @@ export class SceneView {
         readSceneTheme(this.document.documentElement),
       );
     } catch (err) {
-      this.unavailable.set(`This computer's graphics could not start a WebGL context (${err instanceof Error ? err.message : String(err)}). The plan and the section still work.`);
+      this.unavailable.set(err instanceof Error ? err.message : String(err));
       return;
     }
     const measure = () => {
@@ -220,7 +215,7 @@ export class SceneView {
     if (!paint || !entities || !hit.point || !hit.normal) return;
     const target = surfaceAt(entities, deriveLevelGeometry(entities).rooms.values(), hit.point, hit.normal);
     if (!target) {
-      this.toasts.notify('Click a wall face, a floor or a ceiling to paint it.', 'error');
+      this.toasts.notify(this.t('building.scene.paintMiss'), 'error');
       return;
     }
     this.host.invoke('decor.material.set', { target, material: paint.ref }, untracked(this.projectId)).catch((err) => this.toasts.error(err));

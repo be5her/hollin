@@ -86,12 +86,12 @@ export function elevationChange(doc: Pick<ProjectDoc, 'building' | 'levels'>, le
   if (!target.isBasement) {
     const below = levels.find((l) => l.id === stack[i - 1])!;
     const height = roundMm(elevation - below.elevation);
-    if (height <= 0) throw new StudioError('INVALID_INPUT', `"${target.name}" cannot be at or below "${below.name}" (${below.elevation} mm).`);
+    if (height <= 0) throw new StudioError('INVALID_INPUT', { key: 'errors.level.belowNeighbour', params: { name: target.name, other: below.name, elevation: below.elevation } });
     return { kind: 'height', levelId: below.id, height };
   }
   const above = levels.find((l) => l.id === stack[i + 1])!;
   const height = roundMm(above.elevation - elevation);
-  if (height <= 0) throw new StudioError('INVALID_INPUT', `"${target.name}" cannot be at or above "${above.name}" (${above.elevation} mm).`);
+  if (height <= 0) throw new StudioError('INVALID_INPUT', { key: 'errors.level.aboveNeighbour', params: { name: target.name, other: above.name, elevation: above.elevation } });
   return { kind: 'height', levelId, height };
 }
 

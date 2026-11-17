@@ -27,6 +27,38 @@ export interface PlanTheme {
   fontMono: string;
 }
 
+/**
+ * The faces the plan writes in when no document gives them (thumbnails, snapshots): the bundled Latin
+ * faces, then IBM Plex Sans Arabic, which carries only the Arabic letters (its `unicode-range`), as the
+ * `--font-sans` and `--font-mono` stacks in styles.css have them.
+ */
+const PLAN_FONT_SANS = "'Alegreya Sans', 'IBM Plex Sans Arabic', system-ui, sans-serif";
+const PLAN_FONT_MONO = "'IBM Plex Mono', 'IBM Plex Sans Arabic', ui-monospace, monospace";
+
+/** Arabic text for `document.fonts.load`: the Arabic faces only load for text in their `unicode-range`. */
+const ARABIC_SAMPLE = 'مخطط';
+
+/** How long a render waits for the faces at most: on a busy machine a load can take long, and a render must still come. */
+const FONT_WAIT_MS = 3000;
+
+/**
+ * Loads the faces a plan render writes in, Latin and Arabic, regular and the tag's 500, so a render made now
+ * (a thumbnail, a snapshot) is not drawn in the fallback, and the plan view can draw again once they are
+ * there. Never rejects, and settles after `FONT_WAIT_MS` at the latest even if a load never does: nothing
+ * may wait on a font for ever. The plan view's first frame never waits for it (it draws at once).
+ */
+export function loadPlanFonts(fonts: FontFaceSet, theme: Pick<PlanTheme, 'fontSans' | 'fontMono'>, waitMs = FONT_WAIT_MS): Promise<void> {
+  let loads: Promise<unknown>;
+  try {
+    loads = Promise.all([`12px ${theme.fontSans}`, `500 12px ${theme.fontSans}`, `12px ${theme.fontMono}`].flatMap((font) => [fonts.load(font), fonts.load(font, ARABIC_SAMPLE)]));
+  } catch {
+    return Promise.resolve();
+  }
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<void>((resolve) => (timer = setTimeout(resolve, waitMs)));
+  return Promise.race([loads.then(() => undefined, () => undefined), timeout]).finally(() => clearTimeout(timer));
+}
+
 /** The light palette, the `:root` block of styles.css (`packages/modules/plan/snapshot-theme.test.ts` keeps them equal), used when no document is available (tests, thumbnails). */
 export const LIGHT_THEME: PlanTheme = {
   background: '#f6f1e8',
@@ -48,8 +80,8 @@ export const LIGHT_THEME: PlanTheme = {
   decor: '#8c6b4a',
   ai: '#8a3f6f',
   aiFg: '#fbf6ee',
-  fontSans: "'Alegreya Sans', system-ui, sans-serif",
-  fontMono: "'IBM Plex Mono', ui-monospace, monospace",
+  fontSans: PLAN_FONT_SANS,
+  fontMono: PLAN_FONT_MONO,
 };
 
 /** The dark palette, the `.dark` block of styles.css (`packages/modules/plan/snapshot-theme.test.ts` keeps them equal): renders asked for in dark (`export.image`) without the window's theme. */
@@ -73,8 +105,8 @@ export const DARK_THEME: PlanTheme = {
   decor: '#d4a97a',
   ai: '#d892bd',
   aiFg: '#1d1a17',
-  fontSans: "'Alegreya Sans', system-ui, sans-serif",
-  fontMono: "'IBM Plex Mono', ui-monospace, monospace",
+  fontSans: PLAN_FONT_SANS,
+  fontMono: PLAN_FONT_MONO,
 };
 
 /** The CSS variable each plan colour is read from. */

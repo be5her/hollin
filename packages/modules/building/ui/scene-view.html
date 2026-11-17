@@ -1,55 +1,56 @@
 <div class="flex flex-wrap items-center gap-x-1.5 gap-y-1 px-1.5 py-1 min-h-9 border-b border-edge bg-surface shrink-0 text-xs" data-testid="scene-toolbar">
-  <div class="flex items-center shrink-0 gap-0.5" role="toolbar" aria-label="Views">
-    @for (p of presets; track p.id) {
-      <button xButton size="sm" variant="ghost" [attr.title]="p.title" (click)="preset(p.id)" [attr.data-testid]="'scene-preset-' + p.id">{{ p.label }}</button>
+  <div class="flex items-center shrink-0 gap-0.5" role="toolbar" [attr.aria-label]="t('building.scene.views')">
+    @for (p of presets; track p) {
+      <button xButton size="sm" variant="ghost" [attr.title]="i18n.label('building.scene.presetTitle.' + p)" (click)="preset(p)" [attr.data-testid]="'scene-preset-' + p">{{ i18n.label('building.scene.preset.' + p) }}</button>
     }
-    <button xIconButton size="sm" label="Fit the building (Home)" (click)="fit()" data-testid="scene-fit">
+    <button xIconButton size="sm" [label]="t('building.scene.fit')" (click)="fit()" data-testid="scene-fit">
       <svg [xIcon]="icons.Maximize" class="size-3.5"></svg>
     </button>
   </div>
   <div class="w-px h-5 bg-edge mx-1"></div>
-  <div class="flex items-center shrink-0 gap-0.5" role="radiogroup" aria-label="Levels shown">
-    @for (m of modes; track m.id) {
+  <div class="flex items-center shrink-0 gap-0.5" role="radiogroup" [attr.aria-label]="t('building.scene.modes')">
+    @for (m of modes; track m) {
       <button
         xButton
         size="sm"
         variant="ghost"
         role="radio"
-        [attr.title]="m.title"
-        [class.bg-elevated]="mode() === m.id"
-        [class.text-fg]="mode() === m.id"
-        [attr.aria-checked]="mode() === m.id"
-        (click)="chooseMode(m.id)"
-        [attr.data-testid]="'scene-mode-' + m.id"
+        [attr.title]="i18n.label('building.scene.modeTitle.' + m)"
+        [class.bg-elevated]="mode() === m"
+        [class.text-fg]="mode() === m"
+        [attr.aria-checked]="mode() === m"
+        (click)="chooseMode(m)"
+        [attr.data-testid]="'scene-mode-' + m"
       >
-        {{ m.label }}
+        {{ i18n.label('building.scene.mode.' + m) }}
       </button>
     }
   </div>
-  <select xSelect class="h-7 text-xs shrink-0 w-44" (change)="chooseLevel($any($event.target).value)" data-testid="scene-level" aria-label="Active level">
+  <select xSelect class="h-7 text-xs shrink-0 w-44" (change)="chooseLevel($any($event.target).value)" data-testid="scene-level" [attr.aria-label]="t('building.scene.level')">
     @for (level of levelsTopDown(); track level.id) {
-      <option [value]="level.id" [selected]="level.id === activeLevelId()">{{ level.name }} · {{ units.length(level.elevation) }}</option>
+      <option [value]="level.id" [selected]="level.id === activeLevelId()">{{ t('building.scene.levelOption', { name: level.name, elevation: units.length(level.elevation) }) }}</option>
     }
   </select>
   <div class="w-px h-5 bg-edge mx-1"></div>
-  <div class="flex items-center shrink-0 gap-0.5" role="radiogroup" aria-label="Lighting">
-    <button xButton size="sm" variant="ghost" role="radio" title="Day: the sky and the sun" [icon]="icons.Sun" [class.bg-elevated]="lighting() === 'day'" [class.text-fg]="lighting() === 'day'" [attr.aria-checked]="lighting() === 'day'" (click)="chooseLighting('day')" data-testid="scene-lighting-day">Day</button>
-    <button xButton size="sm" variant="ghost" role="radio" title="Night: the design's own lights (the 16 nearest)" [icon]="icons.Moon" [class.bg-elevated]="lighting() === 'night'" [class.text-fg]="lighting() === 'night'" [attr.aria-checked]="lighting() === 'night'" (click)="chooseLighting('night')" data-testid="scene-lighting-night">Night</button>
+  <div class="flex items-center shrink-0 gap-0.5" role="radiogroup" [attr.aria-label]="t('building.scene.lighting')">
+    <button xButton size="sm" variant="ghost" role="radio" [attr.title]="t('building.scene.dayTitle')" [icon]="icons.Sun" [class.bg-elevated]="lighting() === 'day'" [class.text-fg]="lighting() === 'day'" [attr.aria-checked]="lighting() === 'day'" (click)="chooseLighting('day')" data-testid="scene-lighting-day">{{ t('building.scene.day') }}</button>
+    <button xButton size="sm" variant="ghost" role="radio" [attr.title]="t('building.scene.nightTitle')" [icon]="icons.Moon" [class.bg-elevated]="lighting() === 'night'" [class.text-fg]="lighting() === 'night'" [attr.aria-checked]="lighting() === 'night'" (click)="chooseLighting('night')" data-testid="scene-lighting-night">{{ t('building.scene.night') }}</button>
   </div>
   <label class="flex items-center gap-2 shrink-0 text-muted">
-    Explode
-    <input type="range" min="0" max="100" class="w-24 accent-accent h-1" [value]="explode() * 100" (input)="setExplode($event)" aria-label="Spread the levels apart" data-testid="scene-explode" />
+    {{ t('building.scene.explode') }}
+    <input type="range" min="0" max="100" class="w-24 accent-accent h-1" [value]="explode() * 100" (input)="setExplode($event)" [attr.aria-label]="t('building.scene.explodeLabel')" data-testid="scene-explode" />
   </label>
 </div>
 @if (unavailable(); as reason) {
-  <x-empty-state title="3D needs WebGL" [hint]="reason" data-testid="scene-unavailable" />
+  <x-empty-state [title]="t('building.scene.noWebgl')" [hint]="t('building.scene.noWebglHint', { error: reason })" data-testid="scene-unavailable" />
 }
 <div #container class="relative flex-1 min-h-0 bg-canvas" [class.hidden]="unavailable()">
   <canvas
     #canvas
     class="absolute inset-0 w-full h-full outline-none touch-none"
     tabindex="0"
-    aria-label="The building in 3D"
+    dir="ltr"
+    [attr.aria-label]="t('building.scene.canvas')"
     data-testid="scene-canvas"
     [attr.data-camera3d]="cameraAttr()"
     [attr.data-orbit]="orbitAttr()"
@@ -70,19 +71,19 @@
     (keydown.escape)="stopPainting()"
   ></canvas>
   @if (contextLost()) {
-    <x-empty-state class="absolute inset-0 bg-canvas" title="3D needs WebGL" hint="The graphics context was lost (the GPU was reset or busy). The view comes back on its own when it is restored; the plan and the section still work." data-testid="scene-context-lost" />
+    <x-empty-state class="absolute inset-0 bg-canvas" [title]="t('building.scene.noWebgl')" [hint]="t('building.scene.contextLost')" data-testid="scene-context-lost" />
   } @else if (empty()) {
-    <div class="absolute inset-0 grid place-items-center text-sm text-muted pointer-events-none" data-testid="scene-empty">Nothing to show yet: draw walls on the plan.</div>
+    <div class="absolute inset-0 grid place-items-center text-sm text-muted pointer-events-none" data-testid="scene-empty">{{ t('building.scene.empty') }}</div>
   }
 </div>
 <div class="flex items-center gap-4 px-3 h-6 border-t border-edge bg-surface shrink-0 text-[11px] text-muted whitespace-nowrap overflow-hidden" data-testid="scene-footer">
   @if (paint(); as p) {
-    <span class="shrink-0 text-fg" data-testid="scene-painting">Painting with {{ p.name }}</span>
-    <span class="flex-1 min-w-0 truncate">Click a wall face, a floor or a ceiling · Esc to stop</span>
+    <span class="shrink-0 text-fg" data-testid="scene-painting">{{ t('building.scene.painting', { name: i18n.catalogName(p.ref, p.name) }) }}</span>
+    <span class="flex-1 min-w-0 truncate">{{ t('building.scene.paintHint') }}</span>
   } @else if (walk()) {
-    <span class="shrink-0 text-fg" data-testid="scene-walk-level">Walking on {{ walkLevelName() }}</span>
-    <span class="flex-1 min-w-0 truncate">W A S D or arrows to walk · Shift to run · drag to look around · PageUp / PageDown in an elevator · Esc to stop</span>
+    <span class="shrink-0 text-fg" data-testid="scene-walk-level">{{ t('building.scene.walking', { level: walkLevelName() }) }}</span>
+    <span class="flex-1 min-w-0 truncate">{{ t('building.scene.walkHint') }}</span>
   } @else {
-    <span class="flex-1 min-w-0 truncate">Drag to orbit · right-drag or Shift+drag to pan · wheel to zoom · Home to fit · click to make a level active · double-click a floor to walk</span>
+    <span class="flex-1 min-w-0 truncate">{{ t('building.scene.orbitHint') }}</span>
   }
 </div>

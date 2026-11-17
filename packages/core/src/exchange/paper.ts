@@ -1,5 +1,6 @@
 import type { Box, Vec2 } from '../geometry/vec';
 import { BRANDING } from '../branding';
+import { currentLanguage, intlLocale, languageDirection, t, type Language } from '../i18n';
 import type { DrawingSegment } from './drawing';
 
 /*
@@ -90,8 +91,16 @@ export interface TitleBlockInfo {
   title: string;
   levelName: string;
   scale: number;
-  /** As printed, e.g. `2026-10-27`; today by default. */
+  /** As printed, e.g. `2026-10-27` (`sheetDate`); today by default. */
   date?: string;
+  /**
+   * The block's reading direction, the interface language's by default: right to left, the level and the
+   * scale sit at the right, the wordmark at the top right, the project and the date at the left. The block
+   * itself stays in the bottom-right corner.
+   */
+  direction?: 'ltr' | 'rtl';
+  /** A text's width in mm at a size (mm), for shrinking and cutting names: Helvetica's widths by default; the PDF passes its own runs' (Arabic in its face). */
+  measure?: (text: string, size: number) => number;
 }
 
 export interface TitleBlockText {
@@ -109,6 +118,8 @@ export interface TitleBlockText {
    * the SVG, whose reader picks the font, writes it as a `<tspan>` of the name's text so it follows the name whatever font draws it.
    */
   stop?: boolean;
+  /** A sentence the app composed (the scale, the date) in a right-to-left sheet: it reads right to left whatever it starts with. */
+  direction?: 'rtl';
 }
 
 /** The one colour of the title block: the full stop of the wordmark. */
@@ -138,13 +149,31 @@ export function titleBlock(width: number, info: TitleBlockInfo): { lines: [Vec2,
   const nameWidth = textWidthEm(winAnsi(name), false, true) * WORDMARK_SIZE;
   const stopWidth = textWidthEm(winAnsi('.'), false, true) * WORDMARK_SIZE;
   const wordmark = nameWidth + stopWidth;
+  const scale = t('exchange.sheet.scale', { scale: formatScale(info.scale) });
+  const date = info.date ?? today();
+  if ((info.direction ?? languageDirection(currentLanguage())) === 'rtl') {
+    // Mirrored inside the block: the wordmark (a name, left to right) at the top right, the project at the left;
+    // the level and the scale at the right, the date at the left.
+    const mark = x1 - 3 - wordmark;
+    return {
+      lines,
+      texts: [
+        { at: [mark, y1 - 6], text: name, size: WORDMARK_SIZE, align: 'left', bold: true },
+        { at: [mark + nameWidth, y1 - 6], text: '.', size: WORDMARK_SIZE, align: 'left', bold: true, color: TITLE_BLOCK_ACCENT, stop: true },
+        { at: [x0 + 3, y1 - 6], ...fitText(info.title, 4, Math.max(room - wordmark - 4, 10), info.measure), align: 'left' },
+        { at: [x1 - 3, y1 - 13], ...fitText(info.levelName, 3, room, info.measure), align: 'right' },
+        { at: [x1 - 3, y0 + 2.8], text: scale, size: 2.8, align: 'right', direction: 'rtl' },
+        { at: [x0 + 3, y0 + 2.8], text: date, size: 2.8, align: 'left', direction: 'rtl' },
+      ],
+    };
+  }
   const texts: TitleBlockText[] = [
     { at: [x0 + 3, y1 - 6], text: name, size: WORDMARK_SIZE, align: 'left', bold: true },
     { at: [x0 + 3 + nameWidth, y1 - 6], text: '.', size: WORDMARK_SIZE, align: 'left', bold: true, color: TITLE_BLOCK_ACCENT, stop: true },
-    { at: [x1 - 3, y1 - 6], ...fitText(info.title, 4, Math.max(room - wordmark - 4, 10)), align: 'right' },
-    { at: [x0 + 3, y1 - 13], ...fitText(info.levelName, 3, room), align: 'left' },
-    { at: [x0 + 3, y0 + 2.8], text: `Scale 1:${formatScale(info.scale)}`, size: 2.8, align: 'left' },
-    { at: [x1 - 3, y0 + 2.8], text: info.date ?? today(), size: 2.8, align: 'right' },
+    { at: [x1 - 3, y1 - 6], ...fitText(info.title, 4, Math.max(room - wordmark - 4, 10), info.measure), align: 'right' },
+    { at: [x0 + 3, y1 - 13], ...fitText(info.levelName, 3, room, info.measure), align: 'left' },
+    { at: [x0 + 3, y0 + 2.8], text: scale, size: 2.8, align: 'left' },
+    { at: [x1 - 3, y0 + 2.8], text: date, size: 2.8, align: 'right' },
   ];
   return { lines, texts };
 }
@@ -154,15 +183,18 @@ const formatScale = (scale: number) => String(Math.round(scale * 1000) / 1000);
 /** How far a title block text may shrink before it is cut short, as a fraction of its size. */
 const MIN_SHRINK = 0.7;
 
-/** A title block text that fits `width` mm in Helvetica: shrunk down to 70 % of `size`, then cut short with an ellipsis. */
-export function fitText(text: string, size: number, width: number): { text: string; size: number } {
-  const em = textWidthEm(winAnsi(text));
+/** A text's width in Helvetica, mm at `size` mm. */
+const helveticaWidth = (text: string, size: number) => textWidthEm(winAnsi(text)) * size;
+
+/** A title block text that fits `width` mm (in Helvetica, or as `measure` says): shrunk down to 70 % of `size`, then cut short with an ellipsis. */
+export function fitText(text: string, size: number, width: number, measure: (text: string, size: number) => number = helveticaWidth): { text: string; size: number } {
+  const em = measure(text, 1);
   if (em * size <= width) return { text, size };
   const smaller = size * MIN_SHRINK;
   if (em * smaller <= width) return { text, size: width / em };
   const chars = [...text];
   const cut = () => chars.join('').trimEnd() + '…';
-  while (chars.length && textWidthEm(winAnsi(cut())) * smaller > width) chars.pop();
+  while (chars.length && measure(cut(), smaller) > width) chars.pop();
   return { text: cut(), size: smaller };
 }
 
@@ -170,6 +202,12 @@ export function fitText(text: string, size: number, width: number): { text: stri
 export function today(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** A sheet's date in a language: `YYYY-MM-DD` in English, the day, the month's name and the year in Arabic (`17 نوفمبر 2026`, Western digits, through `intlLocale`). */
+export function sheetDate(date: Date, language: Language): string {
+  if (language === 'en') return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  return new Intl.DateTimeFormat(intlLocale(language), { day: 'numeric', month: 'long', year: 'numeric' }).format(date).replace(/[‎‏؜]/g, '');
 }
 
 /** Helvetica's cap height as a fraction of the font size; a DXF text's height (group 40) is its cap height. */
@@ -191,14 +229,16 @@ const CP1252: Record<number, number> = {
 /** A string as WinAnsiEncoding bytes (the PDF's page text): control characters become spaces, anything else the encoding lacks `?`. */
 export function winAnsi(text: string): number[] {
   const out: number[] = [];
-  for (const ch of text) {
-    const c = ch.codePointAt(0)!;
-    if ((c >= 32 && c < 127) || (c >= 0xa0 && c <= 0xff)) out.push(c);
-    else if (CP1252[c] !== undefined) out.push(CP1252[c]);
-    else if (c < 32 || (c >= 0x7f && c < 0xa0)) out.push(32);
-    else out.push(63);
-  }
+  for (const ch of text) out.push(winAnsiCode(ch.codePointAt(0)!) ?? 63);
   return out;
+}
+
+/** A code point's WinAnsi byte (a control character as a space), or null when the encoding lacks it. */
+export function winAnsiCode(c: number): number | null {
+  if ((c >= 32 && c < 127) || (c >= 0xa0 && c <= 0xff)) return c;
+  if (CP1252[c] !== undefined) return CP1252[c];
+  if (c < 32 || (c >= 0x7f && c < 0xa0)) return 32;
+  return null;
 }
 
 /** Helvetica's advance widths (per 1000 em) for WinAnsi codes 32–126, from the standard AFM. */

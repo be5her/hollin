@@ -1,4 +1,5 @@
 import { StudioError } from '../errors';
+import { t } from '../i18n';
 import { newId } from '../ids';
 import { followTiesOps } from './builders';
 import { Transaction, patchOps, type Op, type RecordMap } from './ops';
@@ -226,8 +227,8 @@ export class DocumentEngine {
   /** Undoes the newest change. With `ifTop`, only when that is the newest change (so an agent never undoes someone else's work). */
   undo(ifTop?: string): HistoryState {
     const entry = this.undoStack[this.undoStack.length - 1];
-    if (!entry) throw new StudioError('CONFLICT', 'There is nothing to undo.');
-    if (ifTop && entry.id !== ifTop) throw new StudioError('CONFLICT', `The newest change is "${entry.label}" by ${entry.author.name}, not the one you meant; nothing was undone.`);
+    if (!entry) throw new StudioError('CONFLICT', { key: 'errors.history.nothingToUndo' });
+    if (ifTop && entry.id !== ifTop) throw new StudioError('CONFLICT', { key: 'errors.history.notNewest', params: { label: entry.label, author: entry.author.kind === 'user' ? { key: 'edit.author.user' } : entry.author.name } });
     this.move(entry, entry.after, entry.before, 'undo');
     this.undoStack.pop();
     this.redoStack.push(entry);
@@ -236,7 +237,7 @@ export class DocumentEngine {
 
   redo(): HistoryState {
     const entry = this.redoStack[this.redoStack.length - 1];
-    if (!entry) throw new StudioError('CONFLICT', 'There is nothing to redo.');
+    if (!entry) throw new StudioError('CONFLICT', { key: 'errors.history.nothingToRedo' });
     this.move(entry, entry.before, entry.after, 'redo');
     this.redoStack.pop();
     this.undoStack.push(entry);
@@ -259,7 +260,7 @@ export class DocumentEngine {
     const meta = { ...this.current.meta, ...patch };
     this.current = { ...this.current, meta };
     this.seqValue++;
-    this.emit({ id: newId('tx'), label: 'Project details', author: { kind: 'user', name: 'You' }, kind: 'meta' }, [{ t: 'upd', c: 'meta', id: 'meta', set: patch as Record<string, unknown> }]);
+    this.emit({ id: newId('tx'), label: t('labels.projectDetails'), author: { kind: 'user', name: 'You' }, kind: 'meta' }, [{ t: 'upd', c: 'meta', id: 'meta', set: patch as Record<string, unknown> }]);
   }
 
   /** Replaces the whole document (snapshot restore, reload): history is cleared and the mirror refetches. */

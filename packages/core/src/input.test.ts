@@ -19,6 +19,15 @@ describe('typed coordinates', () => {
     expect(parseCoordinate('@3000', metric)).toEqual({ k: 'polar', mm: 3000, degrees: 0 });
   });
 
+  it('reads coordinates typed on an Arabic keyboard', () => {
+    expect(parseCoordinate('٣٦٠٠', metric)).toEqual({ k: 'length', mm: 3600 });
+    expect(parseCoordinate('٣٠٠٠<٤٥', metric)).toEqual({ k: 'polar', mm: 3000, degrees: 45 });
+    expect(parseCoordinate('@١٠٠٠،٥٠٠', metric)).toEqual({ k: 'relative', dx: 1000, dy: 500 });
+    expect(parseCoordinate('١٠٠٠؛-٥٠٠', metric)).toEqual({ k: 'absolute', x: 1000, y: -500 });
+    expect(parseCoordinate('٣٫٥م', metric)).toEqual({ k: 'length', mm: 3500 });
+    expect(parseCoordinate('۲۰۰۰', metric)).toEqual({ k: 'length', mm: 2000 });
+  });
+
   it('refuses what is not a coordinate', () => {
     expect(parseCoordinate('', metric)).toBeNull();
     expect(parseCoordinate('abc', metric)).toBeNull();

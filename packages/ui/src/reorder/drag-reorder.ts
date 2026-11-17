@@ -28,6 +28,9 @@ export interface DragReorder {
  * Drag items along a strip to reorder them: tabs, levels, layers. Pointer events
  * rather than HTML drag and drop, so the marker follows the pointer and the strip scrolls when the
  * pointer nears either end. `move` gets the item and the index it should end up at.
+ * A horizontal strip may run right to left (`dir="rtl"`): its items then go from right to left, an
+ * item's start is its right edge, and `scrollLeft` runs from 0 down to negative values. The marker is a
+ * physical offset from the strip's left edge in its scrolled coordinates in both directions.
  * Call in an injection context; a drag in progress is dropped when that context is destroyed.
  */
 export function dragReorder(axis: DragAxis, container: () => HTMLElement | undefined, move: (id: string, to: number) => void): DragReorder {
@@ -45,11 +48,14 @@ export function dragReorder(axis: DragAxis, container: () => HTMLElement | undef
     const others = [...strip.querySelectorAll<HTMLElement>('[data-drag-id]')].filter((el) => el.dataset['dragId'] !== id);
     if (!others.length) return null;
     const rects = others.map((el) => el.getBoundingClientRect());
-    const lo = (r: DOMRect) => (axis === 'x' ? r.left : r.top);
-    const hi = (r: DOMRect) => (axis === 'x' ? r.right : r.bottom);
-    let slot = rects.findIndex((r) => at < (lo(r) + hi(r)) / 2);
+    const rtl = axis === 'x' && getComputedStyle(strip).direction === 'rtl';
+    // The item's start and end along the strip: left and right, or right and left in a right-to-left strip.
+    const start = (r: DOMRect) => (axis === 'y' ? r.top : rtl ? r.right : r.left);
+    const end = (r: DOMRect) => (axis === 'y' ? r.bottom : rtl ? r.left : r.right);
+    const before = (r: DOMRect) => (rtl ? at > (r.left + r.right) / 2 : at < (start(r) + end(r)) / 2);
+    let slot = rects.findIndex(before);
     if (slot < 0) slot = rects.length;
-    const edge = slot < rects.length ? lo(rects[slot]) : hi(rects[rects.length - 1]);
+    const edge = slot < rects.length ? start(rects[slot]) : end(rects[rects.length - 1]);
     const box = strip.getBoundingClientRect();
     return { slot, marker: axis === 'x' ? edge - box.left + strip.scrollLeft : edge - box.top + strip.scrollTop };
   };
@@ -66,6 +72,8 @@ export function dragReorder(axis: DragAxis, container: () => HTMLElement | undef
       if (!current.moving && Math.abs(at - current.start) < DRAG_THRESHOLD) return;
       const strip = container();
       if (strip) {
+        // Physical in both directions: near the left (or top) edge the view moves left (or up), which lowers
+        // `scrollLeft` in a right-to-left strip too.
         const r = strip.getBoundingClientRect();
         const [lo, hi] = axis === 'x' ? [r.left, r.right] : [r.top, r.bottom];
         const step = at < lo + 24 ? -12 : at > hi - 24 ? 12 : 0;

@@ -1,4 +1,4 @@
-import { faceOffset, flatten, offsetPath, roomAt, sideOfWall, type Entity, type Vec2, type WallSide } from '@studio/core';
+import { catalogName, t, faceOffset, flatten, offsetPath, roomAt, sideOfWall, type Entity, type Vec2, type WallSide } from '@studio/core';
 import { tracePolygon } from '../draw';
 import { drawScreenText, type RenderFrame } from '../render';
 import { withAlpha } from '../theme';
@@ -43,17 +43,17 @@ export class PaintTool implements Tool {
 
   hint(): string {
     const o = this.host.options().paint;
-    if (!o.ref) return 'Pick a material in the Catalog panel to paint with it · V: select';
-    return `Click a wall face or a room's floor to give it ${o.name || o.ref} · Escape: done`;
+    if (!o.ref) return t('tools.paint.none');
+    return t('tools.paint.place', { name: catalogName(o.ref, o.name || o.ref) });
   }
 
   draw(ctx: CanvasRenderingContext2D, frame: RenderFrame): void {
-    const t = this.hover;
-    if (!t || !this.cursor) return;
+    const target = this.hover;
+    if (!target || !this.cursor) return;
     ctx.strokeStyle = frame.theme.selection;
     ctx.fillStyle = withAlpha(frame.theme.selection, 0.12);
-    if (t.k === 'wall') {
-      const face = offsetPath(t.wall.path, faceOffset(t.wall, t.side));
+    if (target.k === 'wall') {
+      const face = offsetPath(target.wall.path, faceOffset(target.wall, target.side));
       if (!face) return;
       const pts = flatten(face, 1);
       ctx.lineWidth = 4 / frame.camera.scale;
@@ -64,7 +64,7 @@ export class PaintTool implements Tool {
       if (face.closed) ctx.closePath();
       ctx.stroke();
     } else {
-      const room = this.host.geometry()?.rooms.get(t.id);
+      const room = this.host.geometry()?.rooms.get(target.id);
       if (!room?.polygon) return;
       ctx.lineWidth = 2 / frame.camera.scale;
       ctx.beginPath();
@@ -73,7 +73,7 @@ export class PaintTool implements Tool {
       ctx.fill('evenodd');
       ctx.stroke();
     }
-    drawScreenText(ctx, frame, { text: t.k === 'wall' ? `${t.side} face` : 'floor', at: this.cursor, screenPx: 11, color: frame.theme.selection, align: 'left', baseline: 'top', dx: 14, dy: 12, mono: true });
+    drawScreenText(ctx, frame, { text: target.k === 'wall' ? t(target.side === 'left' ? 'tools.paint.leftFace' : 'tools.paint.rightFace') : t('tools.paint.floor'), at: this.cursor, screenPx: 11, color: frame.theme.selection, align: 'left', baseline: 'top', dx: 14, dy: 12, mono: true });
   }
 
   /** The wall face under a point, else the floor of the room whose space it is in (anywhere in it, not only near its seed). */

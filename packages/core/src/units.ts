@@ -1,4 +1,5 @@
 import type { UnitSettings } from './config';
+import { toLatinDigits } from './i18n/text';
 
 /** Lengths are stored in millimetres everywhere; these helpers only translate for display and typing. */
 export const MM_PER_INCH = 25.4;
@@ -54,6 +55,17 @@ function mixedValue(m: RegExpMatchArray, offset: number): number {
   return num !== undefined ? base + Number(num) / Number(den) : base;
 }
 
+/**
+ * The metric units as an Arabic keyboard writes them (مم or ملم, سم, م) after a number, in their Latin
+ * symbols; the text is already in Latin digits (`toLatinDigits`).
+ */
+function arabicUnits(text: string): string {
+  return text
+    .replace(/\s*(?:ملم|مم)$/, 'mm')
+    .replace(/\s*سم$/, 'cm')
+    .replace(/\s*م$/, 'm');
+}
+
 const FEET_INCHES = new RegExp(String.raw`^${MIXED}\s*(?:'|ft|feet|foot)\s*-?\s*(?:${MIXED}\s*(?:"|in|inch|inches)?)?$`, 'i');
 const INCHES = new RegExp(String.raw`^${MIXED}\s*(?:"|in|inch|inches)$`, 'i');
 const METRIC = new RegExp(String.raw`^(${NUMBER})\s*(mm|cm|m)$`, 'i');
@@ -62,10 +74,11 @@ const PLAIN = new RegExp(String.raw`^${MIXED}$`);
 /**
  * Reads a typed length into millimetres, or null when it is not one. Accepts `3200`, `3200mm`,
  * `320 cm`, `3.2m`, `10'`, `10' 6"`, `10'-6 1/2"`, `10 ft 6 in`, `126in`, `6 1/2"`. A bare number
- * is in the display unit: the chosen metric unit, or inches in imperial.
+ * is in the display unit: the chosen metric unit, or inches in imperial. Arabic-Indic and Persian digits,
+ * the Arabic decimal separator and the Arabic metric symbols (`٣٫٢ م`) read the same.
  */
 export function parseLength(text: string, units: UnitSettings): number | null {
-  let input = text.trim().replace(/[’′]/g, "'").replace(/[”″]/g, '"');
+  let input = arabicUnits(toLatinDigits(text).trim()).replace(/[’′]/g, "'").replace(/[”″]/g, '"');
   if (!input) return null;
   let sign = 1;
   if (input.startsWith('-')) {
@@ -111,9 +124,9 @@ export function formatAngle(degrees: number, units: Pick<UnitSettings, 'precisio
 
 const ANGLE = new RegExp(String.raw`^([+-]?(?:${NUMBER}))\s*(°|deg|degrees?|rad|radians?)?$`, 'i');
 
-/** Reads `45`, `45°`, `45 deg` or `0.785 rad` into degrees, or null. */
+/** Reads `45`, `45°`, `45 deg` or `0.785 rad` into degrees (Arabic-Indic digits too, and `درجة`), or null. */
 export function parseAngle(text: string): number | null {
-  const m = text.trim().match(ANGLE);
+  const m = toLatinDigits(text).trim().replace(/\s*درجة$/, '°').match(ANGLE);
   if (!m) return null;
   const value = Number(m[1]);
   const degrees = m[2] && /^rad/i.test(m[2]) ? (value * 180) / Math.PI : value;

@@ -121,7 +121,7 @@ The light and dark `--ai*` values are the decisions' values verbatim. Measured c
 
 ## d. Type
 
-Three OFL families, bundled as variable files (`font-src 'self'`). Craft's role table, unchanged, then Otto's typographic treatment.
+Three OFL families for Latin, bundled (`font-src 'self'`), and since milestone 12 two more for Arabic (below the table). Craft's role table, unchanged, then Otto's typographic treatment.
 
 | Role | Face | Size / line (px) | Notes |
 |---|---|---|---|
@@ -134,6 +134,17 @@ Three OFL families, bundled as variable files (`font-src 'self'`). Craft's role 
 | Wordmark | Fraunces 600 | 16 · 40 · 56 | opsz 144, SOFT 80, tracking −.015 em; outlined wherever it ships |
 | Numbers, units, ids, coordinates, shortcuts, badges | IBM Plex Mono 400 / 500 | 13 (11 in badges and kbd) | Values in `--fg`, units in `--muted`, thin space as thousands separator |
 | Icons | Lucide | 18 px, 1.6 px stroke | 16 px in cards and rows |
+
+**Arabic** (milestone 12; the reasons in `docs/i18n.md` > Fonts). Each Arabic face follows its Latin partner in the stack with an Arabic `unicode-range`, so a line mixing scripts takes each letter from its own face and the roles above hold in both languages.
+
+| Role | Face | Notes |
+|---|---|---|
+| Body, controls, labels, times, Otto's paragraphs (Alegreya Sans' roles) | IBM Plex Sans Arabic 400 / 500 / 700 | Keeps a pen's modulation beside Alegreya Sans and reads at 11 px; the sibling of the Plex Mono the numbers are in. No italics (Arabic has none: the "times and states" style is upright in Arabic) and no letter-spacing (it breaks the joins: the section caps are not spaced in Arabic) |
+| Headings, dialog titles, empty moments, the credit line (Fraunces' roles) | Markazi Text, variable weight | A soft, warm naskh with the bookish weight Fraunces gives the Latin headings; drawn small on its body, so `size-adjust: 116%` |
+| Numbers, units, ids, coordinates, shortcuts | IBM Plex Mono, as in Latin | Western digits in both languages; an Arabic word never sits in the mono face (its wide space spreads the words): an element that mixes a word and a number switches to the sans in Arabic |
+| The PDF's Arabic | IBM Plex Sans Arabic Regular (TrueType, `resources/fonts/`) | Embedded and shaped by the PDF writer; SVG names the face in its stacks |
+
+The wordmark, the icon and Otto's name stay Latin in both languages.
 
 **Otto's typographic treatment**
 
@@ -179,7 +190,7 @@ On the canvas tag the same figure is drawn at 14 px in `--ai-fg` directly on the
 
 **New empty project.** The canvas shows its grid; centred on it the same sketch, *Draw the first wall.* in Fraunces 28, one sentence of how ("Press W, click where a corner is, and type a length from your tape measure. Rooms appear by themselves once the walls close."), the row of four keys (W Wall, D Door, N Window, Ctrl K Every command), and **Otto's line** on `--ai-tint` with the 20 px mark and an editable sentence: "Or tell Otto: *'a 5 by 7 m studio with a bathroom in the corner'*". It fades the moment the first wall is placed. The Properties panel says *Nothing selected* in Fraunces 18 with one line of help and the Esc / V key caps. Status bar: "Otto · ready".
 
-**About** (the bottom of Settings). The icon at 112 px, the wordmark at 40 px with its terracotta full stop, the two-sentence description ("Design your home, floor by floor, with exact numbers and a helping hand. Hollin is a drawing board for people who are not architects and a tidy file for the ones who are."), then **the credit line** in Fraunces 20: "Hollin" in ink, "with Otto" in mulberry, under it the model and provider and the rule it keeps ("Claude Opus 5.5 · Anthropic · Otto asks before it deletes anything, and signs its work in History."), and one mono line: version, the three fonts and Lucide with their licences, three.js and Electron, and a Licences… link. Paper, no gradient, no illustration.
+**About** (the bottom of Settings). The icon at 112 px, the wordmark at 40 px with its terracotta full stop, the two-sentence description ("Design your home, floor by floor, with exact numbers and a helping hand. Hollin is a drawing board for people who are not architects and a tidy file for the ones who are."), then **the credit line** in Fraunces 20: "Hollin" in ink, "with Otto" in mulberry, under it the model and provider and the rule it keeps ("Claude Opus 5.5 · Anthropic · Otto asks before it deletes anything, and signs its work in History."), and one mono line: version, the fonts (the three Latin faces and, since milestone 12, IBM Plex Sans Arabic and Markazi Text) and Lucide with their licences, three.js and Electron, and a Licences… link (in Arabic its words are in the sans, the version and the credits in mono). Paper, no gradient, no illustration.
 
 ## h. Problems found
 

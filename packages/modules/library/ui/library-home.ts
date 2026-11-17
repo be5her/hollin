@@ -7,6 +7,7 @@ import {
   Dialogs,
   EmptyState,
   HostBridge,
+  I18n,
   Icon,
   Input,
   HouseDoodle,
@@ -52,6 +53,8 @@ export class LibraryHome implements TabComponent {
   private readonly dialogs = inject(Dialogs);
   private readonly toasts = inject(Toasts);
   protected readonly actions = inject(LibraryActions);
+  private readonly i18n = inject(I18n);
+  protected readonly t = this.i18n.t;
 
   readonly tab = input.required<Tab>();
 
@@ -92,11 +95,11 @@ export class LibraryHome implements TabComponent {
   }
 
   protected ago(iso: string | null): string {
-    return relativeTime(iso);
+    return relativeTime(iso, Date.now(), this.i18n.language());
   }
 
   protected toggleTag(tag: string): void {
-    this.selectedTags.update((tags) => (tags.includes(tag) ? tags.filter((t) => t !== tag) : [...tags, tag]));
+    this.selectedTags.update((tags) => (tags.includes(tag) ? tags.filter((other) => other !== tag) : [...tags, tag]));
   }
 
   protected clearFilters(): void {
@@ -112,30 +115,30 @@ export class LibraryHome implements TabComponent {
   protected showMenu(event: MouseEvent, p: ProjectSummary): void {
     if (p.trashedAt) {
       this.menu.open(event, [
-        { label: 'Restore', select: () => void this.actions.restore(p), testId: 'project-menu-restore' },
-        { label: 'Delete permanently…', danger: true, select: () => void this.actions.deleteForever(p), testId: 'project-menu-delete' },
+        { label: this.t('library.menu.restore'), select: () => void this.actions.restore(p), testId: 'project-menu-restore' },
+        { label: this.t('library.menu.delete'), danger: true, select: () => void this.actions.deleteForever(p), testId: 'project-menu-delete' },
       ]);
       return;
     }
     this.menu.open(event, [
-      { label: 'Open', select: () => this.open(p), testId: 'project-menu-open' },
+      { label: this.t('library.menu.open'), select: () => this.open(p), testId: 'project-menu-open' },
       'separator',
-      { label: 'Rename…', select: () => void this.actions.rename(p), testId: 'project-menu-rename' },
-      { label: 'Edit tags…', select: () => void this.actions.editTags(p), testId: 'project-menu-tags' },
-      { label: 'Duplicate', select: () => void this.actions.duplicate(p), testId: 'project-menu-duplicate' },
-      { label: 'Export…', select: () => void this.actions.exportProject(p), testId: 'project-menu-export' },
+      { label: this.t('library.menu.rename'), select: () => void this.actions.rename(p), testId: 'project-menu-rename' },
+      { label: this.t('library.menu.tags'), select: () => void this.actions.editTags(p), testId: 'project-menu-tags' },
+      { label: this.t('library.menu.duplicate'), select: () => void this.actions.duplicate(p), testId: 'project-menu-duplicate' },
+      { label: this.t('library.menu.export'), select: () => void this.actions.exportProject(p), testId: 'project-menu-export' },
       'separator',
-      { label: 'Move to trash', danger: true, select: () => void this.actions.trash(p), testId: 'project-menu-trash' },
+      { label: this.t('library.menu.trash'), danger: true, select: () => void this.actions.trash(p), testId: 'project-menu-trash' },
     ]);
   }
 
   protected async emptyTrash(): Promise<void> {
     const count = this.info.value()?.trashed ?? 0;
-    const ok = await this.dialogs.confirm({ title: `Delete ${count} project${count === 1 ? '' : 's'} permanently?`, message: 'Projects in the trash are deleted for good. This cannot be undone.', danger: true, confirmLabel: 'Empty trash' });
+    const ok = await this.dialogs.confirm({ title: this.t('library.emptyTrash.title', { count }), message: this.t('library.emptyTrash.message'), danger: true, confirmLabel: this.t('library.home.emptyTrash') });
     if (!ok) return;
     try {
       const { deleted } = await this.host.invoke<{ deleted: number }>('library.trash.empty', {}, null);
-      this.toasts.notify(`Deleted ${deleted} project${deleted === 1 ? '' : 's'}`, 'success');
+      this.toasts.notify(this.t('library.emptyTrash.done', { count: deleted }), 'success');
     } catch (err) {
       this.toasts.error(err);
     }

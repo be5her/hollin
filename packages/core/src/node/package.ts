@@ -113,8 +113,8 @@ export function unsafeEntryName(name: string): string | null {
  */
 export async function importPackage(source: string, stagingDir: string, limits: PackageLimits = DEFAULT_LIMITS): Promise<{ dir: string; manifest: PackageManifest }> {
   const stat = await fs.stat(source).catch(() => null);
-  if (!stat?.isFile()) throw new StudioError('NOT_FOUND', `No file at ${source}`);
-  if (stat.size > limits.maxPackageBytes) throw new StudioError('INVALID_INPUT', 'The package is too large.');
+  if (!stat?.isFile()) throw new StudioError('NOT_FOUND', { key: 'errors.file.missing', params: { path: source } });
+  if (stat.size > limits.maxPackageBytes) throw new StudioError('INVALID_INPUT', { key: 'errors.package.tooLarge' });
   const data = new Uint8Array(await fs.readFile(source));
 
   let entries = 0;
@@ -125,40 +125,40 @@ export async function importPackage(source: string, stagingDir: string, limits: 
     files = unzipSync(data, {
       filter: (file) => {
         if (file.name.endsWith('/')) return false;
-        if (++entries > limits.maxEntries) throw new StudioError('INVALID_INPUT', 'The package has too many files.');
+        if (++entries > limits.maxEntries) throw new StudioError('INVALID_INPUT', { key: 'errors.package.tooManyFiles' });
         const problem = unsafeEntryName(file.name);
-        if (problem) throw new StudioError('INVALID_INPUT', `The package contains an unsafe file (${problem}): ${file.name}`);
+        if (problem) throw new StudioError('INVALID_INPUT', { key: 'errors.package.unsafe', params: { problem, name: file.name } });
         const key = file.name.toLowerCase();
-        if (seen.has(key)) throw new StudioError('INVALID_INPUT', `The package contains two files whose names differ only in case: ${file.name}`);
+        if (seen.has(key)) throw new StudioError('INVALID_INPUT', { key: 'errors.package.caseClash', params: { name: file.name } });
         seen.add(key);
         unpacked += file.originalSize;
-        if (unpacked > limits.maxUnpackedBytes) throw new StudioError('INVALID_INPUT', 'The package unpacks to more than the allowed size.');
+        if (unpacked > limits.maxUnpackedBytes) throw new StudioError('INVALID_INPUT', { key: 'errors.package.unpacksTooLarge' });
         if (file.originalSize > 1024 * 1024 && file.size > 0 && file.originalSize / file.size > limits.maxRatio) {
-          throw new StudioError('INVALID_INPUT', `The package contains a suspiciously compressed file: ${file.name}`);
+          throw new StudioError('INVALID_INPUT', { key: 'errors.package.compressed', params: { name: file.name } });
         }
         return true;
       },
     });
   } catch (err) {
     if (err instanceof StudioError) throw err;
-    throw new StudioError('INVALID_INPUT', `Not a valid project package: ${(err as Error).message}`);
+    throw new StudioError('INVALID_INPUT', { key: 'errors.package.invalid', params: { reason: (err as Error).message } });
   }
 
   const manifestBytes = files['manifest.json'];
-  if (!manifestBytes) throw new StudioError('INVALID_INPUT', 'Not a project package: manifest.json is missing.');
+  if (!manifestBytes) throw new StudioError('INVALID_INPUT', { key: 'errors.package.noManifest' });
   let manifest: PackageManifest;
   try {
     manifest = PackageManifestSchema.parse(JSON.parse(strFromU8(manifestBytes)));
   } catch {
-    throw new StudioError('INVALID_INPUT', 'Not a project package: manifest.json is not valid.');
+    throw new StudioError('INVALID_INPUT', { key: 'errors.package.badManifest' });
   }
-  if (manifest.formatVersion > PACKAGE_VERSION) throw new StudioError('UNSUPPORTED_VERSION', 'This package was made by a newer version of the app. Update the app to import it.');
-  if (!files[`project/${PROJECT_FILE}`]) throw new StudioError('INVALID_INPUT', 'Not a project package: project.json is missing.');
+  if (manifest.formatVersion > PACKAGE_VERSION) throw new StudioError('UNSUPPORTED_VERSION', { key: 'errors.package.newer' });
+  if (!files[`project/${PROJECT_FILE}`]) throw new StudioError('INVALID_INPUT', { key: 'errors.package.noProject' });
 
   for (const [name, bytes] of Object.entries(files)) {
     const asset = name.startsWith('project/assets/') ? ASSET_NAME.exec(path.posix.basename(name)) : null;
     if (asset && createHash('sha256').update(bytes).digest('hex') !== asset[1]) {
-      throw new StudioError('INVALID_INPUT', `The package is damaged: ${path.posix.basename(name)} does not match its checksum.`);
+      throw new StudioError('INVALID_INPUT', { key: 'errors.package.damaged', params: { name: path.posix.basename(name) } });
     }
   }
 
@@ -171,7 +171,7 @@ export async function importPackage(source: string, stagingDir: string, limits: 
     await readProjectDir(dir);
   } catch (err) {
     await fs.rm(dir, { recursive: true, force: true }).catch(() => {});
-    if (err instanceof StudioError) throw new StudioError(err.code, `The package's project could not be opened: ${err.message}`);
+    if (err instanceof StudioError) throw new StudioError(err.code, { key: 'errors.package.projectFailed', params: { reason: err.i18n ?? err.message } });
     throw err;
   }
   return { dir, manifest };
