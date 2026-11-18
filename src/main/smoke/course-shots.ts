@@ -9,7 +9,7 @@ import { canvas, canvasAttr, openProjectTab, readCamera, tab, view } from './pla
 import { sceneAttr, sceneCanvas, sceneView } from './scene-canvas';
 
 /**
- * `COURSE_SHOTS=<dir> npm run smoke`: instead of the checks, the app draws the two projects of the
+ * `COURSE_SHOTS=<dir> npm run smoke`: instead of the checks, the app draws the three projects of the
  * course (`course/`, the web tutorial) the way its lessons tell a learner to, once in English and once
  * in Arabic, and saves the pictures the lessons show as WebP into `<dir>/<language>/`, with
  * `<dir>/shots.json` giving each picture's size and the numbered marks drawn over it.
@@ -47,6 +47,17 @@ const TEXT = {
     entrance: 'Entrance hall',
     landing: 'Landing',
     snapshot: 'Before the first floor',
+    villa: 'Family villa',
+    majlis: 'Majlis',
+    guestEntrance: 'Guest entrance',
+    guestWash: 'Guest washroom',
+    familyLiving: 'Family living',
+    stairHall: 'Stair hall',
+    master: 'Master bedroom',
+    masterBath: 'Master bathroom',
+    bedroom3: 'Bedroom 3',
+    lounge: 'Lounge',
+    roof: 'Roof',
   },
   ar: {
     studio: 'مخططي الأول',
@@ -63,6 +74,17 @@ const TEXT = {
     entrance: 'بهو المدخل',
     landing: 'بسطة الدرج',
     snapshot: 'قبل الطابق الأول',
+    villa: 'فيلا العائلة',
+    majlis: 'المجلس',
+    guestEntrance: 'مدخل الضيوف',
+    guestWash: 'مغاسل الضيوف',
+    familyLiving: 'صالة العائلة',
+    stairHall: 'بهو الدرج',
+    master: 'غرفة النوم الرئيسية',
+    masterBath: 'حمّام الغرفة الرئيسية',
+    bedroom3: 'غرفة النوم 3',
+    lounge: 'الصالة العلوية',
+    roof: 'السطح',
   },
 } as const;
 
@@ -155,6 +177,11 @@ class Project {
 
   light(levelId: string, at: P, lumens = 1200, height = 2400): Promise<unknown> {
     return this.run('decor.light.add', { levelId, kind: 'point', at: [at[0], at[1], height], intensity: lumens });
+  }
+
+  /** A square column of 300 mm, the Column tool's own size. */
+  column(levelId: string, at: P): Promise<unknown> {
+    return this.run('plan.entity.add', { levelId, entity: { type: 'column', at, shape: { k: 'rect', w: 300, d: 300 } } });
   }
 
   finish(roomId: string, surface: 'floor' | 'walls' | 'ceiling', material: string): Promise<unknown> {
@@ -460,9 +487,43 @@ async function wallThickness(smoke: Smoke, mm: number): Promise<void> {
   await focusCanvas(smoke);
 }
 
+/**
+ * Lesson 6 sets the limits every stair of the course is checked against, in Settings > Rules: risers of
+ * 170 mm at most and treads of 280 mm at least, which a home's stair and a shared one both pass in the
+ * building codes the course was checked against. Typed into the fields, as a learner does.
+ */
+async function stairLimits(smoke: Smoke, shots: Shots, projectId: string): Promise<void> {
+  await smoke.click('[data-testid=titlebar-settings]');
+  smoke.check('Settings shows the stair limits', await smoke.waitFor('[data-testid=rule-maxRiser]', 5000));
+  await smoke.js("document.querySelector('[data-section=rules]').scrollIntoView({ block: 'center' })");
+  await wait(300);
+  await typeInto(smoke, '[data-testid=rule-maxRiser]', '170');
+  await typeInto(smoke, '[data-testid=rule-minTread]', '280');
+  const rules = () => smoke.host.config.get().rules;
+  smoke.check('the highest riser is 170 mm and the shallowest tread 280 mm', await smoke.until(() => rules().maxRiser === 170 && rules().minTread === 280, 4000), rules());
+  await smoke.js('document.activeElement?.blur()');
+  await wait(300);
+  await shots.take('rules-settings', { sel: ['[data-section=rules]'], pad: 20 });
+  smoke.check('back in the project', await openProjectTab(smoke, projectId));
+  await wait(400);
+}
+
+/** Columns on wall ends: the first with the Column tool (C and a click on the endpoint), the rest through the command the tool sends. Leaves the tool on. */
+async function columns(smoke: Smoke, project: Project, levelId: string, at: P[]): Promise<void> {
+  await pick(smoke, 'C', 'column');
+  await clickWorld(smoke, at[0]);
+  smoke.check('a click with the Column tool stands a column', await smoke.until(() => project.count(levelId, 'column') === 1, 4000), project.count(levelId, 'column'));
+  const first = project.entities(levelId).find((e) => e.type === 'column') as Extract<Entity, { type: 'column' }> | undefined;
+  smoke.check('the column caught the corner it was clicked on', Boolean(first && near(first.at, at[0], 1)), first?.at);
+  console.log(`the first column: ${JSON.stringify(first?.shape)} at ${first?.at.join(',')}`);
+  if (first && !near(first.at, at[0], 0.01)) await project.run('plan.entity.update', { id: first.id, set: { at: at[0] } });
+  for (const p of at.slice(1)) await project.column(levelId, p);
+  smoke.check(`${at.length} columns stand on the level`, project.count(levelId, 'column') === at.length, project.count(levelId, 'column'));
+}
+
 // ---------- part 1: the practice project ----------
 
-/** A small house of 7.5 × 4.5 m on two floors, with a bathroom at its east end and a stair along the back wall: lessons 1 to 8. */
+/** A small house of 9.5 × 4.5 m on two floors, with a bathroom at its east end and a stair along the back wall: lessons 1 to 8. */
 async function practice(smoke: Smoke, shots: Shots, lang: Lang): Promise<string> {
   const text = TEXT[lang];
   smoke.section(`${lang}: lesson 1, a first project`);
@@ -493,22 +554,22 @@ async function practice(smoke: Smoke, shots: Shots, lang: Lang): Promise<string>
   ]);
 
   smoke.section(`${lang}: lesson 2, walls`);
-  const house = [-900, -900, 8400, 5400] as const;
+  const house = [-900, -900, 10400, 5400] as const;
   await frame(smoke, house);
   await pick(smoke, 'W', 'wall');
   await wallThickness(smoke, 200);
-  // The outline, stopping where the bathroom wall will meet it: 5500 + 2000 along the bottom, 4500 up, back along the top, and closed.
+  // The outline, stopping where the bathroom wall will meet it: 7500 + 2000 along the bottom, 4500 up, back along the top, and closed.
   await drawRun(
     smoke,
     project,
     ground,
     [0, 0],
     [
-      [5500, 0, 'type'],
+      [7500, 0, 'type'],
       [2000, 0, 'type'],
       [0, 4500, 'type'],
       [-2000, 0, 'type'],
-      [-5500, 0, 'type'],
+      [-7500, 0, 'type'],
     ],
     true,
     async (i) => {
@@ -522,11 +583,11 @@ async function practice(smoke: Smoke, shots: Shots, lang: Lang): Promise<string>
   await shots.take('walls-outline', 'center');
   await pick(smoke, 'W', 'wall');
   await wallThickness(smoke, 100);
-  await drawRun(smoke, project, ground, [5500, 0], [[0, 4500, 'click']], false);
-  smoke.check('the bathroom wall runs between the two marks, 100 mm thick', project.findWall(ground, [5500, 0], [5500, 4500])?.wall.thickness === 100);
+  await drawRun(smoke, project, ground, [7500, 0], [[0, 4500, 'click']], false);
+  smoke.check('the bathroom wall runs between the two marks, 100 mm thick', project.findWall(ground, [7500, 0], [7500, 4500])?.wall.thickness === 100);
   await wallThickness(smoke, 200);
   await toSelect(smoke);
-  await clickWorld(smoke, [5500, 3300]);
+  await clickWorld(smoke, [7500, 3300]);
   await rightTab(smoke, 'properties');
   smoke.check('a click on the wall shows its numbers', await smoke.waitFor(`${tab} [data-testid=prop-thickness]`, 4000));
   await shots.take('wall-properties', 'center+right');
@@ -536,22 +597,22 @@ async function practice(smoke: Smoke, shots: Shots, lang: Lang): Promise<string>
   await pick(smoke, 'D', 'door');
   await typeInto(smoke, `${tab} [data-testid=door-width]`, '900');
   await focusCanvas(smoke);
-  await hover(smoke, [2500, 0]);
+  await hover(smoke, [3500, 0]);
   await wait(250);
   await shots.take('door-tool', 'center');
   // The front door at a typed distance from the wall's start (its left end, where the run began).
-  await typeAtCursor(smoke, '2500');
-  smoke.check('a typed distance places the front door 2500 from the corner', await smoke.until(() => project.openings(ground).some((o) => o.kind === 'door' && Math.abs(o.along - 2500) < 1e-6), 4000), project.openings(ground));
+  await typeAtCursor(smoke, '3500');
+  smoke.check('a typed distance places the front door 3500 from the corner', await smoke.until(() => project.openings(ground).some((o) => o.kind === 'door' && Math.abs(o.along - 3500) < 1e-6), 4000), project.openings(ground));
   await toSelect(smoke);
-  await project.opening(ground, [5500, 0], [5500, 4500], 2250, { kind: 'door', width: 800, side: 'right' });
-  await project.opening(ground, [0, 0], [5500, 0], 1100, { kind: 'window' });
-  await project.opening(ground, [0, 0], [5500, 0], 4300, { kind: 'window' });
+  await project.opening(ground, [7500, 0], [7500, 4500], 2250, { kind: 'door', width: 800, side: 'right' });
+  await project.opening(ground, [0, 0], [7500, 0], 1500, { kind: 'window' });
+  await project.opening(ground, [0, 0], [7500, 0], 5400, { kind: 'window' });
   await project.opening(ground, [0, 4500], [0, 0], 2250, { kind: 'window' });
-  await project.opening(ground, [7500, 0], [7500, 4500], 2250, { kind: 'window', width: 600, height: 600, sill: 1500 });
+  await project.opening(ground, [9500, 0], [9500, 4500], 2250, { kind: 'window', width: 600, height: 600, sill: 1500 });
   await wait(300);
   await shots.take('openings', 'center');
-  const frontDoor = project.openings(ground).find((o) => o.kind === 'door' && Math.abs(o.along - 2500) < 1)!;
-  await clickWorld(smoke, [2500, 0]);
+  const frontDoor = project.openings(ground).find((o) => o.kind === 'door' && Math.abs(o.along - 3500) < 1)!;
+  await clickWorld(smoke, [3500, 0]);
   smoke.check('a click on the door selects it before its wall', await smoke.until(async () => (await canvasAttr(smoke, 'selection')) === frontDoor.id, 3000), await canvasAttr(smoke, 'selection'));
   await wait(250);
   await shots.take('door-properties', 'center+right');
@@ -567,10 +628,10 @@ async function practice(smoke: Smoke, shots: Shots, lang: Lang): Promise<string>
   await toSelect(smoke);
   const mainRoom = project.entities(ground).find((e) => e.type === 'room')!;
   await project.run('plan.entity.update', { id: mainRoom.id, set: { name: text.living } });
-  const bath = await project.room(ground, [6500, 2250], text.bathroom);
-  await project.run('plan.dimension.add', { levelId: ground, kind: 'horizontal', from: [0, 0], to: [5500, 0], offset: -900 });
-  await project.run('plan.dimension.add', { levelId: ground, kind: 'horizontal', from: [5500, 0], to: [7500, 0], offset: -900 });
-  await project.run('plan.dimension.add', { levelId: ground, kind: 'vertical', from: [7500, 0], to: [7500, 4500], offset: 900 });
+  const bath = await project.room(ground, [8500, 2250], text.bathroom);
+  await project.run('plan.dimension.add', { levelId: ground, kind: 'horizontal', from: [0, 0], to: [7500, 0], offset: -900 });
+  await project.run('plan.dimension.add', { levelId: ground, kind: 'horizontal', from: [7500, 0], to: [9500, 0], offset: -900 });
+  await project.run('plan.dimension.add', { levelId: ground, kind: 'vertical', from: [9500, 0], to: [9500, 4500], offset: 900 });
   // A detected room is picked near its seed, where it was clicked.
   await clickWorld(smoke, [1350, 2050]);
   smoke.check('a click in the room selects it', await smoke.until(async () => (await canvasAttr(smoke, 'selection')) === mainRoom.id, 3000), await canvasAttr(smoke, 'selection'));
@@ -582,19 +643,19 @@ async function practice(smoke: Smoke, shots: Shots, lang: Lang): Promise<string>
   // A room divider where no wall stands: the kitchen keeps the side next to the bathroom's pipes.
   await pick(smoke, 'S', 'separator');
   // Clicked on the walls themselves, as the lesson says, so the line leaves no gap at either end.
-  await clickWorld(smoke, [2950, 0]);
-  await hover(smoke, [2950, 4500]);
+  await clickWorld(smoke, [3950, 0]);
+  await hover(smoke, [3950, 4500]);
   await wait(250);
   await shots.take('divider-tool', 'center');
-  await clickWorld(smoke, [2950, 4500]);
+  await clickWorld(smoke, [3950, 4500]);
   await focusCanvas(smoke);
   await smoke.key('Return');
   smoke.check('two clicks and Enter make a room divider', await smoke.until(() => project.count(ground, 'separator') === 1, 4000));
   await toSelect(smoke);
   const divider = project.entities(ground).find((e) => e.type === 'separator') as Extract<Entity, { type: 'separator' }>;
   console.log(`the divider: ${divider.path.v.map((v) => v.p.join(',')).join(' > ')}`);
-  smoke.check('the divider stands upright where it was clicked', Math.abs(divider.path.v[0].p[0] - divider.path.v[1].p[0]) < 0.01 && Math.abs(divider.path.v[0].p[0] - 2950) < 15, divider.path.v);
-  const kitchen = await project.room(ground, [4200, 1800], text.kitchen);
+  smoke.check('the divider stands upright where it was clicked', Math.abs(divider.path.v[0].p[0] - divider.path.v[1].p[0]) < 0.01 && Math.abs(divider.path.v[0].p[0] - 3950) < 15, divider.path.v);
+  const kitchen = await project.room(ground, [5600, 1800], text.kitchen);
   await wait(300);
   await shots.take('zones', 'center');
   const zoned = await project.run<{ name: string; enclosed: boolean; area: number }[]>('plan.rooms', { levelId: ground });
@@ -607,9 +668,9 @@ async function practice(smoke: Smoke, shots: Shots, lang: Lang): Promise<string>
   await smoke.fill(`${tab} [data-testid=shape-kind]`, 'slab');
   await wait(200);
   await clickWorld(smoke, [0, 0]);
-  await hover(smoke, [7500, 4500]);
+  await hover(smoke, [9500, 4500]);
   await shots.take('slab-tool', 'center');
-  await clickWorld(smoke, [7500, 4500]);
+  await clickWorld(smoke, [9500, 4500]);
   smoke.check('the rectangle makes the floor slab', await smoke.until(() => project.count(ground, 'slab') === 1, 4000));
   await smoke.fill(`${tab} [data-testid=shape-kind]`, 'shape');
   await toSelect(smoke);
@@ -623,8 +684,8 @@ async function practice(smoke: Smoke, shots: Shots, lang: Lang): Promise<string>
   await shots.take('levels', 'left');
   // Upstairs is a bedroom: no front door (it becomes a window), no divider, one room.
   await showLevel(smoke, upper, text.firstFloor);
-  const copyDoor = project.openings(upper).find((o) => o.kind === 'door' && Math.abs(o.along - 2500) < 1)!;
-  await clickWorld(smoke, [2500, 0]);
+  const copyDoor = project.openings(upper).find((o) => o.kind === 'door' && Math.abs(o.along - 3500) < 1)!;
+  await clickWorld(smoke, [3500, 0]);
   smoke.check('a click selects the copied front door upstairs', await smoke.until(async () => (await canvasAttr(smoke, 'selection')) === copyDoor.id, 3000), await canvasAttr(smoke, 'selection'));
   await smoke.fill(`${tab} [data-testid=prop-kind]`, 'window');
   smoke.check('Kind: Window turns the door into a window', await smoke.until(() => project.openings(upper).find((o) => o.id === copyDoor.id)?.kind === 'window', 3000));
@@ -634,29 +695,31 @@ async function practice(smoke: Smoke, shots: Shots, lang: Lang): Promise<string>
   await project.run('plan.entity.delete', { ids: upstairs.filter((e) => e.type === 'separator' || (e.type === 'room' && e.name === text.kitchen)).map((e) => e.id) });
   const upperLiving = upstairs.find((e) => e.type === 'room' && e.name === text.living);
   if (upperLiving) await project.run('plan.entity.update', { id: upperLiving.id, set: { name: text.bedroom } });
-  // The stair, inside along the back wall: a click at its foot, then a length typed towards the far end.
+  // The limits first (Settings > Rules), then the stair, inside along the back wall: a click at its foot, then a length typed towards the far end.
   await showLevel(smoke, ground, groundName);
+  await stairLimits(smoke, shots, project.id);
+  await frame(smoke, house);
   await pick(smoke, 'S', 'stair', true);
   await smoke.fill(`${tab} [data-testid=stair-shape]`, 'straight');
   await typeInto(smoke, `${tab} [data-testid=stair-width]`, '1000');
   await focusCanvas(smoke);
-  await clickWorld(smoke, [4750, 3900], ['alt']);
-  await hover(smoke, [3000, 3900]);
+  await clickWorld(smoke, [6150, 3900], ['alt']);
+  await hover(smoke, [4400, 3900]);
   await wait(300);
-  await smoke.key('3');
-  await smoke.typeText('750');
+  await smoke.key('4');
+  await smoke.typeText('760');
   await shots.take('stair-tool', 'center');
   await smoke.key('Return');
   smoke.check('a click and a typed length make the stair', await smoke.until(() => Object.keys(project.doc().connectors).length === 1, 4000));
   await toSelect(smoke);
   const stair = Object.values(project.doc().connectors)[0] as { id: string; axis?: { v: { p: P }[] } };
   console.log(`the practice stair's walk line: ${stair.axis?.v.map((v) => v.p.join(',')).join(' > ')}`);
-  smoke.check('the stair runs 3750 from where it was clicked, along the wall', Boolean(stair.axis && near(stair.axis.v[0].p, [4750, 3900], 15) && Math.abs(dist(stair.axis.v[0].p, stair.axis.v[1].p) - 3750) < 0.01 && Math.abs(stair.axis.v[0].p[1] - stair.axis.v[1].p[1]) < 0.01), stair.axis?.v);
+  smoke.check('the stair runs 4760 from where it was clicked, along the wall', Boolean(stair.axis && near(stair.axis.v[0].p, [6150, 3900], 15) && Math.abs(dist(stair.axis.v[0].p, stair.axis.v[1].p) - 4760) < 0.01 && Math.abs(stair.axis.v[0].p[1] - stair.axis.v[1].p[1]) < 0.01), stair.axis?.v);
   // Where the lesson says to nudge it into place with the arrow keys, the script sets it exactly.
-  if (stair.axis && !near(stair.axis.v[0].p, [4750, 3900])) await project.run('plan.transform', { ids: [stair.id], translate: [4750 - stair.axis.v[0].p[0], 3900 - stair.axis.v[0].p[1]] });
+  if (stair.axis && !near(stair.axis.v[0].p, [6150, 3900])) await project.run('plan.transform', { ids: [stair.id], translate: [6150 - stair.axis.v[0].p[0], 3900 - stair.axis.v[0].p[1]] });
   const built = await project.run<{ connectors: { derived: { risers?: number; riserHeight?: number; treadDepth?: number; broken?: unknown[] } }[] }>('building.get');
   console.log(`the practice stair: ${JSON.stringify(built.connectors[0]?.derived)}`);
-  smoke.check('the practice stair breaks no rule', (built.connectors[0]?.derived.broken?.length ?? 1) === 0, built.connectors[0]?.derived);
+  smoke.check('the practice stair breaks no rule: 18 risers, treads of 280', (built.connectors[0]?.derived.broken?.length ?? 1) === 0 && built.connectors[0]?.derived.risers === 18 && Math.abs((built.connectors[0]?.derived.treadDepth ?? 0) - 280) < 0.01, built.connectors[0]?.derived);
   await wait(300);
   await shots.take('stair-plan', 'center');
   await centerTab(smoke, 'section');
@@ -695,12 +758,13 @@ async function practice(smoke: Smoke, shots: Shots, lang: Lang): Promise<string>
   await project.item(ground, 'coffee-table', [1700, 2250], 90);
   await project.item(ground, 'armchair', [1600, 800], 180);
   await project.item(ground, 'floor-lamp', [350, 3150], 0, { withLight: true });
-  await project.item(ground, 'sink-unit', [3550, 400], 180);
-  await project.item(ground, 'cooker', [4450, 400], 180);
-  await project.item(ground, 'fridge', [5100, 450], 180);
-  await project.item(ground, 'toilet', [7050, 3000], 270);
-  await project.item(ground, 'washbasin', [7175, 1000], 270);
-  await project.item(ground, 'shower', [6950, 3950], 0);
+  await project.item(ground, 'fridge', [4400, 450], 180);
+  await project.item(ground, 'sink-unit', [5400, 400], 180);
+  await project.item(ground, 'cooker', [6300, 400], 180);
+  await project.item(ground, 'base-cabinet', [6900, 400], 180);
+  await project.item(ground, 'toilet', [9050, 3000], 270);
+  await project.item(ground, 'washbasin', [9175, 1000], 270);
+  await project.item(ground, 'shower', [8950, 3950], 0);
   await smoke.click(`${tab} [data-testid=catalog-category][data-category=living]`);
   await rightTab(smoke, 'properties');
   await clickWorld(smoke, [550, 2250]);
@@ -728,9 +792,12 @@ async function practice(smoke: Smoke, shots: Shots, lang: Lang): Promise<string>
   await project.finish(bath, 'walls', 'tile-subway');
   await project.finish(mainRoom.id, 'walls', 'paint-warm-grey');
   await project.finish(kitchen, 'walls', 'paint-sage');
-  await project.light(ground, [1500, 1700]);
-  await project.light(ground, [4200, 1700], 1000);
-  await project.light(ground, [6500, 2250], 800);
+  // Lumens by the lesson's rule: 100 to 150 a square metre where people sit, about 300 where they work or wash.
+  await project.light(ground, [2000, 1900], 1200);
+  await project.light(ground, [5700, 2100], 2200);
+  await project.light(ground, [5700, 600], 2200);
+  await project.light(ground, [8500, 2600], 1600);
+  await project.light(ground, [9000, 1000], 800);
   await centerTab(smoke, '3d');
   await sceneMode(smoke, 'cutaway', ground);
   await scenePreset(smoke, 'iso');
@@ -875,12 +942,13 @@ async function building(smoke: Smoke, shots: Shots, lang: Lang, tmp: string): Pr
   await project.opening(ground, [5700, 5500], [5700, 7000], 750, { kind: 'door', side: 'right' });
   await project.opening(ground, [3800, 7000], [5700, 7000], 950, { kind: 'door', width: 800, side: 'left' });
   await project.opening(ground, [0, 0], [3800, 0], 1900, { kind: 'window' });
-  await project.opening(ground, [3800, 0], [9000, 0], 2600, { kind: 'window', width: 2000 });
-  await project.opening(ground, [0, 10000], [0, 5500], 2250, { kind: 'window' });
+  await project.opening(ground, [3800, 0], [9000, 0], 2600, { kind: 'window', width: 3000 });
+  await project.opening(ground, [0, 10000], [0, 5500], 2250, { kind: 'window', width: 1800 });
   await project.opening(ground, [0, 5500], [0, 0], 2750, { kind: 'window' });
-  await project.opening(ground, [9000, 10000], [5700, 10000], 1650, { kind: 'window' });
+  await project.opening(ground, [9000, 10000], [5700, 10000], 1650, { kind: 'window', width: 1800 });
   await project.opening(ground, [5700, 10000], [3800, 10000], 950, { kind: 'window', width: 600, height: 600, sill: 1500 });
-  await project.opening(ground, [12000, 10000], [9000, 10000], 1500, { kind: 'window' });
+  // The stair hall's window sits above the half-landing that will stand against this wall, 1500 up: its sill is 900 above that.
+  await project.opening(ground, [12000, 10000], [9000, 10000], 1500, { kind: 'window', width: 2000, height: 400, sill: 2400 });
   await wait(300);
   await shots.take('b-openings', 'center');
 
@@ -944,11 +1012,16 @@ async function building(smoke: Smoke, shots: Shots, lang: Lang, tmp: string): Pr
   await project.finish(bath, 'walls', 'tile-subway');
   await project.finish(living, 'walls', 'paint-warm-grey');
   await project.finish(bed1, 'walls', 'paint-sage');
-  await project.light(ground, [6400, 2800]);
-  await project.light(ground, [1900, 7400], 1000);
-  await project.light(ground, [7350, 7400], 1000);
-  await project.light(ground, [4750, 8300], 800);
-  await project.light(ground, [4750, 6250], 600);
+  // Lumens by lesson 8's rule: the living room 3600 with its floor lamp (27 m²), the kitchen 5800 with its pendant (19.5 m²), one of them over the counter.
+  await project.light(ground, [5300, 2800], 1200);
+  await project.light(ground, [7600, 2800], 1200);
+  await project.light(ground, [2300, 4000], 2500);
+  await project.light(ground, [800, 3300], 2500);
+  await project.light(ground, [1900, 7400], 2000);
+  await project.light(ground, [7350, 7400], 1600);
+  await project.light(ground, [4750, 8300], 1000);
+  await project.light(ground, [5300, 8200], 600);
+  await project.light(ground, [4750, 6250], 400);
   await wait(400);
   await shots.take('b-furnished', 'center');
 
@@ -969,9 +1042,9 @@ async function building(smoke: Smoke, shots: Shots, lang: Lang, tmp: string): Pr
     await smoke.mouseUp(to.x, to.y);
     await wait(250);
   }
-  // 9 inner walls and the stair hall's 2, their 6 doors, the 6 rooms, the furniture and the lights; the box also reaches the apartment's 6 windows,
-  // which stay where they are (a window is only copied with its wall): the footer counts them all.
-  const expected = 11 + 6 + 6 + before.rooms + before.items + before.lights;
+  // 9 inner walls and the stair hall's 2, their 6 doors, the 6 rooms, the furniture and the lights; the box also reaches the apartment's 6 windows
+  // and the stair hall's wide one, which stay where they are (a window is only copied with its wall): the footer counts them all.
+  const expected = 11 + 6 + 7 + before.rooms + before.items + before.lights;
   const selected = Number(/\d+/.exec((await smoke.text(`${tab} [data-testid=plan-selection]`)) ?? '')?.[0] ?? 0);
   smoke.check('the crossing box takes the apartment and none of the outer walls', selected === expected, { selected, expected });
   await focusCanvas(smoke);
@@ -1015,15 +1088,16 @@ async function building(smoke: Smoke, shots: Shots, lang: Lang, tmp: string): Pr
   smoke.check('the doors came with their walls, the entrance too', project.openings(ground).length === before.openings + 6, { openings: project.openings(ground).length, before: before.openings });
   smoke.check('and the lights', project.count(ground, 'light') === before.lights * 2, project.count(ground, 'light'));
   // The second apartment's windows sit in the long outer walls: placed by hand, as the first one's were.
-  await project.opening(ground, [12000, 0], [21000, 0], 2600, { kind: 'window', width: 2000 });
+  await project.opening(ground, [12000, 0], [21000, 0], 2600, { kind: 'window', width: 3000 });
   await project.opening(ground, [12000, 0], [21000, 0], 7100, { kind: 'window' });
   await project.opening(ground, [21000, 0], [21000, 10000], 2750, { kind: 'window' });
-  await project.opening(ground, [21000, 0], [21000, 10000], 7750, { kind: 'window' });
+  await project.opening(ground, [21000, 0], [21000, 10000], 7750, { kind: 'window', width: 1800 });
   await project.opening(ground, [21000, 10000], [12000, 10000], 4750, { kind: 'window', width: 600, height: 600, sill: 1500 });
-  await project.opening(ground, [21000, 10000], [12000, 10000], 7350, { kind: 'window' });
+  await project.opening(ground, [21000, 10000], [12000, 10000], 7350, { kind: 'window', width: 1800 });
   const entranceHall = await project.room(ground, [10500, 2500], text.entrance);
   await project.finish(entranceHall, 'floor', 'polished-concrete');
-  await project.light(ground, [10500, 2500], 1000);
+  await project.light(ground, [10500, 1800], 1500);
+  await project.light(ground, [10500, 5000], 1500);
   const mirrored = await project.run<{ name: string; enclosed: boolean }[]>('plan.rooms', { levelId: ground });
   smoke.check('all thirteen rooms are enclosed', mirrored.length === 13 && mirrored.every((r) => r.enclosed), mirrored.filter((r) => !r.enclosed).map((r) => r.name));
   await wait(400);
@@ -1035,6 +1109,17 @@ async function building(smoke: Smoke, shots: Shots, lang: Lang, tmp: string): Pr
   await wait(400);
   await shots.take('b-snapshots', 'right');
   await rightTab(smoke, 'properties');
+  // The structure: a column where the main wall lines cross, six lines along the building and three across. No slab spans more than 5.5 m.
+  await columns(
+    smoke,
+    project,
+    ground,
+    [0, 3800, 9000, 12000, 17200, 21000].flatMap((x) => [0, 5500, 10000].map((y): P => [x, y])),
+  );
+  await hover(smoke, [10500, 3000]);
+  await wait(300);
+  await shots.take('b-columns', 'center');
+  await toSelect(smoke);
   await pick(smoke, 'K', 'rectangle');
   await smoke.fill(`${tab} [data-testid=shape-kind]`, 'slab');
   await wait(200);
@@ -1070,7 +1155,7 @@ async function building(smoke: Smoke, shots: Shots, lang: Lang, tmp: string): Pr
   await smoke.fill(`${tab} [data-testid=stair-turn]`, 'right');
   await focusCanvas(smoke);
   await wait(200);
-  await clickWorld(smoke, [9900, 6950]);
+  await clickWorld(smoke, [9900, 6400]);
   await hover(smoke, [9900, 8400]);
   await wait(300);
   await shots.take('b-stair-tool', 'center');
@@ -1079,12 +1164,13 @@ async function building(smoke: Smoke, shots: Shots, lang: Lang, tmp: string): Pr
   await toSelect(smoke);
   const stair = Object.values(project.doc().connectors)[0] as { id: string; axis?: { v: { p: P }[] } };
   console.log(`the stair's walk line: ${stair.axis?.v.map((v) => v.p.join(',')).join(' > ')}`);
-  smoke.check('the stair starts where it was clicked (on the 100 mm grid)', Boolean(stair.axis && near(stair.axis.v[0].p, [9900, 6950], 60)), stair.axis?.v[0]);
+  smoke.check('the stair starts where it was clicked (on the 100 mm grid)', Boolean(stair.axis && near(stair.axis.v[0].p, [9900, 6400], 60)), stair.axis?.v[0]);
   // Where the lesson says to nudge it into place with the arrow keys, the script sets it exactly.
-  if (stair.axis && !near(stair.axis.v[0].p, [9900, 6950])) await project.run('plan.transform', { ids: [stair.id], translate: [9900 - stair.axis.v[0].p[0], 6950 - stair.axis.v[0].p[1]] });
+  // Nine risers, the half-landing and nine more: 8 treads of 292 and a landing of 1200 end at the wall's inner face (9900) from 6364.
+  if (stair.axis && !near(stair.axis.v[0].p, [9900, 6364])) await project.run('plan.transform', { ids: [stair.id], translate: [9900 - stair.axis.v[0].p[0], 6364 - stair.axis.v[0].p[1]] });
   const got = await project.run<{ connectors: { derived: { risers?: number; riserHeight?: number; treadDepth?: number; flights?: unknown; broken?: unknown[]; cuts?: string[] } }[] }>('building.get');
   console.log(`the stair: ${JSON.stringify(got.connectors[0]?.derived)}`);
-  smoke.check('the stair breaks no rule and cuts the first floor', (got.connectors[0]?.derived.broken?.length ?? 1) === 0 && got.connectors[0]?.derived.cuts?.join() === upper, got.connectors[0]?.derived);
+  smoke.check('the stair breaks no rule, has 18 risers and cuts the first floor', (got.connectors[0]?.derived.broken?.length ?? 1) === 0 && got.connectors[0]?.derived.risers === 18 && got.connectors[0]?.derived.cuts?.join() === upper, got.connectors[0]?.derived);
   await shots.take('b-stair-plan', 'center');
   await frame(smoke, whole);
   await showLevel(smoke, upper, text.firstFloor);
@@ -1193,6 +1279,348 @@ async function building(smoke: Smoke, shots: Shots, lang: Lang, tmp: string): Pr
   return project.id;
 }
 
+// ---------- part 3: the villa ----------
+
+/**
+ * A two-storey family villa of 12 × 10 m, planned the way a Saudi home is: guests come in at the front to
+ * an entrance of their own, the majlis and a washroom; the family's rooms lie behind a thick wall with
+ * their own door at the side; the bedrooms are upstairs. Lessons 19 to 21.
+ */
+async function villa(smoke: Smoke, shots: Shots, lang: Lang, tmp: string): Promise<string> {
+  const text = TEXT[lang];
+  smoke.section(`${lang}: lesson 19, the villa's walls`);
+  const created = await smoke.run<{ id: string }>('project.create', { name: text.villa });
+  const project = new Project(smoke, created.id);
+  const ground = project.ground;
+  smoke.check('the villa project opens in its tab', await openProjectTab(smoke, project.id));
+  await centerTab(smoke, 'plan');
+  await rightTab(smoke, 'properties');
+  const whole = [-900, -900, 12900, 10900] as const;
+  await frame(smoke, whole);
+  await pick(smoke, 'W', 'wall');
+  await wallThickness(smoke, 200);
+  // The outline with its stops: 5000 + 2000 + 5000 along the front, 5500 + 4500 up, 5000 + 3500 + 3500 back, 4500 down, and closed.
+  await drawRun(
+    smoke,
+    project,
+    ground,
+    [0, 0],
+    [
+      [5000, 0, 'type'],
+      [2000, 0, 'type'],
+      [5000, 0, 'type'],
+      [0, 5500, 'type'],
+      [0, 4500, 'type'],
+      [-5000, 0, 'type'],
+      [-3500, 0, 'type'],
+      [-3500, 0, 'type'],
+      [0, -4500, 'type'],
+    ],
+    true,
+    undefined,
+    30,
+  );
+  await project.normalise(ground);
+  smoke.check('the outline is ten walls', project.walls(ground).length === 10, project.walls(ground).length);
+  // Run 1, the privacy wall between the guests and the family, as thick as an outer wall.
+  await drawRun(
+    smoke,
+    project,
+    ground,
+    [0, 5500],
+    [
+      [3500, 0, 'type'],
+      [1500, 0, 'type'],
+      [2000, 0, 'type'],
+    ],
+    false,
+  );
+  await wallThickness(smoke, 100);
+  // Run 2, the long wall from front to back, through the end of run 1.
+  await drawRun(
+    smoke,
+    project,
+    ground,
+    [7000, 0],
+    [
+      [0, 2500, 'type'],
+      [0, 3000, 'click'],
+      [0, 4500, 'click'],
+    ],
+    false,
+  );
+  // Run 3, the majlis wall; run 4, between the entrance and the washroom; run 5, between the kitchen and the stair hall.
+  await drawRun(
+    smoke,
+    project,
+    ground,
+    [5000, 0],
+    [
+      [0, 2500, 'type'],
+      [0, 3000, 'click'],
+    ],
+    false,
+  );
+  await drawRun(smoke, project, ground, [5000, 2500], [[2000, 0, 'click']], false);
+  await drawRun(smoke, project, ground, [7000, 5500], [[5000, 0, 'click']], false);
+  await wallThickness(smoke, 200);
+  await toSelect(smoke);
+  smoke.check('the villa has its ten inner walls, three of them thick', project.walls(ground).length === 20 && project.walls(ground).filter((w) => w.thickness === 100).length === 7, project.walls(ground).length);
+  await shots.take('v-walls', 'center');
+
+  smoke.section(`${lang}: lesson 20, openings, columns and the first floor`);
+  await pick(smoke, 'D', 'door');
+  await typeInto(smoke, `${tab} [data-testid=door-width]`, '1200');
+  await focusCanvas(smoke);
+  await hover(smoke, [6000, 0]);
+  await wait(250);
+  await typeAtCursor(smoke, '1000');
+  smoke.check("the guests' door is in the middle of its 2000 piece", await smoke.until(() => project.openings(ground).some((o) => o.kind === 'door' && o.width === 1200 && Math.abs(o.along - 1000) < 1e-6), 4000), project.openings(ground));
+  await typeInto(smoke, `${tab} [data-testid=door-width]`, '900');
+  await toSelect(smoke);
+  const guestDoor = project.openings(ground).find((o) => o.kind === 'door' && o.width === 1200)!;
+  await project.run('plan.entity.update', { id: guestDoor.id, set: { swing: { hinge: 'start', side: 'left' } } });
+  await project.opening(ground, [5000, 0], [5000, 2500], 1250, { kind: 'door', width: 1000, side: 'left' });
+  await project.opening(ground, [7000, 0], [7000, 2500], 1250, { kind: 'door', side: 'right' });
+  await project.opening(ground, [5000, 2500], [7000, 2500], 1000, { kind: 'door', width: 800, side: 'left' });
+  await project.opening(ground, [3500, 5500], [5000, 5500], 750, { kind: 'door', side: 'left' });
+  await project.opening(ground, [7000, 5500], [12000, 5500], 700, { kind: 'door', side: 'right' });
+  await project.opening(ground, [7000, 5500], [7000, 10000], 800, { kind: 'door', width: 1000, side: 'left' });
+  await project.opening(ground, [12000, 5500], [12000, 10000], 800, { kind: 'door', width: 1000, side: 'left' });
+  await project.opening(ground, [0, 0], [5000, 0], 2500, { kind: 'window', width: 1800 });
+  await project.opening(ground, [0, 5500], [0, 0], 2750, { kind: 'window', width: 1800 });
+  await project.opening(ground, [7000, 0], [12000, 0], 2500, { kind: 'window', width: 1800 });
+  await project.opening(ground, [12000, 0], [12000, 5500], 2750, { kind: 'window' });
+  await project.opening(ground, [0, 10000], [0, 5500], 2250, { kind: 'window', width: 1800 });
+  await project.opening(ground, [3500, 10000], [0, 10000], 1750, { kind: 'window', width: 1800 });
+  await project.opening(ground, [7000, 10000], [3500, 10000], 1750, { kind: 'window', width: 1800 });
+  await project.opening(ground, [12000, 10000], [7000, 10000], 4200, { kind: 'window' });
+  await wait(300);
+  await shots.take('v-openings', 'center');
+  // The structure: the four corners, the six stops of the outline and the two points where runs 2 and 3 meet the thick wall. No span over 5.5 m.
+  await columns(smoke, project, ground, [
+    [0, 0],
+    [5000, 0],
+    [7000, 0],
+    [12000, 0],
+    [12000, 5500],
+    [12000, 10000],
+    [7000, 10000],
+    [3500, 10000],
+    [0, 10000],
+    [0, 5500],
+    [5000, 5500],
+    [7000, 5500],
+  ]);
+  await hover(smoke, [9500, 2500]);
+  await wait(300);
+  await shots.take('v-columns', 'center');
+  await toSelect(smoke);
+  await pick(smoke, 'K', 'rectangle');
+  await smoke.fill(`${tab} [data-testid=shape-kind]`, 'slab');
+  await wait(200);
+  await clickWorld(smoke, [0, 0]);
+  await clickWorld(smoke, [12000, 10000]);
+  smoke.check('the floor slab covers the villa', await smoke.until(() => project.count(ground, 'slab') === 1, 4000));
+  await smoke.fill(`${tab} [data-testid=shape-kind]`, 'shape');
+  await toSelect(smoke);
+  // The first floor is a copy made before any room is named or furnished: the walls, the openings, the columns and the slab.
+  await smoke.click(`${tab} [data-testid=level-duplicate]`);
+  smoke.check('Duplicate level makes the first floor', await smoke.until(() => Object.keys(project.doc().levels).length === 2, 8000));
+  const upper = Object.keys(project.doc().levels).find((id) => id !== ground)!;
+  await project.run('building.level.update', { levelId: upper, name: text.firstFloor });
+  const groundName = project.doc().levels[ground].name;
+  await showLevel(smoke, upper, text.firstFloor);
+  // Upstairs the guests' door becomes the small high window of the master bathroom.
+  const streetDoor = project.openings(upper).find((o) => o.kind === 'door' && o.width === 1200)!;
+  await clickWorld(smoke, [6000, 0]);
+  smoke.check("a click selects the copied guests' door upstairs", await smoke.until(async () => (await canvasAttr(smoke, 'selection')) === streetDoor.id, 3000), await canvasAttr(smoke, 'selection'));
+  await smoke.fill(`${tab} [data-testid=prop-kind]`, 'window');
+  smoke.check('Kind: Window turns the door into a window', await smoke.until(() => project.openings(upper).find((o) => o.id === streetDoor.id)?.kind === 'window', 3000));
+  await project.run('plan.entity.update', { id: streetDoor.id, set: { width: 600, height: 600, sill: 1500 } });
+  await toSelect(smoke);
+  // So does the family's door in the side wall: nobody walks out of an upstairs wall.
+  const sideWall = project.wall(upper, [12000, 5500], [12000, 10000]).wall.id;
+  const sideDoor = project.openings(upper).find((o) => o.kind === 'door' && o.wallId === sideWall)!;
+  await clickWorld(smoke, [12000, 6300]);
+  smoke.check("a click selects the copied family's door upstairs", await smoke.until(async () => (await canvasAttr(smoke, 'selection')) === sideDoor.id, 3000), await canvasAttr(smoke, 'selection'));
+  await smoke.fill(`${tab} [data-testid=prop-kind]`, 'window');
+  smoke.check("the family's door is a window upstairs", await smoke.until(() => project.openings(upper).find((o) => o.id === sideDoor.id)?.kind === 'window', 3000));
+  await project.run('plan.entity.update', { id: sideDoor.id, set: { sill: 900, height: 1200 } });
+  await toSelect(smoke);
+  // Two doors go: the one to the kitchen's place and the one between the two bathrooms.
+  const gone = [project.wall(upper, [7000, 0], [7000, 2500]).wall.id, project.wall(upper, [5000, 2500], [7000, 2500]).wall.id];
+  await project.run('plan.entity.delete', { ids: project.openings(upper).filter((o) => gone.includes(o.wallId)).map((o) => o.id) });
+  smoke.check('the first floor keeps four of the doors', project.openings(upper).filter((o) => o.kind === 'door').length === 4, project.openings(upper).filter((o) => o.kind === 'door').length);
+  // One new wall makes the third bedroom, from the stop on the back wall to the stop on the thick wall.
+  await pick(smoke, 'W', 'wall');
+  await wallThickness(smoke, 100);
+  await drawRun(smoke, project, upper, [3500, 10000], [[0, -4500, 'click']], false);
+  await wallThickness(smoke, 200);
+  await toSelect(smoke);
+  await project.opening(upper, [3500, 10000], [3500, 5500], 3800, { kind: 'door', side: 'right' });
+  await project.opening(upper, [5000, 5500], [7000, 5500], 1000, { kind: 'door', width: 800, side: 'right' });
+  // The stair, in the family's hall: a U of two flights 1000 wide along the back wall, its half-landing against the side wall.
+  await showLevel(smoke, ground, groundName);
+  await pick(smoke, 'S', 'stair', true);
+  await smoke.fill(`${tab} [data-testid=stair-shape]`, 'u');
+  await typeInto(smoke, `${tab} [data-testid=stair-width]`, '1000');
+  await smoke.fill(`${tab} [data-testid=stair-turn]`, 'left');
+  await focusCanvas(smoke);
+  await wait(200);
+  await clickWorld(smoke, [8600, 8400], ['alt']);
+  await hover(smoke, [10400, 8400], ['alt']);
+  await wait(300);
+  await clickWorld(smoke, [10400, 8400], ['alt']);
+  smoke.check('two clicks make the U stair', await smoke.until(() => Object.keys(project.doc().connectors).length === 1, 4000));
+  await toSelect(smoke);
+  const stair = Object.values(project.doc().connectors)[0] as { id: string; axis?: { v: { p: P }[] } };
+  console.log(`the villa stair's walk line: ${stair.axis?.v.map((v) => v.p.join(',')).join(' > ')}`);
+  const walk = stair.axis?.v.map((v) => v.p) ?? [];
+  smoke.check('the stair starts where it was clicked and runs to the right, turning left', walk.length === 4 && near(walk[0], [8600, 8400], 60) && Math.abs(walk[1][1] - walk[0][1]) < 60 && walk[1][0] > walk[0][0] + 2500 && walk[2][1] > walk[1][1] + 900, walk);
+  // Where the lesson says to nudge it into place, the script sets its walk line exactly: 8 treads of 292 and a landing of 1000
+  // end at the side wall's inner face (11900) from 8564, and the two flights fill 7900 to 9900 along the back wall.
+  await project.run('building.connector.update', {
+    id: stair.id,
+    set: {
+      axis: {
+        closed: false,
+        v: [{ p: [8564, 8400] }, { p: [11400, 8400] }, { p: [11400, 9400] }, { p: [8564, 9400] }],
+      },
+    },
+  });
+  const got = await project.run<{ connectors: { derived: { risers?: number; riserHeight?: number; treadDepth?: number; broken?: unknown[]; cuts?: string[] } }[] }>('building.get');
+  console.log(`the villa stair: ${JSON.stringify(got.connectors[0]?.derived)}`);
+  smoke.check('the stair breaks no rule, has 18 risers and cuts the first floor', (got.connectors[0]?.derived.broken?.length ?? 1) === 0 && got.connectors[0]?.derived.risers === 18 && got.connectors[0]?.derived.cuts?.join() === upper, got.connectors[0]?.derived);
+  // The rooms of both floors.
+  const majlis = await project.room(ground, [2500, 2750], text.majlis);
+  const entry = await project.room(ground, [6000, 1250], text.guestEntrance);
+  const wash = await project.room(ground, [6000, 4000], text.guestWash);
+  const kitchen = await project.room(ground, [9500, 2750], text.kitchen);
+  const living = await project.room(ground, [3500, 7750], text.familyLiving);
+  const stairHall = await project.room(ground, [8000, 6700], text.stairHall);
+  await project.room(upper, [2500, 2750], text.master);
+  await project.room(upper, [6000, 1250], text.masterBath);
+  await project.room(upper, [6000, 4000], text.bathroom);
+  await project.room(upper, [9500, 2750], text.bedroom2);
+  await project.room(upper, [1750, 7750], text.bedroom3);
+  await project.room(upper, [5250, 7750], text.lounge);
+  await project.room(upper, [8000, 6700], text.landing);
+  for (const [levelId, count] of [
+    [ground, 6],
+    [upper, 7],
+  ] as const) {
+    const rooms = await project.run<{ name: string; enclosed: boolean; area: number }[]>('plan.rooms', { levelId });
+    console.log(`villa rooms: ${rooms.map((r) => `${r.name} ${(r.area / 1e6).toFixed(2)} m2${r.enclosed ? '' : ' (open)'}`).join(', ')}`);
+    smoke.check(`the ${count} rooms of the level are enclosed`, rooms.length === count && rooms.every((r) => r.enclosed), rooms.map((r) => r.name));
+  }
+  await wait(300);
+  await clickWorld(smoke, [2350, 2550]);
+  smoke.check('a click in the majlis selects it', await smoke.until(async () => (await canvasAttr(smoke, 'selection')) === majlis, 3000), await canvasAttr(smoke, 'selection'));
+  await wait(300);
+  await shots.take('v-rooms', 'center+right');
+  await toSelect(smoke);
+  await showLevel(smoke, upper, text.firstFloor);
+  await wait(300);
+  await shots.take('v-first-plan', 'center');
+
+  smoke.section(`${lang}: lesson 21, the majlis, light and the roof`);
+  await showLevel(smoke, ground, groundName);
+  // The majlis: seats along the walls, the middle open.
+  await project.item(ground, 'sofa-3', [550, 1500], 90);
+  await project.item(ground, 'sofa-3', [550, 3900], 90);
+  await project.item(ground, 'sofa-3', [2300, 4950], 0);
+  await project.item(ground, 'sofa-3', [2500, 550], 180);
+  await project.item(ground, 'armchair', [4450, 2900], 270);
+  await project.item(ground, 'armchair', [4450, 3900], 270);
+  await project.item(ground, 'coffee-table', [2300, 2000], 90);
+  await project.item(ground, 'coffee-table', [2300, 3500], 90);
+  await project.item(ground, 'planter', [4550, 5000]);
+  // The guests' entrance and washroom.
+  await project.item(ground, 'washbasin', [6725, 3300], 270);
+  await project.item(ground, 'toilet', [5600, 5050], 0);
+  // The kitchen, with the family's table.
+  await project.item(ground, 'fridge', [11550, 500], 270);
+  await project.item(ground, 'sink-unit', [11600, 1500], 270);
+  await project.item(ground, 'counter-run', [11600, 3300], 270);
+  await project.item(ground, 'cooker', [11600, 4800], 270);
+  await project.item(ground, 'dining-table-6', [8900, 2500], 90);
+  for (const [x, y, r] of [
+    [8100, 2000, 90],
+    [8100, 3000, 90],
+    [9700, 2000, 270],
+    [9700, 3000, 270],
+    [8900, 1300, 180],
+    [8900, 3700, 0],
+  ] as const)
+    await project.item(ground, 'dining-chair', [x, y], r);
+  await project.item(ground, 'pendant', [8900, 2500], 0, { withLight: true });
+  // The family's living room.
+  await project.item(ground, 'tv-unit', [2200, 5850], 180);
+  await project.item(ground, 'sofa-3', [2200, 8700], 0);
+  await project.item(ground, 'sofa-2', [550, 7600], 90);
+  await project.item(ground, 'armchair', [4000, 7500], 270);
+  await project.item(ground, 'coffee-table', [2200, 7400]);
+  await project.item(ground, 'floor-lamp', [450, 9450], 0, { withLight: true });
+  await project.item(ground, 'bookshelf', [6750, 8500], 270);
+  await project.finish(majlis, 'floor', 'carpet-beige');
+  await project.finish(majlis, 'walls', 'paint-warm-grey');
+  for (const room of [entry, living, stairHall]) await project.finish(room, 'floor', 'marble');
+  await project.finish(kitchen, 'floor', 'tile-grey-large');
+  await project.finish(wash, 'floor', 'tile-white');
+  await project.finish(wash, 'walls', 'tile-subway');
+  // Lumens by lesson 8's rule: majlis 3200 (25.9 m²), kitchen 7800 with its pendant (25.9 m²), living 3600 with its floor lamp (29.8 m²).
+  await project.light(ground, [2500, 1700], 1600);
+  await project.light(ground, [2500, 3800], 1600);
+  await project.light(ground, [6000, 1250], 500);
+  await project.light(ground, [5800, 4000], 1000);
+  await project.light(ground, [6600, 3300], 600);
+  await project.light(ground, [11300, 3000], 2500);
+  await project.light(ground, [9000, 4500], 2500);
+  await project.light(ground, [9000, 900], 2000);
+  await project.light(ground, [2200, 7700], 1200);
+  await project.light(ground, [5400, 7700], 1200);
+  await project.light(ground, [8000, 6700], 1000);
+  await project.light(ground, [10500, 6700], 1000);
+  await wait(400);
+  await shots.take('v-furnished', 'center');
+  // The roof: a level on top (the plus above the list of levels) with a slab.
+  await smoke.click(`${tab} [data-testid=level-add]`);
+  smoke.check('the plus offers a level on top', await smoke.waitFor('[data-testid=level-add-top]', 3000));
+  await smoke.click('[data-testid=level-add-top]');
+  smoke.check('Level on top adds a third level', await smoke.until(() => Object.keys(project.doc().levels).length === 3, 6000));
+  const roof = Object.keys(project.doc().levels).find((id) => id !== ground && id !== upper)!;
+  await project.run('building.level.update', { levelId: roof, name: text.roof });
+  await showLevel(smoke, roof, text.roof);
+  await pick(smoke, 'K', 'rectangle');
+  await smoke.fill(`${tab} [data-testid=shape-kind]`, 'slab');
+  await wait(200);
+  await clickWorld(smoke, [0, 0]);
+  await clickWorld(smoke, [12000, 10000]);
+  smoke.check('the roof has its slab', await smoke.until(() => project.count(roof, 'slab') === 1, 4000));
+  await smoke.fill(`${tab} [data-testid=shape-kind]`, 'shape');
+  await toSelect(smoke);
+  await showLevel(smoke, ground, groundName);
+  await wait(400);
+  await shots.take('v-levels', 'left');
+  await centerTab(smoke, 'section');
+  await shots.take('v-section', 'center');
+  await centerTab(smoke, 'plan');
+  const warnings = await project.run<{ count: number; warnings: { message: string }[] }>('rules.check');
+  smoke.check('the villa has no warnings', warnings.count === 0, warnings.warnings.map((w) => w.message));
+  const render = path.join(tmp, `villa-${lang}.png`);
+  await project.run('export.image', { path: render, view: '3d', width: 2000, height: 1200, azimuth: 235, elevation: 22 });
+  await shots.keep('v-render', render, [0.17, 0.2]);
+  const cut = path.join(tmp, `villa-cut-${lang}.png`);
+  await project.run('export.image', { path: cut, view: '3d', levelId: ground, display: 'cutaway', width: 2000, height: 1200, azimuth: 250, elevation: 55 });
+  await shots.keep('v-render-cutaway', cut, [0.17, 0.2]);
+  const night = path.join(tmp, `villa-night-${lang}.png`);
+  await project.run('export.image', { path: night, view: '3d', levelId: ground, display: 'cutaway', lighting: 'night', width: 2000, height: 1200, azimuth: 250, elevation: 55 });
+  await shots.keep('v-render-night', night, [0.17, 0.2]);
+  await toSelect(smoke);
+  return project.id;
+}
+
 export async function runCourseShots(host: Host, openWindow: () => BrowserWindow, dir: string): Promise<number> {
   const smoke = new Smoke(host, undefined);
   const shots = new Shots(smoke, dir);
@@ -1211,11 +1639,15 @@ export async function runCourseShots(host: Host, openWindow: () => BrowserWindow
       shots.lang = lang;
       await setLanguage(smoke, lang);
       const ids = [await practice(smoke, shots, lang)];
-      if (process.env.COURSE_PART !== '1') ids.push(await building(smoke, shots, lang, tmp));
+      // COURSE_PART: 1 the practice house only, 13 the house and the villa, anything else all three.
+      const part = process.env.COURSE_PART;
+      if (part !== '1' && part !== '13') ids.push(await building(smoke, shots, lang, tmp));
+      // The projects page as lesson 17 shows it: the house and the apartments, before the villa is begun.
       await smoke.click('[data-testid=tab][data-type="shell.home"]');
       await smoke.waitFor('[data-testid=project-card] img', 8000);
       await wait(2200);
       await shots.take('home-projects', 'window');
+      if (part !== '1') ids.push(await villa(smoke, shots, lang, tmp));
       // The next language starts from an empty library, as a learner does.
       for (const id of ids) {
         await smoke.run('project.close', { id }).catch(() => undefined);

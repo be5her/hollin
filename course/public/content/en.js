@@ -18,6 +18,10 @@ const parts = {
     title: 'The project: four apartments',
     lead: 'A real building from an empty page: two floors, two apartments on each, a shared stair. You draw one apartment well, then let the building repeat it.',
   },
+  villa: {
+    title: 'A second project: a Saudi family villa',
+    lead: 'A home shaped by hospitality and privacy: a majlis for guests by an entrance of its own, the family\'s rooms out of sight, the bedrooms upstairs. You draw it faster, with what you know.',
+  },
   after: {
     title: 'After the course',
     lead: 'Where to take your new skill, and a word about Otto.',
@@ -119,10 +123,11 @@ const lessons = {
         kind: 'idea',
         title: 'Thick outside, thin inside',
         blocks: [
-          'A house has two kinds of wall. The <b>outer walls</b> hold the building up and keep the weather out, so they are thick: about 200 mm, often more. The <b>inner walls</b> only divide the space, so they can be thin: about 100 mm.',
+          'A house has two kinds of wall. The <b>outer walls</b> keep the weather out and, in a small house like the one you are about to draw, carry the floors and the roof as well, so they are thick: about 200 mm, often more. The <b>inner walls</b> of this house only divide the space, so they can be thin: about 100 mm.',
+          'That is the simple case, and you should know it is not the only one. In many buildings some inner walls carry weight too, and in most larger ones a frame of <b>columns and beams</b> carries everything while the walls only fill in between. You will place columns in part 2. Which wall or column carries what, and how thick it must be, is for an engineer to calculate, never to guess.',
           'A design begins with the outline: the shape of the house on the ground. Simple shapes are best. A rectangle is the cheapest shape to build, the easiest to roof and the easiest to furnish. Every corner you add costs money, so add one only when it earns its place.',
           { rule: 'Use round numbers. A wall of 4500 is easier to build, to measure and to remember than one of 4470. Keep corners at right angles unless you have a reason.' },
-          'One more habit will save you hours: <b>measure to the middle of the walls</b>. In this course a "5500 wall" runs from the middle of one wall to the middle of the next. The room inside is a little smaller: you lose half of each wall\'s thickness. Hollin works this way unless you tell it otherwise, and it shows you the real room size later.',
+          'One more habit will save you hours: <b>measure to the middle of the walls</b>. In this course a "7500 wall" runs from the middle of one wall to the middle of the next. The room inside is a little smaller: you lose half of each wall\'s thickness. Hollin works this way unless you tell it otherwise, and it shows you the real room size later.',
         ],
       },
       {
@@ -141,7 +146,7 @@ const lessons = {
           },
           { fig: 'wall-typing', cap: 'The second wall of the outline: the pointer was moved to the right, 2000 was typed. Enter draws it exactly that long.' },
           { h: 'Stops: marking where walls will meet' },
-          'Here is the trick that makes everything in this course exact. When you draw the outline, <b>stop at every place where an inner wall will meet it</b>. Instead of one wall of 7500, you type 5500 and then 2000. The house looks the same, but there is now a point 5500 along that you can click later, and Hollin will catch it exactly: a small square appears and the hint line says <i>Endpoint</i>.',
+          'Here is the trick that makes everything in this course exact. When you draw the outline, <b>stop at every place where an inner wall will meet it</b>. Instead of one wall of 9500, you type 7500 and then 2000. The house looks the same, but there is now a point 7500 along that you can click later, and Hollin will catch it exactly: a small square appears and the hint line says <i>Endpoint</i>.',
           { tip: `Hollin remembers the thickness you last used, even in another project. Before you draw, glance at ${ui('Thickness')} in the bar.` },
           {
             keys: [
@@ -161,18 +166,18 @@ const lessons = {
         kind: 'do',
         title: 'Draw the house',
         blocks: [
-          'The practice house is 7.5 m by 4.5 m, with a bathroom across its right-hand end. Follow the numbers on the drawing: start at the dot, go round against the clock.',
+          'The practice house is 9.5 m by 4.5 m, with a bathroom across its right-hand end. Follow the numbers on the drawing: start at the dot, go round against the clock.',
           { draw: 'house-outline', words: { start: 'start here', close: 'click the start to close', later: 'the bathroom wall, next' }, cap: 'The outline in one run. The circles are stops: the two on the long sides are where the bathroom wall will stand.' },
           {
             steps: [
               `Press ${k('W')}. In the bar under the tools, check that ${ui('Thickness')} says 200 mm. If not, click it, type ${n('200')} and press ${k('Enter')}.`,
               'Click once in the lower left part of the drawing. That is the first corner of the house.',
-              { t: 'Move the pointer to the right, away from the corner. Type the length of the first piece and press Enter. Leave the pointer where it is, type the second piece and press Enter.', typed: ['5500', '2000'], sub: 'You stopped at 5500 because the bathroom wall will start there.' },
+              { t: 'Move the pointer to the right, away from the corner. Type the length of the first piece and press Enter. Leave the pointer where it is, type the second piece and press Enter.', typed: ['7500', '2000'], sub: 'You stopped at 7500 because the bathroom wall will start there.' },
               { t: 'Move the pointer up. Type and press Enter.', typed: ['4500'] },
-              { t: 'Move the pointer to the left. Two pieces again: the stop for the bathroom wall, then the rest.', typed: ['2000', '5500'] },
+              { t: 'Move the pointer to the left. Two pieces again: the stop for the bathroom wall, then the rest.', typed: ['2000', '7500'] },
               { t: 'Move the pointer down to the very first corner. When the small square appears on it, click. The outline closes. Press <kbd>Esc</kbd>.', fig: 'walls-outline', cap: 'Six walls, joined at their corners. The joints at the stops are invisible, but they are there.' },
               `Now the bathroom wall, a thin one. Press ${k('W')}, click ${ui('Thickness')}, type ${n('100')} and press ${k('Enter')}.`,
-              `Move to the stop on the bottom wall, 5500 from the left. When the square appears, click. Move straight up to the stop on the top wall, and click when its square appears. Press ${k('Enter')} to end the run, then ${k('Esc')}.`,
+              `Move to the stop on the bottom wall, 7500 from the left. When the square appears, click. Move straight up to the stop on the top wall, and click when its square appears. Press ${k('Enter')} to end the run, then ${k('Esc')}.`,
               { t: `Click the new wall. The ${ui('Properties')} panel on the right shows its numbers: thickness 100, length 4500. You can change any of them there.`, fig: 'wall-properties', cap: 'A selected wall and its numbers. The little squares on it are grips: drag one to move that end.' },
               `Set the thickness back for next time: press ${k('W')}, type ${n('200')} in ${ui('Thickness')}, ${k('Enter')}, then ${k('Esc')}.`,
             ],
@@ -182,7 +187,7 @@ const lessons = {
       },
       {
         kind: 'check',
-        blocks: [{ check: ['Your house is a closed rectangle with one thin wall across it.', 'Clicking the thin wall shows a length of exactly 4500 mm.', 'You can explain why you typed 5500 and 2000 instead of 7500.'] }],
+        blocks: [{ check: ['Your house is a closed rectangle with one thin wall across it.', 'Clicking the thin wall shows a length of exactly 4500 mm.', 'You can explain why you typed 7500 and 2000 instead of 9500.'] }],
       },
     ],
   },
@@ -203,7 +208,7 @@ const lessons = {
           {
             ul: ['Put a door <b>near a corner</b>, about 10 to 20 cm from the side wall, so the leaf folds back against that wall.', 'A door opens <b>into the room</b> it serves, not into a corridor where it would hit people passing.', 'A front door opens <b>inwards</b>.', 'Two doors should not hit each other, and no door should hide a light switch or block a wardrobe.'],
           },
-          { table: { head: ['Door', 'Width', 'Why'], rows: [['Front door', '<span class="num">1000 mm</span>', 'Furniture and guests come through it'], ['Room door', '<span class="num">900 mm</span>', 'Comfortable, and wide enough for a wheelchair'], ['Bathroom door', '<span class="num">700 to 800 mm</span>', 'Small room, small door'], ['Every door', '<span class="num">2100 mm high</span>', 'The usual height']] } },
+          { table: { head: ['Door', 'Width', 'Why'], rows: [['Front door', '<span class="num">1000 mm</span>', 'Furniture and guests come through it'], ['Room door', '<span class="num">900 mm</span>', 'Comfortable, and wide enough for a wheelchair'], ['Bathroom door', '<span class="num">800 mm</span>', 'A small room, but people still have to pass'], ['Every door', '<span class="num">2100 mm high</span>', 'The usual height']] } },
           { h: 'Windows: light, air and a view' },
           'A room without a window feels like a cupboard. Every room people stay in needs daylight and fresh air; only corridors, stores and some bathrooms can do without.',
           {
@@ -212,9 +217,10 @@ const lessons = {
               'The living room gets the largest window. Bedrooms get enough to read by.',
               'Think about what the window looks at, and who can look in.',
               'Windows on two sides of a home let air blow through it on a hot evening.',
+              'A bathroom or a store with no window needs a fan that pulls its air out. Note it on your plan.',
             ],
           },
-          { rule: 'For enough daylight, the glass of a room should be at least one tenth of its floor area. A 12 m² bedroom wants 1.2 m² of window or more: one window of 1200 by 1200 does it.' },
+          { rule: 'For enough daylight, the windows of a room should add up to at least one tenth of its floor area, and more is better, because the frame takes part of every window. A 12 m² bedroom wants 1.2 m² of glass: a window of 1200 by 1200 is 1.44 m² with its frame, which is just enough.' },
         ],
       },
       {
@@ -241,9 +247,9 @@ const lessons = {
           {
             steps: [
               `Press ${k('D')}. In the bar, check that ${ui('Width')} is 900 mm.`,
-              { t: 'Move the pointer over the bottom wall, on its long piece. Type the distance and press Enter: the front door lands 2500 from the left corner.', typed: ['2500'], sub: `If its arc is outside the house, press ${k('Ctrl')}+${k('Z')}, press ${k('F')} and type the distance again.` },
+              { t: 'Move the pointer over the bottom wall, on its long piece. Type the distance and press Enter: the front door lands 3500 from the left corner.', typed: ['3500'], sub: `If its arc is outside the house, press ${k('Ctrl')}+${k('Z')}, press ${k('F')} and type the distance again.` },
               `The bathroom door is narrower: click ${ui('Width')}, type ${n('800')}, ${k('Enter')}. Move over the middle of the thin bathroom wall. Press ${k('F')} until the arc is on the bathroom side, then click.`,
-              `Now windows: press ${k('N')}. Click on the bottom wall, about halfway between the left corner and the front door. Click again on the same wall to the right of the door.`,
+              `Now windows: press ${k('N')}. Click on the bottom wall, about halfway between the left corner and the front door. Click again on the same wall, about 2 m to the right of the door: the kitchen sink will stand under that one.`,
               'Click in the middle of the left wall. Three windows so far.',
               { t: `The bathroom gets a small, high window. In the bar set ${ui('Width')} to ${n('600')}, ${ui('Height')} to ${n('600')} and ${ui('Sill')} to ${n('1500')} (press ${k('Enter')} after each). Click the middle of the right-hand wall.`, sub: `Then put the bar back to 1200, 1200 and 900 for the next window you draw.` },
               { t: `Press ${k('Esc')}. Your house now looks like this.`, fig: 'openings', cap: 'A front door, a bathroom door, three windows and a small high one. The top wall is left free on purpose: a stair will run along it.' },
@@ -278,7 +284,7 @@ const lessons = {
                 ['Living room', '<span class="num">16 to 28 m²</span>', '<span class="num">3.6 m</span>'],
                 ['Kitchen with a table', '<span class="num">10 to 20 m²</span>', '<span class="num">2.7 m</span>'],
                 ['Main bedroom', '<span class="num">12 to 16 m²</span>', '<span class="num">3.0 m</span>'],
-                ['Bedroom for one', '<span class="num">9 to 11 m²</span>', '<span class="num">2.6 m</span>'],
+                ['Bedroom for one', '<span class="num">10.5 to 12 m²</span>', '<span class="num">3.0 m</span>'],
                 ['Bathroom', '<span class="num">4 to 6 m²</span>', '<span class="num">1.6 m</span>'],
                 ['Corridor or hall', 'as little as possible', '<span class="num">1.0 to 1.2 m</span>'],
               ],
@@ -286,6 +292,7 @@ const lessons = {
           },
           'Area is only half the story. A room of 3 by 4 m and a room of 2 by 6 m are both 12 m², but the first takes a bed, a wardrobe and a desk, and the second is a corridor with a bed in it.',
           { rule: 'Keep rooms between a square and one and a half times as long as they are wide. A room 3 m wide works well up to about 4.5 m long.' },
+          'These are comfortable sizes, not legal ones. Building rules set smallest sizes of their own, and they differ from country to country; the figures in this table are at or above the ones the course was checked against.',
           'The height of a room matters too: 2.7 to 3 m from floor to ceiling feels generous in a home. You will set that in the lesson on floors.',
         ],
       },
@@ -313,19 +320,19 @@ const lessons = {
           {
             steps: [
               `Press ${k('R')}. Move into the big space, towards its left half, and click.`,
-              `Press ${k('V')} and click the room close to where you just clicked. In ${ui('Properties')}, type ${n('Living')} in ${ui('Name')} and press ${k('Enter')}. It should say about 23 m².`,
+              `Press ${k('V')} and click the room close to where you just clicked. In ${ui('Properties')}, type ${n('Living')} in ${ui('Name')} and press ${k('Enter')}. It should say about 32 m².`,
               `Press ${k('R')} again and click inside the bathroom. Name it ${n('Bathroom')} the same way: about 8 m².`,
-              `Now write the sizes on the drawing. Press ${k('L')}. Click the bottom left corner of the house, then the stop where the bathroom wall meets the bottom wall, then click a little below the house. A dimension of 5500 appears.`,
+              `Now write the sizes on the drawing. Press ${k('L')}. Click the bottom left corner of the house, then the stop where the bathroom wall meets the bottom wall, then click a little below the house. A dimension of 7500 appears.`,
               'Do the same for the bathroom: the stop, the bottom right corner, then below. And once up the right-hand side: bottom right corner, top right corner, then to the right of the house.',
               { t: `Press ${k('Esc')}, then click the living room.`, fig: 'rooms', cap: 'Two named rooms with their areas, three dimensions, and the living room\'s numbers on the right.' },
             ],
           },
-          'Compare with the table above. A living room of 23 m² is comfortable. A bathroom of 8 m² is generous: there will be room for a shower, and for a washing machine one day.',
+          'Compare with the table above. A room of 32 m² is more than a living room needs: in the next lesson part of it becomes the kitchen. A bathroom of 8 m² is generous: there will be room for a shower, and for a washing machine one day.',
         ],
       },
       {
         kind: 'check',
-        blocks: [{ check: ['Both rooms have a name and an area on the plan.', 'You can say why 3 by 4 m is a better bedroom than 2 by 6 m.', 'The dimensions read 5500, 2000 and 4500.'] }],
+        blocks: [{ check: ['Both rooms have a name and an area on the plan.', 'You can say why 3 by 4 m is a better bedroom than 2 by 6 m.', 'The dimensions read 7500, 2000 and 4500.'] }],
       },
     ],
   },
@@ -382,7 +389,7 @@ const lessons = {
             steps: [
               `Press ${k('S')}. Click on the bottom wall itself, on its dark band, just to the right of the front door.`,
               `Move straight up (the dashed guide holds you upright) to the top wall and click on its dark band. Press ${k('Enter')}, then ${k('Esc')}.`,
-              'Look at the room: the left part is still called Living, now about 12 m². The right part has no name yet.',
+              'Look at the room: the left part is still called Living, now about 17 m². The right part, about 15 m², has no name yet.',
               { t: `Press ${k('R')} and click in the right part. Press ${k('V')}, click it again and name it ${n('Kitchen')}.`, sub: 'If the names ended up the other way round, just rename both.' },
               { t: `Press ${k('Esc')}.`, fig: 'zones', cap: 'One open space, two zones. The kitchen sits against the bathroom wall, where the water is.' },
             ],
@@ -409,14 +416,17 @@ const lessons = {
         title: 'Stacking floors',
         blocks: [
           'Each floor of a building stands on a <b>slab</b>: the thick plate of concrete you walk on, which is also the ceiling of the floor below. The distance from the top of one slab to the top of the next is the <b>floor-to-floor height</b>. In a home 3 m is usual: about 2.7 m of room, and the rest is slab and floor finish.',
+          'A slab cannot bridge any distance. As a first guide, a concrete slab 200 mm thick wants a support about every 5 to 6 m: a wall that carries weight, or a beam on columns. The practice house is 4.5 m deep, so its long outer walls can carry its floor. The building of part 2 is 10 m deep, and you will give it columns.',
           {
-            ul: ['<b>Walls stand on walls.</b> The upper floor repeats the walls of the lower one wherever it can, so the weight goes straight down.', '<b>Wet rooms stack.</b> A bathroom upstairs sits over the bathroom or the kitchen downstairs: one pipe serves both.', '<b>The stair comes first.</b> It takes more room than people expect, and it must be in the same place on both floors.'],
+            ul: ['<b>Walls stand on walls, columns on columns.</b> The upper floor repeats the supports of the lower one, so the weight goes straight down.', '<b>Wet rooms stack.</b> A bathroom upstairs sits over the bathroom or the kitchen downstairs: one pipe serves both.', '<b>The stair comes first.</b> It takes more room than people expect, and it must be in the same place on both floors.'],
           },
           { h: 'A stair you can climb' },
           'Every step has a <b>riser</b>, its height, and a <b>tread</b>, the depth you put your foot on. Steep stairs have high risers and shallow treads; they save space and tire your legs.',
           { draw: 'stair', words: { riser: 'riser', tread: 'tread', rise: '3000 mm: one floor', formula: '2 × riser + tread = 60 to 65 cm' }, cap: 'A stair from the side. The rule under it is the length of a human stride.' },
-          { rule: 'A comfortable stair has risers of 15 to 19 cm and treads of 25 to 30 cm, and twice the riser plus the tread comes to between 60 and 65 cm. To climb 3 m you need 16 or 17 risers. In a straight line that stair is about 4 m long and 1 m wide: plan that space before anything else.' },
-          'The stair also needs a hole in the slab above, the <b>stairwell</b>. Hollin works out the steps and cuts the hole by itself: you draw where the stair goes, it does the arithmetic.',
+          { rule: 'A comfortable, safe stair has risers of 15 to 17 cm and treads of 28 to 30 cm, and twice the riser plus the tread comes to between 60 and 65 cm. To climb 3 m you need 18 risers. In a straight line that stair is nearly 5 m long and 1 m wide, and it needs a clear <b>landing</b> at its foot and at its top, each at least as long as the stair is wide: plan that space before anything else.' },
+          'Building rules set the limits, and they differ. Inside one home some countries accept risers of 19 or even 22 cm and treads of 22 to 25 cm; for a stair shared by several homes nearly all of them stop at 17 or 18 cm and ask for 28 cm of tread. This course uses 17 and 28 for every stair: what passes the stricter rule passes the others. Check the rule where you build.',
+          'Two more things keep a stair safe. A <b>handrail</b> 90 to 100 cm above the steps. And a <b>guard</b>, a railing or a low wall at least 90 cm high (1.1 m in a shared building), wherever someone could fall: along the open side of the stair and round the edge of the hole upstairs.',
+          `The stair also needs a hole in the slab above, the <b>stairwell</b>. Hollin works out the steps, cuts the hole and gives the stair its handrails (${ui('Handrails')} in its ${ui('Properties')}): you draw where the stair goes, it does the arithmetic. The railing round the stairwell is not drawn: it is yours to remember.`,
         ],
       },
       {
@@ -429,6 +439,9 @@ const lessons = {
           { h: 'The levels' },
           `The ${ui('Levels')} panel on the left lists the floors, the top one first. Under the list are the numbers of the floor you are on: its ${ui('Floor to floor')} height (3000 mm) and its ${ui('Slab')} (200 mm). The two small buttons below them are ${ui('Duplicate level')}, a copy of this floor stacked above it, and ${ui('Add a level above')}, an empty one.`,
           { fig: 'levels', size: 'narrow', cap: 'Two floors. Click one to work on it; double-click its name to rename it.' },
+          { h: 'The limits' },
+          `Hollin checks every stair against limits that you set once, for all your projects: the gear at the top of the window opens ${ui('Settings')}, and ${ui('Rules')} is near the bottom. ${ui('Highest riser')} and ${ui('Shallowest tread')} are the two that matter. Hollin also uses them to work out the steps of a new stair.`,
+          { fig: 'rules-settings', size: 'medium', cap: `${ui('Settings')}, ${ui('Rules')}, with the limits of this course: risers of 170 mm at most, treads of 280 mm at least.` },
           { h: 'The stair' },
           `Press ${k('Shift')}+${k('S')} for the ${ui('Stair')} tool. The bar offers its ${ui('Shape')}, its ${ui('Width')}, and the floors it joins: ${ui('From')} and ${ui('To')}. Click the foot of the stair, then its top, or type a length. Hollin shows the steps as you go and writes the number of risers on the hint line.`,
           { tip: `If a stair is too steep or too narrow, Hollin draws it in a warning colour and explains why in the ${ui('Warnings')} panel. Make it longer and the warning goes.` },
@@ -446,21 +459,22 @@ const lessons = {
               `Double-click the name of the new level in the list, type ${n('First floor')} and press ${k('Enter')}.`,
               { t: `You are now upstairs, in a copy of downstairs. It needs three small changes. Click the front door; in ${ui('Properties')} change ${ui('Kind')} to ${ui('Window')}, then set ${ui('Sill')} to ${n('900')} and ${ui('Height')} to ${n('1200')}. Nobody walks out of an upstairs wall.`, sub: 'Click the divider line and press Delete. Click the Kitchen room (near where its copy was made) and press Delete. Then rename Living to Bedroom.' },
               `Go back down: click ${ui('Ground floor')} in the ${ui('Levels')} panel.`,
+              `Set the limits first. Click the gear at the top of the window, ${ui('Settings')}, and scroll down to ${ui('Rules')}. Type ${n('170')} in ${ui('Highest riser')} and press ${k('Enter')}; type ${n('280')} in ${ui('Shallowest tread')} and press ${k('Enter')}. Then click your project's tab to come back to the drawing.`,
               `Press ${k('Shift')}+${k('S')}. In the bar: ${ui('Shape')} ${ui('straight')}, ${ui('Width')} ${n('1000')}. ${ui('From')} and ${ui('To')} already say Ground floor and First floor.`,
-              { t: 'Click inside the kitchen, near its top right corner: about 70 cm to the left of the bathroom wall and half a metre below the top wall. That is the foot of the stair. Move the pointer to the left, along the top wall, type the length and press Enter.', typed: ['3750'], fig: 'stair-tool', cap: 'A click at the foot, the pointer moved left, 3750 typed: fifteen treads of 250 mm.' },
-              { t: `Press ${k('V')} and click the stair. If it overlaps the top wall or stands away from it, nudge it with the arrow keys: each press moves it 100 mm.`, fig: 'stair-plan', cap: 'The stair along the back wall. The arrow shows the way up; the zigzag is where the plan cuts through it.' },
+              { t: 'Click inside the kitchen, near its top right corner: about 1.3 m to the left of the bathroom wall and half a metre below the top wall. That is the foot of the stair. Move the pointer to the left, along the top wall, type the length and press Enter.', typed: ['4760'], fig: 'stair-tool', cap: 'A click at the foot, the pointer moved left, 4760 typed: seventeen treads of 280 mm.' },
+              { t: `Press ${k('V')} and click the stair. If it overlaps the top wall or stands away from it, nudge it with the arrow keys: each press moves it 100 mm. Keep at least 1 m of clear floor between its foot and the bathroom wall, and between its top and the left wall: those are its landings.`, fig: 'stair-plan', cap: 'The stair along the back wall. The arrow shows the way up; the zigzag is where the plan cuts through it.' },
               { t: `Click ${ui('Section')} above the drawing.`, fig: 'section', cap: 'The building from the side: two floors of 3 m, each on its slab, and the stair.' },
               { t: `Click ${ui('3D')}. Drag to turn the house, roll the wheel to come closer.`, fig: 'view-3d', cap: 'Two storeys. The top is open so you can look in.' },
               { t: `In the bar of the 3D view, click ${ui('Cutaway')} and choose ${ui('First floor')} in the list beside it.`, fig: 'view-3d-cut', cap: 'The first floor cut open at 1.2 m, like a plan you can turn. The stair arrives through the hole Hollin cut in the slab.' },
               `Click ${ui('All')}, then ${ui('Plan')}, to go back to the drawing.`,
             ],
           },
-          { tip: 'Why 3750? Sixteen risers need fifteen treads, and 15 × 250 mm = 3750 mm. Try a shorter stair and watch the warning appear.' },
+          { tip: 'Why 4760? Eighteen risers need seventeen treads, and 17 × 280 mm = 4760 mm. Try a shorter stair and watch the warning appear.' },
         ],
       },
       {
         kind: 'check',
-        blocks: [{ check: ['The Levels panel shows First floor above Ground floor.', 'The stair shows 16 risers and no warning colour.', 'In 3D you can see the stair coming up through the first floor.'] }],
+        blocks: [{ check: ['The Levels panel shows First floor above Ground floor.', 'The stair shows 18 risers and no warning colour, with a metre of floor at each end.', 'In 3D you can see the stair coming up through the first floor.'] }],
       },
     ],
   },
@@ -523,7 +537,7 @@ const lessons = {
               `Click ${ui('Sofa, 2 seats')}. Move over the plan and press ${k('R')} six times, so its back is to the left wall. Click by the left wall, under the window. Press ${k('Esc')}.`,
               `Click ${ui('Coffee table')}, turn it the same way and put it in front of the sofa, a hand's width away. Click ${ui('Armchair')} and put it near the front window, turned to face the table.`,
               `Click ${ui('Floor lamp')}. In the bar, keep ${ui('With its light')} ticked, so the lamp will really light the room at night. Put it in the corner beside the sofa.`,
-              `Now the chip ${ui('Kitchen')}. Along the bottom wall, between the divider and the bathroom wall, place a ${ui('Sink unit')}, a ${ui('Cooker')} and a ${ui('Fridge freezer')}, side by side. Turn each with ${k('R')} twelve times first, so its front faces the room.`,
+              `Now the chip ${ui('Kitchen')}. Along the bottom wall, from the divider to the bathroom wall, place a ${ui('Fridge freezer')}, a ${ui('Sink unit')} under the window, a ${ui('Cooker')} and a ${ui('Base cabinet')}, side by side. Turn each with ${k('R')} twelve times first, so its front faces the room. The cabinet is the worktop beside the cooker: a hot pan needs somewhere to land.`,
               `The chip ${ui('Bathroom')}: a ${ui('Toilet')} and a ${ui('Washbasin')} against the right-hand wall, fronts to the room, and a ${ui('Shower')} in the top right corner.`,
               { t: `Press ${k('Esc')}, open ${ui('Properties')} and click the sofa.`, fig: 'furnished', cap: 'The ground floor furnished. A selected piece shows where it stands, its turn and its size, all of which you can type.' },
               'Check the plan like a designer. Can the front door open fully? Is there 90 cm from the door to the stair? Can you stand at the sink with the fridge door open? Move what is in the way.',
@@ -563,7 +577,7 @@ const lessons = {
           {
             ol: ['<b>General light</b> to see the whole room: a ceiling lamp.', '<b>Working light</b> where hands are busy: over the kitchen counter, at the desk, by the mirror.', '<b>Soft light</b> for the evening: a floor lamp by the sofa, a lamp by the bed.'],
           },
-          { rule: 'Light is measured in lumens. An ordinary household bulb gives about 800. A living room or bedroom wants 100 to 150 lumens for each square metre; a kitchen or bathroom about 300. A 12 m² living room: 1200 to 1800 lumens, shared between two or three lamps.' },
+          { rule: 'Light is measured in lumens. An ordinary household bulb gives about 800; a ceiling fitting with several bulbs, or an LED panel, gives 2000 or more. A living room or bedroom wants 100 to 150 lumens for each square metre, a hall or a stair about 100, a kitchen or bathroom about 300. So a 12 m² bedroom wants 1200 to 1800 lumens and a 12 m² kitchen about 3600. Add up the lamps of each room and compare.' },
         ],
       },
       {
@@ -594,7 +608,7 @@ const lessons = {
               `Click ${ui('Large grey tiles')} and then the floor of the Kitchen zone. Click ${ui('White tiles')} and then the bathroom floor. Press ${k('Esc')}.`,
               `Walls next. Press ${k('V')}, click the Bathroom room, and in ${ui('Properties')} under ${ui('Finishes')} set ${ui('Walls')} to ${ui('Subway tiles')}.`,
               `Click the Living room and set its ${ui('Walls')} to ${ui('Warm grey paint')}. Click the Kitchen and give its walls ${ui('Sage paint')}: the two zones share the space, so the last one you choose colours the walls they share.`,
-              `Lights. Press ${k('G')}. In the bar, type ${n('1200')} in ${ui('Lumens')} and click in the middle of the living zone. Change it to ${n('1000')} and click in the middle of the kitchen; ${n('800')} for the bathroom. Press ${k('Esc')}.`,
+              { t: `Lights, by the rule. Press ${k('G')}. The living zone is about 17 m² and has its floor lamp of 1200 lumens: type ${n('1200')} in ${ui('Lumens')} and click in the middle of the zone. That makes 2400.`, sub: `The kitchen zone is about 15 m² and wants about 4500: type ${n('2200')}, click in the middle of the kitchen, then click again over the counter, where hands work. The bathroom is 8 m² and wants about 2400: ${n('1600')} in the middle, then ${n('800')} over the washbasin. Press ${k('Esc')}.` },
               { t: `Click ${ui('3D')}, then ${ui('Cutaway')} with ${ui('Ground floor')} in the list.`, fig: 'finishes-3d', cap: 'The ground floor by day: timber, tiles, a painted wall, and the lower steps of the stair.' },
               { t: `Click ${ui('Night')}.`, fig: 'night-3d', cap: 'The same rooms lit only by the lights you placed. Dark corners show at once where a lamp is missing.' },
               `Click ${ui('Day')} and ${ui('All')}. Then double-click the living room floor and walk around your house. ${k('Esc')} when you have seen enough.`,
@@ -605,7 +619,7 @@ const lessons = {
       },
       {
         kind: 'check',
-        blocks: [{ check: ['Each room has a floor finish that suits its use.', 'At night every room has light, and no room is lit by a single harsh lamp where people sit.', 'You have walked from the front door up the stair.'] }],
+        blocks: [{ check: ['Each room has a floor finish that suits its use.', 'At night every room has light, and its lamps add up to what the rule asks.', 'You have walked from the front door up the stair.'] }],
       },
     ],
   },
@@ -636,6 +650,7 @@ const lessons = {
                 ['The bathroom is in the middle of the back, between the bedrooms.', 'Close to both bedrooms; one above the other on the two floors.'],
                 ['Every room except the small hall touches an outer wall.', 'Every room gets a window.'],
                 ['Long walls run straight through the apartment.', 'Simple to build, and walls stand on walls between the floors.'],
+                ['Columns stand where the main walls cross, never more than 5.5 m apart.', 'A 200 mm slab cannot bridge an apartment 9 m wide. The floors need supports.'],
               ],
             },
           },
@@ -690,6 +705,7 @@ const lessons = {
         title: 'Two kinds of inner wall',
         blocks: [
           'The wall between an apartment and the stair hall is not an ordinary inner wall. It separates a family from their neighbours and from everyone on the stair, so it must stop noise and fire. It is as thick as an outer wall: <b>200 mm</b>. The walls between the rooms of one home stay thin: <b>100 mm</b>.',
+          'None of these walls holds the building up. Columns will: you place them in lesson 15, on the points where the main walls meet, and that is one more reason to keep those walls straight and in line.',
           'Notice how few walls the apartment needs: one long wall from front to back, one from side to side, and two short ones round the bathroom. Long straight walls are quick to build and easy to furnish against. A plan full of short walls and corners is usually a plan that was not thought through.',
           { rule: 'Draw one apartment and get it right. Everything you add to it now (doors, furniture, lights) will be copied three times by the end of the course. So will every mistake.' },
         ],
@@ -747,8 +763,9 @@ const lessons = {
               'Each bedroom door opens <b>into the bedroom</b>, against a wall. The hall is too small for doors to open into it.',
             ],
           },
-          'Windows follow the rooms: the largest in the living room, an ordinary one in each bedroom, two for the long kitchen, a small high one for the bathroom. The stair hall gets a window too, at its landing: a dark stair is an unsafe stair.',
-          { table: { head: ['Opening', 'Width', 'Note'], rows: [['Building entrance', '<span class="num">1200</span>', 'everything and everyone enters here'], ['Apartment entrance', '<span class="num">1000</span>', 'sofas must pass'], ['Room doors', '<span class="num">900</span>', ''], ['Bathroom door', '<span class="num">800</span>', ''], ['Living room window', '<span class="num">2000</span>', 'the main view'], ['Other windows', '<span class="num">1200</span>', 'sill at 900'], ['Bathroom window', '<span class="num">600 × 600</span>', 'sill at 1500']] } },
+          'Windows follow the rooms and the one-tenth rule of lesson 3: 3 m of window for the 27 m² living room, 1.8 m for each bedroom, two ordinary windows for the long kitchen, a small high one for the bathroom.',
+          'The stair hall gets a window too: a dark stair is an unsafe stair. That window sits high. The half-landing of the stair will stand against its wall, 1.5 m above the floor, and a window must start about 90 cm above the floor people stand on. So its sill is at 2400, and it is a wide, low strip of glass.',
+          { table: { head: ['Opening', 'Width', 'Note'], rows: [['Building entrance', '<span class="num">1200</span>', 'everything and everyone enters here'], ['Apartment entrance', '<span class="num">1000</span>', 'sofas must pass'], ['Room doors', '<span class="num">900</span>', ''], ['Bathroom door', '<span class="num">800</span>', ''], ['Living room window', '<span class="num">3000</span>', 'the main view'], ['Bedroom windows', '<span class="num">1800</span>', 'sill at 900'], ['Kitchen windows', '<span class="num">1200</span>', 'two of them, sill at 900'], ['Bathroom window', '<span class="num">600 × 600</span>', 'sill at 1500'], ['Stair hall window', '<span class="num">2000 × 400</span>', 'sill at 2400, above the landing']] } },
         ],
       },
       {
@@ -779,11 +796,12 @@ const lessons = {
           {
             steps: [
               { t: `Press ${k('N')}. The bar should say 1200, 1200 and a sill of 900. Kitchen: on the first piece of the bottom wall (3800 long), in its middle.`, typed: ['1900'] },
-              'Three more by eye, each in the middle of its piece: the left wall beside the kitchen, the left wall beside bedroom 1, and the top wall above bedroom 2 (the 3300 piece).',
-              { t: 'The stair hall: on the 3000 piece of the top wall, in its middle.', typed: ['1500'] },
-              { t: `Living room: set ${ui('Width')} to ${n('2000')}. On the 5200 piece of the bottom wall, in its middle.`, typed: ['2600'] },
-              { t: `Bathroom: set ${ui('Width')} ${n('600')}, ${ui('Height')} ${n('600')}, ${ui('Sill')} ${n('1500')}. Click the middle of the 1900 piece of the top wall.`, sub: 'Then put the bar back to 1200, 1200 and 900.' },
-              { t: `Press ${k('Esc')}.`, fig: 'b-openings', cap: 'Apartment A with its doors and windows. Every room but the small hall has daylight.' },
+              'One more for the kitchen, by eye: the middle of the left wall beside it.',
+              `Bedrooms: set ${ui('Width')} to ${n('1800')}. Click the middle of the left wall beside bedroom 1, and the middle of the top wall above bedroom 2 (the 3300 piece).`,
+              { t: `Living room: set ${ui('Width')} to ${n('3000')}. On the 5200 piece of the bottom wall, in its middle.`, typed: ['2600'] },
+              `Bathroom: set ${ui('Width')} ${n('600')}, ${ui('Height')} ${n('600')}, ${ui('Sill')} ${n('1500')}. Click the middle of the 1900 piece of the top wall.`,
+              { t: `The stair hall: set ${ui('Width')} ${n('2000')}, ${ui('Height')} ${n('400')}, ${ui('Sill')} ${n('2400')}. On the 3000 piece of the top wall, in its middle.`, typed: ['1500'], sub: 'Then put the bar back to 1200, 1200 and 900.' },
+              { t: `Press ${k('Esc')}.`, fig: 'b-openings', cap: 'Apartment A with its doors and windows. Every room but the small hall has daylight. On the plan the stair hall\'s window looks like the others; in 3D you see it high in its wall.' },
             ],
           },
         ],
@@ -839,7 +857,8 @@ const lessons = {
               ],
             },
           },
-          'The day zone (living room and kitchen) is 46.5 m², a little more than half. The night zone is 37 m². The hall is tiny: nearly every square metre is a room someone lives in. The plan keeps its promise.',
+          'The day zone (living room and kitchen) is 46.5 m², a little more than half. The night zone is 37 m². The hall is tiny: nearly every square metre is a room someone lives in.',
+          'Check the daylight too, with the rule of lesson 3. The living room has 3.6 m² of window for 27 m² of floor: 13%. Bedroom 1 has 2.2 m² for 15.9 m²: 14%. Bedroom 2 has 2.2 m² for 13.7 m²: 16%. The kitchen\'s two windows make 2.9 m² for 19.5 m²: 15%. Every room is above one tenth, with something to spare for the frames. The plan keeps its promise.',
         ],
       },
       {
@@ -891,7 +910,7 @@ const lessons = {
           { h: 'Lights' },
           {
             steps: [
-              { t: `Press ${k('G')}. One light in the middle of each of these rooms, changing ${ui('Lumens')} in the bar first:`, sub: `Living room ${n('1200')}, each bedroom ${n('1000')}, bathroom ${n('800')}, hall ${n('600')}. The kitchen already has its pendant, the living room its floor lamp.` },
+              { t: `Press ${k('G')} and light each room by the rule of lesson 8: its area times 100 to 150 lumens where people sit or sleep, times 300 where they cook or wash. Type the ${ui('Lumens')} in the bar before each click:`, sub: `Living room (27 m²): two lights of ${n('1200')}, which with the floor lamp make 3600. Kitchen (19.5 m²): two of ${n('2500')}, one in the middle and one over the counter, which with the pendant make 5800. Bedroom 1: ${n('2000')}. Bedroom 2: ${n('1600')}. Bathroom: ${n('1000')} in the middle and ${n('600')} over the washbasin. Hall: ${n('400')}.` },
               `Click ${ui('3D')}, ${ui('Cutaway')}, then ${ui('Night')}. Is any corner dark where someone would sit or work? Add a lamp. Then back to ${ui('Day')} and ${ui('Plan')}.`,
             ],
           },
@@ -900,7 +919,7 @@ const lessons = {
       },
       {
         kind: 'check',
-        blocks: [{ check: ['Every door swings free of furniture.', 'Each bed can be reached from at least one long side with 60 cm to spare.', 'Every room has a floor finish and at least one light.'] }],
+        blocks: [{ check: ['Every door swings free of furniture.', 'Each bed can be reached from at least one long side with 60 cm to spare.', 'Every room has a floor finish, and its lamps add up to what the rule of lesson 8 asks.'] }],
       },
     ],
   },
@@ -947,15 +966,15 @@ const lessons = {
           {
             steps: [
               `Press ${k('V')}, then ${k('Home')} to see the whole building.`,
-              { t: 'Put the pointer in the empty stair hall, near its top left: just to the right of the stair hall wall and a little below the top wall. Press, and drag down and to the left, to a point inside the kitchen near its bottom left corner. Stay inside the outer walls. Let go.', sub: 'The hint line now counts about 65 things selected. If an outer wall is highlighted, press Esc and drag again, staying further inside.' },
+              { t: 'Put the pointer in the empty stair hall, near its top left: just to the right of the stair hall wall and a little below the top wall. Press, and drag down and to the left, to a point inside the kitchen near its bottom left corner. Stay inside the outer walls. Let go.', sub: 'The hint line now counts about 70 things selected. If an outer wall is highlighted, press Esc and drag again, staying further inside.' },
               `Press ${k('Shift')}+${k('M')}. The hint line asks for the first point of the mirror line.`,
               'Move to the middle of the top wall of the stair hall: the 3000 piece. When the small triangle appears, click.',
               `Move straight down to the middle of the bottom wall, at the entrance door. The second apartment appears as a preview. Hold ${k('Ctrl')} and click.`,
               { t: `Press ${k('Esc')}. Apartment B is there: its walls, its doors, its rooms with their names, its furniture, its lights. The mirror also built the second wall of the stair hall, with apartment B's entrance in it.`, sub: `If the original vanished instead, you clicked without Ctrl: press ${k('Ctrl')}+${k('Z')} and do the last two steps again.` },
-              { t: `The windows of apartment B sit in outer walls that were not copied. Press ${k('N')} and place them, opposite those of apartment A. On the long piece of the bottom wall (it starts at the stair hall): set ${ui('Width')} ${n('2000')} for the living room, then back to ${n('1200')} for the kitchen.`, typed: ['2600', '7100'] },
-              { t: 'On the right-hand wall (it starts at the bottom): the kitchen, then bedroom 1.', typed: ['2750', '7750'] },
-              { t: `On the long piece of the top wall (it starts at the right-hand corner): bedroom 2. Then the bathroom's small window, with ${ui('Width')} ${n('600')}, ${ui('Height')} ${n('600')}, ${ui('Sill')} ${n('1500')}.`, typed: ['7350', '4750'], sub: 'Put the bar back to 1200, 1200 and 900 afterwards.' },
-              { t: `The stair hall is closed now. Press ${k('R')}, click in it, and name it ${n('Entrance hall')}. Give its floor ${ui('Polished concrete')} from ${ui('Materials')}, and place a light of ${n('1000')} lumens with ${k('G')}.`, fig: 'b-mirrored', cap: 'One floor, two homes. Thirteen rooms, and you drew six of them.' },
+              { t: `The windows of apartment B sit in outer walls that were not copied. Press ${k('N')} and place them, opposite those of apartment A. On the long piece of the bottom wall (it starts at the stair hall): set ${ui('Width')} ${n('3000')} for the living room, then back to ${n('1200')} for the kitchen.`, typed: ['2600', '7100'] },
+              { t: `On the right-hand wall (it starts at the bottom): the kitchen, then bedroom 1 with ${ui('Width')} ${n('1800')}.`, typed: ['2750', '7750'] },
+              { t: `On the long piece of the top wall (it starts at the right-hand corner): bedroom 2, still 1800 wide. Then the bathroom's small window, with ${ui('Width')} ${n('600')}, ${ui('Height')} ${n('600')}, ${ui('Sill')} ${n('1500')}.`, typed: ['7350', '4750'], sub: 'Put the bar back to 1200, 1200 and 900 afterwards.' },
+              { t: `The stair hall is closed now. Press ${k('R')}, click in it, and name it ${n('Entrance hall')}. Give its floor ${ui('Polished concrete')} from ${ui('Materials')}. It is 27 m² and wants about 100 lumens for each: place two lights of ${n('1500')} with ${k('G')}, one near the entrance and one halfway down the hall.`, fig: 'b-mirrored', cap: 'One floor, two homes. Thirteen rooms, and you drew six of them.' },
             ],
           },
         ],
@@ -970,23 +989,25 @@ const lessons = {
   // ------------------------------------------------------------------ 15
   upstairs: {
     title: 'The first floor and the stair',
-    lead: 'Copy the floor, change two things, and join the two with a stair that turns back on itself.',
-    card: 'A slab, a second floor by duplication, and a U-shaped stair.',
-    learn: ['Why the upper floor repeats the lower one', 'Keeping a safe copy before a big change', 'Fitting a U-shaped stair into the stair hall'],
+    lead: 'Give the building its columns, copy the floor, change two things, and join the two with a stair that turns back on itself.',
+    card: 'Columns, a slab, a second floor by duplication, and a U-shaped stair.',
+    learn: ['What carries the floors, and where columns go', 'Why the upper floor repeats the lower one', 'Fitting a U-shaped stair into the stair hall'],
     sections: [
       {
         kind: 'idea',
-        title: 'A stair that turns',
+        title: 'Columns, and a stair that turns',
         blocks: [
-          'The first floor is the ground floor again. Walls stand on walls, bathrooms on bathrooms, and the stair hall is the one place that joins the floors. Only two things differ upstairs: nobody comes in from the street, and the hall is a landing.',
-          'The stair hall is 2.8 m wide inside and the floor is 3 m up. A straight stair would need 4 m and would deliver you to the back wall. So the stair <b>turns</b>: eight risers up to a <b>half-landing</b> against the back wall, then eight more back towards the front, arriving on the first floor right above where you started. This is the <b>U-shaped stair</b> of nearly every apartment building.',
-          { rule: 'A U stair with flights 1.2 m wide needs a space about 2.4 m wide and 3 m long, plus room to step on and off. A stair shared by several homes should be at least 1.2 m wide, so that two people can pass and a bed can be carried up.' },
+          'Before the floor goes on, the building needs something to carry it. A slab 200 mm thick should not bridge more than about 5 to 6 m, and each apartment is 9 m wide and 10 m deep. So the building gets <b>columns</b>: one wherever the main wall lines cross, six lines along the building and three across. No slab then spans more than 5.5 m. The columns stand in the same places on every floor, and beams inside the walls and the slab join them. How big they must be is for the engineer to calculate; your part is to give them a regular grid and to keep it.',
+          'The first floor is the ground floor again. Columns stand on columns, walls on walls, bathrooms on bathrooms, and the stair hall is the one place that joins the floors. Only two things differ upstairs: nobody comes in from the street, and the hall is a landing.',
+          'The stair hall is 2.8 m wide inside and the floor is 3 m up. A straight stair would need 5 m and would deliver you to the back wall. So the stair <b>turns</b>: nine risers up to a <b>half-landing</b> against the back wall, then nine more back towards the front, arriving on the first floor right above where you started. This is the <b>U-shaped stair</b> of nearly every apartment building.',
+          { rule: 'A U stair with flights 1.2 m wide needs a space about 2.4 m wide and 3.6 m long, plus room to step on and off. A stair shared by several homes should be at least 1.2 m wide, so that two people can pass and a bed can be carried up, and it must be gentle: risers of 17 cm at most, treads of 28 cm at least. Those are the limits you set in lesson 6, so Hollin lays this stair out correctly by itself.' },
         ],
       },
       {
         kind: 'app',
-        title: 'Snapshots, and the U stair',
+        title: 'Snapshots, columns and the U stair',
         blocks: [
+          `The ${ui('Column')} tool (${k('C')}) stands a column where you click. On the end of a wall it catches the point exactly, as the Wall tool does. The bar gives its shape and its size: the 300 by 300 mm it starts with is a fair first guess for two floors.`,
           `Before a big step, save a <b>snapshot</b>: a named copy of the design you can return to. It is in the ${ui('Project')} panel on the right, under ${ui('Snapshots')}.`,
           { fig: 'b-snapshots', size: 'narrow', cap: `The ${ui('Project')} panel. A snapshot costs one click and can save an evening.` },
           `The Stair tool (${k('Shift')}+${k('S')}) draws a U stair from two clicks: where it starts, and which way the first flight goes. Hollin lays out both flights and the landing from the height of the floor. ${ui('Turn')} chooses whether it comes back on the left or on the right.`,
@@ -1000,13 +1021,14 @@ const lessons = {
           {
             steps: [
               `Open the ${ui('Project')} panel on the right. Under ${ui('Snapshots')}, save one named ${n('Before the first floor')}. Then go back to ${ui('Properties')}.`,
+              { t: `The columns. Press ${k('C')} and click eighteen points, waiting for the small square each time. Six along the bottom wall: the left corner, the kitchen wall, the two walls of the stair hall, the kitchen wall of apartment B, the right corner. The same six along the top wall. And the six between them, on the line of the cross walls. Press ${k('Esc')}.`, fig: 'b-columns', cap: 'Eighteen columns: six lines along the building, three across. The longest span is 5.5 m.' },
               `The floor slab: press ${k('K')}, set ${ui('Make')} to ${ui('a slab')}, click the bottom left corner of the building and then the top right corner. Set ${ui('Make')} back to ${ui('a free shape')} and press ${k('Esc')}.`,
               `In the ${ui('Levels')} panel click ${ui('Duplicate level')}. Double-click the new level's name and call it ${n('First floor')}.`,
               { t: `You are on the first floor. Click the entrance door in the bottom wall and, in ${ui('Properties')}, change ${ui('Kind')} to ${ui('Window')}, ${ui('Sill')} ${n('900')}, ${ui('Height')} ${n('1200')}.`, fig: 'b-window-props', cap: 'Upstairs, the street door becomes a window that lights the landing.' },
               `Still upstairs: click the Entrance hall room and rename it ${n('Landing')}.`,
               `Click ${ui('Ground floor')} in the ${ui('Levels')} panel. Press ${k('Shift')}+${k('S')}. In the bar: ${ui('Shape')} ${ui('U')}, ${ui('Width')} ${n('1200')}, ${ui('Turn')} ${ui('right')}.`,
-              'Click in the stair hall, close to its left wall and about level with the bathroom doors. Move the pointer straight up. The preview shows two flights and the landing: when the landing reaches the top wall, click.',
-              { t: `Press ${k('V')}, click the stair, and nudge it with the arrow keys until it sits between the two walls with its landing against the top wall.`, fig: 'b-stair-plan', cap: 'The stair in its hall: eight risers up on the left, the half-landing under the window, eight more down the right to the first floor.' },
+              'Click in the stair hall, close to its left wall and about 90 cm above the line of the cross walls. Move the pointer straight up. The preview shows two flights and the landing; click anywhere above: Hollin gives the flights the length their steps need.',
+              { t: `Press ${k('V')}, click the stair, and nudge it with the arrow keys until it sits between the two walls with its landing against the top wall.`, fig: 'b-stair-plan', cap: 'The stair in its hall: nine risers up on the left, the half-landing below the high window, nine more down the right to the first floor.' },
               { t: `Click ${ui('First floor')} in the ${ui('Levels')} panel.`, fig: 'b-first-plan', cap: 'The first floor. The stair arrives with its arrow pointing down, in the hole Hollin cut through the slab.' },
               { t: `Click ${ui('Section')}.`, fig: 'b-section', cap: 'Two floors and the stair between them.' },
             ],
@@ -1016,7 +1038,7 @@ const lessons = {
       },
       {
         kind: 'check',
-        blocks: [{ check: ['The Levels panel shows two floors, each with thirteen rooms.', 'The stair has 16 risers in two flights and no warning colour.', 'Upstairs, the stair hall has a window where the entrance door is downstairs.'] }],
+        blocks: [{ check: ['The Levels panel shows two floors, each with thirteen rooms.', 'Eighteen columns stand in the same places on both floors.', 'The stair has 18 risers in two flights and no warning colour.', 'Upstairs, the stair hall has a window where the entrance door is downstairs.'] }],
       },
     ],
   },
@@ -1036,11 +1058,12 @@ const lessons = {
           {
             ol: [
               '<b>The rules.</b> Is any stair too steep, any door too wide for its wall, any room open?',
-              '<b>Daylight.</b> Does every room where people stay have a window?',
+              '<b>Daylight.</b> Does every room where people stay have windows of a tenth of its floor or more?',
+              '<b>Safety.</b> Has every stair a landing at its foot and at its top, a handrail, and a guard round its stairwell? Is every window sill at least 90 cm above the floor people stand on beside it?',
               '<b>Paths.</b> From the street to each front door, from each front door to each bed: short, clear, and through no private room.',
               '<b>Privacy.</b> Standing at the apartment\'s door, can you see into a bedroom or the bathroom? You should not.',
               '<b>Furniture.</b> Does every door swing free? Is there space to walk?',
-              '<b>Night.</b> Is every room lit, and the stair?',
+              '<b>Night.</b> Is every room lit as the rule of lesson 8 asks, and the stair?',
               '<b>Outside.</b> Does the building look calm from the street: windows in line, one above the other?',
             ],
           },
@@ -1070,7 +1093,7 @@ const lessons = {
           {
             steps: [
               `Click ${ui('Warnings')} in the right panel. It should say ${ui('No warnings')}. If it lists something, click the line and fix what the plan shows.`,
-              { t: `Click ${ui('3D')}, then ${ui('3/4')}. Drag to walk round the building. Are the windows of the two floors in line?`, fig: 'b-3d', cap: 'The whole building from the south-west.' },
+              { t: `Click ${ui('3D')}, then ${ui('3/4')}. Drag to walk round the building. Are the windows of the two floors in line?`, fig: 'b-3d', cap: 'The whole building from its front left corner.' },
               { t: `Drag the ${ui('Explode')} slider to the right.`, fig: 'b-explode', cap: 'The floors lifted apart: four homes, two and two.' },
               { t: `Slide it back. Click ${ui('Cutaway')} and choose ${ui('Ground floor')}.`, fig: 'b-cutaway', cap: 'The ground floor open to the sky: both apartments, the entrance hall and the foot of the stair.' },
               { t: `Click ${ui('Night')}.`, fig: 'b-night', cap: 'The same floor after dark. Hollin switches on the sixteen lamps nearest to you, so in a building this size come closer to judge a far room.' },
@@ -1105,7 +1128,7 @@ const lessons = {
           {
             ul: ['Printed plans carry a <b>scale</b>. At 1:100, one centimetre on paper is one metre of building: the usual scale for a house.', 'Every sheet says what it is: the project, the floor, the scale, the date.', 'People who do not read plans read <b>pictures</b>. A 3D view of the cut-open floor explains a home faster than any plan.'],
           },
-          { warn: 'This course teaches design, not engineering. Before anything is built, a qualified architect or engineer must check the structure, the stair, fire safety and your local building rules. Your drawing is the best possible start for that conversation.' },
+          { warn: 'This course teaches design, not engineering. Its sizes are sound starting points, checked against published building rules, but rules differ from country to country and a structure has to be calculated. Before anything is built, a qualified architect or engineer must check the structure (the slabs, the beams, the columns and what they stand on), the stairs and their railings, fire safety and your local building rules. Your drawing is the best possible start for that conversation.' },
         ],
       },
       {
@@ -1154,9 +1177,255 @@ const lessons = {
   },
 
   // ------------------------------------------------------------------ 18
+  'villa-brief': {
+    title: 'Guests and family: the brief of a villa',
+    lead: 'In a Saudi home, hospitality and privacy shape the plan before any wall is drawn. Write the brief of a family villa, read its zones, and draw its walls.',
+    card: 'The majlis, the two entrances and the family zone; then the walls of the villa in six runs.',
+    learn: ['How hospitality and privacy shape a Saudi home', 'Planning a guest zone and a family zone that do not cross', 'Drawing a whole floor of walls from one diagram'],
+    sections: [
+      {
+        kind: 'idea',
+        title: 'A home with two faces',
+        blocks: [
+          'The apartments of part 2 could stand almost anywhere. A family villa in Saudi Arabia starts from two ideas that are much older than concrete: a guest is honoured, and the family is not on show. The plan has to do both at once.',
+          {
+            ul: [
+              '<b>The majlis.</b> The room where guests are received, often the best room of the house. It sits at the front, beside the entrance, so that a visitor reaches it without seeing the rest of the home.',
+              '<b>One entrance for guests, another for the family.</b> Guests come in at the front. The family comes and goes by a door of its own, at the side, straight into its part of the house.',
+              '<b>A washroom for guests.</b> Next to the majlis, with a basin for washing hands before and after a meal. A guest never has to be led through the family\'s rooms.',
+              '<b>The family\'s rooms out of sight.</b> The family living room, the kitchen and the stair lie behind the guest rooms. From the guests\' door nobody should see into them, even when a door stands open.',
+              '<b>A back way for the coffee.</b> Coffee, dates and dinner travel from the kitchen to the majlis without crossing the family living room.',
+              '<b>The bedrooms upstairs.</b> The whole first floor is the night zone. No visitor climbs the stair.',
+            ],
+          },
+          'This is lesson 5 with one more zone. There are four now: <b>guests</b>, <b>family</b>, <b>night</b> and <b>wet</b>. The new rule is that the guest zone and the family zone meet at as few doors as possible.',
+          { draw: 'villa-program', words: { majlis: 'Majlis', entry: 'Guest\nentrance', wash: 'Guest\nwashroom', kitchen: 'Kitchen', living: 'Family living', stairHall: 'Stair hall', guests: 'guests come in here', family: 'the family\'s door', garden: 'the garden side', street: 'the street side' }, cap: 'The ground floor. Warm tint: the guest zone. Green: the family zone. Mauve: the washroom. The thick wall between the majlis and the family living room has a single door.' },
+          { h: 'The brief' },
+          {
+            ul: [
+              'A plot that allows a house <b>12 m wide and 10 m deep</b>, on two floors, with a garden behind it and a wall round the plot.',
+              'Ground floor: a <b>majlis</b> for about twelve guests, a guest entrance and washroom, a kitchen big enough for the family\'s table, a family living room, and a stair hall with the family\'s door.',
+              'First floor: a master bedroom with its own bathroom, two more bedrooms, a second bathroom, a small lounge.',
+            ],
+          },
+          {
+            table: {
+              head: ['Decision', 'Why'],
+              rows: [
+                ['The majlis is at the front left, 5 m by 5.5 m, and the guests\' entrance is beside it.', 'Guests arrive, turn once and are seated.'],
+                ['The guests\' washroom stands behind their entrance hall.', 'It closes the view from the front door into the house.'],
+                ['The wall between the guest rooms and the family living room is 200 mm thick, with one door at the far end of the majlis.', 'Voices should not carry. The host comes and goes by that door.'],
+                ['The kitchen is at the front right, with a door to the guests\' entrance hall.', 'A tray goes from the kitchen to the majlis in a few steps.'],
+                ['The family living room is at the back, with its windows on the garden.', 'The most private side of the plot.'],
+                ['The family\'s door is in the side wall and opens on the stair hall.', 'Shopping reaches the kitchen and children reach the stair, and no guest sees either.'],
+              ],
+            },
+          },
+          { rule: 'Test privacy with a straight line. Stand at each entrance on your plan and draw lines through every door as if it stood open. If a line from the guests\' door reaches one of the family\'s rooms, move a door or put a room in the way.' },
+          'Two more things belong in this brief. The sun: windows that face west take the afternoon heat, so keep them modest and shade them. And the rules: in Saudi Arabia the Saudi Building Code says what a house must meet, and an architect licensed there checks your design against it.',
+        ],
+      },
+      {
+        kind: 'app',
+        title: 'Reading the diagram',
+        blocks: [
+          'There is no new tool in this lesson: you know them all. So the steps are shorter. You get one diagram with the lengths and the order of the runs, the way a designer would sketch it for a colleague.',
+          { draw: 'villa-walls', words: { start: 'start here', majlis: 'Majlis', entry: 'Entrance', wash: 'Washroom', kitchen: 'Kitchen', living: 'Family living', stairHall: 'Stair hall' }, cap: 'The outline with its six stops, then five runs of inner walls. Run 1 is the thick wall between the guests and the family.' },
+          { tip: 'Two of the points are for later. The stop in the middle of the back wall and the point 3500 along run 1 are the two ends of a wall you will build upstairs.' },
+        ],
+      },
+      {
+        kind: 'do',
+        title: 'Draw the walls of the ground floor',
+        blocks: [
+          {
+            steps: [
+              `Go to the projects page, click ${ui('New project')} and name it ${n('Family villa')}. Roll the wheel back to about 1:100.`,
+              { t: `Press ${k('W')}, ${ui('Thickness')} 200. Click the first corner in the lower left. Move right and type three pieces:`, typed: ['5000', '2000', '5000'], sub: 'The majlis, the guests\' entrance, the kitchen.' },
+              { t: 'Move up, two pieces:', typed: ['5500', '4500'] },
+              { t: 'Move left, three pieces:', typed: ['5000', '3500', '3500'] },
+              { t: 'Move down, one piece, then click the first corner to close the outline.', typed: ['4500'] },
+              { t: `<b>Run 1, the thick wall (200).</b> Press ${k('W')} again. Click the stop on the left wall, move right and type three pieces. Press ${k('Enter')}.`, typed: ['3500', '1500', '2000'] },
+              { t: `<b>Run 2, the long wall.</b> Set ${ui('Thickness')} to ${n('100')}. Click the second stop on the bottom wall, 7000 from the left corner. Move up and type one piece. Then click the end of run 1, then the stop on the top wall straight above. Press ${k('Enter')}.`, typed: ['2500'] },
+              { t: `<b>Run 3, the majlis wall.</b> Click the first stop on the bottom wall, 5000 from the left corner. Move up and type one piece. Then click the point on run 1 straight above, and press ${k('Enter')}.`, typed: ['2500'] },
+              `<b>Run 4.</b> Click the end of the 2500 piece of run 3, then the point opposite it on run 2. Press ${k('Enter')}.`,
+              { t: `<b>Run 5.</b> Click the end of run 1, where it meets run 2, then the stop on the right-hand wall. Press ${k('Enter')}, then ${k('Esc')}. Set ${ui('Thickness')} back to 200.`, fig: 'v-walls', cap: 'The ground floor: six spaces. Below the thick wall, the guests. Above it and to the right, the family.' },
+            ],
+          },
+        ],
+      },
+      {
+        kind: 'check',
+        blocks: [{ check: ['The plan shows six closed spaces.', 'One inner wall is as thick as the outer walls: the one between the majlis and the family living room.', 'You can point to the two entrances and say who uses each.'] }],
+      },
+    ],
+  },
+
+  // ------------------------------------------------------------------ 19
+  'villa-floors': {
+    title: 'Doors, columns and the family\'s floor',
+    lead: 'Place every door with privacy in mind and give the villa its columns. Then copy the floor and turn the copy into the bedrooms.',
+    card: 'The doors and windows of the ground floor, the columns, a first floor made by copying and adapting, and the stair.',
+    learn: ['Placing doors so that no line of sight runs from the guests to the family', 'Setting out columns before the floor goes on', 'Adapting a copied floor instead of drawing it again'],
+    sections: [
+      {
+        kind: 'idea',
+        title: 'Doors that keep the house private',
+        blocks: [
+          'Every door of this plan was placed with the straight-line test of the last lesson.',
+          {
+            ul: [
+              'The <b>guests\' door</b> opens on a small hall. On the left is the majlis. Straight ahead is the washroom door, and behind that a solid wall.',
+              'The <b>majlis</b> has two doors: the guests\' one, from their hall, and the host\'s one at its far corner, into the family living room. That one stays shut while guests are in.',
+              'The <b>kitchen</b> has a door to the guests\' hall, for the trays, and one to the stair hall, for the family.',
+              'The <b>family\'s door</b>, in the side wall, opens on the stair hall. From there: the kitchen, the living room, the stair.',
+            ],
+          },
+          'Count the doors between the two zones: two, the host\'s door and the kitchen\'s. Both are opened from the family\'s side.',
+          {
+            table: {
+              head: ['Opening', 'Width', 'Note'],
+              rows: [
+                ['Guests\' entrance', '<span class="num">1200</span>', 'in the middle of its wall'],
+                ['Majlis door, family entrance, stair hall to living room', '<span class="num">1000</span>', ''],
+                ['Other doors', '<span class="num">900</span>', ''],
+                ['Washroom door', '<span class="num">800</span>', ''],
+                ['Windows of the majlis, the living room and the front of the kitchen', '<span class="num">1800</span>', 'sill at 900'],
+                ['Windows of the kitchen\'s side and of the stair hall', '<span class="num">1200</span>', 'sill at 900'],
+              ],
+            },
+          },
+          { h: 'What holds it up' },
+          'The villa is 12 m by 10 m: far too much for a slab alone. Its columns stand at the four corners, at the six stops of the outline, and at the two points where runs 2 and 3 meet the thick wall. That makes twelve, and none is more than 5.5 m from the next.',
+          { h: 'A floor that is copied, then adapted' },
+          'Upstairs repeats the walls of the ground floor, because walls and columns stand on each other. But the rooms change their job. The majlis becomes the master bedroom. The guests\' hall and washroom become two bathrooms, one beside the other so that they share their pipes. The kitchen becomes a bedroom. The family living room is divided into a third bedroom and a lounge.',
+          'So you copy the floor <b>before</b> it has rooms and furniture, and then change only what differs: the two outside doors become windows, two inner doors go, one wall and two doors are added.',
+          { draw: 'villa-upper', words: { master: 'Master\nbedroom', masterBath: 'Master\nbath', bath: 'Bathroom', bed2: 'Bedroom 2', bed3: 'Bedroom 3', lounge: 'Lounge', landing: 'Landing', newWall: 'the new wall' }, cap: 'The first floor, on the walls of the ground floor. Green: the bedrooms. Mauve: the bathrooms. Warm tint: the lounge and the landing. The dashed line is the one wall that is new.' },
+        ],
+      },
+      {
+        kind: 'do',
+        title: 'Doors, windows and the first floor',
+        blocks: [
+          { h: 'Doors' },
+          {
+            steps: [
+              { t: `Press ${k('D')}, ${ui('Width')} ${n('1200')}. Move over the 2000 piece of the bottom wall and type the distance: the guests' entrance, opening inwards.`, typed: ['1000'] },
+              { t: `${ui('Width')} ${n('1000')}. The majlis door: on the lower piece of run 3, opening into the majlis.`, typed: ['1250'] },
+              { t: `${ui('Width')} ${n('900')}. The kitchen's door to the guests' hall: on the lower piece of run 2, opening into the kitchen. The same number.`, typed: ['1250'] },
+              { t: `${ui('Width')} ${n('800')}. The washroom door: on run 4, in its middle, opening into the washroom.`, typed: ['1000'] },
+              { t: `${ui('Width')} ${n('900')}. The host's door: on the 1500 piece of run 1, opening into the family living room.`, typed: ['750'] },
+              { t: 'The kitchen\'s door to the stair hall: on run 5, near its left end, opening into the kitchen.', typed: ['700'] },
+              { t: `${ui('Width')} ${n('1000')}. Two doors with the same number: on the upper piece of run 2, from the stair hall into the living room; and on the upper piece of the right-hand wall, the family's entrance, opening inwards.`, typed: ['800'], sub: `Then put ${ui('Width')} back to 900.` },
+            ],
+          },
+          { h: 'Windows' },
+          {
+            steps: [
+              { t: `Press ${k('N')}, ${ui('Width')} ${n('1800')}. Six windows, each in the middle of its piece: the bottom wall of the majlis and of the kitchen, the left wall beside the majlis and beside the living room, and the two pieces of the top wall above the living room.`, sub: 'By eye, or type half the length of the piece.' },
+              { t: `${ui('Width')} ${n('1200')}. The middle of the right-hand wall beside the kitchen. Then the stair hall: on the 5000 piece of the top wall, which starts at the right-hand corner.`, typed: ['2750', '4200'], sub: 'The stair will run along that wall. The window stands clear of it, at the end where the stair arrives upstairs.', fig: 'v-openings', cap: 'Eight doors and eight windows. The guests\' washroom has no outside wall: it gets a fan.' },
+            ],
+          },
+          { h: 'Columns, the slab and the first floor' },
+          {
+            steps: [
+              { t: `Press ${k('C')}. Click the four corners of the house, the six stops of its outline, and the two points where runs 2 and 3 meet the thick wall. Press ${k('Esc')}.`, fig: 'v-columns', cap: 'Twelve columns, placed before the floor goes on.' },
+              `Press ${k('K')}, set ${ui('Make')} to ${ui('a slab')}, click the bottom left corner of the house and then the top right. Set ${ui('Make')} back to ${ui('a free shape')} and press ${k('Esc')}.`,
+              `In ${ui('Levels')}, click ${ui('Duplicate level')} and name the copy ${n('First floor')}. You are upstairs now.`,
+              `Click the door in the bottom wall. In ${ui('Properties')}: ${ui('Kind')} ${ui('Window')}, ${ui('Width')} ${n('600')}, ${ui('Height')} ${n('600')}, ${ui('Sill')} ${n('1500')}. It is the window of the master bathroom now. Then click the family's door in the right-hand wall and make it a window too: ${ui('Kind')} ${ui('Window')}, ${ui('Sill')} ${n('900')}, ${ui('Height')} ${n('1200')}. Nobody walks out of an upstairs wall.`,
+              `Click the door on the right of that small room, the one that led to the kitchen, and press ${k('Delete')}. Click the door at the back of the small room and press ${k('Delete')}: two bathrooms do not open into each other.`,
+              `Press ${k('W')}, ${ui('Thickness')} ${n('100')}. Click the stop in the middle of the top wall, then the point on the thick wall straight below it. ${k('Enter')}, ${k('Esc')}. Set ${ui('Thickness')} back to 200.`,
+              { t: `Press ${k('D')}. Bedroom 3's door: on the new wall, near its lower end, opening into the room on the left. Then ${ui('Width')} ${n('800')} for the bathroom: on the 2000 piece of the thick wall, in its middle, opening into the bathroom.`, typed: ['3800', '1000'], sub: 'The new wall starts at the top, so 3800 along it is 700 from its lower end.' },
+              `Click ${ui('Ground floor')} in ${ui('Levels')}. Press ${k('Shift')}+${k('S')}: ${ui('Shape')} ${ui('U')}, ${ui('Width')} ${n('1000')}, ${ui('Turn')} ${ui('left')}. Click in the stair hall, 1.5 m from its left wall and 1.5 m below the top wall. Move the pointer to the right and click.`,
+              `Press ${k('V')}, click the stair and nudge it with the arrow keys until its two flights lie along the top wall and its landing touches the right-hand wall.`,
+              { t: `Name the rooms of the ground floor with ${k('R')} and ${k('V')}: ${n('Majlis')}, ${n('Guest entrance')}, ${n('Guest washroom')}, ${n('Kitchen')}, ${n('Family living')}, ${n('Stair hall')}.`, fig: 'v-rooms', cap: 'The ground floor with its rooms, its columns and the stair. The majlis is selected.' },
+              { t: `And those of the first floor: ${n('Master bedroom')} over the majlis, ${n('Master bathroom')} and ${n('Bathroom')} behind it, ${n('Bedroom 2')}, ${n('Bedroom 3')}, ${n('Lounge')}, ${n('Landing')}.`, fig: 'v-first-plan', cap: 'The first floor: three bedrooms round a lounge, two bathrooms side by side, and the stair arriving on the landing.' },
+            ],
+          },
+          'Compare your areas with these.',
+          {
+            table: {
+              head: ['Ground floor', 'Area', 'First floor', 'Area'],
+              rows: [
+                ['Majlis', '<span class="num">25.7 m²</span>', 'Master bedroom', '<span class="num">25.7 m²</span>'],
+                ['Guest entrance', '<span class="num">4.5 m²</span>', 'Master bathroom', '<span class="num">4.5 m²</span>'],
+                ['Guest washroom', '<span class="num">5.4 m²</span>', 'Bathroom', '<span class="num">5.4 m²</span>'],
+                ['Kitchen', '<span class="num">25.9 m²</span>', 'Bedroom 2', '<span class="num">25.9 m²</span>'],
+                ['Family living', '<span class="num">29.4 m²</span>', 'Bedroom 3 and Lounge', '<span class="num">14.4 and 14.6 m²</span>'],
+                ['Stair hall', '<span class="num">21.1 m²</span>', 'Landing', '<span class="num">21.1 m²</span>'],
+              ],
+            },
+          },
+          'The stair has a metre and a half of floor at its foot and where it arrives, its half-landing stands against a wall without a window, and the hall\'s window is clear of both. The inner bathroom upstairs has no window: like the guests\' washroom under it, it needs a fan.',
+        ],
+      },
+      {
+        kind: 'check',
+        blocks: [{ check: ['From the guests\' door, no straight line through open doors reaches the family living room or the stair.', 'Twelve columns stand in the same places on both floors.', 'The stair has 18 risers and no warning colour.', 'Upstairs, every bedroom opens on the lounge or the landing, never on another bedroom.'] }],
+      },
+    ],
+  },
+
+  // ------------------------------------------------------------------ 20
+  'villa-interior': {
+    title: 'The majlis, the light and the roof',
+    lead: 'Furnish the majlis the way guests are received, light every room by the numbers, close the house with a roof and look at what you made.',
+    card: 'Furnishing a majlis, lighting by the rule, a roof level, and the finished villa.',
+    learn: ['Furnishing a majlis: seats along the walls', 'Checking daylight and lamps against the rules of part 1', 'Closing a building with a roof level'],
+    sections: [
+      {
+        kind: 'idea',
+        title: 'A room for sitting together',
+        blocks: [
+          'A living room is arranged round a screen or a view. A majlis is arranged round its guests. The seats run along the walls, so that everyone faces everyone and nobody sits with their back to another; the middle stays open for the coffee, the dates and the people who serve them.',
+          {
+            ul: [
+              'Seats on at least three walls, low tables in front of them, the middle clear.',
+              'A carpet underfoot: the majlis is the softest and quietest floor of the house.',
+              'Even, warm light from more than one lamp: no dark corner and no glare.',
+              'The door near a corner, so that it opens onto the room and not onto a guest.',
+            ],
+          },
+          'The rest of the ground floor follows part 1: the kitchen works along one wall and feeds the family at its own table, and the family living room looks at the garden.',
+          { h: 'The roof' },
+          'Every building so far in this course was left open to the sky, so that you could look in. A real house ends with a roof slab. In Hollin a roof is one more level with a slab on it. A flat roof that people use also needs a wall or a railing round its edge, at least 90 cm high, and a stair of its own: two good exercises for after this lesson.',
+        ],
+      },
+      {
+        kind: 'do',
+        title: 'Furnish, light and close the villa',
+        blocks: [
+          {
+            steps: [
+              `<b>Majlis.</b> On the ${ui('Ground floor')}, from the ${ui('Catalog')}: four ${ui('Sofa, 3 seats')} along the walls, two on the left wall, one on the back wall, one under the front window. Two ${ui('Armchair')}s on the wall by the door. Two ${ui('Coffee table')}s in a line down the middle, and a ${ui('Potted plant')} in the corner.`,
+              `<b>Guests' entrance and washroom.</b> Leave the small hall empty: three doors open on it. In the washroom, a ${ui('Washbasin')} on the right-hand wall, where a guest sees it first, and a ${ui('Toilet')} at the back.`,
+              `<b>Kitchen.</b> Along the right-hand wall, from the front: ${ui('Fridge freezer')}, ${ui('Sink unit')}, ${ui('Kitchen counter, 2.4 m')} under the window, ${ui('Cooker')}. In the room, a ${ui('Dining table, 6 seats')} with six ${ui('Dining chair')}s and a ${ui('Pendant lamp')} (with its light) over it. Keep the door from the guests' hall clear.`,
+              { t: `<b>Family living.</b> ${ui('TV unit')} on the thick wall. A ${ui('Sofa, 3 seats')} facing it, with the garden windows behind. A ${ui('Sofa, 2 seats')} under the side window, an ${ui('Armchair')}, a ${ui('Coffee table')}, a ${ui('Floor lamp')} (with its light) in the corner and a ${ui('Bookshelf')} beside the stair hall door.`, fig: 'v-furnished', cap: 'The ground floor furnished. In the majlis the seats follow the walls; in the living room they face the screen.' },
+              `${ui('Materials')}: ${ui('Beige carpet')} on the floor of the majlis and ${ui('Warm grey paint')} on its walls. ${ui('Marble')} in the guests' entrance, the family living room and the stair hall. ${ui('Large grey tiles')} in the kitchen. ${ui('White tiles')} and ${ui('Subway tiles')} in the washroom.`,
+              { t: `Press ${k('G')} and light each room by the rule of lesson 8:`, sub: `Majlis (25.7 m²): two lights of ${n('1600')}. Guests' entrance: ${n('500')}. Washroom: ${n('1000')} in the middle and ${n('600')} over the basin. Kitchen (25.9 m²): ${n('2500')} over the counter, then ${n('2500')} and ${n('2000')} over the rest of the room, which with the pendant make 7800. Family living (29.4 m²): two of ${n('1200')}, which with the floor lamp make 3600. Stair hall: two of ${n('1000')}.` },
+              { t: `The roof. In ${ui('Levels')}, click the plus above the list and choose ${ui('Level on top')}. Double-click the new level and name it ${n('Roof')}. Press ${k('K')}, set ${ui('Make')} to ${ui('a slab')}, and click two opposite corners of the house: the floor below shows through. Set ${ui('Make')} back and press ${k('Esc')}.`, fig: 'v-levels', size: 'narrow', cap: 'Three levels: two floors and the roof.' },
+              { t: `Click ${ui('Ground floor')}, then ${ui('Section')}.`, fig: 'v-section', cap: 'The levels from the side: two floors, the stair between them, and the roof, whose slab closes the house at 6 m.' },
+              `Open ${ui('Warnings')}: it should say ${ui('No warnings')}. Then ${ui('3D')}: the house is closed now. ${ui('Cutaway')} with ${ui('Ground floor')} opens it again, by ${ui('Day')} and by ${ui('Night')}.`,
+            ],
+          },
+          { fig: 'v-render', cap: 'The finished villa from the street. The guests\' door is in the middle of the front; the family\'s door is round the corner on the right.' },
+          { fig: 'v-render-cutaway', cap: 'The ground floor cut open: the majlis at the front, the kitchen beside it, the family living room and the stair behind.' },
+          { fig: 'v-render-night', cap: 'The same floor after dark, lit by the lamps you placed.' },
+          'Check the daylight as you did for the apartment. The majlis has 4.3 m² of window for 25.7 m² of floor: 17%. The kitchen has 3.6 m² for 25.9 m²: 14%. The family living room has 6.5 m² for 29.4 m²: 22%.',
+          { tip: 'Your turn alone: the first floor is empty. Furnish the three bedrooms and the lounge, fit out the two bathrooms, and light every room by the rule. Then add the low wall round the roof.' },
+        ],
+      },
+      {
+        kind: 'check',
+        blocks: [{ check: ['The majlis seats its guests along the walls and its middle is clear.', 'The lamps of every room add up to what the rule asks.', 'The Levels panel shows Roof above First floor, and the 3D view shows a closed house.'] }],
+      },
+    ],
+  },
+
+  // ------------------------------------------------------------------ 21
   next: {
     title: 'Where to go from here',
-    lead: 'You started with a single wall and finished with four homes. Here is what you now know, what to try next, and a word about Otto.',
+    lead: 'You started with a single wall and finished with four apartments and a villa. Here is what you now know, what to try next, and a word about Otto.',
     card: 'What you learnt, ideas for your next design, and a note on Otto.',
     sections: [
       {
@@ -1170,10 +1439,11 @@ const lessons = {
               'Doors by the corner, opening into the room; a window for every room.',
               'Rooms sized for their furniture, not too long for their width.',
               'Day, night and wet zones, and short paths between them.',
-              'Floors that stack, and a stair sized for a human stride.',
+              'Floors that stack on columns set out on a grid, and a stair sized for a human stride, with its landings, handrail and guard.',
               'Furniture with room to move around it.',
               'Few materials, pale colours, three kinds of light.',
               'One good plan, mirrored and repeated.',
+              'A guest zone and a family zone, each with its own door.',
               'A review before anyone sees it, and dimensions before anyone builds it.',
             ],
           },
@@ -1187,9 +1457,9 @@ const lessons = {
             ul: [
               '<b>Draw your own home.</b> Take a tape measure, start with one room, and grow from there. Nothing teaches proportions faster than a place you know.',
               '<b>Improve the apartment.</b> Give the kitchen a second door to the hall. Try three bedrooms. Swap the kitchen and a bedroom and see what happens to the paths.',
-              `<b>Add a roof.</b> In ${ui('Levels')}, the plus button adds a ${ui('Level on top')}. Draw a slab on it and the building is closed.`,
+              '<b>Give the apartments a roof</b>, the way you gave the villa one, and a low wall round its edge.',
               '<b>Add a third floor.</b> Duplicate the first floor, then draw a second stair from the first floor to the new one, right above the first.',
-              `<b>Explore the other tools.</b> Columns (${k('C')}), ramps, elevators, curved walls (press ${k('A')} while drawing a wall), balconies drawn as slabs.`,
+              `<b>Explore the other tools.</b> Ramps, elevators, curved walls (press ${k('A')} while drawing a wall), balconies drawn as slabs.`,
             ],
           },
           { h: 'The keys worth remembering' },
@@ -1200,6 +1470,7 @@ const lessons = {
               [`${k('D')} ${k('N')}`, 'Door, window'],
               [`${k('R')} ${k('S')}`, 'Room, room divider'],
               [`${k('Shift')}+${k('S')}`, 'Stair'],
+              [k('C'), 'Column'],
               [`${k('K')} ${k('L')} ${k('T')}`, 'Rectangle (and slab), dimension, label'],
               [k('G'), 'Light'],
               [`${k('Shift')}+${k('M')}`, 'Mirror the selection (Ctrl keeps the original)'],

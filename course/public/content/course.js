@@ -1,7 +1,8 @@
-/** The course's shape, the same in every language: three parts, their lessons in order, and how long each takes. */
+/** The course's shape, the same in every language: four parts, their lessons in order, and how long each takes. */
 export const PARTS = [
   { id: 'basics', lessons: ['plan', 'walls', 'openings', 'rooms', 'zones', 'floors', 'furniture', 'finishes'] },
   { id: 'project', lessons: ['brief', 'partitions', 'apartment-openings', 'apartment-rooms', 'interior', 'mirror', 'upstairs', 'review', 'share'] },
+  { id: 'villa', lessons: ['villa-brief', 'villa-floors', 'villa-interior'] },
   { id: 'after', lessons: ['next'] },
 ];
 
@@ -24,6 +25,9 @@ export const MINUTES = {
   upstairs: 25,
   review: 20,
   share: 15,
+  'villa-brief': 30,
+  'villa-floors': 40,
+  'villa-interior': 30,
   next: 5,
 };
 

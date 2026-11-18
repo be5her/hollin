@@ -10,7 +10,7 @@ Installers come from the [releases page](https://github.com/be5her/hollin/releas
 
 ## Learning it
 
-[The Hollin course](https://hollin-course.web.app) teaches the basics of home design with the app, in English and Arabic: eighteen lessons, from a first wall to a two-storey building of four apartments, every step done by hand. Its source is in [`course/`](course/README.md).
+[The Hollin course](https://hollin-course.web.app) teaches the basics of home design with the app, in English and Arabic: twenty-one lessons, from a first wall to a building of four apartments and a Saudi family villa, every step done by hand. Its source is in [`course/`](course/README.md).
 
 ## Status
 

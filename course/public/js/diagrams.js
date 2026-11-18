@@ -6,8 +6,10 @@
  */
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const isArabic = (s) => /[؀-ۿ]/.test(String(s));
+/** Right-to-left text starts at its right edge: an Arabic label asks for the opposite anchor, so it lies where the English one does. */
+const anchorOf = (s, anchor = 'middle') => (isArabic(s) && anchor !== 'middle' ? (anchor === 'start' ? 'end' : 'start') : anchor);
 const text = (x, y, s, o = {}) =>
-  `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${o.anchor ?? 'middle'}" font-size="${o.size ?? 13}"${o.cls ? ` class="${o.cls}"` : ''}${o.weight ? ` font-weight="${o.weight}"` : ''}${isArabic(s) ? ' direction="rtl"' : ''}${o.fill ? ` fill="${o.fill}" style="fill:${o.fill}"` : ''}>${esc(s)}</text>`;
+  `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchorOf(s, o.anchor)}" font-size="${o.size ?? 13}"${o.cls ? ` class="${o.cls}"` : ''}${o.weight ? ` font-weight="${o.weight}"` : ''}${isArabic(s) ? ' direction="rtl"' : ''}${o.fill ? ` fill="${o.fill}" style="fill:${o.fill}"` : ''}>${esc(s)}</text>`;
 const fmt = (mm) => String(Math.round(mm));
 
 /**
@@ -88,43 +90,43 @@ function scheme(spec, L = {}) {
 const seg = (a, b, t = 200, extra = {}) => ({ a, b, t, ...extra });
 const ring = (pts, t = 200) => pts.map((p, i) => seg(p, pts[(i + 1) % pts.length], t));
 
-// ---------- the practice house: 7.5 × 4.5 m ----------
+// ---------- the practice house: 9.5 × 4.5 m ----------
 const HOUSE = ring([
   [0, 0],
-  [7500, 0],
-  [7500, 4500],
+  [9500, 0],
+  [9500, 4500],
   [0, 4500],
 ]);
 
 const houseOutline = {
-  box: [-1700, -1500, 9200, 5900],
+  box: [-1900, -1600, 11200, 6000],
   walls: HOUSE,
-  later: [seg([5500, 0], [5500, 4500])],
+  later: [seg([7500, 0], [7500, 4500])],
   stops: [
-    [5500, 0],
     [7500, 0],
+    [9500, 0],
+    [9500, 4500],
     [7500, 4500],
-    [5500, 4500],
     [0, 4500],
   ],
   start: [0, 0],
   dims: [
-    { a: [0, 0], b: [5500, 0], off: -650 },
-    { a: [5500, 0], b: [7500, 0], off: -650 },
-    { a: [7500, 0], b: [7500, 4500], off: -650 },
-    { a: [7500, 4500], b: [5500, 4500], off: -650 },
-    { a: [5500, 4500], b: [0, 4500], off: -650 },
+    { a: [0, 0], b: [7500, 0], off: -700 },
+    { a: [7500, 0], b: [9500, 0], off: -700 },
+    { a: [9500, 0], b: [9500, 4500], off: -700 },
+    { a: [9500, 4500], b: [7500, 4500], off: -700 },
+    { a: [7500, 4500], b: [0, 4500], off: -700 },
   ],
   arrows: [
-    { a: [1900, 420], b: [3500, 420] },
-    { a: [7080, 1400], b: [7080, 3000] },
-    { a: [3500, 4080], b: [1900, 4080] },
-    { a: [420, 3000], b: [420, 1400] },
+    { a: [2800, 450], b: [4700, 450] },
+    { a: [9050, 1400], b: [9050, 3100] },
+    { a: [4700, 4050], b: [2800, 4050] },
+    { a: [450, 3100], b: [450, 1400] },
   ],
   labels: [
-    { key: 'start', at: [-150, -480], anchor: 'end', accent: true, bold: true },
-    { key: 'close', at: [640, 2300], anchor: 'start', soft: true },
-    { key: 'later', at: [5340, 1500], anchor: 'end', soft: true },
+    { key: 'start', at: [-180, -520], anchor: 'end', accent: true, bold: true },
+    { key: 'close', at: [700, 2300], anchor: 'start', soft: true },
+    { key: 'later', at: [7320, 1500], anchor: 'end', soft: true },
   ],
 };
 
@@ -272,6 +274,135 @@ const program = {
   ],
 };
 
+// ---------- the villa: 12 × 10 m ----------
+const V_OUTLINE = ring([
+  [0, 0],
+  [12000, 0],
+  [12000, 10000],
+  [0, 10000],
+]);
+const V_INNER = [
+  seg([0, 5500], [7000, 5500], 200),
+  seg([7000, 0], [7000, 10000], 100),
+  seg([5000, 0], [5000, 5500], 100),
+  seg([5000, 2500], [7000, 2500], 100),
+  seg([7000, 5500], [12000, 5500], 100),
+];
+
+/** The ground floor by zone: the guests at the front left, the family behind the thick wall and at the side. */
+const villaProgram = {
+  box: [-2600, -1900, 16600, 11700],
+  rooms: [
+    { r: [100, 100, 4950, 5400], fill: 'var(--accent-tint)' },
+    { r: [5050, 100, 6950, 2450], fill: 'var(--accent-tint)' },
+    { r: [5050, 2550, 6950, 5400], fill: 'var(--ai-tint)' },
+    { r: [7050, 100, 11900, 5450], fill: 'var(--room)' },
+    { r: [100, 5600, 6950, 9900], fill: 'var(--room)' },
+    { r: [7050, 5550, 11900, 9900], fill: 'var(--room)' },
+  ],
+  walls: [...V_OUTLINE, ...V_INNER],
+  arrows: [
+    { a: [6000, -1500], b: [6000, -250] },
+    { a: [13500, 6300], b: [12250, 6300] },
+  ],
+  dims: [
+    { a: [0, 10000], b: [12000, 10000], off: 900, text: '12000' },
+    { a: [0, 0], b: [0, 10000], off: 900, text: '10000' },
+  ],
+  labels: [
+    { key: 'majlis', at: [2500, 2900], bold: true, sub: '25.7 m²' },
+    { key: 'entry', at: [6000, 1500], size: 11 },
+    { key: 'wash', at: [6000, 4200], size: 11 },
+    { key: 'kitchen', at: [9500, 2900], bold: true, sub: '25.9 m²' },
+    { key: 'living', at: [3500, 7850], bold: true, sub: '29.4 m²' },
+    { key: 'stairHall', at: [9500, 7850], bold: true, sub: '21.1 m²' },
+    { key: 'guests', at: [6000, -1650], accent: true, bold: true },
+    { key: 'family', at: [13650, 6350], anchor: 'start', accent: true, bold: true, size: 12 },
+    { key: 'street', at: [1700, -900], soft: true },
+    { key: 'garden', at: [3500, 11350], soft: true },
+  ],
+};
+
+/** The lengths to type: the outline with its stops, then the five runs of inner walls. */
+const villaWalls = {
+  box: [-2700, -1900, 14700, 11900],
+  walls: [...V_OUTLINE, ...V_INNER.map((w, i) => (i === 0 ? { ...w, accent: true } : w))],
+  stops: [
+    [5000, 0],
+    [7000, 0],
+    [12000, 5500],
+    [7000, 10000],
+    [3500, 10000],
+    [0, 5500],
+    [3500, 5500],
+    [5000, 5500],
+    [7000, 5500],
+    [5000, 2500],
+    [7000, 2500],
+  ],
+  start: [0, 0],
+  dims: [
+    { a: [0, 0], b: [5000, 0], off: -800 },
+    { a: [5000, 0], b: [7000, 0], off: -800 },
+    { a: [7000, 0], b: [12000, 0], off: -800 },
+    { a: [12000, 0], b: [12000, 5500], off: -800 },
+    { a: [12000, 5500], b: [12000, 10000], off: -800 },
+    { a: [12000, 10000], b: [7000, 10000], off: -800 },
+    { a: [7000, 10000], b: [3500, 10000], off: -800 },
+    { a: [3500, 10000], b: [0, 10000], off: -800 },
+    { a: [0, 10000], b: [0, 5500], off: -800 },
+    { a: [0, 5500], b: [3500, 5500], off: 480 },
+    { a: [3500, 5500], b: [5000, 5500], off: 480 },
+    { a: [5000, 5500], b: [7000, 5500], off: 480 },
+    { a: [7000, 0], b: [7000, 2500], off: -520 },
+    { a: [5000, 0], b: [5000, 2500], off: 520 },
+  ],
+  steps: [
+    { n: 1, at: [1700, 4950] },
+    { n: 2, at: [7000, 7700] },
+    { n: 3, at: [5000, 3900] },
+    { n: 4, at: [6000, 2500] },
+    { n: 5, at: [9500, 5500] },
+  ],
+  labels: [
+    { key: 'start', at: [-250, -900], anchor: 'end', accent: true, bold: true },
+    { key: 'majlis', at: [2500, 2500], soft: true },
+    { key: 'kitchen', at: [9700, 2700], soft: true },
+    { key: 'living', at: [3500, 8200], soft: true },
+    { key: 'stairHall', at: [9700, 8200], soft: true },
+  ],
+};
+
+/** The first floor on the same walls: one new wall, and the rooms' new jobs. */
+const villaUpper = {
+  box: [-2400, -900, 14400, 10900],
+  rooms: [
+    { r: [100, 100, 4950, 5400], fill: 'var(--room)' },
+    { r: [5050, 100, 6950, 2450], fill: 'var(--ai-tint)' },
+    { r: [5050, 2550, 6950, 5400], fill: 'var(--ai-tint)' },
+    { r: [7050, 100, 11900, 5450], fill: 'var(--room)' },
+    { r: [100, 5600, 3450, 9900], fill: 'var(--room)' },
+    { r: [3550, 5600, 6950, 9900], fill: 'var(--accent-tint)' },
+    { r: [7050, 5550, 11900, 9900], fill: 'var(--accent-tint)' },
+  ],
+  walls: [...V_OUTLINE, ...V_INNER],
+  later: [seg([3500, 5500], [3500, 10000])],
+  stops: [
+    [3500, 10000],
+    [3500, 5500],
+  ],
+  labels: [
+    { key: 'master', at: [2500, 2600], bold: true },
+    { key: 'masterBath', at: [6000, 1200], size: 11 },
+    { key: 'bath', at: [6000, 4100], size: 11 },
+    { key: 'bed2', at: [9500, 2900], bold: true },
+    { key: 'bed3', at: [1750, 7850], bold: true },
+    { key: 'lounge', at: [5250, 7850], bold: true },
+    { key: 'landing', at: [9500, 7850], bold: true },
+    { key: 'newWall', at: [3700, 9300], anchor: 'start', soft: true, size: 11.5 },
+  ],
+};
+
 // ---------- drawings that explain an idea ----------
 
 /** A wall with a door and a window seen from the side, cut 1.2 m up, and the same wall on the plan. */
@@ -387,7 +518,7 @@ function stair(L) {
   return `<svg viewBox="0 0 760 305" role="img" xmlns="http://www.w3.org/2000/svg">${o.join('')}</svg>`;
 }
 
-const SCHEMES = { 'house-outline': houseOutline, 'building-outline': buildingOutline, partitions, program };
+const SCHEMES = { 'house-outline': houseOutline, 'building-outline': buildingOutline, partitions, program, 'villa-program': villaProgram, 'villa-walls': villaWalls, 'villa-upper': villaUpper };
 const DRAWINGS = { slice, 'door-place': doorPlace, zones, stair };
 
 /** The SVG of a drawing by its id, worded with `L`; an empty string when there is none. */
