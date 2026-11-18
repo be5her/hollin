@@ -9,5 +9,7 @@ Thumbs.db
 .angular/
 coverage/
 /smoke-shots/
+# The Firebase CLI's deploy cache for the course.
+/course/.firebase/
 # Points a development run at a real update feed (docs/release.md); names the repository, so never committed.
 /dev-app-update.yml

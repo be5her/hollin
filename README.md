@@ -8,6 +8,10 @@ Windows, macOS and Linux, built with Electron and Angular. In English and Arabic
 
 Installers come from the [releases page](https://github.com/be5her/hollin/releases) once the first release is published (none yet; `docs/release.md` says how one is cut). Until then, run it from the source: Node 24, `npm install`, `npm run dev`.
 
+## Learning it
+
+[The Hollin course](https://hollin-course.web.app) teaches the basics of home design with the app, in English and Arabic: twenty-one lessons, from a first wall to a building of four apartments and a Saudi family villa, every step done by hand. Its source is in [`course/`](course/README.md).
+
 ## Status
 
 | Milestone | State |
@@ -33,7 +37,7 @@ Node 24 (see `.nvmrc`; the Angular CLI needs ^22.22.3 or ^24.15).
 | `npm run build` | electron-vite builds main and preload into `out/`; the Angular CLI builds the renderer into `out/renderer`. |
 | `npm run typecheck` | `tsc -p tsconfig.node.json` (main, preload, core, mcp, modules' Node side) and `ngc -p tsconfig.app.json` (the renderer and every module's `ui/`). |
 | `npm test` | vitest unit tests next to the code in `packages/`, `src/main` and `scripts/`. |
-| `npm run smoke` | Builds, then launches the app with `--smoke`: a temporary data folder and a private MCP port, every feature checked through commands, MCP and the UI. Exits non-zero on any failure. `SMOKE_SHOTS=<dir>` saves screenshots. |
+| `npm run smoke` | Builds, then launches the app with `--smoke`: a temporary data folder and a private MCP port, every feature checked through commands, MCP and the UI. Exits non-zero on any failure. `SMOKE_SHOTS=<dir>` saves screenshots. `COURSE_SHOTS=<dir>` instead draws the course's two projects as its lessons tell a reader to and saves the lessons' pictures (`course/README.md`). |
 | `npm run package` | Builds, then installers with electron-builder into `release/`: NSIS on Windows, dmg/zip on macOS, the AppImage on Linux (the deb too when the build has a feed or `package.json` a `homepage`: its fpm target needs one). Unsigned unless the signing secrets are in the environment (`docs/release.md`); a local build has no update feed (only the release workflow's builds have one), so its Settings > Updates says updates are not available. |
 | `npm run release:check` | Fails when `CHANGELOG.md` has no section (or an empty one) for `package.json`'s version, or (`-- vX.Y.Z`) the tag does not match it (`scripts/release-check.mjs`). The release workflow runs it first. |
 | `npm run icon` | Renders `resources/icon.svg` to `resources/icon.png` with Electron. |
@@ -62,6 +66,8 @@ src/main                 Electron main: the host, IPC, the window, the updater (
 src/preload              The only bridge between renderer and main.
 src/renderer             The Angular app and the shell (its own npm workspace).
 scripts/                 The dev launcher, the icon renderer and the release check.
+course/                  The course: a static web tutorial on Firebase Hosting (not an npm workspace; nothing in
+                         the app depends on it). Its pictures are taken by src/main/smoke/course-shots.ts.
 ```
 
 ## Releases
